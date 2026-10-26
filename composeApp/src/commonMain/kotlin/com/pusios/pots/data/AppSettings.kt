@@ -286,6 +286,24 @@ class AppSettings(internal val settings: Settings) {
         settings.putString(KEY_OBSIDIAN_VAULT_URI, uri.trim())
     }
 
+    fun getSoulPresetId(): String = settings.getString(KEY_SOUL_PRESET, "assistant")
+
+    fun setSoulPresetId(id: String) {
+        settings.putString(KEY_SOUL_PRESET, id.trim().ifBlank { "assistant" })
+    }
+
+    fun isAutoVectorizePhotos(): Boolean = settings.getBoolean(KEY_AUTO_VECTORIZE_PHOTOS, false)
+
+    fun setAutoVectorizePhotos(enabled: Boolean) {
+        settings.putBoolean(KEY_AUTO_VECTORIZE_PHOTOS, enabled)
+    }
+
+    fun isAutoVectorizeDocuments(): Boolean = settings.getBoolean(KEY_AUTO_VECTORIZE_DOCUMENTS, false)
+
+    fun setAutoVectorizeDocuments(enabled: Boolean) {
+        settings.putBoolean(KEY_AUTO_VECTORIZE_DOCUMENTS, enabled)
+    }
+
     // Memory
     fun isMemoryEnabled(): Boolean = settings.getBoolean(KEY_MEMORY_ENABLED, true)
 
@@ -736,6 +754,9 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_TOOL_PREFIX = "tool_enabled_"
         const val KEY_SOUL = "soul_text"
         const val KEY_OBSIDIAN_VAULT_URI = "obsidian_vault_uri"
+        const val KEY_SOUL_PRESET = "soul_preset_id"
+        const val KEY_AUTO_VECTORIZE_PHOTOS = "auto_vectorize_photos"
+        const val KEY_AUTO_VECTORIZE_DOCUMENTS = "auto_vectorize_documents"
         const val KEY_MEMORY_ENABLED = "memory_enabled"
         const val KEY_MEMORY_INSTRUCTIONS = "memory_instructions"
         const val KEY_AGENT_MEMORIES = "agent_memories"

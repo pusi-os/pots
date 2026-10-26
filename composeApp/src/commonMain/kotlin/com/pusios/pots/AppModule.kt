@@ -23,6 +23,7 @@ import com.pusios.pots.data.miniapp.createMiniAppServerController
 import com.pusios.pots.data.runMigrations
 import com.pusios.pots.email.EmailPoller
 import com.pusios.pots.inference.createLocalInferenceEngine
+import com.pusios.pots.inference.createVectorizationManager
 import com.pusios.pots.mcp.McpServerManager
 import com.pusios.pots.network.Requests
 import com.pusios.pots.notifications.NotificationReader
@@ -129,6 +130,8 @@ val appModule = module {
     single<SkillManager> {
         SkillManager(get<SandboxController>())
     }
+    single<com.pusios.pots.inference.LocalInferenceEngine?> { createLocalInferenceEngine() }
+    single<com.pusios.pots.data.VectorizationManager> { createVectorizationManager(get(), get()) }
     single<RemoteDataRepository> {
         RemoteDataRepository(
             requests = get(),
@@ -152,7 +155,7 @@ val appModule = module {
             mcpServerManager = get(),
             skillManager = get(),
             sandboxController = get(),
-            localInferenceEngine = createLocalInferenceEngine(),
+            localInferenceEngine = get(),
         )
     }
     single<DataRepository> { get<RemoteDataRepository>() }

@@ -42,7 +42,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.data.AgentPersonaPresets
 import com.pusios.pots.data.AgentTuning
+import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.HeartbeatLogEntry
 import com.pusios.pots.data.MemoryEntry
 import com.pusios.pots.data.ReasoningEffort
@@ -59,6 +61,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.offsetAt
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.default_soul
 import pots.composeapp.generated.resources.execution_log_status_fail
@@ -471,6 +474,8 @@ private fun SoulEditor(
     soulText: String,
     onSaveSoul: (String) -> Unit,
 ) {
+    val appSettings: AppSettings = koinInject()
+    var presetId by remember { mutableStateOf(appSettings.getSoulPresetId()) }
     val localizedDefault = stringResource(Res.string.default_soul)
     val displayText = soulText.ifEmpty { localizedDefault }
     var editedText by remember(displayText) { mutableStateOf(displayText) }
@@ -479,66 +484,107 @@ private fun SoulEditor(
 
     var showResetDialog by remember { mutableStateOf(false) }
 
+    fun selectPreset(id: String) {
+        presetId = id
+        appSettings.setSoulPresetId(id)
+        if (id != AgentPersonaPresets.CUSTOM) {
+            val text = AgentPersonaPresets.soulText(id)
+            appSettings.setSoulText(text)
+            onSaveSoul(text)
+            editedText = text.ifEmpty { localizedDefault }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(Res.string.settings_soul),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.weight(1f),
-            )
-            if (soulText.isNotEmpty()) {
-                IconButton(
-                    onClick = { showResetDialog = true },
+        Text(
+            text = stringResource(Res.string.settings_agent_value_percent),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = "Выберите готовый характер. «Свой» позволяет написать свой.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AgentPersonaPresets.all.forEach { id ->
+                FilterChip(
+                    selected = presetId == id,
+                    onClick = { selectPreset(id) },
+                    label = { Text(AgentPersonaPresets.presetName(id)) },
                     modifier = Modifier.handCursor(),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Replay,
-                        contentDescription = stringResource(Res.string.settings_soul_reset),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                )
             }
         }
         Text(
-            text = stringResource(Res.string.settings_soul_description),
+            text = AgentPersonaPresets.presetDescription(presetId),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(12.dp))
-
-        PotsOutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
-            value = editedText,
-            onValueChange = { if (it.length <= maxChars) editedText = it },
-            minLines = 8,
-            maxLines = 8,
-            label = {
-                Text(
-                    stringResource(Res.string.settings_soul),
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            },
+            modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
         )
 
-        Text(
-            text = "${editedText.length}/$maxChars",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.End,
-        )
-
-        if (hasChanges) {
-            Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = { onSaveSoul(editedText.trim()) },
-                modifier = Modifier.align(CenterHorizontally).handCursor(),
+        if (presetId == AgentPersonaPresets.CUSTOM) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(Res.string.settings_soul_save))
+                Text(
+                    text = stringResource(Res.string.settings_soul),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f),
+                )
+                if (soulText.isNotEmpty()) {
+                    IconButton(
+                        onClick = { showResetDialog = true },
+                        modifier = Modifier.handCursor(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Replay,
+                            contentDescription = stringResource(Res.string.settings_soul_reset),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            Text(
+                text = stringResource(Res.string.settings_soul_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+
+            PotsOutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = editedText,
+                onValueChange = { if (it.length <= maxChars) editedText = it },
+                minLines = 8,
+                maxLines = 8,
+                label = {
+                    Text(
+                        stringResource(Res.string.settings_soul),
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                },
+            )
+
+            Text(
+                text = "${editedText.length}/$maxChars",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.End,
+            )
+
+            if (hasChanges) {
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { onSaveSoul(editedText.trim()) },
+                    modifier = Modifier.align(CenterHorizontally).handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_soul_save))
+                }
             }
         }
     }

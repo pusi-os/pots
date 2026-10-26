@@ -55,6 +55,7 @@ import com.pusios.pots.tools.ShellCommandTool
 import com.pusios.pots.tools.SmsTools
 import com.pusios.pots.tools.SshConfigureHostTool
 import com.pusios.pots.tools.UpdateCalendarEventTool
+import com.pusios.pots.tools.VectorSearchTool
 import com.pusios.pots.tools.buildAgentToolSet
 import com.pusios.pots.ui.potsik.PotsikStage
 import com.russhwolf.settings.Settings
@@ -194,6 +195,7 @@ actual fun getPlatformToolDefinitions(): List<ToolInfo> = CommonTools.commonTool
         ObsidianReadNoteTool.toolInfo,
         ObsidianWriteNoteTool.toolInfo,
         ObsidianSearchNotesTool.toolInfo,
+        VectorSearchTool.toolInfo,
         SearchPhotosTool.toolInfo,
         ImportPhotoTool.toolInfo,
         SaveToDownloadsTool.toolInfo,
@@ -270,6 +272,10 @@ actual fun getAvailableTools(): List<Tool> {
         }
         if (appSettings.isToolEnabled(ObsidianSearchNotesTool.ID)) {
             add(ObsidianSearchNotesTool.create(context, appSettings))
+        }
+
+        if (appSettings.isToolEnabled(VectorSearchTool.ID)) {
+            add(VectorSearchTool.create(context))
         }
 
         if (appSettings.isToolEnabled(SaveToDownloadsTool.ID)) {

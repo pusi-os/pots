@@ -145,7 +145,7 @@ class SettingsViewModel(
             ),
             isLocalToolSelectionConfigured = dataRepository.getLocalToolSelection().configured,
             skills = dataRepository.getInstalledSkills().toImmutableList(),
-            localAvailableModels = dataRepository.getLocalAvailableModels().toImmutableList(),
+            localAvailableModels = dataRepository.getLocalAvailableModels().filter { !it.isEmbedding }.toImmutableList(),
             localImportedModels = dataRepository.getLocalImportedModels().toImmutableList(),
             totalDeviceMemoryBytes = dataRepository.getTotalDeviceMemoryBytes(),
             localFreeSpaceBytes = dataRepository.getLocalFreeSpaceBytes(),

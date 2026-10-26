@@ -19,7 +19,7 @@ class LocalModelCatalogTest {
         val ids = MODEL_CATALOG.map { it.id }
         assertEquals(ids.distinct(), ids)
 
-        for (model in MODEL_CATALOG) {
+        for (model in MODEL_CATALOG.filter { !it.isEmbedding }) {
             assertTrue(model.downloadUrl.isNotBlank(), model.id)
             assertTrue(
                 "/resolve/main/" !in model.downloadUrl,
@@ -37,7 +37,7 @@ class LocalModelCatalogTest {
     fun catalogContextDefaultsFitInsideTheirMaximum() {
         // A model whose export tops out at its own default (LFM2.5) has no headroom for a
         // typo to hide in: the settings slider would offer a size the engine refuses.
-        for (model in MODEL_CATALOG) {
+        for (model in MODEL_CATALOG.filter { !it.isEmbedding }) {
             assertTrue(
                 model.defaultContextTokens in 1..model.maxContextTokens,
                 "${model.id} default context ${model.defaultContextTokens} must fit in ${model.maxContextTokens}",

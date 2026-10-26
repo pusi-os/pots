@@ -98,6 +98,19 @@ val MODEL_CATALOG = listOf(
         maxContextTokens = 32_768,
         kvPerTokenBytes = 35_000,
     ),
+    LocalModel(
+        id = "embeddinggemma-2-text-vision-440m",
+        displayName = "EmbeddingGemma 2 440M (text+vision)",
+        fileName = "embeddinggemma-2-text-vision-440m.litertlm",
+        sizeBytes = 387_710_976L,
+        downloadUrl = "https://huggingface.co/litert-community/embeddinggemma-2-text-vision-440m-litert-lm/resolve/e301f74d5551b0c2641bd5cb4652a76239d5c5f8/embeddinggemma-2-text-vision-440m.litertlm",
+        sha256 = "",
+        gpuMemoryMb = 0,
+        defaultContextTokens = 0,
+        maxContextTokens = 0,
+        kvPerTokenBytes = 0,
+        isEmbedding = true,
+    ),
 )
 
 fun findCatalogModelById(id: String): LocalModel? = MODEL_CATALOG.find { it.id == id }

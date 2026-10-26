@@ -246,6 +246,7 @@ private fun HandsFreeButton(
                 },
             ),
             contentDescription = stringResource(Res.string.handsfree_content_description),
+            // x = Res.string.foo_bar
             tint = if (status == HandsFreeStatus.Idle) {
                 MaterialTheme.colorScheme.onBackground
             } else {

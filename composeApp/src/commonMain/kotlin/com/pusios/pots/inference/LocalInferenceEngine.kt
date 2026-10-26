@@ -21,6 +21,8 @@ data class LocalModel(
     val isRecommended: Boolean = false,
     /** True for user-imported models that are not in [MODEL_CATALOG]. */
     val isImported: Boolean = false,
+    /** True for embedding models used by local vector search, not chat inference. */
+    val isEmbedding: Boolean = false,
 )
 
 enum class DevicePerformance {
