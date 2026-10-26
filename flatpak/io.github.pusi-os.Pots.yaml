@@ -1,0 +1,67 @@
+app-id: io.github.pusi-os.Pots
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: pots-wrapper
+
+finish-args:
+  - --share=network
+  - --socket=x11
+  - --socket=wayland
+  - --share=ipc
+  - --device=dri
+  - --socket=pulseaudio
+  - --persist=.pots
+  - --persist=.java
+
+modules:
+  - name: pots
+    buildsystem: simple
+    build-commands:
+      # Extract and install the application
+      - tar xf Pots-linux-x86_64.tar.gz
+      - mkdir -p /app/lib/pots
+      - cp -r Pots/* /app/lib/pots/
+
+      # Install wrapper script
+      - install -Dm755 pots-wrapper.sh /app/bin/pots-wrapper
+
+      # Install desktop file
+      - install -Dm644 io.github.pusi-os.Pots.desktop /app/share/applications/io.github.pusi-os.Pots.desktop
+
+      # Install metainfo
+      - install -Dm644 io.github.pusi-os.Pots.metainfo.xml /app/share/metainfo/io.github.pusi-os.Pots.metainfo.xml
+
+      # Install icons
+      - install -Dm644 icon.svg /app/share/icons/hicolor/scalable/apps/io.github.pusi-os.Pots.svg
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github.pusi-os.Pots.png
+
+    sources:
+      - type: file
+        url: https://github.com/pusi-os/pots/releases/download/v3.3.0/Pots-3.3.0-linux-x86_64.tar.gz
+        sha256: aaf111532900f674a75c963721d027179d07faace520e6a02a23c33ead2d7330
+        dest-filename: Pots-linux-x86_64.tar.gz
+        x-checker-data:
+          type: json
+          url: https://api.github.com/repos/pusi-os/pots/releases/latest
+          version-query: .tag_name | sub("^v"; "")
+          url-query: .assets[] | select(.name | test("linux-x86_64\\.tar\\.gz$")) | .browser_download_url
+
+      - type: file
+        path: io.github.pusi-os.Pots.desktop
+
+      - type: file
+        path: io.github.pusi-os.Pots.metainfo.xml
+
+      - type: file
+        path: ../composeApp/icon.svg
+
+      - type: file
+        path: ../composeApp/icon.png
+
+      - type: script
+        dest-filename: pots-wrapper.sh
+        commands:
+          - export PATH="/app/lib/pots/bin:${PATH}"
+          - export LD_LIBRARY_PATH="/app/lib/pots/lib/runtime/lib:${LD_LIBRARY_PATH}"
+          - exec /app/lib/pots/bin/Pots "$@"

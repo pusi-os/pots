@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pusi-os.github.io/pots/sitemap.xml
+Sitemap: https://pusi-os.github.io/pots/docs/sitemap.xml

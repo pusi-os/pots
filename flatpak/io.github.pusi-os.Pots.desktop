@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Pots
+Comment=AI assistant powered by Ollama, Gemini, ChatGPT and more
+Exec=pots-wrapper
+Icon=io.github.pusi-os.Pots
+Type=Application
+Categories=Utility;Network;
+Keywords=AI;Chat;Ollama;Gemini;LLM;Assistant;
+StartupWMClass=compose-window
+Terminal=false

@@ -1,0 +1,34 @@
+-- 1 -> 2: the mini-app studio tables. Existing conversations are untouched;
+-- a fresh install gets the same shape from miniapp.sq.
+
+CREATE TABLE miniAppEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    accent TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    visible INTEGER NOT NULL,
+    appJson TEXT NOT NULL
+);
+
+CREATE TABLE miniAppVersionEntity (
+    appId TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    parentVersion INTEGER,
+    message TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    snapshotJson TEXT NOT NULL,
+    PRIMARY KEY (appId, version)
+);
+
+CREATE TABLE miniAppRecordEntity (
+    appId TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    recordId TEXT NOT NULL,
+    valueJson TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    PRIMARY KEY (appId, collection, recordId)
+);

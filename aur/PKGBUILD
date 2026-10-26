@@ -1,0 +1,220 @@
+# Maintainer: Pusi <pusi-os@users.noreply.github.com>
+# https://github.com/pusi-os/pots
+
+pkgname=pots-bin
+pkgver=3.3.0
+pkgrel=1
+pkgdesc='Pots — AI assistant by Pusi with persistent memory and local models'
+arch=('x86_64')
+url='https://github.com/pusi-os/pots'
+license=('Apache-2.0')
+depends=('hicolor-icon-theme')
+provides=('pots')
+conflicts=('pots')
+options=('!strip')
+
+source=("Pots-${pkgver}-linux-x86_64.tar.gz::https://github.com/pusi-os/pots/releases/download/v${pkgver}/Pots-${pkgver}-linux-x86_64.tar.gz")
+sha256sums=('aaf111532900f674a75c963721d027179d07faace520e6a02a23c33ead2d7330')
+
+package() {
+    # Install application files
+    install -dm755 "${pkgdir}/opt/pots"
+    cp -r "${srcdir}/Pots/"* "${pkgdir}/opt/pots/"
+    chmod -R go-w "${pkgdir}/opt/pots"
+
+    # Install wrapper script
+    install -Dm755 /dev/stdin "${pkgdir}/usr/bin/pots" << 'EOF'
+#!/bin/sh
+exec /opt/pots/bin/Pots "$@"
+EOF
+
+    # Install desktop entry
+    install -Dm644 /dev/stdin "${pkgdir}/usr/share/applications/pots.desktop" << EOF
+[Desktop Entry]
+Name=Pots
+Comment=AI assistant powered by Ollama, Gemini, ChatGPT and more
+Exec=pots
+Icon=pots
+Type=Application
+Categories=Utility;Network;
+Keywords=AI;Chat;Ollama;Gemini;LLM;Assistant;
+StartupWMClass=compose-window
+Terminal=false
+EOF
+
+    # Install icon
+    install -Dm644 /dev/stdin "${pkgdir}/usr/share/icons/hicolor/scalable/apps/pots.svg" << 'EOF'
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pots" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6200EE"/>
+      <stop offset="1" stop-color="#8063C5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#pots)"/>
+  <g transform="translate(256.00,149.50) scale(10.5813)">
+  <polygon points="-7,2 -4,-5 -1,2" fill="#FFE45E"/>
+  <polygon points="-2,2 6,-7.2 6,2" fill="#FFE45E"/>
+  <polygon points="-10,3 -7,-4 -4,3" fill="#FFE45E"/>
+  <polygon points="4,3 7,-4 10,3" fill="#FFE45E"/>
+  <rect x="-13" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="-12" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="9" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="10" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="-12" y="0" width="24" height="24" rx="4" fill="#101010"/>
+  <rect x="-11.5" y="0.5" width="23" height="23" rx="3.6" fill="#FFE45E"/>
+  <rect x="-7" y="13" width="14" height="10" rx="3" fill="#FFE45E"/>
+  <rect x="-10" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="6" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="-3" y="13" width="6" height="5" rx="1" fill="#101010"/>
+  <rect x="-2" y="14" width="4" height="3" rx="0.7" fill="#FFE45E"/>
+  <rect x="-12" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="2" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="-3" y="8" width="5" height="2" fill="#101010"/>
+  <rect x="-11" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="3" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="-10" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="4" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="-6" y="16" width="12" height="6" rx="2" fill="#101010"/>
+  <rect x="-5" y="17" width="10" height="1.8" fill="#FFFFFF"/>
+  <rect x="-5" y="18.8" width="10" height="0.9" fill="#101010"/>
+  <rect x="-5" y="19.7" width="10" height="1.5" fill="#F49AC1"/>
+  </g>
+</svg>
+EOF
+
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pots" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6200EE"/>
+      <stop offset="1" stop-color="#8063C5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#pots)"/>
+  <g transform="translate(256.00,149.50) scale(10.5813)">
+  <polygon points="-7,2 -4,-5 -1,2" fill="#FFE45E"/>
+  <polygon points="-2,2 6,-7.2 6,2" fill="#FFE45E"/>
+  <polygon points="-10,3 -7,-4 -4,3" fill="#FFE45E"/>
+  <polygon points="4,3 7,-4 10,3" fill="#FFE45E"/>
+  <rect x="-13" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="-12" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="9" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="10" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="-12" y="0" width="24" height="24" rx="4" fill="#101010"/>
+  <rect x="-11.5" y="0.5" width="23" height="23" rx="3.6" fill="#FFE45E"/>
+  <rect x="-7" y="13" width="14" height="10" rx="3" fill="#FFE45E"/>
+  <rect x="-10" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="6" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="-3" y="13" width="6" height="5" rx="1" fill="#101010"/>
+  <rect x="-2" y="14" width="4" height="3" rx="0.7" fill="#FFE45E"/>
+  <rect x="-12" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="2" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="-3" y="8" width="5" height="2" fill="#101010"/>
+  <rect x="-11" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="3" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="-10" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="4" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="-6" y="16" width="12" height="6" rx="2" fill="#101010"/>
+  <rect x="-5" y="17" width="10" height="1.8" fill="#FFFFFF"/>
+  <rect x="-5" y="18.8" width="10" height="0.9" fill="#101010"/>
+  <rect x="-5" y="19.7" width="10" height="1.5" fill="#F49AC1"/>
+  </g>
+</svg>
+EOF
+
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pots" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6200EE"/>
+      <stop offset="1" stop-color="#8063C5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#pots)"/>
+  <g transform="translate(256.00,149.50) scale(10.5813)">
+  <polygon points="-7,2 -4,-5 -1,2" fill="#FFE45E"/>
+  <polygon points="-2,2 6,-7.2 6,2" fill="#FFE45E"/>
+  <polygon points="-10,3 -7,-4 -4,3" fill="#FFE45E"/>
+  <polygon points="4,3 7,-4 10,3" fill="#FFE45E"/>
+  <rect x="-13" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="-12" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="9" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="10" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="-12" y="0" width="24" height="24" rx="4" fill="#101010"/>
+  <rect x="-11.5" y="0.5" width="23" height="23" rx="3.6" fill="#FFE45E"/>
+  <rect x="-7" y="13" width="14" height="10" rx="3" fill="#FFE45E"/>
+  <rect x="-10" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="6" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="-3" y="13" width="6" height="5" rx="1" fill="#101010"/>
+  <rect x="-2" y="14" width="4" height="3" rx="0.7" fill="#FFE45E"/>
+  <rect x="-12" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="2" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="-3" y="8" width="5" height="2" fill="#101010"/>
+  <rect x="-11" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="3" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="-10" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="4" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="-6" y="16" width="12" height="6" rx="2" fill="#101010"/>
+  <rect x="-5" y="17" width="10" height="1.8" fill="#FFFFFF"/>
+  <rect x="-5" y="18.8" width="10" height="0.9" fill="#101010"/>
+  <rect x="-5" y="19.7" width="10" height="1.5" fill="#F49AC1"/>
+  </g>
+</svg>
+EOF
+
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pots" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6200EE"/>
+      <stop offset="1" stop-color="#8063C5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#pots)"/>
+  <g transform="translate(256.00,149.50) scale(10.5813)">
+  <polygon points="-7,2 -4,-5 -1,2" fill="#FFE45E"/>
+  <polygon points="-2,2 6,-7.2 6,2" fill="#FFE45E"/>
+  <polygon points="-10,3 -7,-4 -4,3" fill="#FFE45E"/>
+  <polygon points="4,3 7,-4 10,3" fill="#FFE45E"/>
+  <rect x="-13" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="-12" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="9" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="10" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="-12" y="0" width="24" height="24" rx="4" fill="#101010"/>
+  <rect x="-11.5" y="0.5" width="23" height="23" rx="3.6" fill="#FFE45E"/>
+  <rect x="-7" y="13" width="14" height="10" rx="3" fill="#FFE45E"/>
+  <rect x="-10" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="6" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="-3" y="13" width="6" height="5" rx="1" fill="#101010"/>
+  <rect x="-2" y="14" width="4" height="3" rx="0.7" fill="#FFE45E"/>
+  <rect x="-12" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="2" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="-3" y="8" width="5" height="2" fill="#101010"/>
+  <rect x="-11" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="3" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="-10" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="4" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="-6" y="16" width="12" height="6" rx="2" fill="#101010"/>
+  <rect x="-5" y="17" width="10" height="1.8" fill="#FFFFFF"/>
+  <rect x="-5" y="18.8" width="10" height="0.9" fill="#101010"/>
+  <rect x="-5" y="19.7" width="10" height="1.5" fill="#F49AC1"/>
+  </g>
+</svg>
+EOF
+
+<svg viewBox="0 0 90 90" xmlns="http://www.w3.org/2000/svg">
+   <circle cx="35" cy="45" r="30" fill="#6200ee" />
+   <circle cx="55" cy="45" r="30" fill="#8063C5" />
+</svg>
+EOF
+
+    # Install license
+    install -Dm644 "${srcdir}/Pots/lib/Pots.copyright" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE" 2>/dev/null ||
+    install -Dm644 "${srcdir}/Pots/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE" 2>/dev/null || true
+}
+
+# Publishing steps:
+# 1. Create AUR account at https://aur.archlinux.org
+# 2. git clone ssh://aur@aur.archlinux.org/pots-bin.git
+# 3. Copy PKGBUILD and .SRCINFO into the cloned repo
+# 4. git add PKGBUILD .SRCINFO
+# 5. git commit -m "Initial upload: pots-bin 1.7.9"
+# 6. git push

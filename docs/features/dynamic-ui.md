@@ -1,0 +1,113 @@
+# Dynamic UI (pots-ui)
+
+**Last verified:** 2026-10-24
+
+AI-generated interactive UI layouts rendered inline in chat messages. The AI produces JSON-based layout definitions wrapped in `pots-ui` code fences. Compose renders them natively with support for forms, buttons, and multi-step flows. Enabled by default; users can disable it in Settings, which removes the instructions from the system prompt. Because the system prompt is rebuilt per request, toggling the setting takes effect on the next message in any conversation. Parsing and rendering stay active regardless so existing messages with pots-ui blocks always render.
+
+## Concepts
+
+### Layout Blocks
+
+A `pots-ui` code fence inside an assistant message contains a JSON object describing a component tree. The unified markdown parser treats pots-ui fences as first-class AST blocks, alongside headings, paragraphs, and other markdown; the renderer dispatches each block to its composable. Supports both single-object JSON and multi-line NDJSON (one JSON object per line, automatically wrapped in a column).
+
+### Component Types
+
+- **Layout**: column, row, card, box, divider (spacing between children is fixed by the renderer — the LLM does not control it)
+- **Content**: text (with headline/title/body/caption styles), image (optional aspect ratio to prevent distortion on wide screens), icon (curated material icon set or any emoji), code (syntax-highlighted block with a built-in copy-to-clipboard icon in the top-right corner)
+- **Interactive**: button (filled/outlined/text/tonal variants), text input, checkbox, switch, select dropdown, radio group, slider, chip group (single-select, multi-select, or display-only tags)
+- **Feedback**: progress (determinate/indeterminate), countdown (relative duration with optional expiry action; a callback action fires only while the message is still interactive, so older countdowns never send messages when the chat is reopened or scrolled), alert (info/success/warning/error)
+- **Navigation**: tabs (tabbed content), accordion (collapsible sections)
+- **Display**: quote (blockquote with accent border), badge (colored count/status pill), stat (large metric display), avatar (circular image or initials)
+- **Data**: list, table
+
+### Actions
+
+Buttons carry an action that fires on click (chip groups are form inputs, not action carriers):
+
+- **callback** — collects form data from specified input IDs and sends a structured message back to the AI via the normal chat flow (e.g. "Pressed: event_name" or "Responded with: key: value"). The AI then responds with text or more UI. The prompt explicitly tells the AI to only offer callback buttons for actions it can fulfill — callbacks do not trigger system operations like printing, file export, or downloads. Clipboard access is available via the dedicated copy action below.
+- **toggle** — shows/hides a target element locally without AI roundtrip
+- **open_url** — opens a link in the browser
+- **copy_to_clipboard** — writes a literal string to the system clipboard locally, no AI roundtrip. A button carrying this action always renders as a compact clipboard icon button regardless of its variant; the button's label is ignored. Intended for surfacing copyable values (snippets, commands, tokens) alongside the content they belong to.
+
+### Interaction Flow
+
+When a callback fires, the renderer collects input values and formats them as a user message of the form `Pressed: <event>` or `Responded with: <key: value>` (no special prefix). The AI receives the event name and form data in conversation history and can respond with new UI, text, or tool calls. While the callback is in flight, the clicked button keeps its label visible and pulses (a subtle scale and alpha animation); other buttons in the same assistant message become non-interactive until the response arrives.
+
+The originating assistant's pots-ui card stays in place across the exchange. While the submission is in flight the pressed button pulses; once the reply arrives the card settles into a frozen snapshot (prior values seeded, pressed button highlighted) with an edit pencil in the top-right corner. The user's submission does not produce a separate text bubble — the filled-in form on the assistant card already shows exactly what was sent. Clicking the pencil re-enables the form seeded with the previous picks; pressing any button then triggers a resubmit that truncates from that point and re-asks the AI. The text form ("Responded with: key: value") is still what the AI receives; only the visual representation differs. Snapshots persist with the conversation, so reloading preserves them.
+
+### Layout Lifecycle
+
+Only the latest assistant message's layouts are interactive. Older layouts become read-only with disabled buttons and inputs. Form state is local to each layout; cross-step state lives in conversation history.
+
+### Error Handling
+
+Errors are absorbed as locally as possible so a single bad field never kills a whole block. The parser first repairs common JSON syntax mistakes (extra trailing braces/brackets via stack-based brace matching, truncated mid-stream responses, `"key="` typos, and missing closing braces between sibling objects in an array — e.g. when the LLM writes `,{` where a key was expected), then walks the resulting tree field-by-field. Each field reader tolerates the wrong value type (objects where a string was expected, bare strings where an object list was expected, string booleans, numeric strings) and falls back to the data-class default if nothing can be salvaged — the node still builds, the offending field is simply missing from the rendered UI. Unknown node types in `children` or `items` are silently dropped. Only JSON so malformed that the syntax repair can't produce a parseable tree falls back to rendering as a code block. Individual malformed lines in multi-line NDJSON are skipped while valid lines still render. TTS walks the pots-ui tree and reads out the human-readable labels it finds — text, button labels, alert messages, and similar — while skipping non-speakable elements like code blocks, icons, and dividers.
+
+### Settings
+
+The feature is controlled by the Dynamic UI toggle in Settings (General tab). When disabled, the system prompt omits pots-ui instructions so the AI stops generating them. Parsing and rendering remain active unconditionally.
+
+## Interactive UI Mode
+
+A dedicated full-screen mode where the AI produces complete screen layouts via pots-ui. The user navigates between screens by clicking buttons — no chat scrolling, no markdown visible.
+
+### Entering Interactive Mode
+
+Users click "Start Interactive UI" on the empty chat state. This enters interactive mode with a text input where they describe what they want (e.g., "Build me a quiz app"). The first message goes to the AI with an enhanced system prompt, and the AI responds with a full-screen UI. The button is hidden when the primary service is on-device (LiteRT), because small local models cannot reliably produce pots-ui JSON; on-device services are also filtered out of the interactive-mode service selector.
+
+### Screen Navigation
+
+Each AI response replaces the previous screen entirely. Only the latest assistant message's pots-ui renders, taking the full available space. A top bar provides back and exit buttons.
+
+### Loading Frame
+
+While an interactive-mode response is in flight, an animated gradient frame (the same rotating purple/violet/magenta border used by the "Start Interactive UI" button) is drawn around the whole screen edge to signal the AI is working. It disappears once the response arrives.
+
+The working tile from the chat appears at the bottom of the screen during the same request, with Потсик standing in it. The character is the same single overlay the chat uses: the anchor reports where the tile is, the stage puts him there at the tile's larger size, and `PotsikPhase.WORKING` runs the engine's random working playlist (the same one the chat plays while a tool or model call is in flight). The empty interactive screen uses the `EMPTY` anchor, so the character is present before the first request too.
+
+### Top bar and the studio
+
+The top bar carries the back button, the title, and — to the left of the close button — **New**, **Save** and **My mini-apps**. New starts a fresh interactive session, Save snapshots the screens and data as a mini-app, and My mini-apps opens the library. All three are drawn as vector icons tinted with the theme, not labelled buttons, so the bar stays one line on a phone.
+
+Saving, the library, the runner, the chat's glass toolbar, internal storage and the version tree are described in [Mini-apps](mini-apps.md). The same `pots-ui` tree can therefore be a transient chat message, an interactive screen, or a saved app; the renderer is shared and picks up a `MiniAppRuntime` only when it is running as an app.
+
+### Back Button
+
+The back button removes the last exchange (user message + assistant response) from conversation history, making the previous assistant response the active screen again. When only one exchange remains, pressing back clears the history and returns to the initial prompt input — interactive mode stays active. To leave interactive mode entirely, the user uses the exit button in the top bar.
+
+### Auto-Retry on Parse Failure
+
+If the AI responds without valid pots-ui blocks, the system automatically retries up to 2 times, sending the parse error details back to the AI so it can fix its JSON.
+
+### Conversation Persistence
+
+Interactive sessions are saved with type `interactive`. Loading an interactive conversation from history automatically re-enters interactive mode.
+
+### System Prompt
+
+In interactive mode, the system prompt instructs the AI to respond ONLY with a single pots-ui code fence — no markdown text outside the fence. The AI is told the user cannot see anything outside the rendered UI.
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `composeApp/.../ui/dynamicui/PotsUiNode.kt` | Serializable component tree model — 28 node types, all @Immutable |
+| `composeApp/.../ui/dynamicui/UiAction.kt` | Action types (callback, toggle, open_url, copy_to_clipboard) |
+| `composeApp/.../ui/dynamicui/PotsUiParser.kt` | Sanitizes malformed JSON and decodes pots-ui fence bodies via `parseUiBlockBody` |
+| `composeApp/.../ui/dynamicui/PotsUiNodeBuilders.kt` | Tolerant field-by-field construction of PotsUiNode instances from JsonElement |
+| `composeApp/.../ui/dynamicui/PotsUiRenderer.kt` | Recursive Compose renderer for the component tree, wrapInCard option |
+| `composeApp/.../ui/dynamicui/PotsUiTts.kt` | Speakable-text extraction for TTS: walks pots-ui trees for human-readable labels |
+| `composeApp/.../ui/markdown/MarkdownParser.kt` | Unified markdown parser; emits `PotsUiBlock` AST nodes for pots-ui fences |
+| `composeApp/.../ui/markdown/MarkdownRenderer.kt` | Compose renderer that dispatches each block (including pots-ui) to its composable |
+| `composeApp/.../ui/chat/composables/BotMessage.kt` | Integration point — runs the parser, renders frozen/edit-enabled snapshots for paired user submissions, and renders past pots-ui read-only via `isInteractive = false` |
+| `composeApp/.../ui/chat/ChatScreen.kt` | Branches between chat mode and interactive mode |
+| `composeApp/.../ui/chat/composables/EmptyState.kt` | "Start Interactive UI" button |
+| `composeApp/.../ui/chat/ChatActions.kt` | submitUiCallback, enterInteractiveMode, exitInteractiveMode, goBackInteractiveMode |
+| `composeApp/.../ui/chat/ChatViewModel.kt` | Interactive mode lifecycle, auto-retry on parse failure |
+| `composeApp/.../ui/chat/ChatUiState.kt` | isInteractiveMode state flag, mini-app draft/editing ids |
+| `composeApp/.../ui/miniapp/` | Saved-app library, runner, glass toolbar and local action session |
+| `composeApp/.../data/miniapp/` | Mini-app domain model, SQLite store and repository |
+| `composeApp/.../data/DataRepository.kt` | popLastExchange, setInteractiveMode/isInteractiveModeActive |
+| `composeApp/.../data/RemoteDataRepository.kt` | Interactive mode system prompt, TYPE_INTERACTIVE conversation saving |
+| `composeApp/.../data/AppSettings.kt` | isDynamicUiEnabled / setDynamicUiEnabled |
+| `composeApp/.../data/Conversation.kt` | TYPE_INTERACTIVE conversation type constant |

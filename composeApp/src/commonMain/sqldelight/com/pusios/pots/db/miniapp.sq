@@ -1,0 +1,83 @@
+-- Mini-app studio persistence. Everything an app is lives in `appJson`; the
+-- columns beside it are the ones the list and the search need without parsing
+-- every document. Versions are append-only snapshots with a parent pointer, so
+-- an app's history is a tree rather than a pile of overwritten files. Records
+-- are the app's own data: a schema-declared document store on top of SQLite,
+-- keyed by (app, collection, record).
+
+CREATE TABLE miniAppEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    accent TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    visible INTEGER NOT NULL,
+    appJson TEXT NOT NULL
+);
+
+CREATE TABLE miniAppVersionEntity (
+    appId TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    parentVersion INTEGER,
+    message TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    snapshotJson TEXT NOT NULL,
+    PRIMARY KEY (appId, version)
+);
+
+CREATE TABLE miniAppRecordEntity (
+    appId TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    recordId TEXT NOT NULL,
+    valueJson TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    PRIMARY KEY (appId, collection, recordId)
+);
+
+selectAllMiniApps:
+SELECT * FROM miniAppEntity ORDER BY updatedAt DESC;
+
+selectMiniApp:
+SELECT * FROM miniAppEntity WHERE id = ?;
+
+upsertMiniApp:
+INSERT OR REPLACE INTO miniAppEntity (id, name, description, icon, accent, createdAt, updatedAt, visible, appJson)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteMiniApp:
+DELETE FROM miniAppEntity WHERE id = ?;
+
+selectVersions:
+SELECT * FROM miniAppVersionEntity WHERE appId = ? ORDER BY version DESC;
+
+selectLatestVersion:
+SELECT * FROM miniAppVersionEntity WHERE appId = ? ORDER BY version DESC LIMIT 1;
+
+insertVersion:
+INSERT OR REPLACE INTO miniAppVersionEntity (appId, version, parentVersion, message, createdAt, snapshotJson)
+VALUES (?, ?, ?, ?, ?, ?);
+
+deleteMiniAppVersions:
+DELETE FROM miniAppVersionEntity WHERE appId = ?;
+
+selectRecords:
+SELECT * FROM miniAppRecordEntity WHERE appId = ? AND collection = ? ORDER BY updatedAt DESC;
+
+selectAllRecords:
+SELECT * FROM miniAppRecordEntity WHERE appId = ? ORDER BY collection, updatedAt DESC;
+
+upsertRecord:
+INSERT OR REPLACE INTO miniAppRecordEntity (appId, collection, recordId, valueJson, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?);
+
+deleteRecord:
+DELETE FROM miniAppRecordEntity WHERE appId = ? AND collection = ? AND recordId = ?;
+
+deleteCollection:
+DELETE FROM miniAppRecordEntity WHERE appId = ? AND collection = ?;
+
+deleteMiniAppRecords:
+DELETE FROM miniAppRecordEntity WHERE appId = ?;
