@@ -21,6 +21,18 @@ interface VectorizationManager {
     val requiredPhotoPermission: String
     val requiredDocumentPermission: String
 
+    /** True when the on-disk index is incompatible with the current model/prompt/schema. */
+    val indexStale: StateFlow<Boolean>
+
+    /** Epoch millis of the last successful indexing run, or null if never indexed. */
+    val indexedAt: StateFlow<Long?>
+
+    /** Number of photos skipped during the last indexing run (failures). */
+    val skippedPhotoCount: StateFlow<Int>
+
+    /** First error message captured during the last indexing run, if any. */
+    val firstIndexError: StateFlow<String?>
+
     fun setAutoIndexPhotos(enabled: Boolean)
     fun setAutoIndexDocuments(enabled: Boolean)
 
@@ -30,5 +42,12 @@ interface VectorizationManager {
     suspend fun indexPhotos()
     suspend fun indexDocuments()
 
-    suspend fun search(query: String, source: String? = null, limit: Int = 10): List<Map<String, Any?>>
+    fun cancelIndexing()
+
+    suspend fun search(
+        query: String,
+        source: String? = null,
+        limit: Int = 10,
+        minScore: Double = 0.0,
+    ): List<Map<String, Any?>>
 }

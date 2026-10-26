@@ -14,6 +14,11 @@ class NoOpVectorizationManager : VectorizationManager {
     override val currentTotalCount: StateFlow<Int> = MutableStateFlow(0)
     override val currentProcessedCount: StateFlow<Int> = MutableStateFlow(0)
 
+    override val indexStale: StateFlow<Boolean> = MutableStateFlow(false)
+    override val indexedAt: StateFlow<Long?> = MutableStateFlow(null)
+    override val skippedPhotoCount: StateFlow<Int> = MutableStateFlow(0)
+    override val firstIndexError: StateFlow<String?> = MutableStateFlow(null)
+
     override val autoIndexPhotos: StateFlow<Boolean> = MutableStateFlow(false)
     override val autoIndexDocuments: StateFlow<Boolean> = MutableStateFlow(false)
 
@@ -31,5 +36,7 @@ class NoOpVectorizationManager : VectorizationManager {
     override suspend fun indexPhotos() {}
     override suspend fun indexDocuments() {}
 
-    override suspend fun search(query: String, source: String?, limit: Int): List<Map<String, Any?>> = emptyList()
+    override fun cancelIndexing() {}
+
+    override suspend fun search(query: String, source: String?, limit: Int, minScore: Double): List<Map<String, Any?>> = emptyList()
 }

@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.VectorizationManager
@@ -80,8 +81,8 @@ internal fun ToolsContent(
     onNavigateToSandbox: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        val appSettings: AppSettings = koinInject()
-        var obsidianVaultUri by remember { mutableStateOf(appSettings.getObsidianVaultUri()) }
+        val appSettings = if (LocalInspectionMode.current) null else koinInject<AppSettings>()
+        var obsidianVaultUri by remember(appSettings) { mutableStateOf(appSettings?.getObsidianVaultUri().orEmpty()) }
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = stringResource(Res.string.settings_obsidian_vault), style = MaterialTheme.typography.titleMedium)
@@ -96,7 +97,7 @@ internal fun ToolsContent(
                 )
                 ObsidianVaultPicker(currentUri = obsidianVaultUri) { uri ->
                     if (uri != null) {
-                        appSettings.setObsidianVaultUri(uri)
+                        appSettings?.setObsidianVaultUri(uri)
                         obsidianVaultUri = uri
                     }
                 }
@@ -105,7 +106,7 @@ internal fun ToolsContent(
 
         Spacer(Modifier.height(24.dp))
 
-        VectorStorageSection()
+        if (!LocalInspectionMode.current) VectorStorageSection()
 
         Spacer(Modifier.height(24.dp))
 
@@ -194,6 +195,8 @@ internal fun ToolsContent(
 
 @Composable
 private fun VectorStorageSection() {
+    if (LocalInspectionMode.current) return
+
     val manager: VectorizationManager = koinInject()
     val scope = rememberCoroutineScope()
     val isReady by manager.isModelReady.collectAsState()
@@ -208,6 +211,7 @@ private fun VectorStorageSection() {
     val currentProcessed by manager.currentProcessedCount.collectAsState()
     val needsPhotoPermission by manager.needsPhotoPermission.collectAsState()
     val needsDocumentPermission by manager.needsDocumentPermission.collectAsState()
+    val indexStale by manager.indexStale.collectAsState()
     val requestPermission = rememberPermissionLauncher { granted ->
         if (granted) {
             scope.launch {
@@ -282,6 +286,12 @@ private fun VectorStorageSection() {
                     LinearProgressIndicator(progress = { progress ?: 0f }, modifier = Modifier.fillMaxWidth())
                     if (currentTotal > 0) {
                         Text(text = "Обработано: $currentProcessed / $currentTotal", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (indexStale) {
+                    Text(text = "Индекс устарел — нужна переиндексация", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    androidx.compose.material3.TextButton(onClick = { scope.launch { manager.indexPhotos() } }, enabled = !isIndexing) {
+                        Text("Пересобрать индекс")
                     }
                 }
                 if (status.isNotBlank()) {
