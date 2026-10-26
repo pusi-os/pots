@@ -1,0 +1,2064 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Pots - AI Assistant App">
+      
+      
+      
+        <link rel="canonical" href="https://pusi-os.github.io/pots/docs/features/potsiki/">
+      
+      
+        <link rel="prev" href="../appearance/">
+      
+      
+        <link rel="next" href="../settings-export-import/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Потсики (Character) - Pots Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#potsik" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Pots Documentation" class="md-header__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pots Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Потсики (Character)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Pots Documentation" class="md-nav__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pots Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat & Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hands-free/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hands-Free Voice Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dynamic-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mini-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mini-app-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-app server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../heartbeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../encryption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encryption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../on-device-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    On-Device Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasoning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pots-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pots Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#where-he-appears" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where he appears
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-working-band" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The working band
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-he-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What he does
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What he does">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-list-of-animations-a-request-plays-through" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The list of animations a request plays through
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-long-an-animation-is-given" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How long an animation is given
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-bubble" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The bubble
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-chatter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The chatter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#touching-him" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Touching him
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#moving-and-resizing-him" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moving and resizing him
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-agents-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The agent's tool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-settings-section" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The settings section
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-costumes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The costumes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-export-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings Export & Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splinterlands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splinterlands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../desktop-release-smoketest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop Release Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#where-he-appears" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where he appears
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-working-band" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The working band
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-he-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What he does
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What he does">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-list-of-animations-a-request-plays-through" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The list of animations a request plays through
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-long-an-animation-is-given" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How long an animation is given
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-bubble" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The bubble
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-chatter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The chatter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#touching-him" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Touching him
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#moving-and-resizing-him" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moving and resizing him
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-agents-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The agent's tool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-settings-section" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The settings section
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-costumes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The costumes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="potsik">Потсик (Potsik)</h1>
+<p><strong>Last verified:</strong> 2026-10-27</p>
+<p>Потсик is the animated character that keeps you company in the chat. He is
+drawn entirely in code — no images, no sprite sheets, no animation files — so he
+scales to any size and costs nothing to ship.</p>
+<p>He <strong>is</strong> the PotSquad firmware's Потсик. The body, the costumes, the moods,
+the emote poses, the bubble and the chatter are the firmware's own, ported
+shape for shape: the same rounded-box skull and cowlick, the same arm that is
+one line from the shoulder to the hand, the same blink schedule, the same
+eighteen costumes, the same twenty-eight-second idle roll, and the same lines
+of chatter in English and Russian, side by side.</p>
+<p>The port keeps the firmware's coordinate system: the character is 56 units
+tall, the origin is the top of his head, and every shape is placed in those
+units and scaled by one number.</p>
+<h2 id="where-he-appears">Where he appears</h2>
+<p>There is exactly <strong>one</strong> copy of him on screen at a time. He is drawn by a
+single overlay over the whole app; the places in the layout below are
+<em>anchors</em> — they only say where he belongs, and the highest-priority one on
+screen wins. A section that has no anchor of its own puts him in the corner,
+out of the way of what it is showing.</p>
+<p>Each Pots agent profile has its own Потсик look and behavior. The chat toolbar's
+person button opens a 56 dp profile strip with the small characters; each picks
+an idle animation at a random 3–5 second interval. Switching profiles gives the
+outgoing Потсик a wave and slide-off before the incoming character enters, then
+starts a fresh chat session so the selected soul and tools change with the look.</p>
+<table>
+<thead>
+<tr>
+<th>Place</th>
+<th>What he does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chat, empty screen</td>
+<td>Stands where the old logo and "Добро пожаловать в Потс" used to be, playing his idle loop</td>
+</tr>
+<tr>
+<td>Chat, a request running</td>
+<td>Stands in the working band, in a fixed strip under the messages, playing the animation that matches the tool currently running. The strip does not scroll with the messages, so he is in it on the first request and on the tenth</td>
+</tr>
+<tr>
+<td>Chat, under an answer</td>
+<td>Sits to the right of the buttons under the answer, a little way in from the edge. While the reply is being read out he talks — the mouth flaps and one hand gestures</td>
+</tr>
+<tr>
+<td>Interactive (pots-ui) mode</td>
+<td>Stands above the mode's own title, and in the working band while the request runs</td>
+</tr>
+<tr>
+<td>Mini-app runner</td>
+<td>Stands in the corner of the app he is not part of</td>
+</tr>
+<tr>
+<td>Pots Build</td>
+<td>Stands in the corner of the build screen</td>
+</tr>
+<tr>
+<td>Terminal / sandbox view</td>
+<td>Stands in the corner of the terminal</td>
+</tr>
+</tbody>
+</table>
+<p>The working band wins over the footer: he leaves the footer when the next
+request starts and comes back when it is done.</p>
+<h2 id="the-working-band">The working band</h2>
+<p>While a request is running, a band sits under the messages: the character in
+it and the state under him. The band's background is transparent — <strong>there is
+no tile behind him at all</strong>, neither a card nor a rectangle: he stands on the
+chat, and the band around him is nothing but air. The band does not scroll
+with the messages.</p>
+<p>The state — the tool that is running — is a caption <strong>under</strong> the character,
+not beside him: the picture is who is working, the label is what for.</p>
+<p>The caption's place is measured out whether there is a caption or not: the
+line fades in and out over the space it always has. A caption that pushed the
+layout around would take the character with it, and he would jump out of his
+place every time the agent started or finished a tool.</p>
+<h2 id="what-he-does">What he does</h2>
+<p>The chat tells the engine what it is doing, and the engine decides how he
+shows it — the same way the firmware's screens tell him what is happening
+around him.</p>
+<table>
+<thead>
+<tr>
+<th>The app is</th>
+<th>He is</th>
+<th>He says</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Idle</td>
+<td>Whatever his own roll decides — a walk, a stretch, a dance, a nap, or nothing at all</td>
+<td>A line from his idle pool</td>
+</tr>
+<tr>
+<td>A tool is running</td>
+<td>The pose that matches the tool: the binoculars for a search, the phone for a message, the calendar for a task, the notebook for a memory — and then a list of animations played through until the request is over</td>
+<td>"Ищу." / "Looking it up."</td>
+</tr>
+<tr>
+<td>The reply is being read out</td>
+<td>The talking pose, his mouth flapping every 160 ms</td>
+<td>"Вот, слушай." / "Here it is."</td>
+</tr>
+<tr>
+<td>Something went wrong</td>
+<td>The double-take: he sees it, flinches and settles</td>
+<td>"Что-то пошло не так." / "Something went sideways."</td>
+</tr>
+</tbody>
+</table>
+<p>The moods are the firmware's, and each one is a rule the renderer follows
+rather than a clip of frames: <code>BOUNCE</code> is a hop with the squash at the bottom
+of it, <code>WALK</code> is a leg cycle with the arms swinging against it, <code>SHOCKED</code> is
+a double-take that recoils and settles, <code>SLEEPY</code> is the slow breathing with
+the eyes closed and the "Z" drifting up.</p>
+<p>A shut eye stays a shut eye: the lids are drawn as a dark line, in the same
+keyline every other outline of his is drawn in. The firmware draws them in
+its own light fur, which on the default yellow is the very colour of the
+face, so a sleeping Потсик has no eyes at all there.</p>
+<p>The emote poses are the firmware's too — the salute, the bow, the hug, the
+crouch, the howl, the selfie — and the agent's tool can ask for any of them.</p>
+<h3 id="the-list-of-animations-a-request-plays-through">The list of animations a request plays through</h3>
+<p>When a request starts, a list of <strong>twenty</strong> animations is made at random out
+of everything he knows how to do, and they are played one after another until
+the request is over: a dance, a stretch, the binoculars, a wave, the shuffle.
+Every other one of them goes with a line, so a long request is a conversation
+rather than a silence with a character in it.</p>
+<p>The list is made from the animation catalogue the app already has — nothing
+here asks a model for an opinion, so a long request costs no tokens. The
+firmware rolls its dice the same way, a few times a minute, and picks
+something to do from the same pool; here the roll happens once per request
+and the list is played to the end, over and over.</p>
+<h3 id="how-long-an-animation-is-given">How long an animation is given</h3>
+<p>An animation has to finish its own cycle before the next one starts: a dance
+that is cut in half reads as a glitch, not as a dance.</p>
+<ul>
+<li>One slot is <strong>six seconds</strong> at the normal tempo.</li>
+<li>The tempo scales it, but the slot never falls below <strong>four seconds</strong> and
+  never rises above <strong>twelve</strong>. A slot under four seconds makes the character
+  look like it is twitching; a slot over twelve makes the request look like
+  it has stopped.</li>
+<li>The mood and the pose last the whole slot, so an animation always fills
+  the time it is given.</li>
+<li>The tool's own pose — the one that says <em>what</em> the agent is doing — is
+  given the same floor of four seconds before the playlist takes over.</li>
+</ul>
+<h2 id="the-bubble">The bubble</h2>
+<p>When he has something to say, it comes out in a bubble above his head: a
+round-cornered rectangle in the firmware's pink outline, with a small tail
+pointing down at him. It pops in over a fifth of a second, overshooting
+slightly on the way, the way the firmware's does.</p>
+<p>The text is drawn by Compose rather than by the firmware's bitmap font,
+because that font has no Cyrillic in it and the app has to say the same
+things in Russian.</p>
+<h2 id="the-chatter">The chatter</h2>
+<p>His lines are the firmware's own, with the English and the Russian in the
+same slot — the Russian line in a slot is the translation of the English line
+next to it, so a board that picks a slot at random picks the same moment in
+either language.</p>
+<p>The pools: the idle lines, the boredom, the encouragement, the noir hours,
+the sleepy, the stretch, the gum, the lean, the trip, the dance, the walk,
+the wink, the watching, the pet, the held, the petting, the head, the belly
+and the feet, the flick, the duck, the shake, the backing away, the sit, the
+landing, the dizzy and the thrown.</p>
+<p>The firmware's lines about radio tags and catching things do not mean
+anything in a chat app, so those pools were left behind; the rest are here.</p>
+<h2 id="touching-him">Touching him</h2>
+<p>He reacts to being touched, the way the firmware's does.</p>
+<table>
+<thead>
+<tr>
+<th>You</th>
+<th>He</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tap him</td>
+<td>He bounces and says something. Where you tapped decides what: his head gets a pat, his belly gets a giggle, his feet get a hop</td>
+</tr>
+<tr>
+<td>Hold a finger on him</td>
+<td>He bounces for longer and says something else</td>
+</tr>
+<tr>
+<td>Stroke him</td>
+<td>He bounces and says something, every couple of seconds, for as long as the stroke lasts</td>
+</tr>
+<tr>
+<td>Drag him</td>
+<td>He comes with the finger, hanging from it with his legs kicking and his arms windmilling. A finger that was still moving when it let go <strong>throws</strong> him: he flies, bounces off the floor, and sits down dizzy if it was a hard landing. A finger that had already stopped <strong>drops</strong> him, and he lands with a squash</td>
+</tr>
+<tr>
+<td>Swipe across him</td>
+<td>He slides into the wall, wobbles, and comes back</td>
+</tr>
+</tbody>
+</table>
+<p>The gestures are the firmware's own, with one difference: on the device he is
+picked up after a hold, here the drag picks him up at once, because a chat is
+not a device with a button bar and the character should follow the finger
+from the first movement. Everything else — the tap, the hold, the stroke, the
+flick, the throw, the drop — is the firmware's rule, and the throw is the
+firmware's physics: gravity, a bounce off the walls, a weaker bounce off the
+floor each time, and then he sits down.</p>
+<p>He can be picked up at any time: on the empty screen, in the working band
+while a request runs, and in the footer under the last answer.</p>
+<h2 id="moving-and-resizing-him">Moving and resizing him</h2>
+<p>He can be dragged anywhere over the screen and pinched bigger or smaller with
+two fingers — unless the placement mode is System, which says the chat
+decides where he stands and switches the drag off. The stage keeps him inside
+the screen either way — the whole of him, feet included, has to stay visible,
+and the size is capped by the screen so he can never grow into a shape too
+big to fit.</p>
+<p>There is <strong>one</strong> size model. The size he is drawn at is the size the layout
+gives him, times the layout's own factor for that place, times the user's
+size settings, times the pinch. The drawing, the box the finger grabs and the
+bounds that keep him on the screen all work from that one number, so they
+cannot disagree about how big he is. Before, the drawing and the bounds each
+had their own, and a big Потсик could hang off the screen.</p>
+<p>The bounds live in one place, <code>clampPlacement()</code>, because three different
+callers have to obey the same rule: the drag, the agent's tool and the
+layout's own defaults.</p>
+<h2 id="the-agents-tool">The agent's tool</h2>
+<p><strong>Settings → Tools</strong> has a switch for <strong>Потсик</strong>; the on-device model can be
+given the same tool in <strong>Settings → Локальная модель</strong>. It is off by default.</p>
+<p>The tool is <code>potsik</code>, with an <code>action</code> switch:</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Arguments</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_animations</code></td>
+<td>—</td>
+<td>Lists every animation with its id and a sentence describing it</td>
+</tr>
+<tr>
+<td><code>play_animation</code></td>
+<td><code>animation</code></td>
+<td>Makes him play that animation for ten seconds, overriding whatever the phase would pick</td>
+</tr>
+<tr>
+<td><code>move</code></td>
+<td><code>x</code>, <code>y</code></td>
+<td>Puts him at that spot, as fractions of the screen (0 = left/top edge, 1 = right/bottom edge)</td>
+</tr>
+<tr>
+<td><code>set_scale</code></td>
+<td><code>scale</code></td>
+<td>Makes him that size, relative to his normal one</td>
+</tr>
+</tbody>
+</table>
+<p>A position that would take him off the screen is pulled back into it, and the
+tool says so. In the System placement mode a move is refused outright, and
+the tool says that too rather than reporting a success that did not happen.
+The animation ids are the enum names in lower case
+(<code>idle_wave</code>, <code>work_search</code>, <code>speak_talk</code>, <code>error_shake</code>, <code>emote_howl</code>); they
+are matched loosely, so <code>IDLE-WAVE</code> and <code>idle wave</code> work too.</p>
+<h2 id="the-settings-section">The settings section</h2>
+<p><strong>Settings → Потсик</strong> holds everything about him. The character is previewed
+live at the top of the page, so every change is visible straight away. Every
+profile stores its own visibility, costume, colors, behavior, placement and
+remembered position; changing profiles restores that profile's look.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Show the character</td>
+<td>on / off — off leaves the chat exactly as it was before him</td>
+</tr>
+<tr>
+<td>Outfit</td>
+<td>The eighteen costumes, with their own names in both languages</td>
+</tr>
+<tr>
+<td>T-shirt / Shorts / Shoes</td>
+<td>Eight tones each, all drawn from one shared palette so any combination harmonises</td>
+</tr>
+<tr>
+<td>Shades</td>
+<td>Cyan, Pink, Green, Purple</td>
+</tr>
+<tr>
+<td>Sunglasses</td>
+<td>on / off — off reveals the bare Simpsons-style eyes underneath</td>
+</tr>
+<tr>
+<td>Eyelashes</td>
+<td>on / off — only visible with the shades off</td>
+</tr>
+<tr>
+<td>Size (percent)</td>
+<td>50 % – 150 %, the firmware's SIZE row</td>
+</tr>
+<tr>
+<td>Size (multiplier)</td>
+<td>60 % – 160 %, on top of the size the chat gives him</td>
+</tr>
+<tr>
+<td>Tempo</td>
+<td>50 % – 200 %, the firmware's TEMPO row. It scales every mood, every bubble and every idle beat, so a slow character is slow all the way through</td>
+</tr>
+<tr>
+<td>Chatter</td>
+<td>on / off — whether he talks to himself when nothing is happening</td>
+</tr>
+<tr>
+<td>Dragging</td>
+<td>on / off — whether he may be picked up and carried</td>
+</tr>
+<tr>
+<td>Placement</td>
+<td>Session (the default: he stays where you put him until the app closes), Persistent (he stays there, next time included) or System (the chat puts him where it wants and he cannot be dragged at all)</td>
+</tr>
+<tr>
+<td>Reset the look</td>
+<td>puts every option back to its default</td>
+</tr>
+</tbody>
+</table>
+<p>The complete look is serialized in the profile's <code>profile.json</code> snapshot and
+shown in <code>profile.md</code>. Existing installs migrate their previous individual
+<code>potsik_*</code> values into the initial profile. The app settings registry remains
+the recovery source if writing the readable profile folder fails.</p>
+<h2 id="the-costumes">The costumes</h2>
+<p>All eighteen, with the firmware's names and the names the product gave them.
+The app has no catch counter, so every costume is available from the start.</p>
+<table>
+<thead>
+<tr>
+<th>Costume</th>
+<th>Name</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NONE</code></td>
+<td>Нет</td>
+<td>The bare look: the tee, the shorts, the sneakers</td>
+</tr>
+<tr>
+<td><code>TANOOKI</code></td>
+<td>Тануки</td>
+<td>The tanooki suit, with the ringed tail and the pointed ears</td>
+</tr>
+<tr>
+<td><code>UNICORN</code></td>
+<td>Единорог</td>
+<td>Baby blue over baby pink, with a striped horn</td>
+</tr>
+<tr>
+<td><code>TINFOIL</code></td>
+<td>Фольга (Шапочка)</td>
+<td>The crumpled foil hat, with the little propeller on top and the glint that runs round it</td>
+</tr>
+<tr>
+<td><code>SHADOW</code></td>
+<td>Тень (Ниндзя)</td>
+<td>The ninja: the masked face, the red headband with its travelling tails</td>
+</tr>
+<tr>
+<td><code>PLUMBER</code></td>
+<td>Сантехник (Марио)</td>
+<td>The red cap, the moustache, the white gloves, the overalls</td>
+</tr>
+<tr>
+<td><code>TALLBRO</code></td>
+<td>Высокий (Луиджи)</td>
+<td>The same, in green and taller</td>
+</tr>
+<tr>
+<td><code>SPACE</code></td>
+<td>Космос (Астронавт)</td>
+<td>The bubble helmet, the spacesuit on his arms, the boots, the drifting glint</td>
+</tr>
+<tr>
+<td><code>BLUEBLUR</code></td>
+<td>Синий вихрь (Ураган)</td>
+<td>The blue fur, the quills, the white gloves, the red sneakers, the dust he kicks up</td>
+</tr>
+<tr>
+<td><code>CAPTAIN</code></td>
+<td>Капитан</td>
+<td>The tricorn with the gold braid and the skull and crossbones</td>
+</tr>
+<tr>
+<td><code>CHROMEWING</code></td>
+<td>Хром крыло (Инсектоид)</td>
+<td>The chrome wings, flapping behind him, with the shine that slides along them</td>
+</tr>
+<tr>
+<td><code>VOIDEYE</code></td>
+<td>Глаз пустоты</td>
+<td>His head becomes a sphere of stars, with an iris that snaps to a new place and holds, and a lid that blinks</td>
+</tr>
+<tr>
+<td><code>PARKA</code></td>
+<td>Снежная парка (Кенни)</td>
+<td>The snow parka: the hood, the mittens, the swinging drawstrings, the arms brought back over the hood</td>
+</tr>
+<tr>
+<td><code>YZZERD</code></td>
+<td>Йззерд (Волшебник)</td>
+<td>The robe, the wide hat, the forked beard, the orbiting orb with its trail of motes, the gold star going the other way</td>
+</tr>
+<tr>
+<td><code>OVER9000</code></td>
+<td>Свыше 9000 (Гермес)</td>
+<td>The gi, the eight swaying spikes of hair, the fringe, the scouter, the statics</td>
+</tr>
+<tr>
+<td><code>SHAMBLER</code></td>
+<td>Шамблер (Фрэнки)</td>
+<td>Green-grey, the torn jeans and the torn shirt, the scar, the bandage, the flies</td>
+</tr>
+<tr>
+<td><code>TH3_0N3</code></td>
+<td>Избранный</td>
+<td>The coat with its stirring hem, the round glasses with the code falling inside them</td>
+</tr>
+<tr>
+<td><code>STRIPES</code></td>
+<td>Полосатый</td>
+<td>The prison stripes, the cap, the number on his chest, the iron cuff on his ankle</td>
+</tr>
+</tbody>
+</table>
+<h2 id="key-files">Key Files</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikBody.kt</code></td>
+<td>The character: the firmware's <code>drawBody()</code>, shape for shape</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikCostumes.kt</code></td>
+<td>The eighteen costumes: the firmware's <code>drawOutfit()</code></td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikEngine.kt</code></td>
+<td>His behaviour: the moods, the timings, the touch reactions, the idle roll</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikBanter.kt</code></td>
+<td>The lines he says, English and Russian side by side</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikBubble.kt</code></td>
+<td>The bubble above his head</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikPalette.kt</code></td>
+<td>The colours, in the firmware's RGB565</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikShapes.kt</code></td>
+<td>The drawing primitives the firmware's <code>TFT_eSPI</code> calls became</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikModel.kt</code></td>
+<td>The moods, the emote poses, the costumes and the settings</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikLook.kt</code></td>
+<td><code>PotsikLook</code> — everything the user can change</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikAnimation.kt</code></td>
+<td><code>PotsikAction</code> — the catalogue the agent's tool names</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikAvatar.kt</code></td>
+<td>The character on his own, and the frozen-pose preview</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikStage.kt</code></td>
+<td>Where he is: the anchors, the pinned position, the size, the engine, and the bounds (<code>clampPlacement</code>) that keep him on the screen</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/PotsikOverlay.kt</code></td>
+<td>The one copy of him over the app, the bubble, the touch handling, and the anchors the layout puts where he belongs</td>
+</tr>
+<tr>
+<td><code>composeApp/.../tools/PotsikTool.kt</code></td>
+<td>The agent's tool — list the animations, play one, move him, resize him</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/settings/PotsikiSettings.kt</code></td>
+<td>The Потсик settings tab — the live preview and every option</td>
+</tr>
+<tr>
+<td><code>composeApp/.../data/AppSettings.kt</code></td>
+<td>Profile-scoped serialized look, migration, <code>potsikLookFlow</code> and <code>setPotsikLook()</code></td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/chat/composables/AgentProfilesToolbar.kt</code></td>
+<td>Live profile character strip and wave/exit/entry handoff</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/chat/composables/EmptyState.kt</code></td>
+<td>Потсик's place on the empty chat screen</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/chat/composables/ToolMessage.kt</code></td>
+<td>Потсик's place in the working band — the band with no tile in it</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/chat/composables/BotMessage.kt</code></td>
+<td>Потсик's place under an answer, talking while the TTS runs</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/chat/ChatScreen.kt</code></td>
+<td>The overlay that draws him, and the phase he is in</td>
+</tr>
+<tr>
+<td><code>screenshotTests/.../PotsikScreenshotTest.kt</code></td>
+<td>Renders every costume and every animation, so a change to a single curve is visible</td>
+</tr>
+<tr>
+<td><code>scripts/generate-app-icon.py</code></td>
+<td>Draws the app icon — his head on the brand's purple plate, from the same numbers the app draws him with</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1700 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Pots - AI Assistant App">
+      
+      
+      
+        <link rel="canonical" href="https://pusi-os.github.io/pots/docs/features/mini-apps/">
+      
+      
+        <link rel="prev" href="../dynamic-ui/">
+      
+      
+        <link rel="next" href="../mini-app-server/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Mini-apps - Pots Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#mini-apps-the-interactive-ui-studio" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Pots Documentation" class="md-header__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pots Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Mini-apps
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Pots Documentation" class="md-nav__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pots Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat & Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hands-free/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hands-Free Voice Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dynamic-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Concepts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Concepts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saving-a-mini-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saving a mini-app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-an-app-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where an app lives
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#web-apps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Web apps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-data-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The data model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-library" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The library
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-chat-toolbar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The chat toolbar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-an-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running an app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#behaviour" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behaviour
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mini-app-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-app server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../heartbeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../encryption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encryption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../on-device-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    On-Device Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasoning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pots-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pots Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../potsiki/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-export-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings Export & Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splinterlands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splinterlands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../desktop-release-smoketest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop Release Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Concepts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Concepts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saving-a-mini-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saving a mini-app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-an-app-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where an app lives
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#web-apps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Web apps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-data-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The data model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-library" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The library
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-chat-toolbar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The chat toolbar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-an-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running an app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#behaviour" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behaviour
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="mini-apps-the-interactive-ui-studio">Mini-apps (the Interactive UI studio)</h1>
+<p><strong>Last verified:</strong> 2026-10-24</p>
+<p>Interactive UI mode is also a small app studio. The agent designs the screens; the
+user saves the result as a <strong>mini-app</strong> with its own persistent data, version
+history and toolbar icon. Saved apps run on their own — no chat scroll, no
+network call for the local parts — and can be edited, exported, imported and
+shared.</p>
+<h2 id="concepts">Concepts</h2>
+<h3 id="saving-a-mini-app">Saving a mini-app</h3>
+<p>In Interactive UI the top bar has three studio controls to the left of the close
+button: <strong>New</strong>, <strong>Save</strong> and <strong>My mini-apps</strong>. New starts a clean interactive
+session. Save gathers every distinct <code>pots-ui</code> screen the session produced, the
+data collections the agent declared, the records written while building, and the
+source conversation, then stores them as one app. The last screen is the one the
+app opens on; earlier screens stay available as tabs in the runner.</p>
+<p>The first save asks for a name, a description and an emoji icon; later saves of
+the same app append a new version without asking again.</p>
+<h3 id="where-an-app-lives">Where an app lives</h3>
+<p>The app <strong>is its folder</strong> — <code>mini-apps/&lt;slug&gt;-&lt;id&gt;/</code> — with <code>app.json</code>,
+<code>data.json</code>, <code>versions/</code>, <code>README.md</code>, and every file the app uses: <code>web/</code> for a
+web app (HTML, CSS, JS, images, scripts), <code>user/</code> for files and notes the app
+reads and writes. Drafts live under <code>mini-apps/.drafts/&lt;id&gt;/</code> and are moved into
+the app folder by Save. On Android the root is the app's external files
+directory (visible over USB/MTP); on desktop it is <code>~/.pots/mini-apps/</code>; on iOS
+it is Documents.</p>
+<p>SQLite is the live index and record store: one row per app, one row per version,
+one row per record keyed <code>(app, collection, record)</code>. The folder's <code>data.json</code> is
+the portable dump written on every save; the live per-app slice of SQLite is what
+the settings database browser edits. The <strong>version tree</strong> is append-only: edits,
+restores and re-saves all add nodes.</p>
+<p>Files can be binary (images, fonts, WASM) as well as text. The export bundle
+carries them as base64, so an app shared with another Pots install arrives with
+its web pages, scripts and graphics intact.</p>
+<h3 id="web-apps">Web apps</h3>
+<p>An app whose manifest says <code>kind: web</code> is served from its folder and opened in
+the device browser. The agent builds it with <code>mini_app_data</code>'s file actions
+(<code>write_file</code>, <code>write_file_base64</code>, <code>list_files</code>, <code>read_file</code>, <code>delete_file</code>) and
+<code>set_entry</code> (<code>entry_point: "web/index.html"</code>). The browser app talks to the same
+records, files, notes and calendar through the <a href="../mini-app-server/">built-in server</a>.
+Web apps do not use the LLM unless their own JavaScript explicitly calls one.</p>
+<p>Native apps can reach the same host services without the browser through the
+<code>host_call</code> action (<code>calendar.*</code>, <code>files.*</code>, <code>notes.*</code>), which writes the result
+into a collection for a <code>records</code> node to display.</p>
+<h3 id="the-data-model">The data model</h3>
+<p>The agent designs the app's data with the <code>mini_app_data</code> tool. It can declare a
+collection and its fields, insert/query/delete/clear records, inspect existing
+collections, declare automations and record capabilities. Fields are advisory —
+the store keeps each record as a JSON document — which keeps it cheap for small
+models to use and still gives the UI a schema to render.</p>
+<p>The UI reaches the same store through two <code>pots-ui</code> additions:</p>
+<ul>
+<li>the <code>records</code> node renders a collection, with an optional per-record action;</li>
+<li><code>store_put</code> and <code>store_delete</code> actions write and delete without an AI
+  round-trip; <code>navigate</code> switches to another saved screen.</li>
+</ul>
+<p>While the user is still building, records and schemas are written under the
+current conversation id. Save moves them onto the app, so the first save is not
+a copy step the user has to think about.</p>
+<h3 id="the-library">The library</h3>
+<p><strong>My mini-apps</strong> is a sheet, reachable from the interactive top bar and from the
+chat's glass toolbar. It lists saved apps and provides:</p>
+<ul>
+<li><strong>Open</strong> — run the app;</li>
+<li><strong>Open in editor</strong> — seed a fresh interactive session with the app's final
+  screen, schema and records so the agent can change it;</li>
+<li><strong>Edit</strong> — change the name and description (also a versioned save);</li>
+<li><strong>Version history</strong> — the tree, with a Restore button on every node;</li>
+<li><strong>Export</strong> — one <code>.json</code> bundle containing the app, its records and its
+  history;</li>
+<li><strong>Import</strong> — pick such a bundle; a colliding id gets a new one, so importing
+  your own export adds a copy rather than overwriting the original;</li>
+<li><strong>Delete</strong> — asks first, names the app, and removes the database rows, records
+  and the storage folder.</li>
+</ul>
+<p>The star on each row pins the app to the chat toolbar.</p>
+<h3 id="the-chat-toolbar">The chat toolbar</h3>
+<p>The button to the right of the chat's top bar opens a glass strip under it. With
+no saved apps the strip is a single plus that starts the studio. With apps it
+shows the pinned ones as icons; tapping one opens it, and the tune chip reopens
+the library to change the selection. The selection is remembered across restarts.</p>
+<h3 id="running-an-app">Running an app</h3>
+<p>Saved apps open full-screen in the runner. It renders the latest screen with the
+ordinary <code>pots-ui</code> renderer, with local actions wired to the app's store. It has
+a back/close button, the app's icon and name, a screen tab strip when there is
+more than one screen, and an automation card for apps that declared any.</p>
+<p>Actions that need the agent — a plain <code>callback</code>, or an automation's <strong>Run</strong> —
+leave the runner and open a fresh interactive session seeded with the app, its
+schema, its current records and the request. The agent's reply becomes a new
+screen that can be saved as the next version.</p>
+<p>Automations with a cron expression are registered as ordinary scheduled tasks
+when the app is saved (and re-registered on every save, replacing the app's
+previous tasks). They therefore ride the existing scheduling switch, heartbeat
+conversation and daemon.</p>
+<h3 id="capabilities">Capabilities</h3>
+<p>Apps can declare what they intend to use: calendar, notes, files, notifications,
+scheduling. The declaration is a manifest fact used by the editor prompt and the
+UI. Actual access still goes through the agent and the same tools and runtime
+permissions as the main chat — an app cannot grant itself anything the app does
+not already have.</p>
+<h2 id="behaviour">Behaviour</h2>
+<ul>
+<li>Saving needs at least one rendered <code>pots-ui</code> screen; otherwise the app says so
+  and nothing is written.</li>
+<li>A new screen is added to the app's screen list only when it differs from the
+  ones already there, so re-saving an unchanged session does not duplicate tabs.</li>
+<li><code>store_put</code>, <code>store_delete</code> and <code>navigate</code> work offline in a saved app; a
+  <code>callback</code> needs the agent.</li>
+<li>The runner has no chat input of its own; <strong>Edit</strong> is how the user asks for a
+  change, which keeps one conversation per app edit and makes the version tree
+  readable.</li>
+<li>Exports are self-contained JSON and contain no credentials; imported records
+  keep their ids inside the new app, and imported files are written back into the
+  app folder.</li>
+<li>A web app is launched through the built-in server, so the server has to be
+  running (it is started on demand when the user picks the app). Native apps do
+  not need the server unless they use <code>host_call</code>.</li>
+</ul>
+<h2 id="limitations">Limitations</h2>
+<ul>
+<li>The data store is a document store on SQLite, not an arbitrary SQL engine:
+  collections are named sets of JSON records, not tables with joins.</li>
+<li>Automations run through the chat agent; an app cannot execute its own compiled
+  backend. A cron task's prompt is what the agent receives, so it should carry
+  the app id and say what to do with the records.</li>
+<li>Capabilities are declarative. A capability the host app does not expose (for
+  example a calendar on a platform without calendar tools) is inert.</li>
+<li>Web has no SQLite and no filesystem: apps still save, version and run from
+  settings storage, but the readable folder is absent.</li>
+<li>Restoring an old version creates a new version; there is no destructive
+  rollback.</li>
+</ul>
+<h2 id="key-files">Key Files</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>composeApp/.../data/miniapp/MiniApp.kt</code></td>
+<td>App, screen, collection, record, bundle, version and summary models</td>
+</tr>
+<tr>
+<td><code>composeApp/.../data/miniapp/MiniAppPersistence.kt</code></td>
+<td>SQLite-backed store and the settings fallback for web</td>
+</tr>
+<tr>
+<td><code>composeApp/.../data/miniapp/MiniAppRepository.kt</code></td>
+<td>Save/version/delete/export/import, records, toolbar selection, storage folder</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/sqldelight/.../miniapp.sq</code></td>
+<td>The three tables and their queries; <code>1.sqm</code> is the migration</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/miniapp/MiniAppsSheet.kt</code></td>
+<td>Library, CRUD, version tree, export/import</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/miniapp/MiniAppsGlassToolbar.kt</code></td>
+<td>The chat's glass strip of pinned app icons</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/miniapp/MiniAppRunner.kt</code></td>
+<td>Full-screen saved-app runner</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/miniapp/MiniAppSession.kt</code></td>
+<td>Local action engine: records, store writes, screen navigation</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/dynamicui/MiniAppRuntime.kt</code></td>
+<td>The renderer's runtime seam and <code>LocalMiniAppRuntime</code></td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/dynamicui/PotsUiNode.kt</code></td>
+<td><code>RecordsNode</code></td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/dynamicui/UiAction.kt</code></td>
+<td><code>StorePutAction</code>, <code>StoreDeleteAction</code>, <code>NavigateAction</code></td>
+</tr>
+<tr>
+<td><code>composeApp/.../tools/MiniAppDbTool.kt</code></td>
+<td>The agent's <code>mini_app_data</code> tool</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/chat/ChatScreen.kt</code></td>
+<td>Studio top bar, save dialog, library, runner branch, glass toolbar</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/chat/ChatViewModel.kt</code></td>
+<td>Draft/save/edit flows, automation registration, mini-app seeding</td>
+</tr>
+<tr>
+<td><code>composeApp/.../data/ChatSystemPromptBuilder.kt</code></td>
+<td>Persistent-data instructions and the new component/action catalog</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>

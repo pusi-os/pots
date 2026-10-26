@@ -1,0 +1,37 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pots" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6200EE"/>
+      <stop offset="1" stop-color="#8063C5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#pots)"/>
+  <g transform="translate(256.00,149.50) scale(10.5813)">
+  <polygon points="-7,2 -4,-5 -1,2" fill="#FFE45E"/>
+  <polygon points="-2,2 6,-7.2 6,2" fill="#FFE45E"/>
+  <polygon points="-10,3 -7,-4 -4,3" fill="#FFE45E"/>
+  <polygon points="4,3 7,-4 10,3" fill="#FFE45E"/>
+  <rect x="-13" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="-12" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="9" y="11" width="4" height="4" rx="1" fill="#FFE45E"/>
+  <rect x="10" y="12" width="2" height="2" rx="0.6" fill="#C89239"/>
+  <rect x="-12" y="0" width="24" height="24" rx="4" fill="#101010"/>
+  <rect x="-11.5" y="0.5" width="23" height="23" rx="3.6" fill="#FFE45E"/>
+  <rect x="-7" y="13" width="14" height="10" rx="3" fill="#FFE45E"/>
+  <rect x="-10" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="6" y="15" width="4" height="4" rx="2" fill="#C89239"/>
+  <rect x="-3" y="13" width="6" height="5" rx="1" fill="#101010"/>
+  <rect x="-2" y="14" width="4" height="3" rx="0.7" fill="#FFE45E"/>
+  <rect x="-12" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="2" y="6" width="10" height="7" rx="2" fill="#101010"/>
+  <rect x="-3" y="8" width="5" height="2" fill="#101010"/>
+  <rect x="-11" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="3" y="7" width="8" height="5" rx="1" fill="#003820"/>
+  <rect x="-10" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="4" y="7" width="0.6" height="5" fill="#FFFFFF"/>
+  <rect x="-6" y="16" width="12" height="6" rx="2" fill="#101010"/>
+  <rect x="-5" y="17" width="10" height="1.8" fill="#FFFFFF"/>
+  <rect x="-5" y="18.8" width="10" height="0.9" fill="#101010"/>
+  <rect x="-5" y="19.7" width="10" height="1.5" fill="#F49AC1"/>
+  </g>
+</svg>
