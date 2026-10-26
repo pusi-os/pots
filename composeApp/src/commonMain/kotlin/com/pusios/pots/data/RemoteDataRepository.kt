@@ -191,6 +191,9 @@ class RemoteDataRepository(
     private val localInferenceEngine: LocalInferenceEngine? = null,
 ) : DataRepository {
 
+    override val agentProfiles: StateFlow<List<AgentProfile>> = appSettings.agentProfilesFlow
+    override val activeAgentProfileId: StateFlow<String> = appSettings.activeAgentProfileIdFlow
+
     private val prettyJson = Json { prettyPrint = true }
 
     /**
@@ -882,7 +885,9 @@ class RemoteDataRepository(
         // callers (heartbeat, askWithTools, etc.) don't all need a new parameter. The
         // skill's files already live in the sandbox at ~/skills/<id>/, so nothing is
         // materialized here.
-        val resolvedSkillId = activeSkillId?.takeIf { skillManager.getSkill(it) != null }
+        val resolvedSkillId = activeSkillId?.takeIf {
+            skillManager.getSkill(it) != null && appSettings.isActiveProfileSkillEnabled(it)
+        }
         pendingActiveSkillId = resolvedSkillId
         try {
             askInternal(question, files, uiSubmission)
@@ -1906,6 +1911,37 @@ class RemoteDataRepository(
 
     override suspend fun connectEnabledMcpServers() {
         mcpServerManager.connectEnabledServers()
+    }
+
+    override fun getAgentProfiles(): List<AgentProfile> = appSettings.getAgentProfiles()
+
+    override fun getActiveAgentProfile(): AgentProfile = appSettings.getActiveAgentProfile()
+
+    override fun createAgentProfile(name: String): AgentProfile? = appSettings.createAgentProfile(name)
+
+    override fun renameAgentProfile(id: String, name: String): Boolean = appSettings.renameAgentProfile(id, name)
+
+    override fun deleteAgentProfile(id: String): Boolean {
+        val wasActive = appSettings.getActiveAgentProfileId() == id
+        val deleted = appSettings.deleteAgentProfile(id)
+        if (deleted && wasActive) {
+            mcpServerManager.closeDisabledProfileServers()
+            startNewChat()
+        }
+        return deleted
+    }
+
+    override suspend fun activateAgentProfile(id: String): Boolean {
+        if (appSettings.getActiveAgentProfileId() == id) return true
+        if (!appSettings.activateAgentProfile(id)) return false
+        mcpServerManager.closeDisabledProfileServers()
+        startNewChat()
+        mcpServerManager.connectEnabledServers()
+        return true
+    }
+
+    override fun setActiveProfileSkillIds(ids: Set<String>) {
+        appSettings.setActiveProfileSkillIds(ids)
     }
 
     // Skills

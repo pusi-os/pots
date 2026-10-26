@@ -80,6 +80,13 @@ private const val LOCAL_MEMORY_BUDGET_CHARS = 2_000
 internal const val DEFAULT_HONESTY_RULE =
     "Do not fabricate tool outputs, file contents, citations, or completed work."
 
+/** Language and clarity policy shared by every persona and chat variant. */
+internal const val DEFAULT_LANGUAGE_SECTION =
+    "## Язык и ясность\n" +
+        "По умолчанию отвечай на естественном, понятном русском языке; если пользователь явно пишет на другом языке или просит его — отвечай на нём. " +
+        "Объясняй специальные термины простыми словами, сначала давай вывод или следующий шаг, затем только нужные детали. " +
+        "Не скрывай существенные оговорки, но не перегружай ответ."
+
 /**
  * Universal tool-use policy composed into every chat variant. Lives as its own constant
  * (not in the soul string) so it survives user customization of the soul — the same
@@ -181,6 +188,9 @@ internal fun buildChatSystemPrompt(
 
     if (isNotEmpty()) append("\n\n")
     append(DEFAULT_HONESTY_RULE)
+
+    if (isNotEmpty()) append("\n\n")
+    append(DEFAULT_LANGUAGE_SECTION)
 
     // Tool-use policy only renders when the model is actually being given tools. With every
     // tool disabled (or a model that doesn't support tool calls) "use tools to verify work"
@@ -410,6 +420,7 @@ private fun StringBuilder.appendContextSection(runtime: ChatPromptRuntimeContext
 
 private fun StringBuilder.appendDynamicUiSection() {
     append("\n## Dynamic UI\n")
+    append("Когда есть 2–5 очевидных вариантов или нужен короткий ответ «да/нет», предложи уместные кнопки в конце ответа: например, подтвердить/отклонить черновик, выбрать вариант или следующий шаг. Делай это только когда кнопки ускоряют действие; не превращай каждый ответ в опрос. Для внешнего или необратимого действия сначала получи явное подтверждение. Кнопка callback лишь передаёт выбор пользователя и сама не выполняет действие — после выбора используй нужный инструмент и сообщи результат. Для черновика письма покажи полный черновик до кнопок «Отправить», «Изменить», «Отмена»; отправляй только после явного подтверждения. Пиши подписи кнопок коротко и по-русски.\n\n")
     append("You can enhance your chat responses with interactive UI elements using pots-ui blocks. ")
     append("Proactively use them whenever you need input from the user — don't just ask in plain text if a form, selector, or buttons would be more natural. ")
     append("For example, if the user asks you to help plan a trip, present destination options as buttons; if you need preferences, show a form; if presenting choices, use interactive cards. ")

@@ -156,7 +156,7 @@ object PotsikTool {
                     "success" to false,
                     "error" to "The character cannot be moved: the placement mode is System, " +
                         "so the chat decides where he stands. The user can change the mode " +
-                        "in Settings, in the Потсики section.",
+                        "in Settings, in the Потсик section.",
                 )
             }
             val current = stage.placement.value

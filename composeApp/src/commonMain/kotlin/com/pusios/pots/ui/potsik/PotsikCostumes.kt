@@ -564,8 +564,8 @@ internal class PotsikCostumePainter(
         val h = potsikHash((slot * 2654435761L).toInt())
         // One slot in eight is a straight stare.
         if ((h and 7) == 0) return 0 to 0
-        val gx = (Math.floorMod(h.toLong(), 9L) - 4L).toInt() * r / 16
-        val gy = (Math.floorMod((h shr 8).toLong(), 7L) - 3L).toInt() * r / 16
+        val gx = (floorMod(h.toLong(), 9L) - 4L).toInt() * r / 16
+        val gy = (floorMod((h shr 8).toLong(), 7L) - 3L).toInt() * r / 16
         return gx to gy
     }
 
@@ -579,7 +579,7 @@ internal class PotsikCostumePainter(
         val slot = 2600L
         val dur = 300L
         val h = potsikHash((slot * 2654435761L).toInt())
-        val t0 = slot * slot + 300 + Math.floorMod(h.toLong(), (slot - 900).toLong())
+        val t0 = slot * slot + 300 + floorMod(h.toLong(), (slot - 900).toLong())
         if (now < t0) return 0
         val d = now - t0
         if (d >= dur) return 0

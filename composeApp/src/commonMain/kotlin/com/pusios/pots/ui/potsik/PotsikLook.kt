@@ -1,18 +1,20 @@
 package com.pusios.pots.ui.potsik
 
 import androidx.compose.runtime.Immutable
+import kotlinx.serialization.Serializable
 
 /**
  * Everything the user can change about how Потсик looks.
  *
- * Persisted as individual keys (see `AppSettings`), never as one blob, so a
- * new field can be added later without invalidating the ones already stored.
+ * Persisted as part of a version-tolerant per-profile JSON object (see
+ * `AppSettings`), with legacy individual preference keys migrated on first load.
  *
  * The colours here are the firmware's own: the eight-tone cloth palette, the
  * four lens tints of the shades and the twenty costumes, each with the name
  * the firmware gives it in both languages.
  */
 @Immutable
+@Serializable
 data class PotsikLook(
     /** When false the character is not drawn at all and the chat keeps its plain layout. */
     val isVisible: Boolean = true,

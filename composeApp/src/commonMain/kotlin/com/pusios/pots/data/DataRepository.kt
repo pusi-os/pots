@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface DataRepository {
     val chatHistory: StateFlow<List<History>>
+    val agentProfiles: StateFlow<List<AgentProfile>>
+    val activeAgentProfileId: StateFlow<String>
 
     /** How the animated character (Потсик) looks; changes as soon as the user changes it. */
     val potsikLookFlow: StateFlow<PotsikLook>
@@ -91,6 +93,15 @@ interface DataRepository {
     fun getMcpToolsForServer(serverId: String): List<ToolInfo>
     fun isMcpServerConnected(serverId: String): Boolean
     suspend fun connectEnabledMcpServers()
+
+    // Agent profiles
+    fun getAgentProfiles(): List<AgentProfile>
+    fun getActiveAgentProfile(): AgentProfile
+    fun createAgentProfile(name: String): AgentProfile?
+    fun renameAgentProfile(id: String, name: String): Boolean
+    fun deleteAgentProfile(id: String): Boolean
+    suspend fun activateAgentProfile(id: String): Boolean
+    fun setActiveProfileSkillIds(ids: Set<String>)
 
     // Skills (stored in the Linux sandbox at ~/skills/<id>/; Android-only)
     fun getInstalledSkills(): List<SkillManifest>

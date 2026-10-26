@@ -1,5 +1,6 @@
 package com.pusios.pots.testutil
 
+import com.pusios.pots.data.AgentProfile
 import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.Conversation
 import com.pusios.pots.data.DataRepository
@@ -45,6 +46,8 @@ class FakeDataRepository : DataRepository {
     private var currentService: Service = Service.Free
 
     override val chatHistory: MutableStateFlow<List<History>> = MutableStateFlow(emptyList())
+    override val agentProfiles: MutableStateFlow<List<AgentProfile>> = MutableStateFlow(listOf(AgentProfile(id = "default", name = "Потсик")))
+    override val activeAgentProfileId: MutableStateFlow<String> = MutableStateFlow("default")
     override val currentConversationId: MutableStateFlow<String?> = MutableStateFlow(null)
     override val fallbackStatus: MutableStateFlow<FallbackStatus?> = MutableStateFlow(null)
 
@@ -372,6 +375,39 @@ class FakeDataRepository : DataRepository {
 
     override suspend fun connectEnabledMcpServers() {
         mcpServers.filter { it.isEnabled }.forEach { mcpConnected.add(it.id) }
+    }
+
+    override fun getAgentProfiles(): List<AgentProfile> = agentProfiles.value
+    override fun getActiveAgentProfile(): AgentProfile = agentProfiles.value.first { it.id == activeAgentProfileId.value }
+    override fun createAgentProfile(name: String): AgentProfile? {
+        if (name.isBlank()) return null
+        val profile = getActiveAgentProfile().copy(id = "profile_${agentProfiles.value.size}", name = name.trim())
+        agentProfiles.value += profile
+        return profile
+    }
+    override fun renameAgentProfile(id: String, name: String): Boolean {
+        val index = agentProfiles.value.indexOfFirst { it.id == id }
+        if (index < 0 || name.isBlank()) return false
+        agentProfiles.value = agentProfiles.value.mapIndexed { i, profile -> if (i == index) profile.copy(name = name) else profile }
+        return true
+    }
+    override fun deleteAgentProfile(id: String): Boolean {
+        if (agentProfiles.value.size <= 1) return false
+        val removed = agentProfiles.value.any { it.id == id }
+        agentProfiles.value = agentProfiles.value.filterNot { it.id == id }
+        if (activeAgentProfileId.value == id) activeAgentProfileId.value = agentProfiles.value.first().id
+        return removed
+    }
+    override suspend fun activateAgentProfile(id: String): Boolean {
+        if (agentProfiles.value.none { it.id == id }) return false
+        activeAgentProfileId.value = id
+        startNewChat()
+        return true
+    }
+    override fun setActiveProfileSkillIds(ids: Set<String>) {
+        agentProfiles.value = agentProfiles.value.map { profile ->
+            if (profile.id == activeAgentProfileId.value) profile.copy(enabledSkillIds = ids.toList(), skillSelectionConfigured = true) else profile
+        }
     }
 
     // Agent loop tuning

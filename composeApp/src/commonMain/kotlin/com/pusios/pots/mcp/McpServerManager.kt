@@ -42,12 +42,19 @@ class McpServerManager(private val appSettings: AppSettings) {
         migratePopularDefaultHeaders()
     }
 
-    fun getServers(): List<McpServerConfig> = servers.get()
+    private fun getStoredServers(): List<McpServerConfig> = servers.get()
+
+    fun getServers(): List<McpServerConfig> {
+        val profileSelection = appSettings.getProfileEnabledMcpServerIds()
+        return getStoredServers().map { server ->
+            server.copy(isEnabled = profileSelection?.contains(server.id) ?: server.isEnabled)
+        }
+    }
 
     private fun saveServers(servers: List<McpServerConfig>) = this.servers.set(servers)
 
     private fun migratePopularDefaultHeaders() {
-        val current = servers.get()
+        val current = getStoredServers()
         val updated = applyPopularDefaultHeaders(current)
         if (updated !== current) {
             saveServers(updated)
@@ -55,7 +62,7 @@ class McpServerManager(private val appSettings: AppSettings) {
     }
 
     fun addServer(name: String, url: String, headers: Map<String, String>): McpServerConfig {
-        val servers = getServers().toMutableList()
+        val servers = getStoredServers().toMutableList()
         val id = generateServerId(name, servers)
         // If the user adds a popular endpoint manually without headers, still apply defaults
         // for missing keys only (never clobber explicit headers they typed).
@@ -67,28 +74,39 @@ class McpServerManager(private val appSettings: AppSettings) {
         val config = McpServerConfig(id = id, name = name, url = url, headers = mergedHeaders)
         servers.add(config)
         saveServers(servers)
+        appSettings.getProfileEnabledMcpServerIds()?.let { enabled ->
+            appSettings.setProfileEnabledMcpServerIds(enabled + id)
+        }
         return config
     }
 
     fun removeServer(serverId: String) {
-        val servers = getServers().toMutableList()
+        val servers = getStoredServers().toMutableList()
         servers.removeAll { it.id == serverId }
         saveServers(servers)
+        appSettings.removeMcpServerFromAgentProfiles(serverId)
         clients[serverId]?.close()
         clients.remove(serverId)
         discoveredTools.remove(serverId)
     }
 
     fun setServerEnabled(serverId: String, enabled: Boolean) {
-        val servers = getServers().toMutableList()
-        val index = servers.indexOfFirst { it.id == serverId }
-        if (index >= 0) {
-            servers[index] = servers[index].copy(isEnabled = enabled)
-            saveServers(servers)
-        }
+        val ids = getServers().filter { it.isEnabled }.map { it.id }.toMutableSet()
+        if (enabled) ids += serverId else ids -= serverId
+        appSettings.setProfileEnabledMcpServerIds(ids)
         if (!enabled) {
             clients[serverId]?.close()
             clients.remove(serverId)
+            discoveredTools.remove(serverId)
+        }
+    }
+
+    /** Drop clients that are no longer selected by the newly active agent profile. */
+    fun closeDisabledProfileServers() {
+        val enabled = getServers().filter { it.isEnabled }.map { it.id }.toSet()
+        val disabled = clients.keys.filterNot { it in enabled }
+        for (serverId in disabled) {
+            clients.remove(serverId)?.close()
             discoveredTools.remove(serverId)
         }
     }

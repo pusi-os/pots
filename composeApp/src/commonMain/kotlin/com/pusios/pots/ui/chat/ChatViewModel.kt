@@ -86,6 +86,7 @@ class ChatViewModel(
         regenerate = ::regenerate,
         cancel = ::cancel,
         selectService = ::selectService,
+        activateAgentProfile = ::activateAgentProfile,
         loadConversation = ::loadConversation,
         deleteConversation = ::deleteConversation,
         clearUnreadHeartbeat = ::clearUnreadHeartbeat,
@@ -114,6 +115,8 @@ class ChatViewModel(
             actions = actions,
             showPrivacyInfo = dataRepository.isUsingSharedKey(),
             potsikLook = dataRepository.getPotsikLook(),
+            agentProfiles = dataRepository.agentProfiles.value.toImmutableList(),
+            activeAgentProfileId = dataRepository.activeAgentProfileId.value,
         ),
     )
 
@@ -150,6 +153,16 @@ class ChatViewModel(
         viewModelScope.launch {
             dataRepository.potsikLookFlow.collect { look ->
                 _state.update { it.copy(potsikLook = look) }
+            }
+        }
+        viewModelScope.launch {
+            dataRepository.agentProfiles.collect { profiles ->
+                _state.update { it.copy(agentProfiles = profiles.toImmutableList()) }
+            }
+        }
+        viewModelScope.launch {
+            dataRepository.activeAgentProfileId.collect { profileId ->
+                _state.update { it.copy(activeAgentProfileId = profileId) }
             }
         }
         taskScheduler.isLoadingCheck = { _state.value.isLoading }
@@ -817,6 +830,17 @@ class ChatViewModel(
      */
     private fun setPotsikLook(look: PotsikLook) {
         dataRepository.setPotsikLook(look)
+    }
+
+    private fun activateAgentProfile(profileId: String) {
+        if (profileId == dataRepository.getActiveAgentProfile().id) return
+        currentJob?.cancel()
+        currentJob = null
+        _state.update { it.copy(isLoading = false, error = null, showFreeProviderSuggestions = false) }
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.activateAgentProfile(profileId)
+            _state.update { it.copy(isInteractiveMode = false, isLoading = false, error = null) }
+        }
     }
 
     private fun consumeComposerPrefill() {

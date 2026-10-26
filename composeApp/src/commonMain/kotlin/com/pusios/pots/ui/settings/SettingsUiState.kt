@@ -1,6 +1,7 @@
 package com.pusios.pots.ui.settings
 
 import androidx.compose.runtime.Immutable
+import com.pusios.pots.data.AgentProfile
 import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.EmailAccount
 import com.pusios.pots.data.EmailSyncState
@@ -73,6 +74,10 @@ data class SettingsUiState(
     val availableServicesToAdd: ImmutableList<Service> = persistentListOf(),
     val tools: ImmutableList<ToolInfo> = persistentListOf(),
     val soulText: String = "",
+    val agentProfiles: ImmutableList<AgentProfile> = persistentListOf(),
+    val activeAgentProfileId: String = "default",
+    val activeProfileSkillIds: ImmutableSet<String> = persistentSetOf(),
+    val activeProfileSkillSelectionConfigured: Boolean = false,
     val agentTuning: AgentTuning = AgentTuning.Default,
     val isDynamicUiEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.System,

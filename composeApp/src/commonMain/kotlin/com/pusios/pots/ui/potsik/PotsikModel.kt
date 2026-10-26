@@ -2,6 +2,7 @@ package com.pusios.pots.ui.potsik
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import kotlinx.serialization.Serializable
 
 /**
  * What Потсик is doing — the firmware's `Mood`, in the same order and with the
@@ -134,6 +135,7 @@ enum class PotsikReactPose {
  * in, the firmware's `outfitFurPalette`. A costume with null tones leaves his
  * own yellow alone and only adds things on top.
  */
+@Serializable
 enum class PotsikOutfit(
     val nameEn: String,
     val nameRu: String,
@@ -234,6 +236,7 @@ enum class PotsikOutfit(
 /**
  * The four lens tints of the removable shades — the firmware's `SHADE_NAMES`.
  */
+@Serializable
 enum class PotsikShadeTint(val nameEn: String, val nameRu: String, val color: Color) {
     CYAN("CYAN", "ГОЛУБОЙ", rgb565(0x00E5FF)),
     PINK("PINK", "РОЗОВЫЙ", rgb565(0xFF8FC8)),
@@ -244,6 +247,7 @@ enum class PotsikShadeTint(val nameEn: String, val nameRu: String, val color: Co
 /**
  * The base clothes' palette — the firmware's `CLOTH_COLORS`, in its order.
  */
+@Serializable
 enum class PotsikClothColor(val nameEn: String, val nameRu: String, val index: Int) {
     INDIGO("INDIGO", "ИНДИГО", 0),
     BLUE("BLUE", "СИНИЙ", 1),
@@ -268,6 +272,7 @@ enum class PotsikClothColor(val nameEn: String, val nameRu: String, val index: I
  * have to answer: never (the chat puts him where it wants), for this session
  * only, or for good.
  */
+@Serializable
 enum class PotsikPlacementMode(val nameEn: String, val nameRu: String) {
     /** The chat layout decides where he stands; a move is forgotten. */
     SYSTEM("SYSTEM", "СИСТЕМНЫЙ"),

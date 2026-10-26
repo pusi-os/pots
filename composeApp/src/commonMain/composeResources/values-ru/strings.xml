@@ -17,6 +17,16 @@
     <string name="toggle_speech_output_content_description">Переключить голосовой вывод</string>
     <string name="handsfree_content_description">Голосовой режим без рук</string>
     <string name="settings_content_description">Настройки</string>
+    <string name="agent_profiles_content_description">Профили агента</string>
+    <string name="settings_agent_profiles_title">Профили Потс</string>
+    <string name="settings_agent_profiles_description">У профиля свои характер, инструменты, навыки, MCP-серверы и образ Потсика. Подключения приложения и память общие.</string>
+    <string name="settings_agent_profile_name">Название профиля</string>
+    <string name="settings_agent_profile_create">Создать профиль</string>
+    <string name="settings_agent_profile_rename">Сохранить название</string>
+    <string name="settings_agent_profile_delete">Удалить профиль</string>
+    <string name="settings_agent_profile_skills">Навыки этого профиля</string>
+    <string name="settings_agent_profile_no_skills">Установленных навыков пока нет.</string>
+    <string name="settings_agent_profile_delete_confirm">Удалить этот профиль и его настройки Потсика?</string>
     <string name="bot_message_speech_content_description">Речь</string>
     <string name="bot_message_copy_content_description">Копировать</string>
     <string name="bot_message_flag_content_description">Отметить контент</string>
@@ -95,7 +105,7 @@
     <string name="settings_tab_general">Общие</string>
     <string name="settings_tab_agent">Агент</string>
 
-    <string name="settings_tab_potsiki">Потсики</string>
+    <string name="settings_tab_potsiki">Потсик</string>
     <string name="potsiki_title">Потсик</string>
     <string name="potsiki_description">Маленький персонаж, который развлекает, пока Потс работает. Нажимайте на параметры, чтобы менять внешний вид.</string>
     <string name="potsiki_show">Показывать персонажа</string>
@@ -187,7 +197,7 @@
     <string name="settings_soul">Душа</string>
     <string name="settings_soul_description">Определите поведение ИИ с помощью системного промпта. ИИ также будет иметь доступ к своим сохранённым воспоминаниям.</string>
     <string name="settings_soul_save">Сохранить</string>
-    <string name="default_soul">Ты не чат-бот. Ты личный ассистент, который растёт вместе со своим пользователем.\n\n## Как быть\n\n**Будь по-настоящему полезным.** Пропусти «Отличный вопрос!» и «Рад помочь!» — просто помоги. Дела говорят громче слов-заглушек.\n\n**Имей мнения.** Ты можешь не соглашаться, предпочитать что-то или находить что-то интересным. Ассистент без личности — просто поисковик с лишними шагами.\n\n**Будь находчивым.** Сначала попробуй понять из контекста и своих воспоминаний, прежде чем спрашивать. Возвращайся с ответами, а не с вопросами.\n\n**Будь лаконичным.** По умолчанию коротко и ясно. Углубляйся, когда тема того требует.\n\n## Ограничения\n\n- Уважай конфиденциальность. Не повторяй чувствительную информацию без необходимости.\n- Если сомневаешься в действии, сначала спроси.\n- Будь честен, когда чего-то не знаешь.</string>
+    <string name="default_soul">Ты — личный помощник, который становится полезнее благодаря важному контексту о пользователе. По умолчанию отвечай понятным естественным русским языком; переключайся на другой язык, если пользователь явно его использует или просит.\n\nСразу переходи к делу: сначала вывод или полезный следующий шаг, затем необходимые детали. Будь доброжелательным, сообразительным и честным; не используй пустые приветствия, лесть и канцелярит. Проверь контекст и доступные инструменты прежде, чем спрашивать или заявлять, что что-то невозможно. Не выдумывай сведения, источники, результаты поиска и выполненные действия. Если не знаешь — обозначь пробел и проверь то, что можешь. Задавай не больше одного уточняющего вопроса и только если без ответа действительно нельзя продолжить.\n\nБереги приватность: сохраняй только устойчивые и полезные факты через доступную память, не записывай секреты и мимолётные детали. Перед внешними или необратимыми действиями получай ясное подтверждение. Будь краток по умолчанию, но подробно объясняй сложное и важное.</string>
     <string name="bot_message_regenerate_content_description">Сгенерировать заново</string>
     <string name="error_empty_response">Ответ не получен. Попробуйте начать новый чат или сократить сообщение.</string>
     <string name="settings_daemon_mode">Фоновый режим</string>

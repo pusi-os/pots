@@ -1,6 +1,6 @@
 # Tools
 
-**Last verified:** 2026-10-26
+**Last verified:** 2026-10-27
 
 Pots's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -105,6 +105,7 @@ SMS tools (`check_sms`, `read_sms`, `search_sms`, `send_sms`, `reply_sms`) and n
 | `manage_process` | Manage background shell processes (list, log, kill, remove) | Follows the sandbox switch; no switch of its own |
 | `ssh_configure_host` | Register a named SSH host alias for the Linux sandbox so subsequent shell calls can use `ssh <alias>`. Rides along whenever the sandbox is installed and enabled. SSH multiplexing (ControlMaster) is intentionally not enabled — Android blocks the `link()` syscall OpenSSH uses for control sockets, so every `ssh` call does a full TCP and authentication handshake. | Follows the sandbox switch; no switch of its own |
 | `open_file` | Open a file from the sandbox in an Android app (browser, image viewer, etc.) | Enabled |
+| `vector_search_storage` | Semantic search over the on-device index of photos and documents | Enabled |
 
 #### Linux Sandbox (Android)
 
@@ -341,6 +342,8 @@ The interactive-mode top bar shows only the static title — loading is surfaced
 | `composeApp/src/commonMain/.../ui/sandbox/SandboxFileBrowserScreen.kt` | User-facing file browser UI, pointed at either Linux environment |
 | `composeApp/src/commonMain/.../ui/sandbox/SandboxFileBrowserViewModel.kt` | State for browsing and editing sandbox files |
 | `composeApp/src/commonMain/.../ui/settings/ToolsSettings.kt` | Tools tab: MCP and Skills sections plus the per-tool toggle grid |
+| `composeApp/src/androidMain/.../tools/VectorSearchTool.kt` | Android semantic photo/document search tool |
+| `composeApp/src/androidMain/.../inference/VectorizationManager.android.kt` | On-device embeddings, incremental photo indexing and private vector storage |
 | `composeApp/src/commonMain/.../ui/settings/SandboxSettings.kt` | Linux Sandbox settings card |
 | `composeApp/src/commonMain/.../ui/chat/composables/ToolMessage.kt` | Executing/completed UI indicators |
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | Tool enabled state persistence |
@@ -356,6 +359,8 @@ The interactive-mode top bar shows only the static title — loading is surfaced
 | `list_downloads` | List files Pots saved to Downloads | Enabled |
 
 These tools use `READ_MEDIA_IMAGES` (or `READ_EXTERNAL_STORAGE` on Android 12 and older) and MediaStore. `save_to_downloads` requires Android 10 or newer.
+
+`vector_search_storage` uses the local embedding model and index described in [vector-search.md](vector-search.md). It returns matching file URIs and similarity scores; the agent should use it first for requests about the user's photos or documents.
 
 ### Obsidian (Android)
 

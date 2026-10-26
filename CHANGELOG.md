@@ -1,3 +1,19 @@
+## v3.6.4 — 2026-10-27
+
+### Features
+- Add named agent profiles with separate characters, tool choices, skills, MCP selection and Потсик appearance
+- Add Russian character presets for psychological support, home therapy, coaching and Потсик
+- Add private, on-device semantic search for Android photos and documents
+
+### Improvements
+- Make photo indexing incremental and orientation-aware; version the embedding index and report skipped items
+- Index PDF pages and DOCX text, and add semantic photo labels
+- Keep agent profile snapshots in app storage and make profile switching start a fresh chat
+
+### Fixes
+- Make shared Потсик appearance math compile on Web/Wasm
+- Keep Android document and attachment pickers safe in Compose previews and screenshot tests
+
 ## Unreleased
 
 ### Features

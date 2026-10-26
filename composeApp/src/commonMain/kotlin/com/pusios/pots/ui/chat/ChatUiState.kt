@@ -3,6 +3,7 @@
 package com.pusios.pots.ui.chat
 
 import androidx.compose.runtime.Immutable
+import com.pusios.pots.data.AgentProfile
 import com.pusios.pots.data.Attachment
 import com.pusios.pots.data.FallbackStatus
 import com.pusios.pots.data.ReasoningRequestMode
@@ -95,6 +96,8 @@ data class ChatUiState(
     val fallbackStatus: FallbackStatus? = null,
     val isRestoring: Boolean = true,
     val installedSkills: ImmutableList<com.pusios.pots.skills.SkillManifest> = persistentListOf(),
+    val agentProfiles: ImmutableList<AgentProfile> = persistentListOf(),
+    val activeAgentProfileId: String = "default",
     /** How the animated character (Потсик) looks. */
     val potsikLook: PotsikLook = PotsikLook.Default,
     val composerPrefill: String? = null,

@@ -1568,7 +1568,7 @@ internal class PotsikPainter(
         var fl = 0f
         val slot = 5200L
         val hsh = potsikHash((slot * 2654435761L).toInt())
-        val f0 = slot * 5200 + Math.floorMod(hsh.toLong(), 4400L)
+        val f0 = slot * 5200 + floorMod(hsh.toLong(), 4400L)
         if (now >= f0 && now < f0 + 620) {
             val k = (now - f0) / 620f
             fl = sin(k * 12.566371f) * (1f - k)

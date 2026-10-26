@@ -105,7 +105,7 @@ class GemmaLocalScreenshotTest {
                         compareBy<Service> {
                             when {
                                 it is Service.OpenAICompatible || it.isOnDevice -> 0
-                                it is Service.AtlasCloud -> 1
+                                it.isFreeTier -> 1
                                 else -> 2
                             }
                         }.thenBy { it.displayName },
@@ -219,7 +219,7 @@ private fun AddServiceSheetPreview(services: ImmutableList<Service>) {
                         bottomStart = if (index == services.lastIndex) 12.dp else 0.dp,
                         bottomEnd = if (index == services.lastIndex) 12.dp else 0.dp,
                     )
-                    val isSpecial = service.isOnDevice || service is Service.OpenAICompatible || service is Service.AtlasCloud
+                    val isSpecial = service.isOnDevice || service is Service.OpenAICompatible || service.isFreeTier
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = itemShape,

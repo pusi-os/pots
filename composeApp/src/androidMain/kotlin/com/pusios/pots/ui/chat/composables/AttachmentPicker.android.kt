@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.core.content.FileProvider
 import io.github.vinceglb.filekit.AndroidFile
 import io.github.vinceglb.filekit.PlatformFile
@@ -28,6 +29,10 @@ internal actual fun rememberAttachmentPickerLauncher(
     includeCamera: Boolean,
     onFile: (PlatformFile?) -> Unit,
 ): AttachmentPickerLauncher {
+    if (LocalInspectionMode.current) {
+        return remember { AttachmentPickerLauncher {} }
+    }
+
     val context = LocalContext.current
     val currentOnFile by rememberUpdatedState(onFile)
     val pendingUri = remember { mutableStateOf<Uri?>(null) }

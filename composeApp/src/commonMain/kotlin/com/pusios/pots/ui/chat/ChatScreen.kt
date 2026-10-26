@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pusios.pots.BackIcon
 import com.pusios.pots.TerminalLine
+import com.pusios.pots.data.AgentProfile
 import com.pusios.pots.data.Service
 import com.pusios.pots.data.supportsAgenticFlows
 import com.pusios.pots.getBackgroundDispatcher
@@ -92,6 +93,8 @@ import com.pusios.pots.onDragAndDropEventDropped
 import com.pusios.pots.permissionQualifier
 import com.pusios.pots.ui.background.screenBackground
 import com.pusios.pots.ui.build.PotsBuildScreen
+import com.pusios.pots.ui.chat.composables.AgentProfileHandoffOverlay
+import com.pusios.pots.ui.chat.composables.AgentProfilesToolbar
 import com.pusios.pots.ui.chat.composables.BotMessage
 import com.pusios.pots.ui.chat.composables.ChatHistorySheet
 import com.pusios.pots.ui.chat.composables.CircleIconButton
@@ -208,6 +211,7 @@ fun ChatScreenContent(
     var isPotsBuildOpen by rememberSaveable { mutableStateOf(false) }
     // A saved app can run over the chat without becoming a navigation destination.
     var runningMiniAppId by rememberSaveable { mutableStateOf<String?>(null) }
+    var profileHandoff by remember { mutableStateOf<Pair<AgentProfile, AgentProfile>?>(null) }
 
     // The character's stage. The app hands in the one the agent's tool writes
     // to; a preview that has no app behind it gets its own.
@@ -300,6 +304,15 @@ fun ChatScreenContent(
                     previewSandboxState = previewSandboxState,
                     previewSandboxLines = previewSandboxLines,
                     onOpenMiniApp = { runningMiniAppId = it },
+                    onSelectAgentProfile = { incoming ->
+                        if (incoming.id == uiState.activeAgentProfileId || profileHandoff != null) return@ChatModeScreen
+                        val outgoing = uiState.agentProfiles.firstOrNull { it.id == uiState.activeAgentProfileId }
+                        if (outgoing == null || (!outgoing.potsikLook.isVisible && !incoming.potsikLook.isVisible)) {
+                            uiState.actions.activateAgentProfile(incoming.id)
+                        } else {
+                            profileHandoff = outgoing to incoming
+                        }
+                    },
                 )
             }
 
@@ -308,10 +321,21 @@ fun ChatScreenContent(
             // the corner, which is what the sections outside the chat want.
             PotsikOverlay(
                 stage = stage,
-                look = uiState.potsikLook,
+                look = if (profileHandoff == null) uiState.potsikLook else uiState.potsikLook.copy(isVisible = false),
                 phase = potsikPhase,
                 toolName = runningTool,
             )
+            profileHandoff?.let { (outgoing, incoming) ->
+                AgentProfileHandoffOverlay(
+                    outgoing = outgoing,
+                    incoming = incoming,
+                    onActivateIncoming = {
+                        stage.clearPinned()
+                        uiState.actions.activateAgentProfile(incoming.id)
+                    },
+                    onFinished = { profileHandoff = null },
+                )
+            }
         }
     }
 }
@@ -766,9 +790,11 @@ private fun ChatModeScreen(
     previewSandboxState: SandboxUiState? = null,
     previewSandboxLines: ImmutableList<TerminalLine> = persistentListOf(),
     onOpenMiniApp: (String) -> Unit = {},
+    onSelectAgentProfile: (AgentProfile) -> Unit = {},
 ) {
     val potsikStage = LocalPotsikStage.current
     var showHistorySheet by remember { mutableStateOf(false) }
+    var showAgentProfilesToolbar by remember { mutableStateOf(false) }
     var showMiniAppsToolbar by rememberSaveable { mutableStateOf(false) }
     var showMiniAppsSheet by remember { mutableStateOf(false) }
     var showTokenStats by remember { mutableStateOf(false) }
@@ -910,8 +936,20 @@ private fun ChatModeScreen(
                     },
                     miniAppsOpen = showMiniAppsToolbar,
                     onToggleMiniApps = { showMiniAppsToolbar = !showMiniAppsToolbar },
+                    profilesOpen = showAgentProfilesToolbar,
+                    onToggleProfiles = { showAgentProfilesToolbar = !showAgentProfilesToolbar },
                 )
             }
+
+            AgentProfilesToolbar(
+                visible = showAgentProfilesToolbar,
+                profiles = uiState.agentProfiles,
+                activeProfileId = uiState.activeAgentProfileId,
+                onSelectProfile = { profile ->
+                    showAgentProfilesToolbar = false
+                    onSelectAgentProfile(profile)
+                },
+            )
 
             MiniAppsGlassToolbar(
                 visible = showMiniAppsToolbar,

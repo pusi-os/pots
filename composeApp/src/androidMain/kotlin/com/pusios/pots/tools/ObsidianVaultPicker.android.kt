@@ -6,8 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
@@ -18,8 +18,14 @@ actual fun ObsidianVaultPicker(
     currentUri: String,
     onPicked: (String?) -> Unit,
 ) {
+    if (LocalInspectionMode.current) {
+        Button(onClick = {}) {
+            Text(stringResource(Res.string.settings_obsidian_pick_vault))
+        }
+        return
+    }
+
     val context = androidx.compose.ui.platform.LocalContext.current
-    val scope = rememberCoroutineScope()
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->

@@ -1,12 +1,23 @@
 package com.pusios.pots.data
 
 import com.pusios.pots.defaultUiScale
+import com.pusios.pots.deleteAppStorageFolder
 import com.pusios.pots.linux.LinuxDistro
+import com.pusios.pots.mcp.McpServerConfig
 import com.pusios.pots.ui.potsik.PotsikLook
 import com.pusios.pots.ui.potsik.PotsikPlacementMode
+import com.pusios.pots.writeAppStorageFile
 import com.russhwolf.settings.Settings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -169,6 +180,224 @@ data class ServiceInstance(
 
 class AppSettings(internal val settings: Settings) {
 
+    private val profileJson = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+        explicitNulls = false
+    }
+    private val agentProfilesSerializer = ListSerializer(AgentProfile.serializer())
+    private val profileFileWriteScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var pendingProfileFileWrite: Job? = null
+    private val _agentProfilesFlow = MutableStateFlow(loadInitialAgentProfiles())
+    val agentProfilesFlow: StateFlow<List<AgentProfile>> = _agentProfilesFlow
+    private val initialActiveProfileId = settings.getString(KEY_ACTIVE_AGENT_PROFILE_ID, DEFAULT_AGENT_PROFILE_ID)
+        .takeIf { id -> _agentProfilesFlow.value.any { it.id == id } }
+        ?: _agentProfilesFlow.value.first().id
+    private val _activeAgentProfileIdFlow = MutableStateFlow(initialActiveProfileId)
+    val activeAgentProfileIdFlow: StateFlow<String> = _activeAgentProfileIdFlow
+
+    init {
+        settings.putString(KEY_ACTIVE_AGENT_PROFILE_ID, initialActiveProfileId)
+        scheduleAgentProfileFilesWrite(_agentProfilesFlow.value)
+    }
+
+    fun getAgentProfiles(): List<AgentProfile> = _agentProfilesFlow.value
+
+    fun getActiveAgentProfileId(): String = _activeAgentProfileIdFlow.value
+
+    fun getActiveAgentProfile(): AgentProfile = _agentProfilesFlow.value.firstOrNull { it.id == _activeAgentProfileIdFlow.value }
+        ?: _agentProfilesFlow.value.first()
+
+    fun createAgentProfile(name: String): AgentProfile? {
+        val cleanName = name.trim().replace(Regex("[\\r\\n\\t]+"), " ").take(60)
+        if (cleanName.isBlank()) return null
+        val base = cleanName.lowercase().replace(Regex("[^a-z0-9а-яё]+"), "_").trim('_').ifBlank { "pots" }
+        var counter = settings.getLong(KEY_PROFILE_ID_COUNTER, 0L)
+        var id: String
+        do {
+            counter++
+            id = "${base.take(36)}_$counter"
+        } while (_agentProfilesFlow.value.any { it.id == id })
+        settings.putLong(KEY_PROFILE_ID_COUNTER, counter)
+        val source = getActiveAgentProfile()
+        val profile = source.copy(
+            id = id,
+            name = cleanName,
+            enabledMcpServerIds = source.enabledMcpServerIds ?: readLegacyEnabledMcpIds(),
+        )
+        saveAgentProfiles(_agentProfilesFlow.value + profile)
+        return profile
+    }
+
+    fun renameAgentProfile(id: String, name: String): Boolean {
+        val cleanName = name.trim().replace(Regex("[\\r\\n\\t]+"), " ").take(60)
+        if (cleanName.isBlank()) return false
+        val current = _agentProfilesFlow.value
+        if (current.none { it.id == id }) return false
+        saveAgentProfiles(current.map { if (it.id == id) it.copy(name = cleanName) else it })
+        return true
+    }
+
+    fun activateAgentProfile(id: String): Boolean {
+        if (_agentProfilesFlow.value.none { it.id == id }) return false
+        if (_activeAgentProfileIdFlow.value == id) return true
+        settings.putString(KEY_ACTIVE_AGENT_PROFILE_ID, id)
+        _activeAgentProfileIdFlow.value = id
+        _potsikLookFlow.value = getActiveAgentProfile().potsikLook
+        return true
+    }
+
+    fun deleteAgentProfile(id: String): Boolean {
+        val current = _agentProfilesFlow.value
+        if (current.size <= 1 || current.none { it.id == id }) return false
+        val remaining = current.filterNot { it.id == id }
+        if (_activeAgentProfileIdFlow.value == id) {
+            val fallback = remaining.first()
+            settings.putString(KEY_ACTIVE_AGENT_PROFILE_ID, fallback.id)
+            _activeAgentProfileIdFlow.value = fallback.id
+            _potsikLookFlow.value = fallback.potsikLook
+        }
+        saveAgentProfiles(remaining)
+        deleteAgentProfileFiles(id)
+        return true
+    }
+
+    fun setProfileEnabledMcpServerIds(ids: Set<String>) {
+        updateActiveAgentProfile { copy(enabledMcpServerIds = ids.toList().sorted()) }
+    }
+
+    fun getProfileEnabledMcpServerIds(): Set<String>? = getActiveAgentProfile().enabledMcpServerIds?.toSet()
+
+    fun removeMcpServerFromAgentProfiles(serverId: String) {
+        saveAgentProfiles(
+            _agentProfilesFlow.value.map { profile ->
+                val enabled = profile.enabledMcpServerIds ?: return@map profile
+                profile.copy(enabledMcpServerIds = enabled.filterNot { it == serverId })
+            },
+        )
+    }
+
+    fun setActiveProfileSkillIds(ids: Set<String>) {
+        updateActiveAgentProfile { copy(enabledSkillIds = ids.toList().sorted(), skillSelectionConfigured = true) }
+    }
+
+    fun isActiveProfileSkillEnabled(skillId: String): Boolean {
+        val profile = getActiveAgentProfile()
+        return !profile.skillSelectionConfigured || skillId in profile.enabledSkillIds
+    }
+
+    private fun updateActiveAgentProfile(transform: AgentProfile.() -> AgentProfile) {
+        val id = _activeAgentProfileIdFlow.value
+        saveAgentProfiles(_agentProfilesFlow.value.map { profile -> if (profile.id == id) profile.transform() else profile })
+    }
+
+    private fun saveAgentProfiles(profiles: List<AgentProfile>) {
+        val normalized = profiles.ifEmpty { listOf(defaultAgentProfile()) }
+        settings.putString(KEY_AGENT_PROFILES, profileJson.encodeToString(agentProfilesSerializer, normalized))
+        _agentProfilesFlow.value = normalized
+        scheduleAgentProfileFilesWrite(normalized)
+    }
+
+    private fun loadInitialAgentProfiles(): List<AgentProfile> {
+        val stored = settings.getStringOrNull(KEY_AGENT_PROFILES)
+        if (!stored.isNullOrBlank()) {
+            val decoded = try {
+                profileJson.decodeFromString(agentProfilesSerializer, stored)
+            } catch (e: Exception) {
+                backupCorruptJson("agentProfiles", stored)
+                emptyList()
+            }
+            if (decoded.isNotEmpty()) return decoded
+        }
+        val legacyToolOverrides = settings.keys
+            .filter { it.startsWith(KEY_TOOL_PREFIX) }
+            .associate { key -> key.removePrefix(KEY_TOOL_PREFIX) to settings.getBoolean(key, true) }
+        val legacySelection = try {
+            val raw = settings.getString(KEY_LOCAL_TOOL_SELECTION, "")
+            if (raw.isBlank()) LocalToolSelection() else profileJson.decodeFromString(LocalToolSelection.serializer(), raw)
+        } catch (_: Exception) {
+            LocalToolSelection()
+        }
+        return listOf(
+            AgentProfile(
+                id = DEFAULT_AGENT_PROFILE_ID,
+                name = "Потсик",
+                personaId = settings.getString(KEY_SOUL_PRESET, AgentPersonaPresets.ASSISTANT),
+                soulText = settings.getString(KEY_SOUL, ""),
+                toolOverrides = legacyToolOverrides,
+                localToolSelection = legacySelection,
+                potsikLook = loadInitialPotsikLook(),
+            ),
+        )
+    }
+
+    private fun defaultAgentProfile(): AgentProfile = AgentProfile(
+        id = DEFAULT_AGENT_PROFILE_ID,
+        name = "Потсик",
+        potsikLook = PotsikLook.Default,
+    )
+
+    private fun writeAgentProfileFiles(profiles: List<AgentProfile>) {
+        for (profile in profiles) {
+            val safeId = profile.id.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            val relative = "agent_profiles/$safeId"
+            writeAppStorageFile("$relative/profile.json", profileJson.encodeToString(AgentProfile.serializer(), profile))
+            writeAppStorageFile("$relative/profile.md", profileMarkdown(profile))
+        }
+    }
+
+    private fun scheduleAgentProfileFilesWrite(profiles: List<AgentProfile>) {
+        pendingProfileFileWrite?.cancel()
+        pendingProfileFileWrite = profileFileWriteScope.launch {
+            delay(200L)
+            writeAgentProfileFiles(profiles)
+        }
+    }
+
+    private fun readLegacyEnabledMcpIds(): List<String> = try {
+        val serializer = ListSerializer(McpServerConfig.serializer())
+        profileJson.decodeFromString(serializer, getMcpServersJson())
+            .filter { it.isEnabled }
+            .map { it.id }
+    } catch (_: Exception) {
+        emptyList()
+    }
+
+    private fun deleteAgentProfileFiles(id: String) {
+        val safeId = id.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        pendingProfileFileWrite?.cancel()
+        pendingProfileFileWrite = profileFileWriteScope.launch {
+            delay(200L)
+            deleteAppStorageFolder("agent_profiles/$safeId")
+            writeAgentProfileFiles(_agentProfilesFlow.value)
+        }
+    }
+
+    private fun profileMarkdown(profile: AgentProfile): String = buildString {
+        append("# ").append(profile.name).append("\n\n")
+        append("- ID: `").append(profile.id).append("`\n")
+        append("- Характер: `").append(profile.personaId).append("`\n")
+        append("- Активные навыки: ").append(if (profile.skillSelectionConfigured) profile.enabledSkillIds.joinToString().ifBlank { "нет" } else "все установленные").append("\n")
+        append("- MCP-серверы: ").append(profile.enabledMcpServerIds?.joinToString().orEmpty().ifBlank { "наследуемые настройки" }).append("\n\n")
+        append("## Инструменты\n\n")
+        if (profile.toolOverrides.isEmpty()) {
+            append("Используются значения по умолчанию.\n\n")
+        } else {
+            profile.toolOverrides.entries.sortedBy { it.key }.forEach { entry ->
+                append("- `").append(entry.key).append("`: ").append(if (entry.value) "включён" else "выключен").append('\n')
+            }
+            append('\n')
+        }
+        append("## Инструменты локальной модели\n\n")
+        append("- Настроено явно: ").append(profile.localToolSelection.configured).append('\n')
+        append("- Встроенные: ").append(profile.localToolSelection.toolIds.joinToString().ifBlank { "по умолчанию" }).append('\n')
+        append("- MCP: ").append(profile.localToolSelection.mcpServerIds.joinToString().ifBlank { "по умолчанию" }).append("\n\n")
+        append("## Системный промпт\n\n").append(profile.soulText.ifBlank { "Используется базовый характер приложения." }).append("\n\n")
+        append("## Образ Потсика\n\n```json\n")
+        append(profileJson.encodeToString(PotsikLook.serializer(), profile.potsikLook))
+        append("\n```\n")
+    }
+
     // App open tracking
     fun trackAppOpen(): Int {
         val currentCount = settings.getInt(KEY_APP_OPENS, 0)
@@ -178,10 +407,15 @@ class AppSettings(internal val settings: Settings) {
     }
 
     // Tool enable/disable settings
-    fun isToolEnabled(toolId: String, defaultEnabled: Boolean = true): Boolean = settings.getBoolean("$KEY_TOOL_PREFIX$toolId", defaultEnabled)
+    fun isToolEnabled(toolId: String, defaultEnabled: Boolean = true): Boolean = getActiveAgentProfile().toolOverrides[toolId] ?: defaultEnabled
 
     fun setToolEnabled(toolId: String, enabled: Boolean) {
-        settings.putBoolean("$KEY_TOOL_PREFIX$toolId", enabled)
+        updateActiveAgentProfile { copy(toolOverrides = toolOverrides + (toolId to enabled)) }
+    }
+
+    fun clearActiveProfileToolOverrides(toolIds: List<String>) {
+        val ids = toolIds.toSet()
+        updateActiveAgentProfile { copy(toolOverrides = toolOverrides - ids) }
     }
 
     fun getConversationsJson(): String? = settings.getStringOrNull(KEY_CONVERSATIONS)
@@ -273,10 +507,10 @@ class AppSettings(internal val settings: Settings) {
     }
 
     // Soul (system prompt)
-    fun getSoulText(): String = settings.getString(KEY_SOUL, "")
+    fun getSoulText(): String = getActiveAgentProfile().soulText
 
     fun setSoulText(text: String) {
-        settings.putString(KEY_SOUL, text)
+        updateActiveAgentProfile { copy(soulText = text) }
     }
 
     // Obsidian vault (Android SAF tree URI)
@@ -286,10 +520,11 @@ class AppSettings(internal val settings: Settings) {
         settings.putString(KEY_OBSIDIAN_VAULT_URI, uri.trim())
     }
 
-    fun getSoulPresetId(): String = settings.getString(KEY_SOUL_PRESET, "assistant")
+    fun getSoulPresetId(): String = getActiveAgentProfile().personaId
 
     fun setSoulPresetId(id: String) {
-        settings.putString(KEY_SOUL_PRESET, id.trim().ifBlank { "assistant" })
+        val normalized = id.trim().ifBlank { AgentPersonaPresets.ASSISTANT }
+        updateActiveAgentProfile { copy(personaId = normalized) }
     }
 
     fun isAutoVectorizePhotos(): Boolean = settings.getBoolean(KEY_AUTO_VECTORIZE_PHOTOS, false)
@@ -414,34 +649,15 @@ class AppSettings(internal val settings: Settings) {
 
     // Потсик — the animated character.
     //
-    // Every part of the look is stored under its own key, so a field added
-    // later reads its own default and leaves the ones already stored alone.
-    private val _potsikLookFlow = MutableStateFlow(loadInitialPotsikLook())
+    // Legacy individual appearance fields are read once while creating the
+    // first profile; all subsequent reads/writes use that profile's look object.
+    private val _potsikLookFlow = MutableStateFlow(getActiveAgentProfile().potsikLook)
     val potsikLookFlow: StateFlow<PotsikLook> = _potsikLookFlow
 
     fun getPotsikLook(): PotsikLook = _potsikLookFlow.value
 
     fun setPotsikLook(look: PotsikLook) {
-        settings.putBoolean(KEY_POTSIK_VISIBLE, look.isVisible)
-        settings.putString(KEY_POTSIK_OUTFIT, look.outfit.name)
-        settings.putString(KEY_POTSIK_SHIRT, look.shirtColor.name)
-        settings.putString(KEY_POTSIK_SHORTS, look.shortsColor.name)
-        settings.putString(KEY_POTSIK_SHOES, look.shoesColor.name)
-        settings.putString(KEY_POTSIK_SHADES, look.shadeTint.name)
-        settings.putBoolean(KEY_POTSIK_GLASSES, look.glassesOn)
-        settings.putBoolean(KEY_POTSIK_LASHES, look.lashesOn)
-        settings.putFloat(KEY_POTSIK_SIZE, look.sizeScale)
-        settings.putInt(KEY_POTSIK_SIZE_PERCENT, look.sizePercent)
-        settings.putInt(KEY_POTSIK_TEMPO_PERCENT, look.tempoPercent)
-        settings.putBoolean(KEY_POTSIK_BANTER, look.banterEnabled)
-        settings.putBoolean(KEY_POTSIK_DRAGGABLE, look.draggable)
-        settings.putString(KEY_POTSIK_PLACEMENT_MODE, look.placementMode.name)
-        // The place he was left in. Null means "wherever the chat puts him",
-        // so the key is only written when there is a place to remember.
-        look.pinnedX?.let { settings.putFloat(KEY_POTSIK_PINNED_X, it) }
-            ?: settings.remove(KEY_POTSIK_PINNED_X)
-        look.pinnedY?.let { settings.putFloat(KEY_POTSIK_PINNED_Y, it) }
-            ?: settings.remove(KEY_POTSIK_PINNED_Y)
+        updateActiveAgentProfile { copy(potsikLook = look) }
         _potsikLookFlow.value = look
     }
 
@@ -555,13 +771,6 @@ class AppSettings(internal val settings: Settings) {
     }
 
     // Tools available to the on-device (local) model
-    private val localToolSelectionStore = SettingsJsonValue(
-        read = { settings.getString(KEY_LOCAL_TOOL_SELECTION, "") },
-        write = { settings.putString(KEY_LOCAL_TOOL_SELECTION, it) },
-        serializer = LocalToolSelection.serializer(),
-        label = "localToolSelection",
-        default = { LocalToolSelection() },
-    )
 
     /**
      * The user's choice of tools and MCP servers for the on-device model.
@@ -569,10 +778,10 @@ class AppSettings(internal val settings: Settings) {
      * An unconfigured selection ([LocalToolSelection.configured] is false) means the built-in
      * defaults apply; a configured one is honoured verbatim.
      */
-    fun getLocalToolSelection(): LocalToolSelection = localToolSelectionStore.get()
+    fun getLocalToolSelection(): LocalToolSelection = getActiveAgentProfile().localToolSelection
 
     fun setLocalToolSelection(selection: LocalToolSelection) {
-        localToolSelectionStore.set(selection)
+        updateActiveAgentProfile { copy(localToolSelection = selection) }
     }
 
     // UI Scale
@@ -739,6 +948,10 @@ class AppSettings(internal val settings: Settings) {
     }
 
     companion object {
+        private const val DEFAULT_AGENT_PROFILE_ID = "default"
+        private const val KEY_AGENT_PROFILES = "agent_profiles_json"
+        private const val KEY_ACTIVE_AGENT_PROFILE_ID = "active_agent_profile_id"
+        private const val KEY_PROFILE_ID_COUNTER = "agent_profile_id_counter"
         const val KEY_CURRENT_SERVICE_ID = "current_service_id"
         const val KEY_APP_OPENS = "app_opens"
 

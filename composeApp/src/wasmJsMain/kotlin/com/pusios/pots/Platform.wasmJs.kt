@@ -28,6 +28,8 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 actual fun httpClient(config: HttpClientConfig<*>.() -> Unit): HttpClient = HttpClient(Js) {
     config(this)
@@ -110,14 +112,72 @@ actual suspend fun saveFileToDevice(bytes: ByteArray, baseName: String, extensio
 // Web notifications API isn't wired up; stub.
 actual fun sendHeartbeatNotification(title: String, body: String) = Unit
 
-actual fun writeAppStorageFile(relativePath: String, content: String): Boolean = false
+private const val APP_STORAGE_FILE_PREFIX = "pots.app-file."
 
-actual fun deleteAppStorageFolder(relativePath: String): Boolean = false
+private fun normalizedStoragePath(path: String): String? {
+    val parts = path.replace('\\', '/').split('/').filter { it.isNotBlank() }
+    if (parts.isEmpty() || parts.any { it == "." || it == ".." }) return null
+    return parts.joinToString("/")
+}
 
-actual fun writeAppStorageBytes(relativePath: String, bytes: ByteArray): Boolean = false
+private fun storageKeys(): List<String> {
+    val storage = kotlinx.browser.window.localStorage
+    return (0 until storage.length).mapNotNull { storage.key(it) }.filter { it.startsWith(APP_STORAGE_FILE_PREFIX) }
+}
 
-actual fun readAppStorageBytes(relativePath: String): ByteArray? = null
+actual fun writeAppStorageFile(relativePath: String, content: String): Boolean = try {
+    val path = normalizedStoragePath(relativePath) ?: return false
+    kotlinx.browser.window.localStorage.setItem(APP_STORAGE_FILE_PREFIX + path, content)
+    true
+} catch (_: Exception) {
+    false
+}
 
-actual fun listAppStorageFiles(relativePath: String): List<String> = emptyList()
+actual fun deleteAppStorageFolder(relativePath: String): Boolean = try {
+    val path = normalizedStoragePath(relativePath) ?: return false
+    val storage = kotlinx.browser.window.localStorage
+    val prefix = "$APP_STORAGE_FILE_PREFIX$path/"
+    for (key in storageKeys()) {
+        if (key == APP_STORAGE_FILE_PREFIX + path || key.startsWith(prefix)) storage.removeItem(key)
+    }
+    true
+} catch (_: Exception) {
+    false
+}
 
-actual fun moveAppStorageFolder(fromRelativePath: String, toRelativePath: String): Boolean = false
+@OptIn(ExperimentalEncodingApi::class)
+actual fun writeAppStorageBytes(relativePath: String, bytes: ByteArray): Boolean = writeAppStorageFile(relativePath, "base64:${Base64.encode(bytes)}")
+
+@OptIn(ExperimentalEncodingApi::class)
+actual fun readAppStorageBytes(relativePath: String): ByteArray? = try {
+    val path = normalizedStoragePath(relativePath) ?: return null
+    val content = kotlinx.browser.window.localStorage.getItem(APP_STORAGE_FILE_PREFIX + path) ?: return null
+    if (!content.startsWith("base64:")) content.encodeToByteArray() else Base64.decode(content.removePrefix("base64:"))
+} catch (_: Exception) {
+    null
+}
+
+actual fun listAppStorageFiles(relativePath: String): List<String> {
+    val path = normalizedStoragePath(relativePath)?.let { "$it/" } ?: return emptyList()
+    return storageKeys()
+        .map { it.removePrefix(APP_STORAGE_FILE_PREFIX) }
+        .filter { it.startsWith(path) }
+        .sorted()
+}
+
+actual fun moveAppStorageFolder(fromRelativePath: String, toRelativePath: String): Boolean = try {
+    val from = normalizedStoragePath(fromRelativePath) ?: return false
+    val to = normalizedStoragePath(toRelativePath) ?: return false
+    val storage = kotlinx.browser.window.localStorage
+    val sourcePrefix = "$APP_STORAGE_FILE_PREFIX$from/"
+    val entries = storageKeys().filter { it.startsWith(sourcePrefix) }
+    for (key in entries) {
+        val suffix = key.removePrefix(sourcePrefix)
+        val value = storage.getItem(key) ?: continue
+        storage.setItem("$APP_STORAGE_FILE_PREFIX$to/$suffix", value)
+        storage.removeItem(key)
+    }
+    true
+} catch (_: Exception) {
+    false
+}

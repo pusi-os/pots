@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -36,6 +37,8 @@ fun PotsikAvatar(
     modifier: Modifier = Modifier,
     toolName: String? = null,
     size: Dp = 96.dp,
+    animationOverride: PotsikAction? = null,
+    animationKey: Int = 0,
 ) {
     if (!look.isVisible) return
 
@@ -50,9 +53,12 @@ fun PotsikAvatar(
     val density = LocalDensity.current
     val boxPx = with(density) { size.toPx() }
 
-    val engine = remember { PotsikEngine(PotsikSettings(), { false }) }
-    LaunchedEffect(phase, toolName) {
+    val isRussian = Locale.current.language.lowercase().startsWith("ru")
+    val behaviour = look.behaviour()
+    val engine = remember(behaviour, isRussian) { PotsikEngine(behaviour, { isRussian }) }
+    LaunchedEffect(phase, toolName, animationOverride, animationKey) {
         engine.setPhase(phase, toolName, nowMs.toLong())
+        animationOverride?.let { engine.playAction(it, durationMs = 2_600L, now = nowMs.toLong()) }
     }
 
     Box(modifier = modifier.size(size)) {

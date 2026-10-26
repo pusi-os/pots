@@ -96,6 +96,10 @@ class SettingsViewModel(
             availableServicesToAdd = computeAvailableServices().toImmutableList(),
             tools = dataRepository.getToolDefinitions().toImmutableList(),
             soulText = dataRepository.getSoulText(),
+            agentProfiles = dataRepository.getAgentProfiles().toImmutableList(),
+            activeAgentProfileId = dataRepository.getActiveAgentProfile().id,
+            activeProfileSkillIds = dataRepository.getActiveAgentProfile().enabledSkillIds.toPersistentSet(),
+            activeProfileSkillSelectionConfigured = dataRepository.getActiveAgentProfile().skillSelectionConfigured,
             agentTuning = dataRepository.getAgentTuning(),
             isDynamicUiEnabled = dataRepository.isDynamicUiEnabled(),
             themeMode = dataRepository.getThemeMode(),
@@ -174,6 +178,11 @@ class SettingsViewModel(
         onToggleLocalTool = ::onToggleLocalTool,
         onToggleLocalMcpServer = ::onToggleLocalMcpServer,
         onResetLocalToolSelection = ::onResetLocalToolSelection,
+        onCreateAgentProfile = ::onCreateAgentProfile,
+        onRenameAgentProfile = ::onRenameAgentProfile,
+        onDeleteAgentProfile = ::onDeleteAgentProfile,
+        onActivateAgentProfile = ::onActivateAgentProfile,
+        onSetActiveProfileSkills = ::onSetActiveProfileSkills,
         onSaveSoul = ::onSaveSoul,
         onChangeAgentTuning = ::onChangeAgentTuning,
         onToggleDynamicUi = ::onToggleDynamicUi,
@@ -240,6 +249,10 @@ class SettingsViewModel(
     )
 
     init {
+        viewModelScope.launch {
+            combine(dataRepository.agentProfiles, dataRepository.activeAgentProfileId) { _, _ -> Unit }
+                .collect { refreshAgentProfileState() }
+        }
         // Observe download state from the engine singleton (survives activity recreation)
         val downloadingFlow = dataRepository.getLocalDownloadingModelId() ?: flowOf(null)
         val progressFlow = dataRepository.getLocalDownloadProgress() ?: flowOf(null)
@@ -505,6 +518,61 @@ class SettingsViewModel(
                 configuredServices = state.configuredServices.map { e ->
                     if (e.instanceId == instanceId) e.copy(customModelId = modelId) else e
                 }.toImmutableList(),
+            )
+        }
+    }
+
+    private fun onCreateAgentProfile(name: String) {
+        val profile = dataRepository.createAgentProfile(name) ?: return
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.activateAgentProfile(profile.id)
+            refreshAgentProfileState()
+        }
+    }
+
+    private fun onRenameAgentProfile(id: String, name: String) {
+        if (dataRepository.renameAgentProfile(id, name)) refreshAgentProfileState()
+    }
+
+    private fun onDeleteAgentProfile(id: String) {
+        if (!dataRepository.deleteAgentProfile(id)) return
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.connectEnabledMcpServers()
+            refreshAgentProfileState()
+        }
+    }
+
+    private fun onActivateAgentProfile(id: String) {
+        if (id == dataRepository.getActiveAgentProfile().id) return
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.activateAgentProfile(id)
+            refreshAgentProfileState()
+        }
+    }
+
+    private fun onSetActiveProfileSkills(ids: Set<String>) {
+        dataRepository.setActiveProfileSkillIds(ids)
+        refreshAgentProfileState()
+    }
+
+    private fun refreshAgentProfileState() {
+        val active = dataRepository.getActiveAgentProfile()
+        val servers = dataRepository.getMcpServers()
+        _state.update {
+            it.copy(
+                agentProfiles = dataRepository.getAgentProfiles().toImmutableList(),
+                activeAgentProfileId = active.id,
+                activeProfileSkillIds = active.enabledSkillIds.toPersistentSet(),
+                activeProfileSkillSelectionConfigured = active.skillSelectionConfigured,
+                soulText = active.soulText,
+                potsikLook = active.potsikLook,
+                tools = dataRepository.getToolDefinitions().toImmutableList(),
+                mcpServers = buildMcpServerEntries().toImmutableList(),
+                localToolSelection = LocalToolSelection.effective(
+                    selection = dataRepository.getLocalToolSelection(),
+                    enabledMcpServerIds = servers.filter { it.isEnabled }.map { it.id }.toSet(),
+                ),
+                isLocalToolSelectionConfigured = dataRepository.getLocalToolSelection().configured,
             )
         }
     }

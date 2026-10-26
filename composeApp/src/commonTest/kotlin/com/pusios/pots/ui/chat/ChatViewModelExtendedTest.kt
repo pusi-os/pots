@@ -179,6 +179,31 @@ class ChatViewModelExtendedTest {
         }
     }
 
+    @Test
+    fun `activating an agent profile starts a fresh conversation`() = runTest {
+        val profile = fakeRepository.createAgentProfile("Study")!!
+        fakeRepository.chatHistory.value = listOf(History(role = History.Role.USER, content = "old profile turn"))
+        val viewModel = createViewModel()
+
+        viewModel.state.test {
+            var initial: ChatUiState
+            do {
+                initial = awaitItem()
+            } while (initial.history.size != 1)
+
+            initial.actions.activateAgentProfile(profile.id)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            var switched: ChatUiState
+            do {
+                switched = awaitItem()
+            } while (switched.activeAgentProfileId != profile.id)
+            assertTrue(switched.history.isEmpty())
+            assertTrue(fakeRepository.chatHistory.value.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // ---- regenerate ----
 
     @Test

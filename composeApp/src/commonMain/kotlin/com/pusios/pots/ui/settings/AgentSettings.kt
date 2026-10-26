@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -38,7 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -84,6 +87,15 @@ import pots.composeapp.generated.resources.settings_agent_max_parallel_descripti
 import pots.composeapp.generated.resources.settings_agent_parameters
 import pots.composeapp.generated.resources.settings_agent_parameters_description
 import pots.composeapp.generated.resources.settings_agent_presets
+import pots.composeapp.generated.resources.settings_agent_profile_create
+import pots.composeapp.generated.resources.settings_agent_profile_delete
+import pots.composeapp.generated.resources.settings_agent_profile_delete_confirm
+import pots.composeapp.generated.resources.settings_agent_profile_name
+import pots.composeapp.generated.resources.settings_agent_profile_no_skills
+import pots.composeapp.generated.resources.settings_agent_profile_rename
+import pots.composeapp.generated.resources.settings_agent_profile_skills
+import pots.composeapp.generated.resources.settings_agent_profiles_description
+import pots.composeapp.generated.resources.settings_agent_profiles_title
 import pots.composeapp.generated.resources.settings_agent_reasoning
 import pots.composeapp.generated.resources.settings_agent_reasoning_auto
 import pots.composeapp.generated.resources.settings_agent_reasoning_description
@@ -133,10 +145,14 @@ import kotlin.time.Instant
 @Composable
 internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SettingsCard {
+            AgentProfilesSection(uiState = uiState, actions = actions)
+        }
         StaggeredSettingsColumns(
             start = {
                 SettingsCard {
                     SoulEditor(
+                        profileId = uiState.activeAgentProfileId,
                         soulText = uiState.soulText,
                         onSaveSoul = actions.onSaveSoul,
                     )
@@ -237,6 +253,147 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
                 onChange = actions.onChangeAgentTuning,
             )
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AgentProfilesSection(uiState: SettingsUiState, actions: SettingsActions) {
+    val activeProfile = uiState.agentProfiles.firstOrNull { it.id == uiState.activeAgentProfileId }
+    var newProfileName by remember { mutableStateOf("") }
+    var editedName by remember(activeProfile?.id, activeProfile?.name) { mutableStateOf(activeProfile?.name.orEmpty()) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(Res.string.settings_agent_profiles_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = stringResource(Res.string.settings_agent_profiles_description),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            uiState.agentProfiles.forEach { profile ->
+                FilterChip(
+                    selected = profile.id == uiState.activeAgentProfileId,
+                    onClick = { actions.onActivateAgentProfile(profile.id) },
+                    label = { Text(profile.name) },
+                    modifier = Modifier.handCursor(),
+                )
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PotsOutlinedTextField(
+                modifier = Modifier.weight(1f),
+                value = newProfileName,
+                onValueChange = { newProfileName = it.take(60) },
+                singleLine = true,
+                label = { Text(stringResource(Res.string.settings_agent_profile_name)) },
+            )
+            Spacer(Modifier.width(8.dp))
+            Button(
+                onClick = {
+                    actions.onCreateAgentProfile(newProfileName)
+                    newProfileName = ""
+                },
+                enabled = newProfileName.isNotBlank(),
+                modifier = Modifier.handCursor(),
+            ) {
+                Text(stringResource(Res.string.settings_agent_profile_create))
+            }
+        }
+
+        if (activeProfile != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PotsOutlinedTextField(
+                    modifier = Modifier.weight(1f),
+                    value = editedName,
+                    onValueChange = { editedName = it.take(60) },
+                    singleLine = true,
+                    label = { Text(stringResource(Res.string.settings_agent_profile_name)) },
+                )
+                Spacer(Modifier.width(8.dp))
+                TextButton(
+                    onClick = { actions.onRenameAgentProfile(activeProfile.id, editedName) },
+                    enabled = editedName.isNotBlank() && editedName != activeProfile.name,
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_agent_profile_rename))
+                }
+                if (uiState.agentProfiles.size > 1) {
+                    TextButton(onClick = { showDeleteDialog = true }, modifier = Modifier.handCursor()) {
+                        Text(stringResource(Res.string.settings_agent_profile_delete), color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(Res.string.settings_agent_profile_skills),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            if (uiState.skills.isEmpty()) {
+                Text(
+                    text = stringResource(Res.string.settings_agent_profile_no_skills),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            } else {
+                uiState.skills.forEach { skill ->
+                    val checked = !uiState.activeProfileSkillSelectionConfigured || skill.id in uiState.activeProfileSkillIds
+                    Row(
+                        modifier = Modifier.fillMaxWidth().handCursor(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = { enabled ->
+                                val selected = if (uiState.activeProfileSkillSelectionConfigured) {
+                                    uiState.activeProfileSkillIds.toMutableSet()
+                                } else {
+                                    uiState.skills.map { it.id }.toMutableSet()
+                                }
+                                if (enabled) selected += skill.id else selected -= skill.id
+                                actions.onSetActiveProfileSkills(selected)
+                            },
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(skill.displayName, style = MaterialTheme.typography.bodyMedium)
+                            Text(skill.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDeleteDialog && activeProfile != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(stringResource(Res.string.settings_agent_profile_delete)) },
+            text = { Text(stringResource(Res.string.settings_agent_profile_delete_confirm)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        actions.onDeleteAgentProfile(activeProfile.id)
+                    },
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_agent_profile_delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }, modifier = Modifier.handCursor()) {
+                    Text(stringResource(Res.string.settings_soul_reset_cancel))
+                }
+            },
+        )
     }
 }
 
@@ -473,11 +630,14 @@ private fun StepperSetting(
 
 @Composable
 private fun SoulEditor(
+    profileId: String,
     soulText: String,
     onSaveSoul: (String) -> Unit,
 ) {
-    val appSettings: AppSettings = koinInject()
-    var presetId by remember { mutableStateOf(appSettings.getSoulPresetId()) }
+    val appSettings = if (LocalInspectionMode.current) null else koinInject<AppSettings>()
+    var presetId by remember(profileId, appSettings) {
+        mutableStateOf(appSettings?.getSoulPresetId() ?: AgentPersonaPresets.ASSISTANT)
+    }
     val localizedDefault = stringResource(Res.string.default_soul)
     val displayText = soulText.ifEmpty { localizedDefault }
     var editedText by remember(displayText) { mutableStateOf(displayText) }
@@ -488,10 +648,10 @@ private fun SoulEditor(
 
     fun selectPreset(id: String) {
         presetId = id
-        appSettings.setSoulPresetId(id)
+        appSettings?.setSoulPresetId(id)
         if (id != AgentPersonaPresets.CUSTOM) {
             val text = AgentPersonaPresets.soulText(id)
-            appSettings.setSoulText(text)
+            appSettings?.setSoulText(text)
             onSaveSoul(text)
             editedText = text.ifEmpty { localizedDefault }
         }
@@ -514,13 +674,13 @@ private fun SoulEditor(
                 FilterChip(
                     selected = presetId == id,
                     onClick = { selectPreset(id) },
-                    label = { Text(AgentPersonaPresets.presetName(id)) },
+                    label = { Text(AgentPersonaPresets.presetName(id, Locale.current.language)) },
                     modifier = Modifier.handCursor(),
                 )
             }
         }
         Text(
-            text = AgentPersonaPresets.presetDescription(presetId),
+            text = AgentPersonaPresets.presetDescription(presetId, Locale.current.language),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),

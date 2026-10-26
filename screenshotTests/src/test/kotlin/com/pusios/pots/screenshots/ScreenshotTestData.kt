@@ -1,6 +1,7 @@
 package com.pusios.pots.screenshots
 
 import com.pusios.pots.TerminalLine
+import com.pusios.pots.data.AgentProfile
 import com.pusios.pots.data.MemoryEntry
 import com.pusios.pots.data.Service
 import com.pusios.pots.getPlatformToolDefinitions
@@ -38,6 +39,7 @@ object ScreenshotTestData {
         regenerate = {},
         cancel = {},
         selectService = {},
+        activateAgentProfile = {},
         loadConversation = {},
         deleteConversation = {},
         clearSnackbar = {},
@@ -63,6 +65,8 @@ object ScreenshotTestData {
         actions = noOpChatActions,
         history = persistentListOf(),
         showPrivacyInfo = false,
+        agentProfiles = persistentListOf(AgentProfile(id = "default", name = "Потсик")),
+        activeAgentProfileId = "default",
     )
 
     private val survivalGameContent =
@@ -172,26 +176,28 @@ object ScreenshotTestData {
         currentTab = SettingsTab.Services,
         configuredServices = persistentListOf(
             ConfiguredServiceEntry(
-                instanceId = "moonshot",
-                service = Service.Moonshot,
+                instanceId = "polza",
+                service = Service.Polza,
                 connectionStatus = ConnectionStatus.Connected,
                 apiKey = "sk-••••••••••••••••••••••••••••••••••••",
-                selectedModel = SettingsModel(id = "kimi-k2.5", subtitle = "Kimi K2.5", isSelected = true, displayName = "Kimi K2.5"),
+                selectedModel = SettingsModel(id = "deepseek-chat", subtitle = "DeepSeek Chat", isSelected = true, displayName = "DeepSeek Chat"),
             ),
             ConfiguredServiceEntry(
-                instanceId = "anthropic",
-                service = Service.Anthropic,
+                instanceId = "gptunnel",
+                service = Service.Gptunnel,
                 connectionStatus = ConnectionStatus.Connected,
-                apiKey = "sk-ant-••••••••••••••••••••••••••••••••",
-                selectedModel = SettingsModel(id = "claude-opus-4-6", subtitle = "Claude Opus 4.6", isSelected = true, displayName = "Claude Opus 4.6"),
+                apiKey = "••••••••••••••••••••••••••••••••",
+                selectedModel = SettingsModel(id = "gpt-4o", subtitle = "GPT-4o", isSelected = true, displayName = "GPT-4o"),
             ),
         ),
-        availableServicesToAdd = persistentListOf(Service.OpenAI, Service.DeepSeek, Service.Mistral),
+        availableServicesToAdd = persistentListOf(Service.AiTunnel, Service.OpenAICompatible),
     )
 
     val settingsAgent = SettingsUiState(
         currentTab = SettingsTab.Agent,
         soulText = "",
+        agentProfiles = persistentListOf(AgentProfile(id = "default", name = "Потсик")),
+        activeAgentProfileId = "default",
         isMemoryEnabled = true,
         memories = persistentListOf(
             MemoryEntry(

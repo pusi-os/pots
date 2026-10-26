@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -28,6 +29,7 @@ import nl.marc_apps.tts.TextToSpeechInstance
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.agent_profiles_content_description
 import pots.composeapp.generated.resources.chat_history_content_description
 import pots.composeapp.generated.resources.handsfree_content_description
 import pots.composeapp.generated.resources.ic_add
@@ -64,6 +66,8 @@ internal fun TopBar(
     onToggleHandsFree: (() -> Unit)? = null,
     miniAppsOpen: Boolean = false,
     onToggleMiniApps: (() -> Unit)? = null,
+    profilesOpen: Boolean = false,
+    onToggleProfiles: (() -> Unit)? = null,
 ) {
     if (navigationTabBar != null) {
         Box(
@@ -82,6 +86,9 @@ internal fun TopBar(
                 if (handsFreeStatus != null && onToggleHandsFree != null) {
                     HandsFreeButton(status = handsFreeStatus, onClick = onToggleHandsFree)
                 }
+                if (onToggleProfiles != null) {
+                    AgentProfilesButton(open = profilesOpen, onClick = onToggleProfiles)
+                }
                 if (onToggleMiniApps != null) {
                     MiniAppsButton(open = miniAppsOpen, onClick = onToggleMiniApps)
                 }
@@ -97,9 +104,6 @@ internal fun TopBar(
             if (handsFreeStatus != null && onToggleHandsFree != null) {
                 HandsFreeButton(status = handsFreeStatus, onClick = onToggleHandsFree)
             }
-            if (onToggleMiniApps != null) {
-                MiniAppsButton(open = miniAppsOpen, onClick = onToggleMiniApps)
-            }
             IconButton(
                 modifier = Modifier.handCursor(),
                 onClick = onNavigateToSettings,
@@ -111,6 +115,23 @@ internal fun TopBar(
                 )
             }
         }
+        if (onToggleProfiles != null) {
+            AgentProfilesButton(open = profilesOpen, onClick = onToggleProfiles)
+        }
+        if (onToggleMiniApps != null) {
+            MiniAppsButton(open = miniAppsOpen, onClick = onToggleMiniApps)
+        }
+    }
+}
+
+@Composable
+private fun AgentProfilesButton(open: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.handCursor()) {
+        Icon(
+            imageVector = Icons.Default.Person,
+            contentDescription = stringResource(Res.string.agent_profiles_content_description),
+            tint = if (open) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+        )
     }
 }
 

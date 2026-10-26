@@ -1,6 +1,6 @@
 # System Prompts
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-10-27
 
 Pots has several distinct prompt-construction paths. Each one is built by a **pure function** with explicit inputs (no DI, no suspend, no resource loading, no clocks) and is covered by a unit-test suite so future edits don't silently break unrelated variations.
 
@@ -23,6 +23,7 @@ The on-device tool allowlist (`LOCAL_TOOL_ALLOWLIST` in `RemoteDataRepository.kt
 |---|:-:|:-:|---|
 | Soul | always | always | `soul` param (non-empty) |
 | Honesty rule | always | always | baked into `DEFAULT_HONESTY_RULE` constant — one inline sentence ("Do not fabricate tool outputs, file contents, citations, or completed work"). Guards observed regressions where models invented tool output and where pots-ui button labels implied operations the callback couldn't perform. No `##` header — one sentence doesn't earn a section |
+| `## Язык и ясность` | always | always | Compact shared rule: answer in clear Russian by default, follow an explicit language request, lead with the useful result, explain jargon and keep caveats proportional |
 | `## Tool Use` | when tools available | when tools available | baked into `DEFAULT_TOOL_USE_SECTION` constant — tells the model to reach for tools to resolve ambiguity, check tool availability before declaring a capability unavailable, prefer self-lookup over asking the user, and extract signal from noisy output. Gated on `hasTools`: with every tool disabled (or a model that doesn't support tool calls) the section is dropped rather than telling the model to use tools it doesn't have. Soul customization still can't drop it while tools exist |
 | `## When to Act` | always | always | baked into `DEFAULT_ACTING_SECTION` constant — caps clarifying questions at one, only when genuinely blocked; demands recovery after a failed first attempt; mandates seeing work through to a usable result. Always rendered (both variants), same rationale as above |
 | Memory instructions (basic) | when memory enabled | when memory enabled | Memory toggle on and the memory-instructions setting non-empty |
@@ -37,7 +38,7 @@ The on-device tool allowlist (`LOCAL_TOOL_ALLOWLIST` in `RemoteDataRepository.kt
 | `## Heartbeat Additions` | when list non-empty | never | `heartbeatAdditions` — standing `schedule_task(on_heartbeat=true)` entries the AI can see/reference/cancel |
 | `## Active skill: <name>` | when activated | when activated | `activeSkill` param — non-null only when the user prefixed the current turn's message with `/<skill-id>` matching an installed, enabled skill. Emits the skill's instruction body plus a list of any bundled files (available at `~/skills/<id>/` in the sandbox). Zero bytes on every other turn. See [skills.md](skills.md) |
 | `## Context` | always | always | `runtime` param (local time with offset + IANA zone, UTC, platform, model, provider). Local time leads so the model anchors on the user's wall clock when computing relative times |
-| `## Dynamic UI` | when Dynamic UI is enabled in settings and the model supports tool calls (not in interactive mode) | never | Dynamic UI setting + model tool support |
+| `## Dynamic UI` | when Dynamic UI is enabled in settings and the model supports tool calls (not in interactive mode) | never | Dynamic UI setting + model tool support. Recommends short callback buttons for obvious choices/yes-no, draft review and next steps, while clarifying that callbacks only relay a choice and external/irreversible actions still need explicit confirmation |
 | `## Interactive UI Mode` | when the conversation is in interactive mode | never | Interactive mode flag (takes precedence over Dynamic UI) |
 
 **Memory budget for `CHAT_LOCAL`:** the four memory category sections share a combined char budget (`LOCAL_MEMORY_BUDGET_CHARS`, currently 2000 chars). Entries are appended in order (general → preferences → learnings → errors); the next entry that would push the combined size past the budget is dropped, and all subsequent entries are dropped too. Truncation happens at entry boundaries, never mid-entry. If no entries in a category fit, that category's header is not emitted either.
@@ -46,6 +47,12 @@ The on-device tool allowlist (`LOCAL_TOOL_ALLOWLIST` in `RemoteDataRepository.kt
 
 - `CHAT_REMOTE` — full chat prompt for remote services. No limits.
 - `CHAT_LOCAL` — trimmed chat prompt for on-device LiteRT. Small Gemma models (2-4B params) can't coherently attend to the full remote prompt, so Structured Learning, Automation, Email Accounts, Scheduled Tasks, Heartbeat Additions, and pots-ui sections are dropped, and memory sections are char-capped. The model still gets soul + basic memory guidance + memories (up to the cap) + runtime Context — memories matter because `memory_store` / `memory_forget` / `memory_reinforce` are all in the local tool allowlist, and a memory might have been learned via a remote model in an earlier turn.
+
+## Ready characters
+
+`AgentPersonaPresets.kt` keeps the built-in character instructions short and in Russian: Researcher, Creative partner, Productivity, Companion, Psychologist, Home health guide, Coach and Потсик. Assistant uses the localized base soul; Custom keeps user text. The shared language, honesty, tool-use and action rules are composed separately, so a custom soul cannot accidentally remove them. Потсик's persona prefers verification and useful tool work over premature refusal, uses durable memory and installed skills without claiming unsupported self-modification, and keeps a familiar Russian tone. Medical and psychological personas clearly limit diagnosis/treatment claims and surface urgent safety concerns.
+
+When Dynamic UI is enabled, the prompt recommends buttons only when they shorten a predictable choice (including yes/no, draft review and next step), not on every reply. A callback only sends the selected value back to the agent; the agent must still perform and verify any follow-up tool action. External or irreversible actions require explicit confirmation.
 
 Interactive UI mode is **not** available on on-device services — the pots-ui component schema is too large for small Gemma models to coherently attend to, and in practice the model can't produce valid pots-ui JSON. The "Start interactive mode" button in the empty-state UI is hidden when the primary service is on-device (see `ChatScreen.kt`). If you have LiteRT selected and need interactive UI mode, switch to a remote service first.
 
@@ -84,6 +91,7 @@ Interactive UI mode is **not** available on on-device services — the pots-ui c
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | `getActiveSystemPrompt(variant)` wrapper that gathers inputs from `AppSettings` / `MemoryStore` / `TaskStore` and calls the pure builder |
 | `composeApp/src/commonMain/.../data/HeartbeatManager.kt` | `buildHeartbeatPrompt()` wrapper that gathers inputs and calls the pure builder |
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | `DEFAULT_MEMORY_INSTRUCTIONS` (basic block, used by both variants). The advanced `## Structured Learning` block lives in `ChatSystemPromptBuilder.kt` and is remote-only |
+| `composeApp/src/commonMain/.../data/AgentPersonaPresets.kt` | Compact Russian ready-character system instructions and localized labels |
 | `composeApp/src/commonMain/.../splinterlands/SplinterlandsTeamPicker.kt` | `buildLlmPrompt` (separate path, independent contract) |
 | `composeApp/src/commonTest/.../data/ChatSystemPromptBuilderTest.kt` | Focused + golden tests for every chat variant section |
 | `composeApp/src/commonTest/.../data/HeartbeatPromptBuilderTest.kt` | Focused + golden tests for every heartbeat section |

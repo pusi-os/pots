@@ -1,6 +1,6 @@
-# Потсики (Potsiki)
+# Потсик (Potsik)
 
-**Last verified:** 2026-10-25
+**Last verified:** 2026-10-27
 
 Потсик is the animated character that keeps you company in the chat. He is
 drawn entirely in code — no images, no sprite sheets, no animation files — so he
@@ -13,10 +13,6 @@ one line from the shoulder to the hand, the same blink schedule, the same
 eighteen costumes, the same twenty-eight-second idle roll, and the same lines
 of chatter in English and Russian, side by side.
 
-The PixelTag app's copy of him — Squachy, as the firmware used to call him —
-was changed into Pots at the same time, so the two builds agree and either one
-can be used as the reference.
-
 The port keeps the firmware's coordinate system: the character is 56 units
 tall, the origin is the top of his head, and every shape is placed in those
 units and scaled by one number.
@@ -28,6 +24,12 @@ single overlay over the whole app; the places in the layout below are
 *anchors* — they only say where he belongs, and the highest-priority one on
 screen wins. A section that has no anchor of its own puts him in the corner,
 out of the way of what it is showing.
+
+Each Pots agent profile has its own Потсик look and behavior. The chat toolbar's
+person button opens a 56 dp profile strip with the small characters; each picks
+an idle animation at a random 3–5 second interval. Switching profiles gives the
+outgoing Потсик a wave and slide-off before the incoming character enters, then
+starts a fresh chat session so the selected soul and tools change with the look.
 
 | Place | What he does |
 |-------|--------------|
@@ -207,8 +209,10 @@ are matched loosely, so `IDLE-WAVE` and `idle wave` work too.
 
 ## The settings section
 
-**Settings → Потсики** holds everything about him. The character is previewed
-live at the top of the page, so every change is visible straight away.
+**Settings → Потсик** holds everything about him. The character is previewed
+live at the top of the page, so every change is visible straight away. Every
+profile stores its own visibility, costume, colors, behavior, placement and
+remembered position; changing profiles restores that profile's look.
 
 | Option | Values |
 |--------|--------|
@@ -226,11 +230,10 @@ live at the top of the page, so every change is visible straight away.
 | Placement | Session (the default: he stays where you put him until the app closes), Persistent (he stays there, next time included) or System (the chat puts him where it wants and he cannot be dragged at all) |
 | Reset the look | puts every option back to its default |
 
-Everything is stored under its own key (`potsik_outfit`, `potsik_shirt_color`,
-…), so a field added later leaves the ones already stored alone. The size, the
-tempo, the chatter switch, the dragging switch, the placement mode and the
-place he was left in all have their own keys, so all of them survive the app
-being closed.
+The complete look is serialized in the profile's `profile.json` snapshot and
+shown in `profile.md`. Existing installs migrate their previous individual
+`potsik_*` values into the initial profile. The app settings registry remains
+the recovery source if writing the readable profile folder fails.
 
 ## The costumes
 
@@ -276,8 +279,9 @@ The app has no catch counter, so every costume is available from the start.
 | `composeApp/.../ui/potsik/PotsikStage.kt` | Where he is: the anchors, the pinned position, the size, the engine, and the bounds (`clampPlacement`) that keep him on the screen |
 | `composeApp/.../ui/potsik/PotsikOverlay.kt` | The one copy of him over the app, the bubble, the touch handling, and the anchors the layout puts where he belongs |
 | `composeApp/.../tools/PotsikTool.kt` | The agent's tool — list the animations, play one, move him, resize him |
-| `composeApp/.../ui/settings/PotsikiSettings.kt` | The Потсики settings tab — the live preview and every option |
-| `composeApp/.../data/AppSettings.kt` | The `potsik_*` keys, `potsikLookFlow` and `setPotsikLook()` |
+| `composeApp/.../ui/settings/PotsikiSettings.kt` | The Потсик settings tab — the live preview and every option |
+| `composeApp/.../data/AppSettings.kt` | Profile-scoped serialized look, migration, `potsikLookFlow` and `setPotsikLook()` |
+| `composeApp/.../ui/chat/composables/AgentProfilesToolbar.kt` | Live profile character strip and wave/exit/entry handoff |
 | `composeApp/.../ui/chat/composables/EmptyState.kt` | Потсик's place on the empty chat screen |
 | `composeApp/.../ui/chat/composables/ToolMessage.kt` | Потсик's place in the working band — the band with no tile in it |
 | `composeApp/.../ui/chat/composables/BotMessage.kt` | Потсик's place under an answer, talking while the TTS runs |

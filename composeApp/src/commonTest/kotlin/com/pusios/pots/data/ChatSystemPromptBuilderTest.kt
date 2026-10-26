@@ -156,7 +156,16 @@ class ChatSystemPromptBuilderTest {
         val local = build(SystemPromptVariant.CHAT_LOCAL)
         for (out in listOf(remote, local)) {
             assertTrue(DEFAULT_HONESTY_RULE in out)
+            assertTrue(DEFAULT_LANGUAGE_SECTION in out)
         }
+    }
+
+    @Test
+    fun `dynamic UI instructs compact choice buttons and explicit confirmation`() {
+        val out = build(SystemPromptVariant.CHAT_REMOTE, uiMode = ChatPromptUiMode.DYNAMIC_UI)
+        assertTrue("2–5 очевидных вариантов" in out)
+        assertTrue("callback лишь передаёт выбор" in out)
+        assertTrue("явного подтверждения" in out)
     }
 
     @Test
@@ -234,6 +243,7 @@ class ChatSystemPromptBuilderTest {
         )
         val expected = "You're a personal assistant.\n\n" +
             DEFAULT_HONESTY_RULE + "\n\n" +
+            DEFAULT_LANGUAGE_SECTION + "\n\n" +
             DEFAULT_ACTING_SECTION + "\n\n" +
             DEFAULT_VOICE_OUTPUT_SECTION + "\n\n" +
             "## Context\n" +
@@ -602,6 +612,7 @@ class ChatSystemPromptBuilderTest {
         )
         val expected = "You are Pots, a helpful assistant.\n\n" +
             DEFAULT_HONESTY_RULE + "\n\n" +
+            DEFAULT_LANGUAGE_SECTION + "\n\n" +
             DEFAULT_TOOL_USE_SECTION + "\n\n" +
             DEFAULT_ACTING_SECTION + "\n\n" +
             DEFAULT_VOICE_OUTPUT_SECTION + "\n\n" +
@@ -650,6 +661,7 @@ class ChatSystemPromptBuilderTest {
         val headerOrder = listOf(
             "You are Pots.",
             DEFAULT_HONESTY_RULE,
+            "## Язык и ясность",
             "## Tool Use",
             "## When to Act",
             "Basic memory guidance.",

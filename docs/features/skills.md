@@ -1,6 +1,6 @@
 # Skills
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-10-27
 
 Pots supports installable **skills**: reusable instruction bundles, modeled on Anthropic's [SKILL.md](https://github.com/anthropics/skills) format (now an open standard at [agentskills.io](https://agentskills.io)). A skill packages a name, a description, a body of instructions, and optional bundled files.
 
@@ -14,11 +14,11 @@ In addition, Pots ships a small set of **built-in skills** (currently `create-sk
 
 Most skills are a folder `~/skills/<id>/` in the sandbox containing a `SKILL.md` (and any other files). The `SKILL.md` frontmatter provides a `name` (the slash-command id) and a `description`; the markdown after the frontmatter is the instruction body. Pots keeps an in-memory cache of installed sandbox skills plus any built-ins that are not overridden by a same-id sandbox folder; the cache is reloaded after every install/uninstall and once the sandbox becomes installed. On platforms without a sandbox the file ops are no-ops, so the cache is simply always empty — skills never appear off-Android.
 
-A skill has an id (lowercase letters, digits, and hyphens; ≤ 64 chars), a display name derived from the id, the instruction body, and the list of its other top-level file names (surfaced in the prompt). There is no enable/disable state: an installed skill is active. Uninstall deletes the sandbox folder for user-installed skills; built-ins have no remove action.
+A skill has an id (lowercase letters, digits, and hyphens; ≤ 64 chars), a display name derived from the id, the instruction body, and the list of its other top-level file names (surfaced in the prompt). Installation is global, while each Pots profile can select which installed skills are available to its slash-command flow. New profiles start with the active profile's selections; an untouched selection means all installed skills are enabled. Uninstall deletes the sandbox folder for user-installed skills; built-ins have no remove action.
 
 ### Slash command
 
-In chat, a message whose first token is `/<skill-id>` activates that skill for that single turn. The id must match an installed skill (case-insensitive). The user's message text is sent **verbatim** — it is not rewritten or stripped — so the conversation visibly reflects what was typed. The skill's instructions in the system prompt tell the model how to interpret any arguments after the slash command. Slash commands are opt-in: a message that doesn't match a skill behaves like any normal message.
+In chat, a message whose first token is `/<skill-id>` activates that skill for that single turn. The id must match an installed skill enabled for the active Pots profile (case-insensitive). The user's message text is sent **verbatim** — it is not rewritten or stripped — so the conversation visibly reflects what was typed. The skill's instructions in the system prompt tell the model how to interpret any arguments after the slash command. Slash commands are opt-in: a message that doesn't match an available skill behaves like any normal message.
 
 ### Active skill section
 
@@ -69,6 +69,7 @@ While the user is typing the first token of a message and it starts with `/`, a 
 | `composeApp/src/commonMain/.../skills/SkillRegistry.kt` | Browses marketplaces (`.claude-plugin/marketplace.json`, git-tree discovery, raw SKILL.md fetch) and downloads a skill's files |
 | `composeApp/src/commonMain/.../skills/SkillManager.kt` | Reads/installs/uninstalls skills in the sandbox (`~/skills/`), in-memory cache, GitHub URL parsing |
 | `composeApp/src/commonMain/.../data/ChatSystemPromptBuilder.kt` | Appends the active-skill section to the system prompt |
+| `composeApp/src/commonMain/.../data/AgentProfile.kt` | Stores each profile's enabled skill ids |
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Per-turn active-skill resolution (no materialization — files already in the sandbox); rescans skills after a `create-skill` turn |
 | `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Parses the leading slash command into a skill id |
 | `composeApp/src/commonMain/.../ui/chat/composables/QuestionInput.kt` | Detects the slash query while typing |

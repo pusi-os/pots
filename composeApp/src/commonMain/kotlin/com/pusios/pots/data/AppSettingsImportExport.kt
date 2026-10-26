@@ -5,7 +5,6 @@ package com.pusios.pots.data
 import com.pusios.pots.data.AppSettings.Companion.KEY_CONFIGURED_SERVICES
 import com.pusios.pots.data.AppSettings.Companion.KEY_CURRENT_SERVICE_ID
 import com.pusios.pots.data.AppSettings.Companion.KEY_FREE_FALLBACK_ENABLED
-import com.pusios.pots.data.AppSettings.Companion.KEY_TOOL_PREFIX
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -325,9 +324,7 @@ fun AppSettings.importFromJson(
 
     if (ImportSection.TOOLS in sections) {
         try {
-            for (toolId in toolIds) {
-                settings.remove("$KEY_TOOL_PREFIX$toolId")
-            }
+            clearActiveProfileToolOverrides(toolIds)
             json["tool_overrides"]?.jsonObject?.forEach { (toolId, enabled) ->
                 setToolEnabled(toolId, enabled.jsonPrimitive.content.toBoolean())
             }
@@ -335,9 +332,7 @@ fun AppSettings.importFromJson(
             errors++
         }
     } else if (replace) {
-        for (toolId in toolIds) {
-            settings.remove("$KEY_TOOL_PREFIX$toolId")
-        }
+        clearActiveProfileToolOverrides(toolIds)
     }
 
     if (ImportSection.MCP in sections) {

@@ -22,6 +22,16 @@
     <string name="toggle_speech_output_content_description">Toggle speech output</string>
     <string name="handsfree_content_description">Hands-free voice mode</string>
     <string name="settings_content_description">Settings</string>
+    <string name="agent_profiles_content_description">Agent profiles</string>
+    <string name="settings_agent_profiles_title">Pots profiles</string>
+    <string name="settings_agent_profiles_description">A profile keeps its own character, tools, skills, MCP servers and Potsik look. Shared app connections and memory stay available to every profile.</string>
+    <string name="settings_agent_profile_name">Profile name</string>
+    <string name="settings_agent_profile_create">Create profile</string>
+    <string name="settings_agent_profile_rename">Save name</string>
+    <string name="settings_agent_profile_delete">Delete profile</string>
+    <string name="settings_agent_profile_skills">Skills enabled in this profile</string>
+    <string name="settings_agent_profile_no_skills">No skills installed yet.</string>
+    <string name="settings_agent_profile_delete_confirm">Delete this profile and its character settings?</string>
     <string name="bot_message_speech_content_description">Speech</string>
     <string name="bot_message_copy_content_description">Copy</string>
     <string name="bot_message_flag_content_description">Flag content</string>
@@ -72,7 +82,7 @@
     <string name="settings_tab_sandbox">Linux Sandbox</string>
     <string name="settings_tab_integrations">Integrations</string>
 
-    <string name="settings_tab_potsiki">Potsiki</string>
+    <string name="settings_tab_potsiki">Potsik</string>
     <string name="potsiki_title">Potsik</string>
     <string name="potsiki_description">The little character who keeps you company while Pots works. Tap an option to change how he looks.</string>
     <string name="potsiki_show">Show the character</string>
@@ -632,7 +642,7 @@
     <string name="terminal_input_placeholder">enter command…</string>
     <string name="terminal_run_content_description">Run</string>
     <string name="terminal_stop_content_description">Stop</string>
-    <string name="default_soul">You're not a chatbot. You're a personal assistant who grows with your user.\n\n## How to Be\n\n**Be genuinely helpful.** Skip the "Great question!" and "I'd be happy to help!" — just help. Actions speak louder than filler words.\n\n**Have opinions.** You're allowed to disagree, prefer things, or find stuff interesting. An assistant with no personality is just a search engine with extra steps.\n\n**Be resourceful.** Try to figure it out from context and your memories before asking. Come back with answers, not questions.\n\n**Be concise.** Short and clear by default. Go deeper when the topic calls for it.\n\n## Boundaries\n\n- Respect privacy. Don't repeat sensitive information unnecessarily.\n- When in doubt about an action, ask first.\n- Be honest when you don't know something.</string>
+    <string name="default_soul">You are a personal assistant who becomes more useful through relevant context about the user. By default, answer in clear, natural Russian; switch languages when the user explicitly uses or requests another language.\n\nGet to the point: lead with the answer or next useful step, then add only necessary detail. Be warm, resourceful and honest; skip empty praise and filler. Check context and available tools before asking or claiming something cannot be done. Never invent facts, sources, search results or completed work. If you do not know, state what is missing and verify what you can. Ask at most one clarifying question, and only when genuinely blocked.\n\nProtect privacy: use available memory for durable, useful context, never secrets or trivial details. Get clear confirmation before external or irreversible actions. Stay concise by default and explain complex or important matters enough to be useful.</string>
     <string name="settings_reorder_content_description">Reorder</string>
     <string name="model_sort_date">Date</string>
     <string name="model_sort_price">Price</string>

@@ -83,7 +83,7 @@ import pots.composeapp.generated.resources.potsiki_title
 import kotlin.math.roundToInt
 
 /**
- * The "Потсики" settings tab: everything about how the animated character
+ * The "Потсик" settings tab: everything about how the animated character
  * looks.
  *
  * The character is previewed live at the top, so every change is visible
