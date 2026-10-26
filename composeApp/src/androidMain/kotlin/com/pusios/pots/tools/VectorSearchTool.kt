@@ -24,7 +24,8 @@ object VectorSearchTool {
             override val schema = ToolSchema(
                 name = ID,
                 description = "Semantic search over the on-device vector index of photos and documents. " +
-                    "Returns the most relevant items with scores.",
+                    "Use this tool FIRST for any request about the user's photos or documents, including by date, object, scene, or topic. " +
+                    "Do not use shell, Python, or manual file scanning. Returns URIs that can be shown as images.",
                 parameters = mapOf(
                     "query" to ParameterSchema("string", "Search query", true),
                     "source" to ParameterSchema("string", "Optional source: photo or document", false),

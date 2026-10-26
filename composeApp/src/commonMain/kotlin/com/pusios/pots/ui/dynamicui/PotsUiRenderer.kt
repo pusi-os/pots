@@ -214,6 +214,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import com.pusios.pots.ui.PotsOutlinedTextField
 import com.pusios.pots.ui.components.PotsChip
 import com.pusios.pots.ui.handCursor
@@ -731,7 +733,7 @@ private fun RenderImage(node: ImageNode) {
             )
         } else {
             coil3.compose.AsyncImage(
-                model = node.url,
+                model = ImageRequest.Builder(LocalPlatformContext.current).data(node.url).build(),
                 contentDescription = node.alt,
                 modifier = modifier,
                 contentScale = ContentScale.Crop,
@@ -1476,7 +1478,7 @@ private fun RenderAvatar(node: AvatarNode) {
             modifier = Modifier.size(sizeDp),
         ) {
             coil3.compose.AsyncImage(
-                model = node.imageUrl,
+                model = ImageRequest.Builder(LocalPlatformContext.current).data(node.imageUrl).build(),
                 contentDescription = node.name,
                 modifier = Modifier.size(sizeDp),
             )

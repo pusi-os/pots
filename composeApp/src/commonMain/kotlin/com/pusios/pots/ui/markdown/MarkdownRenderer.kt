@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import com.pusios.pots.ui.dynamicui.FrozenSubmission
 import com.pusios.pots.ui.dynamicui.PotsUiRenderer
 import com.pusios.pots.ui.markdown.math.MathFormula
@@ -144,7 +146,7 @@ private fun ParagraphBlock(block: Paragraph) {
     if (block.inlines.size == 1 && block.inlines[0] is Image) {
         val img = block.inlines[0] as Image
         AsyncImage(
-            model = img.src,
+            model = ImageRequest.Builder(LocalPlatformContext.current).data(img.src).build(),
             contentDescription = img.alt,
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         )

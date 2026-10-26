@@ -176,7 +176,7 @@ class AndroidVectorizationManager(
                 val bytes = readBytes(Uri.parse(rec.uri))?.let { downscaleImage(it) }
                 val text = listOfNotNull(rec.name, rec.bucket).joinToString(" ")
                 val vec = if (bytes != null) embed(e, InputData.Image(bytes)) else null
-                val finalVec = vec ?: embed(e, text)
+                val finalVec = vec ?: embed(e, "title: none | text: $text")
                 if (finalVec != null) {
                     entries += VectorEntry(
                         id = "photo:${rec.id}",
@@ -232,7 +232,7 @@ class AndroidVectorizationManager(
                 if (!text.isNullOrBlank()) {
                     val chunks = chunkText(text)
                     for (chunk in chunks) {
-                        val vec = embed(e, chunk)
+                        val vec = embed(e, "title: ${rec.name} | text: $chunk")
                         if (vec != null) {
                             entries += VectorEntry(
                                 id = "doc:${rec.uri}:$chunk",
@@ -266,7 +266,7 @@ class AndroidVectorizationManager(
 
     override suspend fun search(query: String, source: String?, limit: Int): List<Map<String, Any?>> {
         val e = ensureEngine() ?: return emptyList()
-        val qv = embed(e, query) ?: return emptyList()
+        val qv = embed(e, "task: search result | query: $query") ?: return emptyList()
         return entries
             .filter { source == null || it.source == source }
             .map { it to cosine(qv, it.vector) }
