@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.TurnMetrics
@@ -355,28 +356,27 @@ private fun ReasoningBlockquote(
             enter = expandVertically(),
             exit = shrinkVertically(),
         ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = maxHeight)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    for (segment in segments) {
-                        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-                            VerticalDivider(
-                                thickness = 2.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                                modifier = Modifier.fillMaxHeight(),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp)
+                    .heightIn(max = 500.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                for (segment in segments) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        VerticalDivider(
+                            thickness = 2.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            modifier = Modifier.fillMaxHeight(),
+                        )
+                        SelectionContainer(modifier = Modifier.padding(start = 10.dp)) {
+                            Text(
+                                text = segment,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
                             )
-                            SelectionContainer(modifier = Modifier.padding(start = 10.dp)) {
-                                Text(
-                                    text = segment,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
                         }
                     }
                 }
