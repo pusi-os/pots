@@ -5,4 +5,8 @@
     <string name="download_channel_name">Загрузки моделей</string>
     <string name="download_channel_description">Показывает прогресс при загрузке моделей ИИ</string>
     <string name="download_notification_text">Загрузка модели…</string>
+    <string name="app_name">Pots</string>
+    <string name="mini_app_server_channel_name">Сервер мини-приложений</string>
+    <string name="mini_app_server_channel_description">Держит сохранённые мини-приложения доступными в браузере</string>
+    <string name="mini_app_server_notification_text">Сервер мини-приложений работает</string>
 </resources>

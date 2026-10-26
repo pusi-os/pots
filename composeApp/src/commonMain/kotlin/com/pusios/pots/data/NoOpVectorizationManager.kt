@@ -9,8 +9,18 @@ class NoOpVectorizationManager : VectorizationManager {
     override val progress: StateFlow<Float?> = MutableStateFlow(null)
     override val status: StateFlow<String> = MutableStateFlow("")
 
+    override val indexedPhotoCount: StateFlow<Int> = MutableStateFlow(0)
+    override val indexedDocumentCount: StateFlow<Int> = MutableStateFlow(0)
+    override val currentTotalCount: StateFlow<Int> = MutableStateFlow(0)
+    override val currentProcessedCount: StateFlow<Int> = MutableStateFlow(0)
+
     override val autoIndexPhotos: StateFlow<Boolean> = MutableStateFlow(false)
     override val autoIndexDocuments: StateFlow<Boolean> = MutableStateFlow(false)
+
+    override val needsPhotoPermission: StateFlow<Boolean> = MutableStateFlow(false)
+    override val needsDocumentPermission: StateFlow<Boolean> = MutableStateFlow(false)
+    override val requiredPhotoPermission: String = ""
+    override val requiredDocumentPermission: String = ""
 
     override fun setAutoIndexPhotos(enabled: Boolean) {}
     override fun setAutoIndexDocuments(enabled: Boolean) {}

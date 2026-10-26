@@ -8,8 +8,18 @@ interface VectorizationManager {
     val progress: StateFlow<Float?>
     val status: StateFlow<String>
 
+    val indexedPhotoCount: StateFlow<Int>
+    val indexedDocumentCount: StateFlow<Int>
+    val currentTotalCount: StateFlow<Int>
+    val currentProcessedCount: StateFlow<Int>
+
     val autoIndexPhotos: StateFlow<Boolean>
     val autoIndexDocuments: StateFlow<Boolean>
+
+    val needsPhotoPermission: StateFlow<Boolean>
+    val needsDocumentPermission: StateFlow<Boolean>
+    val requiredPhotoPermission: String
+    val requiredDocumentPermission: String
 
     fun setAutoIndexPhotos(enabled: Boolean)
     fun setAutoIndexDocuments(enabled: Boolean)

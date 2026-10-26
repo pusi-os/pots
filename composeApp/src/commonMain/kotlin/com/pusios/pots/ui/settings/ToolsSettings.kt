@@ -39,6 +39,7 @@ import com.pusios.pots.tools.ObsidianVaultPicker
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.potsAdaptiveCardBorder
 import com.pusios.pots.ui.potsAdaptiveCardColors
+import com.pusios.pots.ui.rememberPermissionLauncher
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -201,6 +202,20 @@ private fun VectorStorageSection() {
     val status by manager.status.collectAsState()
     val autoPhotos by manager.autoIndexPhotos.collectAsState()
     val autoDocs by manager.autoIndexDocuments.collectAsState()
+    val indexedPhotos by manager.indexedPhotoCount.collectAsState()
+    val indexedDocs by manager.indexedDocumentCount.collectAsState()
+    val currentTotal by manager.currentTotalCount.collectAsState()
+    val currentProcessed by manager.currentProcessedCount.collectAsState()
+    val needsPhotoPermission by manager.needsPhotoPermission.collectAsState()
+    val needsDocumentPermission by manager.needsDocumentPermission.collectAsState()
+    val requestPermission = rememberPermissionLauncher { granted ->
+        if (granted) {
+            scope.launch {
+                if (needsPhotoPermission) manager.indexPhotos()
+                if (needsDocumentPermission) manager.indexDocuments()
+            }
+        }
+    }
 
     val localInferenceEngine = koinInject<com.pusios.pots.inference.LocalInferenceEngine>()
     val downloadingId by localInferenceEngine.downloadingModelId.collectAsState()
@@ -240,17 +255,34 @@ private fun VectorStorageSection() {
                     Switch(checked = autoDocs, onCheckedChange = { manager.setAutoIndexDocuments(it) })
                 }
 
+                if (needsPhotoPermission) {
+                    androidx.compose.material3.TextButton(onClick = { requestPermission(manager.requiredPhotoPermission) }) {
+                        Text("Разрешить доступ к фото")
+                    }
+                }
+                if (needsDocumentPermission) {
+                    androidx.compose.material3.TextButton(onClick = { requestPermission(manager.requiredDocumentPermission) }) {
+                        Text("Разрешить доступ к документам")
+                    }
+                }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    androidx.compose.material3.TextButton(onClick = { scope.launch { manager.indexPhotos() } }, enabled = !isIndexing) {
+                    androidx.compose.material3.TextButton(onClick = { scope.launch { manager.indexPhotos() } }, enabled = !isIndexing && !needsPhotoPermission) {
                         Text("Индексировать фото")
                     }
-                    androidx.compose.material3.TextButton(onClick = { scope.launch { manager.indexDocuments() } }, enabled = !isIndexing) {
+                    androidx.compose.material3.TextButton(onClick = { scope.launch { manager.indexDocuments() } }, enabled = !isIndexing && !needsDocumentPermission) {
                         Text("Индексировать документы")
                     }
                 }
 
-                if (isIndexing && progress != null) {
+                Text(text = "Фото в базе: $indexedPhotos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "Документов в базе: $indexedDocs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                if (isIndexing) {
                     LinearProgressIndicator(progress = { progress ?: 0f }, modifier = Modifier.fillMaxWidth())
+                    if (currentTotal > 0) {
+                        Text(text = "Обработано: $currentProcessed / $currentTotal", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 if (status.isNotBlank()) {
                     Text(text = status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

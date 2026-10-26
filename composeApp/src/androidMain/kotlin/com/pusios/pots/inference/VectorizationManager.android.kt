@@ -1,11 +1,17 @@
 package com.pusios.pots.inference
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.EmbeddingEngine
 import com.google.ai.edge.litertlm.EmbeddingEngineConfig
+import com.google.ai.edge.litertlm.EmbeddingOptions
 import com.google.ai.edge.litertlm.InputData
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.VectorizationManager
@@ -19,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.math.sqrt
 
@@ -43,8 +50,31 @@ class AndroidVectorizationManager(
     private val _progress = MutableStateFlow<Float?>(null)
     override val progress: StateFlow<Float?> = _progress.asStateFlow()
 
+    private val _indexedPhotoCount = MutableStateFlow(0)
+    override val indexedPhotoCount: StateFlow<Int> = _indexedPhotoCount.asStateFlow()
+
+    private val _indexedDocumentCount = MutableStateFlow(0)
+    override val indexedDocumentCount: StateFlow<Int> = _indexedDocumentCount.asStateFlow()
+
+    private val _currentTotalCount = MutableStateFlow(0)
+    override val currentTotalCount: StateFlow<Int> = _currentTotalCount.asStateFlow()
+
+    private val _currentProcessedCount = MutableStateFlow(0)
+    override val currentProcessedCount: StateFlow<Int> = _currentProcessedCount.asStateFlow()
+
     private val _status = MutableStateFlow("")
     override val status: StateFlow<String> = _status.asStateFlow()
+
+    private val _needsPhotoPermission = MutableStateFlow(false)
+    override val needsPhotoPermission: StateFlow<Boolean> = _needsPhotoPermission.asStateFlow()
+
+    private val _needsDocumentPermission = MutableStateFlow(false)
+    override val needsDocumentPermission: StateFlow<Boolean> = _needsDocumentPermission.asStateFlow()
+
+    override val requiredPhotoPermission: String
+        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) android.Manifest.permission.READ_MEDIA_IMAGES else android.Manifest.permission.READ_EXTERNAL_STORAGE
+    override val requiredDocumentPermission: String
+        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) "" else android.Manifest.permission.READ_EXTERNAL_STORAGE
 
     private val _autoPhotos = MutableStateFlow(appSettings.isAutoVectorizePhotos())
     override val autoIndexPhotos: StateFlow<Boolean> = _autoPhotos.asStateFlow()
@@ -57,6 +87,10 @@ class AndroidVectorizationManager(
 
     init {
         loadStore()
+        _indexedPhotoCount.value = entries.count { it.source == "photo" }
+        _indexedDocumentCount.value = entries.count { it.source == "document" }
+        _needsPhotoPermission.value = !hasPhotoPermission()
+        _needsDocumentPermission.value = requiredDocumentPermission.isNotBlank() && !hasDocumentPermission()
         refreshModelReady()
         scope.launch {
             engine.downloadingModelId.collect { id ->
@@ -93,13 +127,24 @@ class AndroidVectorizationManager(
         _modelReady.value = downloaded
     }
 
+    private fun hasPhotoPermission(): Boolean = ContextCompat.checkSelfPermission(context, requiredPhotoPermission) == PackageManager.PERMISSION_GRANTED
+
+    private fun hasDocumentPermission(): Boolean = requiredDocumentPermission.isBlank() || ContextCompat.checkSelfPermission(context, requiredDocumentPermission) == PackageManager.PERMISSION_GRANTED
+
     private suspend fun ensureEngine(): EmbeddingEngine? {
         refreshModelReady()
         if (!_modelReady.value) return null
         embeddingEngine.value?.let { return it }
         val downloaded = engine.getDownloadedModels().firstOrNull { it.id == EMBEDDING_MODEL_ID } ?: return null
         return withContext(Dispatchers.IO) {
-            val e = EmbeddingEngine(EmbeddingEngineConfig(modelPath = downloaded.filePath, backend = Backend.CPU()))
+            val e = EmbeddingEngine(
+                EmbeddingEngineConfig(
+                    modelPath = downloaded.filePath,
+                    backend = Backend.CPU(),
+                    visionBackend = Backend.CPU(),
+                    cacheDir = context.cacheDir.path,
+                ),
+            )
             e.initialize()
             embeddingEngine.value = e
             e
@@ -107,61 +152,116 @@ class AndroidVectorizationManager(
     }
 
     override suspend fun indexPhotos() {
-        val e = ensureEngine() ?: return
+        if (!hasPhotoPermission()) {
+            _needsPhotoPermission.value = true
+            _status.value = "Нужно разрешение на доступ к фото"
+            return
+        }
+        _needsPhotoPermission.value = false
+        val e = ensureEngine() ?: run {
+            _status.value = "Сначала скачайте модель эмбеддингов"
+            return
+        }
         _indexing.value = true
         _progress.value = 0f
-        _status.value = "Indexing photos"
+        _currentProcessedCount.value = 0
+        _status.value = "Подготовка индексации фото…"
         entries.removeAll { it.source == "photo" }
         val photos = queryPhotoRecords()
-        photos.forEachIndexed { idx, rec ->
-            val bytes = readBytes(Uri.parse(rec.uri))
-            val vec = if (bytes != null) embed(e, InputData.Image(bytes)) else null
-            val finalVec = vec ?: embed(e, listOfNotNull(rec.name, rec.bucket).joinToString(" "))
-            if (finalVec == null) return@forEachIndexed
-            val text = listOfNotNull(rec.name, rec.bucket).joinToString(" ")
-            entries += VectorEntry(
-                id = "photo:${rec.id}",
-                source = "photo",
-                title = rec.name,
-                text = text,
-                uri = rec.uri,
-                vector = finalVec,
-            )
-            _progress.value = (idx + 1).toFloat() / photos.size.coerceAtLeast(1)
+        _currentTotalCount.value = photos.size
+        var indexed = 0
+        var processed = 0
+        try {
+            for (rec in photos) {
+                val bytes = readBytes(Uri.parse(rec.uri))?.let { downscaleImage(it) }
+                val text = listOfNotNull(rec.name, rec.bucket).joinToString(" ")
+                val vec = if (bytes != null) embed(e, InputData.Image(bytes)) else null
+                val finalVec = vec ?: embed(e, text)
+                if (finalVec != null) {
+                    entries += VectorEntry(
+                        id = "photo:${rec.id}",
+                        source = "photo",
+                        title = rec.name,
+                        text = text,
+                        uri = rec.uri,
+                        vector = finalVec,
+                    )
+                    indexed++
+                }
+                processed++
+                _currentProcessedCount.value = processed
+                _progress.value = processed.toFloat() / photos.size.coerceAtLeast(1)
+                _status.value = "Индексация фото: $processed/${photos.size}"
+            }
+            saveStore()
+            _indexedPhotoCount.value = entries.count { it.source == "photo" }
+            _status.value = "Проиндексировано фото: ${_indexedPhotoCount.value}"
+        } catch (t: Throwable) {
+            _status.value = "Ошибка индексации фото: ${t.message ?: t::class.simpleName}"
+        } finally {
+            _indexing.value = false
+            _progress.value = null
+            _currentTotalCount.value = 0
+            _currentProcessedCount.value = 0
         }
-        saveStore()
-        _indexing.value = false
-        _progress.value = null
-        _status.value = "Photos indexed: ${entries.count { it.source == "photo" }}"
     }
 
     override suspend fun indexDocuments() {
-        val e = ensureEngine() ?: return
+        if (!hasDocumentPermission()) {
+            _needsDocumentPermission.value = true
+            _status.value = "Нужно разрешение на доступ к документам"
+            return
+        }
+        _needsDocumentPermission.value = false
+        val e = ensureEngine() ?: run {
+            _status.value = "Сначала скачайте модель эмбеддингов"
+            return
+        }
         _indexing.value = true
         _progress.value = 0f
-        _status.value = "Indexing documents"
+        _currentProcessedCount.value = 0
+        _status.value = "Подготовка индексации документов…"
         entries.removeAll { it.source == "document" }
         val docs = queryDocumentRecords()
-        docs.forEachIndexed { idx, rec ->
-            val text = rec.text ?: return@forEachIndexed
-            val chunks = chunkText(text)
-            chunks.forEach { chunk ->
-                val vec = embed(e, chunk) ?: return@forEach
-                entries += VectorEntry(
-                    id = "doc:${rec.uri}:$chunk",
-                    source = "document",
-                    title = rec.name,
-                    text = chunk,
-                    uri = rec.uri,
-                    vector = vec,
-                )
+        _currentTotalCount.value = docs.size
+        var indexedChunks = 0
+        var processed = 0
+        try {
+            for (rec in docs) {
+                val text = rec.text
+                if (!text.isNullOrBlank()) {
+                    val chunks = chunkText(text)
+                    for (chunk in chunks) {
+                        val vec = embed(e, chunk)
+                        if (vec != null) {
+                            entries += VectorEntry(
+                                id = "doc:${rec.uri}:$chunk",
+                                source = "document",
+                                title = rec.name,
+                                text = chunk,
+                                uri = rec.uri,
+                                vector = vec,
+                            )
+                            indexedChunks++
+                        }
+                    }
+                }
+                processed++
+                _currentProcessedCount.value = processed
+                _progress.value = processed.toFloat() / docs.size.coerceAtLeast(1)
+                _status.value = "Индексация документов: $processed/${docs.size}"
             }
-            _progress.value = (idx + 1).toFloat() / docs.size.coerceAtLeast(1)
+            saveStore()
+            _indexedDocumentCount.value = entries.count { it.source == "document" }
+            _status.value = "Проиндексировано фрагментов документов: ${_indexedDocumentCount.value}"
+        } catch (t: Throwable) {
+            _status.value = "Ошибка индексации документов: ${t.message ?: t::class.simpleName}"
+        } finally {
+            _indexing.value = false
+            _progress.value = null
+            _currentTotalCount.value = 0
+            _currentProcessedCount.value = 0
         }
-        saveStore()
-        _indexing.value = false
-        _progress.value = null
-        _status.value = "Documents indexed: ${entries.count { it.source == "document" }}"
     }
 
     override suspend fun search(query: String, source: String?, limit: Int): List<Map<String, Any?>> {
@@ -184,12 +284,14 @@ class AndroidVectorizationManager(
     }
 
     private suspend fun embed(engine: EmbeddingEngine, input: InputData): FloatArray? = withContext(Dispatchers.IO) {
-        runCatching { engine.computeEmbedding(listOf(input)).embedding }.getOrNull()
+        runCatching {
+            engine.computeEmbedding(listOf(input), EmbeddingOptions(normalize = true, outputSize = 768)).embedding
+        }.getOrNull()
     }
 
     private suspend fun embed(engine: EmbeddingEngine, text: String): FloatArray? = withContext(Dispatchers.IO) {
         runCatching {
-            engine.computeEmbedding(listOf(InputData.Text(text))).embedding
+            engine.computeEmbedding(listOf(InputData.Text(text)), EmbeddingOptions(normalize = true, outputSize = 768)).embedding
         }.getOrNull()
     }
 
@@ -247,6 +349,22 @@ class AndroidVectorizationManager(
         if (na == 0.0 || nb == 0.0) return 0.0
         return dot / (sqrt(na) * sqrt(nb))
     }
+
+    private fun downscaleImage(bytes: ByteArray, target: Int = 512): ByteArray? = runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= target && bounds.outHeight / (sample * 2) >= target) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+        val output = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, output)
+        bitmap.recycle()
+        output.toByteArray()
+    }.getOrNull()
 
     private fun readBytes(uri: Uri): ByteArray? = runCatching {
         context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
