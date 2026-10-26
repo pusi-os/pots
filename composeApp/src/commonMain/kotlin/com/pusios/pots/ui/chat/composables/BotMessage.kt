@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -15,12 +16,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -95,6 +99,8 @@ internal fun BotMessage(
     frozen: FrozenSubmission? = null,
     onResubmit: ((event: String, data: Map<String, String>) -> Unit)? = null,
     reasoningSegments: ImmutableList<String> = persistentListOf(),
+    thinkingExpanded: Boolean = false,
+    onThinkingExpandedChange: (Boolean) -> Unit = {},
     turnMetrics: TurnMetrics? = null,
     onTokenCounterClick: () -> Unit = {},
 ) {
@@ -119,6 +125,8 @@ internal fun BotMessage(
             if (nonBlankSegments.isNotEmpty()) {
                 ReasoningBlockquote(
                     segments = nonBlankSegments,
+                    expanded = thinkingExpanded,
+                    onExpandedChange = onThinkingExpandedChange,
                     modifier = Modifier.fillMaxWidth()
                         .padding(start = 16.dp, top = 12.dp, end = 16.dp),
                 )
@@ -298,9 +306,10 @@ private fun formatDuration(durationMs: Long): String {
 @Composable
 private fun ReasoningBlockquote(
     segments: ImmutableList<String>,
+    expanded: Boolean = false,
+    onExpandedChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     // Preview always reflects the MOST RECENT thinking segment so the user gets a
     // visual update each time a new reasoning phase starts, without expanding.
     val preview = remember(segments) {
@@ -314,7 +323,7 @@ private fun ReasoningBlockquote(
     Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .clickable { onExpandedChange(!expanded) }
                 .handCursor(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -346,23 +355,28 @@ private fun ReasoningBlockquote(
             enter = expandVertically(),
             exit = shrinkVertically(),
         ) {
-            Column(
-                modifier = Modifier.padding(top = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                for (segment in segments) {
-                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-                        VerticalDivider(
-                            thickness = 2.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            modifier = Modifier.fillMaxHeight(),
-                        )
-                        SelectionContainer(modifier = Modifier.padding(start = 10.dp)) {
-                            Text(
-                                text = segment,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxHeight)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    for (segment in segments) {
+                        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                            VerticalDivider(
+                                thickness = 2.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.fillMaxHeight(),
                             )
+                            SelectionContainer(modifier = Modifier.padding(start = 10.dp)) {
+                                Text(
+                                    text = segment,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
                         }
                     }
                 }

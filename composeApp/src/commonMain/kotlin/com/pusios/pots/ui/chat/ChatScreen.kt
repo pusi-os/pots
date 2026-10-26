@@ -856,6 +856,10 @@ private fun ChatModeScreen(
     // the agent's tool and the user's own dragging both move the same
     // character.
     val executingTools = rememberExecutingTools(uiState.history)
+    var thinkingExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(uiState.isLoading) {
+        if (!uiState.isLoading) thinkingExpanded = false
+    }
     val fallbackStatusText = uiState.fallbackStatus?.let { status ->
         val failed = stringResource(Res.string.fallback_service_failed, status.serviceName, uiErrorText(status.errorReason))
         val next = status.nextServiceName?.let { stringResource(Res.string.fallback_trying_next, it) }
@@ -1192,6 +1196,8 @@ private fun ChatModeScreen(
                                                             null
                                                         },
                                                         reasoningSegments = reasoningSegmentsByAssistantId[history.id] ?: persistentListOf(),
+                                                        thinkingExpanded = thinkingExpanded,
+                                                        onThinkingExpandedChange = { thinkingExpanded = it },
                                                         turnMetrics = history.turnMetrics,
                                                         onTokenCounterClick = { showTokenStats = true },
                                                     )
@@ -1217,6 +1223,8 @@ private fun ChatModeScreen(
                                                         setIsSpeaking = {},
                                                         reasoningSegments = reasoningSegmentsByAssistantId[history.id]
                                                             ?: persistentListOf(history.content),
+                                                        thinkingExpanded = thinkingExpanded,
+                                                        onThinkingExpandedChange = { thinkingExpanded = it },
                                                     )
                                                 }
                                             }
