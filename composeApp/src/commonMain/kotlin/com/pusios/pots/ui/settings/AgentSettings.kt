@@ -51,6 +51,7 @@ import com.pusios.pots.data.ReasoningEffort
 import com.pusios.pots.data.ScheduledTask
 import com.pusios.pots.data.TaskTrigger
 import com.pusios.pots.ui.PotsOutlinedTextField
+import com.pusios.pots.ui.build.collapsePercentEscape
 import com.pusios.pots.ui.components.PotsSlider
 import com.pusios.pots.ui.components.SettingsListItem
 import com.pusios.pots.ui.handCursor
@@ -82,6 +83,7 @@ import pots.composeapp.generated.resources.settings_agent_max_parallel
 import pots.composeapp.generated.resources.settings_agent_max_parallel_description
 import pots.composeapp.generated.resources.settings_agent_parameters
 import pots.composeapp.generated.resources.settings_agent_parameters_description
+import pots.composeapp.generated.resources.settings_agent_presets
 import pots.composeapp.generated.resources.settings_agent_reasoning
 import pots.composeapp.generated.resources.settings_agent_reasoning_auto
 import pots.composeapp.generated.resources.settings_agent_reasoning_description
@@ -395,7 +397,7 @@ private fun PercentTuningSlider(
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = stringResource(Res.string.settings_agent_value_percent, value),
+                text = stringResource(Res.string.settings_agent_value_percent, value).collapsePercentEscape(),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onBackground,
             )
@@ -497,7 +499,7 @@ private fun SoulEditor(
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = stringResource(Res.string.settings_agent_value_percent),
+            text = stringResource(Res.string.settings_agent_presets),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
         )

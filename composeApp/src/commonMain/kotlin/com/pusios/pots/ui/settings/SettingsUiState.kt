@@ -197,6 +197,8 @@ data class SettingsModel(
     val parameterCount: String? = null,
     /** LMArena Elo score, or null when unknown. */
     val arenaScore: Int? = null,
+    /** Prompt price per million tokens, or null when unknown. */
+    val pricePerMillion: Double? = null,
     /**
      * True when this model is on the provider's free tier according to the
      * curated [com.pusios.pots.data.FreeTierModels] catalog

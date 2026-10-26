@@ -21,5 +21,20 @@ data class OpenAICompatibleModelResponseDto(
         val context_length: Long? = null,
         val isSelected: Boolean = false,
         val type: String? = null,
-    )
+        val pricing: Pricing? = null,
+        val top_provider: TopProvider? = null,
+    ) {
+        @Serializable
+        data class Pricing(
+            val prompt: String? = null,
+            val completion: String? = null,
+            val prompt_per_million: String? = null,
+            val completion_per_million: String? = null,
+        )
+
+        @Serializable
+        data class TopProvider(
+            val pricing: Pricing? = null,
+        )
+    }
 }

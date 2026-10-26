@@ -33,12 +33,10 @@ import pots.composeapp.generated.resources.ic_service_opencode
 import pots.composeapp.generated.resources.ic_service_openrouter
 import pots.composeapp.generated.resources.ic_service_perplexity
 import pots.composeapp.generated.resources.ic_service_polza
-import pots.composeapp.generated.resources.ic_service_proxyapi
 import pots.composeapp.generated.resources.ic_service_publicai
 import pots.composeapp.generated.resources.ic_service_requesty
 import pots.composeapp.generated.resources.ic_service_together
 import pots.composeapp.generated.resources.ic_service_venice
-import pots.composeapp.generated.resources.ic_service_vsegpt
 import pots.composeapp.generated.resources.ic_service_xai
 import pots.composeapp.generated.resources.ic_service_zai
 import pots.composeapp.generated.resources.service_free_expert
@@ -197,8 +195,8 @@ sealed class Service(
         settingsKeyPrefix = "polza",
         chatUrl = "https://polza.ai/api/v1/chat/completions",
         modelsUrl = "https://polza.ai/api/v1/models",
-        apiKeyUrl = "https://polza.ai/dashboard",
-        apiKeyUrlDisplay = "polza.ai/dashboard",
+        apiKeyUrl = "https://polza.ai/?referral=GAiyEDme7O",
+        apiKeyUrlDisplay = "polza.ai",
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
 
@@ -211,8 +209,8 @@ sealed class Service(
         settingsKeyPrefix = "gptunnel",
         chatUrl = "https://gptunnel.ru/v1/chat/completions",
         modelsUrl = "https://gptunnel.ru/v1/models",
-        apiKeyUrl = "https://gptunnel.ru/profile",
-        apiKeyUrlDisplay = "gptunnel.ru/profile",
+        apiKeyUrl = "https://gptunnel.ru/?ref=pots",
+        apiKeyUrlDisplay = "gptunnel.ru",
         apiKeyAuthStyle = ApiKeyAuthStyle.RAW,
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
@@ -226,37 +224,8 @@ sealed class Service(
         settingsKeyPrefix = "aitunnel",
         chatUrl = "https://api.aitunnel.ru/v1/chat/completions",
         modelsUrl = "https://api.aitunnel.ru/v1/models",
-        apiKeyUrl = "https://aitunnel.ru/keys",
-        apiKeyUrlDisplay = "aitunnel.ru/keys",
-        reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
-    )
-
-    data object ProxyApi : Service(
-        id = "proxyapi",
-        displayName = "ProxyAPI",
-        icon = Res.drawable.ic_service_proxyapi,
-        requiresApiKey = true,
-        defaultModel = null,
-        settingsKeyPrefix = "proxyapi",
-        chatUrl = "https://api.proxyapi.ru/openai/v1/chat/completions",
-        modelsUrl = "https://api.proxyapi.ru/openai/v1/models",
-        apiKeyUrl = "https://console.proxyapi.ru/keys",
-        apiKeyUrlDisplay = "console.proxyapi.ru/keys",
-        supportsPdf = true,
-        reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
-    )
-
-    data object VseGpt : Service(
-        id = "vsegpt",
-        displayName = "VseGPT",
-        icon = Res.drawable.ic_service_vsegpt,
-        requiresApiKey = true,
-        defaultModel = null,
-        settingsKeyPrefix = "vsegpt",
-        chatUrl = "https://api.vsegpt.ru/v1/chat/completions",
-        modelsUrl = "https://api.vsegpt.ru/v1/models",
-        apiKeyUrl = "https://vsegpt.ru/User/Keys",
-        apiKeyUrlDisplay = "vsegpt.ru/User/Keys",
+        apiKeyUrl = "https://aitunnel.ru/?r=67643",
+        apiKeyUrlDisplay = "aitunnel.ru",
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
 
@@ -292,8 +261,6 @@ sealed class Service(
             Polza,
             Gptunnel,
             AiTunnel,
-            ProxyApi,
-            VseGpt,
             OpenAICompatible,
             LiteRT,
         )

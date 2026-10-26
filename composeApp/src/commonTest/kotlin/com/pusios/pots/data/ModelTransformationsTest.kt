@@ -23,7 +23,7 @@ class ModelTransformationsTest {
             OpenAICompatibleModelResponseDto.Model(id = "m2", isActive = null),
             OpenAICompatibleModelResponseDto.Model(id = "m3", isActive = false),
         )
-        val result = mapOpenAICompatibleModels(models, Service.ProxyApi, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "")
         assertEquals(2, result.size)
         assertTrue(result.any { it.id == "m1" })
         assertTrue(result.any { it.id == "m2" })
@@ -36,7 +36,7 @@ class ModelTransformationsTest {
             OpenAICompatibleModelResponseDto.Model(id = "model-a"),
             OpenAICompatibleModelResponseDto.Model(id = "model-b"),
         )
-        val result = mapOpenAICompatibleModels(models, Service.ProxyApi, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "")
         assertEquals(2, result.size)
     }
 
@@ -47,7 +47,7 @@ class ModelTransformationsTest {
             OpenAICompatibleModelResponseDto.Model(id = "alpha-model"),
             OpenAICompatibleModelResponseDto.Model(id = "mid-model"),
         )
-        val result = mapOpenAICompatibleModels(models, Service.ProxyApi, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "")
         assertEquals("alpha-model", result[0].id)
         assertEquals("mid-model", result[1].id)
         assertEquals("zebra-model", result[2].id)
@@ -60,7 +60,7 @@ class ModelTransformationsTest {
             OpenAICompatibleModelResponseDto.Model(id = "large", context_window = 131072),
             OpenAICompatibleModelResponseDto.Model(id = "medium", context_window = 32768),
         )
-        val result = mapOpenAICompatibleModels(models, Service.ProxyApi, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "")
         assertEquals("large", result[0].id)
         assertEquals("medium", result[1].id)
         assertEquals("small", result[2].id)
@@ -71,7 +71,7 @@ class ModelTransformationsTest {
         val models = listOf(
             OpenAICompatibleModelResponseDto.Model(id = "m1", context_window = 131_072),
         )
-        val result = mapOpenAICompatibleModels(models, Service.ProxyApi, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "")
         assertEquals(131_072L, result[0].contextWindow)
     }
 
@@ -96,7 +96,7 @@ class ModelTransformationsTest {
             OpenAICompatibleModelResponseDto.Model(id = "openai/gpt-4o-mini", context_window = 128_000),
             OpenAICompatibleModelResponseDto.Model(id = "openai/text-embedding-3-small", context_window = 8_191),
         )
-        val result = mapOpenAICompatibleModels(models, Service.VseGpt, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "")
         assertEquals(listOf("openai/gpt-4o-mini"), result.map { it.id })
         assertEquals(128_000L, result[0].contextWindow)
         assertFalse(result[0].isFreeTier)
@@ -108,7 +108,7 @@ class ModelTransformationsTest {
             // 1700000000 = 2023-11-14T22:13:20Z
             OpenAICompatibleModelResponseDto.Model(id = "m1", created = 1_700_000_000),
         )
-        val result = mapOpenAICompatibleModels(models, Service.ProxyApi, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "")
         assertEquals("2023-11-14", result[0].releaseDate)
     }
 
@@ -117,7 +117,7 @@ class ModelTransformationsTest {
         val models = listOf(
             OpenAICompatibleModelResponseDto.Model(id = "gpt-4o", context_window = null),
         )
-        val result = mapOpenAICompatibleModels(models, Service.VseGpt, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "")
         assertEquals(128_000L, result[0].contextWindow)
     }
 
@@ -126,7 +126,7 @@ class ModelTransformationsTest {
         val models = listOf(
             OpenAICompatibleModelResponseDto.Model(id = "gpt-4o", context_window = 999_999),
         )
-        val result = mapOpenAICompatibleModels(models, Service.VseGpt, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "")
         // Catalog has 128_000 for gpt-4o — takes priority
         assertEquals(128_000L, result[0].contextWindow)
     }
@@ -137,14 +137,14 @@ class ModelTransformationsTest {
             OpenAICompatibleModelResponseDto.Model(id = "m1"),
             OpenAICompatibleModelResponseDto.Model(id = "m2"),
         )
-        val result = mapOpenAICompatibleModels(models, Service.ProxyApi, selectedModelId = "m2")
+        val result = mapOpenAICompatibleModels(models, Service.Gptunnel, selectedModelId = "m2")
         assertFalse(result.first { it.id == "m1" }.isSelected)
         assertTrue(result.first { it.id == "m2" }.isSelected)
     }
 
     @Test
     fun `mapOpenAICompatibleModels empty list`() {
-        val result = mapOpenAICompatibleModels(emptyList(), Service.ProxyApi, selectedModelId = "")
+        val result = mapOpenAICompatibleModels(emptyList(), Service.Gptunnel, selectedModelId = "")
         assertTrue(result.isEmpty())
     }
 

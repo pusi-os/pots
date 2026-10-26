@@ -16,8 +16,6 @@ class ServiceCatalogTest {
                 "polza",
                 "gptunnel",
                 "aitunnel",
-                "proxyapi",
-                "vsegpt",
                 "openai-compatible",
                 "litert",
             ),
@@ -49,8 +47,6 @@ class ServiceCatalogTest {
         assertEquals(ApiKeyAuthStyle.RAW, Service.Gptunnel.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.Polza.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.AiTunnel.apiKeyAuthStyle)
-        assertEquals(ApiKeyAuthStyle.BEARER, Service.ProxyApi.apiKeyAuthStyle)
-        assertEquals(ApiKeyAuthStyle.BEARER, Service.VseGpt.apiKeyAuthStyle)
     }
 
     @Test
@@ -63,7 +59,7 @@ class ServiceCatalogTest {
 
     @Test
     fun `added gateways have chat models and key pages`() {
-        for (service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.ProxyApi, Service.VseGpt)) {
+        for (service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel)) {
             assertFalse(service.isFreeTier, service.id)
             assertTrue(service.requiresApiKey, service.id)
             assertTrue(service.chatUrl.startsWith("https://"), service.id)

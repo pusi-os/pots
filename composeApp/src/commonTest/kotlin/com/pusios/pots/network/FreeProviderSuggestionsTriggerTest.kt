@@ -93,8 +93,6 @@ class FreeProviderSuggestionsTriggerTest {
                 Service.Polza.id,
                 Service.Gptunnel.id,
                 Service.AiTunnel.id,
-                Service.ProxyApi.id,
-                Service.VseGpt.id,
             ),
             freeProviderSuggestions.map { it.service.id },
         )

@@ -93,6 +93,7 @@ import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import pots.composeapp.generated.resources.Res
@@ -597,6 +598,7 @@ private fun ConfiguredServiceCardContent(
                     )
                 } else {
                     ServiceSettings(
+                        service = entry.service,
                         apiKey = entry.apiKey,
                         onChangeApiKey = onChangeApiKey,
                         apiKeyUrl = entry.service.apiKeyUrl ?: "",
@@ -634,6 +636,7 @@ private fun ConfiguredServiceCardContent(
 
 @Composable
 private fun ServiceSettings(
+    service: Service? = null,
     apiKey: String,
     onChangeApiKey: (String) -> Unit,
     apiKeyUrl: String,
@@ -658,30 +661,55 @@ private fun ServiceSettings(
 
     Spacer(Modifier.height(8.dp))
 
-    val linkColor = MaterialTheme.colorScheme.primary
-
-    val copyApiKeyPromptString = stringResource(Res.string.settings_sign_in_copy_api_key_from)
-    val annotatedString = remember(apiKeyUrl, apiKeyUrlDisplay) {
-        buildAnnotatedString {
-            append(copyApiKeyPromptString)
-            append(" ")
-            withLink(LinkAnnotation.Url(url = apiKeyUrl)) {
-                withStyle(style = SpanStyle(color = linkColor)) {
-                    append(apiKeyUrlDisplay)
+    val isReferralProvider = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel)
+    if (isReferralProvider) {
+        val uriHandler = LocalUriHandler.current
+        val instruction = when (service) {
+            Service.Polza -> "Polza.ai → Вход/Регистрация → API-Ключи → Создать и скопировать ключ → Вставить здесь"
+            Service.Gptunnel -> "GPTunnel → Вход/Регистрация → Профиль → API-Ключи → Создать и скопировать ключ → Вставить здесь"
+            Service.AiTunnel -> "AITUNNEL → Вход/Регистрация → Ключи API → Создать и скопировать ключ → Вставить здесь"
+            else -> ""
+        }
+        Text(
+            text = instruction,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = { uriHandler.openUri(apiKeyUrl) },
+            modifier = Modifier.handCursor(),
+        ) {
+            service?.let { Icon(painter = painterResource(it.icon), contentDescription = null) }
+            Spacer(Modifier.width(8.dp))
+            Text(service?.displayName ?: apiKeyUrlDisplay)
+        }
+    } else {
+        val linkColor = MaterialTheme.colorScheme.primary
+        val copyApiKeyPromptString = stringResource(Res.string.settings_sign_in_copy_api_key_from)
+        val annotatedString = remember(apiKeyUrl, apiKeyUrlDisplay) {
+            buildAnnotatedString {
+                append(copyApiKeyPromptString)
+                append(" ")
+                withLink(LinkAnnotation.Url(url = apiKeyUrl)) {
+                    withStyle(style = SpanStyle(color = linkColor)) {
+                        append(apiKeyUrlDisplay)
+                    }
                 }
             }
         }
+        Text(
+            annotatedString,
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.onBackground,
+        )
     }
-    Text(
-        annotatedString,
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.onBackground,
-    )
 
     Spacer(Modifier.height(16.dp))
 
     if (connectionStatus == ConnectionStatus.Connected || models.isNotEmpty()) {
-        ModelSelection(selectedModel, models, onSelectModel)
+        ModelSelection(selectedModel, models, onSelectModel, showExtendedSorts = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel))
     }
 }
 

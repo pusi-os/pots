@@ -57,7 +57,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `initial state reflects configured services`() = runTest {
-        fakeRepository.setConfiguredServices(Service.Polza, Service.VseGpt)
+        fakeRepository.setConfiguredServices(Service.Polza, Service.Gptunnel)
 
         val viewModel = SettingsViewModel(fakeRepository, fakeDaemonController, fakeNotificationPermissionController, noOpScheduler, testDispatcher)
 
@@ -66,8 +66,8 @@ class SettingsViewModelTest {
             assertEquals(2, state.configuredServices.size)
             assertEquals(Service.Polza, state.configuredServices[0].service)
             assertEquals("polza", state.configuredServices[0].instanceId)
-            assertEquals(Service.VseGpt, state.configuredServices[1].service)
-            assertEquals("vsegpt", state.configuredServices[1].instanceId)
+            assertEquals(Service.Gptunnel, state.configuredServices[1].service)
+            assertEquals("gptunnel", state.configuredServices[1].instanceId)
         }
     }
 
@@ -93,7 +93,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `onRemoveService removes a configured service by instanceId`() = runTest {
-        fakeRepository.setConfiguredServices(Service.Polza, Service.VseGpt)
+        fakeRepository.setConfiguredServices(Service.Polza, Service.Gptunnel)
         val viewModel = SettingsViewModel(fakeRepository, fakeDaemonController, fakeNotificationPermissionController, noOpScheduler, testDispatcher)
 
         viewModel.state.test {
@@ -109,13 +109,13 @@ class SettingsViewModelTest {
             val lastState = updates.filterIsInstance<app.cash.turbine.Event.Item<SettingsUiState>>().lastOrNull()?.value
             requireNotNull(lastState)
             assertEquals(1, lastState.configuredServices.size)
-            assertEquals(Service.VseGpt, lastState.configuredServices[0].service)
+            assertEquals(Service.Gptunnel, lastState.configuredServices[0].service)
         }
     }
 
     @Test
     fun `rapid onRemoveService keeps the new pendingDeletion after the previous commits`() = runTest {
-        fakeRepository.setConfiguredServices(Service.Polza, Service.VseGpt, Service.AiTunnel)
+        fakeRepository.setConfiguredServices(Service.Polza, Service.Gptunnel, Service.AiTunnel)
         val viewModel = SettingsViewModel(fakeRepository, fakeDaemonController, fakeNotificationPermissionController, noOpScheduler, testDispatcher)
 
         viewModel.state.test {
@@ -126,7 +126,7 @@ class SettingsViewModelTest {
             testDispatcher.scheduler.runCurrent()
 
             // Second remove fires before the 4s undo timeout: commits Gemini immediately and queues OpenAI.
-            viewModel.actions.onRemoveService("vsegpt")
+            viewModel.actions.onRemoveService("gptunnel")
             testDispatcher.scheduler.runCurrent()
 
             // Let the committed (now-stale) executeDeletion for Gemini finish without advancing the 4s delay for OpenAI.
@@ -138,9 +138,9 @@ class SettingsViewModelTest {
 
             // Gemini is gone, OpenAI is still pending so its snackbar stays visible.
             assertEquals(2, afterCommit.configuredServices.size)
-            assertEquals(Service.VseGpt, afterCommit.configuredServices[0].service)
+            assertEquals(Service.Gptunnel, afterCommit.configuredServices[0].service)
             assertEquals(Service.AiTunnel, afterCommit.configuredServices[1].service)
-            assertEquals(PendingDeletion.Service("vsegpt"), afterCommit.pendingDeletion)
+            assertEquals(PendingDeletion.Service("gptunnel"), afterCommit.pendingDeletion)
         }
     }
 
@@ -156,8 +156,8 @@ class SettingsViewModelTest {
             assertTrue(state.availableServicesToAdd.none { it == Service.Free })
             // Should contain all other services including already-configured ones (multi-instance)
             assertTrue(state.availableServicesToAdd.contains(Service.Polza))
-            assertTrue(state.availableServicesToAdd.contains(Service.VseGpt))
-            assertTrue(state.availableServicesToAdd.contains(Service.ProxyApi))
+            assertTrue(state.availableServicesToAdd.contains(Service.Gptunnel))
+            assertTrue(state.availableServicesToAdd.contains(Service.Gptunnel))
         }
     }
 
@@ -188,18 +188,18 @@ class SettingsViewModelTest {
         viewModel.state.test {
             val initialState = awaitItem()
 
-            viewModel.actions.onAddService(Service.VseGpt)
+            viewModel.actions.onAddService(Service.Gptunnel)
             testDispatcher.scheduler.advanceUntilIdle()
             val afterFirst = awaitItem()
             assertEquals(1, afterFirst.configuredServices.size)
-            assertEquals("vsegpt", afterFirst.configuredServices[0].instanceId)
+            assertEquals("gptunnel", afterFirst.configuredServices[0].instanceId)
 
-            viewModel.actions.onAddService(Service.VseGpt)
+            viewModel.actions.onAddService(Service.Gptunnel)
             testDispatcher.scheduler.advanceUntilIdle()
             val afterSecond = awaitItem()
             assertEquals(2, afterSecond.configuredServices.size)
-            assertEquals("vsegpt", afterSecond.configuredServices[0].instanceId)
-            assertEquals("vsegpt_2", afterSecond.configuredServices[1].instanceId)
+            assertEquals("gptunnel", afterSecond.configuredServices[0].instanceId)
+            assertEquals("gptunnel_2", afterSecond.configuredServices[1].instanceId)
 
             cancelAndIgnoreRemainingEvents()
         }
@@ -454,18 +454,18 @@ class SettingsViewModelTest {
 
     @Test
     fun `onExpandService updates expandedServiceId`() = runTest {
-        fakeRepository.setConfiguredServices(Service.Polza, Service.VseGpt)
+        fakeRepository.setConfiguredServices(Service.Polza, Service.Gptunnel)
         val viewModel = SettingsViewModel(fakeRepository, fakeDaemonController, fakeNotificationPermissionController, noOpScheduler, testDispatcher)
 
         viewModel.state.test {
             val initialState = awaitItem()
             assertEquals(null, initialState.expandedServiceId)
 
-            viewModel.actions.onExpandService("vsegpt")
+            viewModel.actions.onExpandService("gptunnel")
             testDispatcher.scheduler.advanceUntilIdle()
 
             val expandedState = awaitItem()
-            assertEquals("vsegpt", expandedState.expandedServiceId)
+            assertEquals("gptunnel", expandedState.expandedServiceId)
 
             // Collapse
             viewModel.actions.onExpandService(null)

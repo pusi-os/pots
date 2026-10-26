@@ -153,6 +153,7 @@
     <string name="settings_memories_edit_title">Редактировать воспоминание</string>
     <string name="settings_memories_edit_save">Сохранить</string>
     <string name="settings_memories_edit_cancel">Отмена</string>
+    <string name="settings_agent_presets">Готовый характер</string>
     <string name="settings_agent_parameters">Параметры агента</string>
     <string name="settings_agent_parameters_description">Управляйте циклом инструментов, уровнем рассуждений и автоматической компакцией контекста. Изменения применяются со следующего хода.</string>
     <string name="settings_agent_auto_compact">Автоматическая компакция контекста</string>
@@ -375,6 +376,8 @@
     <string name="litert_error_not_enough_disk_space">Недостаточно места на диске для загрузки модели.</string>
     <string name="litert_error_insufficient_memory">Недостаточно памяти для загрузки модели. Закройте другие приложения и попробуйте снова.</string>
     <string name="model_sort_date">Дата</string>
+    <string name="model_sort_price">Цена</string>
+    <string name="model_sort_recommended">Рекомендуемые</string>
     <string name="model_sort_score">Оценка</string>
     <string name="model_sort_context">Контекст</string>
     <string name="model_free_badge">Бесплатно</string>

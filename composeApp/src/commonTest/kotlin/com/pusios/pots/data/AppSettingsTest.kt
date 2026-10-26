@@ -14,16 +14,16 @@ class AppSettingsTest {
         val appSettings = AppSettings(settings)
 
         // Set up a legacy API key for OpenAI
-        appSettings.setApiKey(Service.VseGpt, "sk-test-key")
+        appSettings.setApiKey(Service.Gptunnel, "sk-test-key")
 
         // First run — migrates and adds the service
         appSettings.migrateConfiguredServicesIfNeeded()
         assertEquals(1, appSettings.getConfiguredServiceInstances().size)
-        assertEquals(Service.VseGpt.id, appSettings.getConfiguredServiceInstances()[0].serviceId)
+        assertEquals(Service.Gptunnel.id, appSettings.getConfiguredServiceInstances()[0].serviceId)
 
         // User deletes the service
         appSettings.setConfiguredServiceInstances(emptyList())
-        appSettings.removeInstanceSettings(Service.VseGpt.id)
+        appSettings.removeInstanceSettings(Service.Gptunnel.id)
         assertTrue(appSettings.getConfiguredServiceInstances().isEmpty())
 
         // Second run — flag prevents re-migration, deleted service stays deleted
@@ -163,14 +163,14 @@ class AppSettingsTest {
         val appSettings = AppSettings(settings)
 
         appSettings.setConfiguredServiceInstances(
-            listOf(ServiceInstance("vsegpt", "vsegpt")),
+            listOf(ServiceInstance("gptunnel", "gptunnel")),
         )
-        appSettings.setInstanceBaseUrl("vsegpt", "https://api.openai.com")
+        appSettings.setInstanceBaseUrl("gptunnel", "https://api.openai.com")
 
         appSettings.migrateBaseUrlsToV1PathIfNeeded()
 
         // Should not be modified
-        assertEquals("https://api.openai.com", appSettings.getInstanceBaseUrl("vsegpt"))
+        assertEquals("https://api.openai.com", appSettings.getInstanceBaseUrl("gptunnel"))
     }
 
     @Test
@@ -229,14 +229,14 @@ class AppSettingsTest {
         val settings = MapSettings()
         val appSettings = AppSettings(settings)
 
-        appSettings.setApiKey(Service.VseGpt, "sk-test-key")
+        appSettings.setApiKey(Service.Gptunnel, "sk-test-key")
         appSettings.setApiKey(Service.Polza, "gemini-key")
 
         appSettings.migrateConfiguredServicesIfNeeded()
 
         val instances = appSettings.getConfiguredServiceInstances()
         assertEquals(2, instances.size)
-        assertTrue(instances.any { it.serviceId == Service.VseGpt.id })
+        assertTrue(instances.any { it.serviceId == Service.Gptunnel.id })
         assertTrue(instances.any { it.serviceId == Service.Polza.id })
     }
 

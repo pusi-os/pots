@@ -231,8 +231,6 @@ class PotsUiValidationTest {
             Triple("polza", Service.Polza, "POTS_POLZA_MODEL"),
             Triple("gptunnel", Service.Gptunnel, "POTS_GPTUNNEL_MODEL"),
             Triple("aitunnel", Service.AiTunnel, "POTS_AITUNNEL_MODEL"),
-            Triple("proxyapi", Service.ProxyApi, "POTS_PROXYAPI_MODEL"),
-            Triple("vsegpt", Service.VseGpt, "POTS_VSEGPT_MODEL"),
         ).forEach { (prefix, service, modelEnv) ->
             val key = env("POTS_${prefix.uppercase()}_KEY") ?: return@forEach
             out += ProviderSpec(

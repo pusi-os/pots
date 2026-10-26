@@ -78,37 +78,37 @@ class SplinterlandsViewModelTest {
 
     @Test
     fun `onRemoveSplinterlandsService removes service from list`() = runTest {
-        fakeRepository.setConfiguredServices(Service.Polza, Service.VseGpt)
-        fakeSplinterlandsStore.setInstanceIds(listOf("polza", "vsegpt"))
+        fakeRepository.setConfiguredServices(Service.Polza, Service.Gptunnel)
+        fakeSplinterlandsStore.setInstanceIds(listOf("polza", "gptunnel"))
         val viewModel = SplinterlandsViewModel(fakeRepository, fakeSplinterlandsStore, fakeSplinterlandsBattleRunner, SplinterlandsApi())
 
         viewModel.state.test {
             val initialState = awaitItem()
-            assertEquals(listOf("polza", "vsegpt"), initialState.splinterlandsInstanceIds)
+            assertEquals(listOf("polza", "gptunnel"), initialState.splinterlandsInstanceIds)
 
             initialState.onRemoveSplinterlandsService("polza")
 
             val updatedState = awaitItem()
-            assertEquals(listOf("vsegpt"), updatedState.splinterlandsInstanceIds)
+            assertEquals(listOf("gptunnel"), updatedState.splinterlandsInstanceIds)
         }
     }
 
     @Test
     fun `onReorderSplinterlandsServices changes priority order`() = runTest {
-        fakeRepository.setConfiguredServices(Service.Polza, Service.VseGpt)
-        fakeSplinterlandsStore.setInstanceIds(listOf("polza", "vsegpt"))
+        fakeRepository.setConfiguredServices(Service.Polza, Service.Gptunnel)
+        fakeSplinterlandsStore.setInstanceIds(listOf("polza", "gptunnel"))
         val viewModel = SplinterlandsViewModel(fakeRepository, fakeSplinterlandsStore, fakeSplinterlandsBattleRunner, SplinterlandsApi())
 
         viewModel.state.test {
             val initialState = awaitItem()
-            assertEquals(listOf("polza", "vsegpt"), initialState.splinterlandsInstanceIds)
+            assertEquals(listOf("polza", "gptunnel"), initialState.splinterlandsInstanceIds)
 
-            initialState.onReorderSplinterlandsServices(listOf("vsegpt", "polza"))
+            initialState.onReorderSplinterlandsServices(listOf("gptunnel", "polza"))
 
             val updatedState = awaitItem()
-            assertEquals(listOf("vsegpt", "polza"), updatedState.splinterlandsInstanceIds)
+            assertEquals(listOf("gptunnel", "polza"), updatedState.splinterlandsInstanceIds)
             // Verify persisted
-            assertEquals(listOf("vsegpt", "polza"), fakeSplinterlandsStore.getInstanceIds())
+            assertEquals(listOf("gptunnel", "polza"), fakeSplinterlandsStore.getInstanceIds())
         }
     }
 }

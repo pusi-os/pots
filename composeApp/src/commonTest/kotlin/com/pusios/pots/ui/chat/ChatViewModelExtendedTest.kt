@@ -89,10 +89,10 @@ class ChatViewModelExtendedTest {
 
     @Test
     fun `selectService reorders configured services so the selected instance is first`() = runTest {
-        fakeRepository.setConfiguredServices(Service.Polza, Service.VseGpt, Service.Gptunnel)
+        fakeRepository.setConfiguredServices(Service.Polza, Service.Gptunnel, Service.Gptunnel)
         fakeRepository.fakeServiceEntries = listOf(
             makeServiceEntry("polza", Service.Polza),
-            makeServiceEntry("vsegpt", Service.VseGpt),
+            makeServiceEntry("gptunnel", Service.Gptunnel),
             makeServiceEntry("gptunnel", Service.Gptunnel),
         )
 
@@ -106,28 +106,28 @@ class ChatViewModelExtendedTest {
             // The fake's reorderConfiguredServices changes configuredInstances, but
             // fakeServiceEntries is independent — update it after reorder happens.
             fakeRepository.fakeServiceEntries = listOf(
-                makeServiceEntry("vsegpt", Service.VseGpt),
+                makeServiceEntry("gptunnel", Service.Gptunnel),
                 makeServiceEntry("polza", Service.Polza),
                 makeServiceEntry("gptunnel", Service.Gptunnel),
             )
 
-            initialState.actions.selectService("vsegpt")
+            initialState.actions.selectService("gptunnel")
             testDispatcher.scheduler.advanceUntilIdle()
 
             val reordered = awaitItem()
-            assertEquals("vsegpt", reordered.availableServices.first().instanceId)
+            assertEquals("gptunnel", reordered.availableServices.first().instanceId)
             // Repository should have been told to reorder
             val configured = fakeRepository.getConfiguredServiceInstances()
-            assertEquals("vsegpt", configured.first().instanceId)
+            assertEquals("gptunnel", configured.first().instanceId)
         }
     }
 
     @Test
     fun `selectService is a no-op when instanceId is unknown`() = runTest {
-        fakeRepository.setConfiguredServices(Service.Polza, Service.VseGpt)
+        fakeRepository.setConfiguredServices(Service.Polza, Service.Gptunnel)
         fakeRepository.fakeServiceEntries = listOf(
             makeServiceEntry("polza", Service.Polza),
-            makeServiceEntry("vsegpt", Service.VseGpt),
+            makeServiceEntry("gptunnel", Service.Gptunnel),
         )
         val viewModel = createViewModel()
 
@@ -140,7 +140,7 @@ class ChatViewModelExtendedTest {
             // Order should be unchanged
             val configured = fakeRepository.getConfiguredServiceInstances()
             assertEquals("polza", configured[0].instanceId)
-            assertEquals("vsegpt", configured[1].instanceId)
+            assertEquals("gptunnel", configured[1].instanceId)
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -18,6 +18,4 @@ val freeProviderSuggestions: List<FreeProviderSuggestion> = listOf(
     FreeProviderSuggestion(Service.Polza),
     FreeProviderSuggestion(Service.Gptunnel),
     FreeProviderSuggestion(Service.AiTunnel),
-    FreeProviderSuggestion(Service.ProxyApi),
-    FreeProviderSuggestion(Service.VseGpt),
 )

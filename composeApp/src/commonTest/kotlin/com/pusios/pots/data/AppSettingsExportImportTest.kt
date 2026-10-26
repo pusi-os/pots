@@ -142,14 +142,14 @@ class AppSettingsExportImportTest {
         val appSettings = createAppSettings()
         appSettings.setConfiguredServiceInstances(
             listOf(
-                ServiceInstance("vsegpt", "vsegpt"),
+                ServiceInstance("gptunnel", "gptunnel"),
                 ServiceInstance("polza", "polza"),
             ),
         )
-        appSettings.selectService(Service.VseGpt)
+        appSettings.selectService(Service.Gptunnel)
         appSettings.setFreeFallbackEnabled(false)
-        appSettings.setInstanceApiKey("vsegpt", "sk-key")
-        appSettings.setInstanceModelId("vsegpt", "gpt-4")
+        appSettings.setInstanceApiKey("gptunnel", "sk-key")
+        appSettings.setInstanceModelId("gptunnel", "gpt-4")
         appSettings.setInstanceBaseUrl("polza", "https://custom.url")
 
         val json = appSettings.exportToJson(toolIds)
@@ -158,12 +158,12 @@ class AppSettingsExportImportTest {
         target.importFromJson(json, toolIds)
         val instances = target.getConfiguredServiceInstances()
         assertEquals(2, instances.size)
-        assertEquals("vsegpt", instances[0].instanceId)
+        assertEquals("gptunnel", instances[0].instanceId)
         assertEquals("polza", instances[1].instanceId)
-        assertEquals(Service.VseGpt, target.currentService())
+        assertEquals(Service.Gptunnel, target.currentService())
         assertFalse(target.isFreeFallbackEnabled())
-        assertEquals("sk-key", target.getInstanceApiKey("vsegpt"))
-        assertEquals("gpt-4", target.getInstanceModelId("vsegpt"))
+        assertEquals("sk-key", target.getInstanceApiKey("gptunnel"))
+        assertEquals("gpt-4", target.getInstanceModelId("gptunnel"))
         assertEquals("https://custom.url", target.getInstanceBaseUrl("polza"))
     }
 
@@ -283,13 +283,13 @@ class AppSettingsExportImportTest {
         {
             "version": 1,
             "configured_services": [
-                {"instanceId": "vsegpt", "serviceId": "vsegpt"},
+                {"instanceId": "gptunnel", "serviceId": "gptunnel"},
                 {"instanceId": "polza", "serviceId": "polza"}
             ],
-            "current_service_id": "vsegpt",
+            "current_service_id": "gptunnel",
             "free_fallback_enabled": false,
             "instance_settings": [
-                {"instanceId": "vsegpt", "api_key": "sk-abc", "model_id": "gpt-4o"},
+                {"instanceId": "gptunnel", "api_key": "sk-abc", "model_id": "gpt-4o"},
                 {"instanceId": "polza", "api_key": "gem-key"}
             ],
             "soul_text": "Be helpful.",
@@ -318,14 +318,14 @@ class AppSettingsExportImportTest {
         // Services
         val instances = target.getConfiguredServiceInstances()
         assertEquals(2, instances.size)
-        assertEquals("vsegpt", instances[0].serviceId)
+        assertEquals("gptunnel", instances[0].serviceId)
         assertEquals("polza", instances[1].serviceId)
-        assertEquals(Service.VseGpt, target.currentService())
+        assertEquals(Service.Gptunnel, target.currentService())
         assertFalse(target.isFreeFallbackEnabled())
 
         // Per-instance
-        assertEquals("sk-abc", target.getInstanceApiKey("vsegpt"))
-        assertEquals("gpt-4o", target.getInstanceModelId("vsegpt"))
+        assertEquals("sk-abc", target.getInstanceApiKey("gptunnel"))
+        assertEquals("gpt-4o", target.getInstanceModelId("gptunnel"))
         assertEquals("gem-key", target.getInstanceApiKey("polza"))
 
         // Soul
@@ -397,7 +397,7 @@ class AppSettingsExportImportTest {
     fun `import clears old instance settings before applying new`() {
         val target = createAppSettings()
         target.setConfiguredServiceInstances(
-            listOf(ServiceInstance("old_instance", "vsegpt")),
+            listOf(ServiceInstance("old_instance", "gptunnel")),
         )
         target.setInstanceApiKey("old_instance", "old-key")
         target.setInstanceModelId("old_instance", "old-model")
@@ -405,7 +405,7 @@ class AppSettingsExportImportTest {
         val json = JsonObject(
             mapOf(
                 "version" to JsonPrimitive(1),
-                "configured_services" to Json.parseToJsonElement("""[{"instanceId":"new_instance","serviceId":"vsegpt"}]"""),
+                "configured_services" to Json.parseToJsonElement("""[{"instanceId":"new_instance","serviceId":"gptunnel"}]"""),
                 "instance_settings" to Json.parseToJsonElement("""[{"instanceId":"new_instance","api_key":"new-key"}]"""),
             ),
         )

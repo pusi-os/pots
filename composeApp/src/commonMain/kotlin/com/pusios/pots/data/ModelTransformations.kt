@@ -103,6 +103,7 @@ private fun buildSettingsModel(
     apiDisplayName: String? = null,
     apiContextWindow: Long? = null,
     apiReleaseDate: String? = null,
+    apiPricePerMillion: Double? = null,
 ): SettingsModel {
     val curated = ModelCatalog.lookup(id)
     return SettingsModel(
@@ -114,6 +115,7 @@ private fun buildSettingsModel(
         releaseDate = curated?.releaseDate ?: apiReleaseDate,
         parameterCount = curated?.parameterCount,
         arenaScore = curated?.arenaScore,
+        pricePerMillion = apiPricePerMillion,
     )
 }
 
@@ -142,6 +144,7 @@ internal fun mapOpenAICompatibleModels(
             apiDisplayName = it.name,
             apiContextWindow = it.context_window ?: it.context_length,
             apiReleaseDate = it.created?.toIsoDate(),
+            apiPricePerMillion = it.pricePerMillion(),
         )
     }
     return if (service.sortModelsById) {
@@ -183,4 +186,11 @@ internal fun ensureSelectedModelPresent(
             ),
         ) + providerModels.map { it.copy(isSelected = false) }
     }
+}
+
+internal fun OpenAICompatibleModelResponseDto.Model.pricePerMillion(): Double? {
+    val pricing = top_provider?.pricing ?: pricing ?: return null
+    val raw = pricing.prompt_per_million ?: pricing.prompt ?: return null
+    val value = raw.toDoubleOrNull() ?: return null
+    return if (pricing.prompt_per_million != null) value else value * 1_000_000.0
 }

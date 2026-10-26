@@ -46,6 +46,11 @@ import com.pusios.pots.ui.components.PotsSearchField
 import com.pusios.pots.ui.components.VerticalScrollbarForGrid
 import com.pusios.pots.ui.handCursor
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.datetime.DatePeriod
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
@@ -56,9 +61,12 @@ import pots.composeapp.generated.resources.model_free_badge
 import pots.composeapp.generated.resources.model_free_empty
 import pots.composeapp.generated.resources.model_sort_context
 import pots.composeapp.generated.resources.model_sort_date
+import pots.composeapp.generated.resources.model_sort_price
+import pots.composeapp.generated.resources.model_sort_recommended
 import pots.composeapp.generated.resources.model_sort_score
 import pots.composeapp.generated.resources.settings_model_label
 import pots.composeapp.generated.resources.settings_model_search
+import kotlin.time.Clock
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +74,7 @@ internal fun ModelSelection(
     currentSelectedModel: SettingsModel?,
     models: ImmutableList<SettingsModel>,
     onClick: (String) -> Unit,
+    showExtendedSorts: Boolean = false,
 ) {
     var expanded by remember { mutableStateOf(false) }
     // Provider list only — synthetic manual entries stay out of the picker grid.
@@ -134,8 +143,15 @@ internal fun ModelSelection(
                     )
                 }
                 var sortOption by remember { mutableStateOf(ModelSortOption.Score) }
-                val sortedModels = remember(filteredModels, sortOption, searchQuery) {
-                    val base = filteredModels.sortedWith(sortOption.comparator)
+                val visibleModels = remember(filteredModels, sortOption, currentSelectedModel) {
+                    when (sortOption) {
+                        ModelSortOption.Price -> filteredModels.filter { it.id == currentSelectedModel?.id || withinMonths(it.releaseDate, 6) }
+                        ModelSortOption.Recommended -> filteredModels.filter { it.id == currentSelectedModel?.id || withinMonths(it.releaseDate, 3) }
+                        else -> filteredModels
+                    }
+                }
+                val sortedModels = remember(visibleModels, sortOption, searchQuery) {
+                    val base = visibleModels.sortedWith(sortOption.comparator)
                     if (searchQuery.isBlank()) {
                         base
                     } else {
@@ -154,6 +170,7 @@ internal fun ModelSelection(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     ModelSortOption.entries.forEach { option ->
+                        if (!showExtendedSorts && (option == ModelSortOption.Price || option == ModelSortOption.Recommended)) return@forEach
                         FilterChip(
                             selected = sortOption == option,
                             onClick = { sortOption = option },
@@ -219,6 +236,18 @@ private enum class ModelSortOption(
     Date(Res.string.model_sort_date, compareByDescending<SettingsModel> { it.releaseDate }.thenBy { it.id }),
     Score(Res.string.model_sort_score, compareByDescending<SettingsModel> { it.arenaScore }.thenBy { it.id }),
     Ctx(Res.string.model_sort_context, compareByDescending<SettingsModel> { it.contextWindow }.thenBy { it.id }),
+    Price(Res.string.model_sort_price, compareBy<SettingsModel> { it.pricePerMillion ?: Double.MAX_VALUE }.thenBy { it.id }),
+    Recommended(Res.string.model_sort_recommended, compareByDescending<SettingsModel> { it.releaseDate }.thenByDescending { it.arenaScore }.thenBy { it.id }),
+}
+
+private fun withinMonths(releaseDate: String?, months: Int): Boolean {
+    if (releaseDate.isNullOrBlank()) return true
+    val date = runCatching {
+        LocalDate.parse(if (releaseDate.length == 7) "$releaseDate-01" else releaseDate)
+    }.getOrNull() ?: return true
+    val cutoffMs = kotlin.time.Clock.System.now().toEpochMilliseconds() - months.toLong() * 30L * 24L * 60L * 60L * 1000L
+    val cutoff = kotlinx.datetime.Instant.fromEpochMilliseconds(cutoffMs).toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+    return date.toString() >= cutoff
 }
 
 @Composable

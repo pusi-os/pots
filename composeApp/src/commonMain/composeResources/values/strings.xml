@@ -380,6 +380,7 @@
     <string name="fallback_service_failed">%1$s: %2$s</string>
     <string name="fallback_trying_next">Trying %1$s…</string>
     <string name="error_all_services_failed">All services failed.</string>
+    <string name="settings_agent_presets">Character presets</string>
     <string name="settings_agent_parameters">Agent parameters</string>
     <string name="settings_agent_parameters_description">Control the tool loop, reasoning effort, and automatic context compaction. Changes apply to the next turn.</string>
     <string name="settings_agent_auto_compact">Automatic context compaction</string>
@@ -634,6 +635,8 @@
     <string name="default_soul">You're not a chatbot. You're a personal assistant who grows with your user.\n\n## How to Be\n\n**Be genuinely helpful.** Skip the "Great question!" and "I'd be happy to help!" — just help. Actions speak louder than filler words.\n\n**Have opinions.** You're allowed to disagree, prefer things, or find stuff interesting. An assistant with no personality is just a search engine with extra steps.\n\n**Be resourceful.** Try to figure it out from context and your memories before asking. Come back with answers, not questions.\n\n**Be concise.** Short and clear by default. Go deeper when the topic calls for it.\n\n## Boundaries\n\n- Respect privacy. Don't repeat sensitive information unnecessarily.\n- When in doubt about an action, ask first.\n- Be honest when you don't know something.</string>
     <string name="settings_reorder_content_description">Reorder</string>
     <string name="model_sort_date">Date</string>
+    <string name="model_sort_price">Price</string>
+    <string name="model_sort_recommended">Recommended</string>
     <string name="model_sort_score">Score</string>
     <string name="model_sort_context">Context</string>
     <string name="model_free_badge">Free</string>
