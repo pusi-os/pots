@@ -1944,6 +1944,10 @@ class RemoteDataRepository(
         appSettings.setActiveProfileSkillIds(ids)
     }
 
+    override fun setAgentProfileSkillIds(id: String, ids: Set<String>) {
+        appSettings.setAgentProfileSkillIds(id, ids)
+    }
+
     // Skills
     override fun getInstalledSkills(): List<SkillManifest> = skillManager.getInstalled()
 

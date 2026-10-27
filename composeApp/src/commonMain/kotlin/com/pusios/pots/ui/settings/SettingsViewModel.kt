@@ -183,6 +183,7 @@ class SettingsViewModel(
         onDeleteAgentProfile = ::onDeleteAgentProfile,
         onActivateAgentProfile = ::onActivateAgentProfile,
         onSetActiveProfileSkills = ::onSetActiveProfileSkills,
+        onSetAgentProfileSkills = ::onSetAgentProfileSkills,
         onSaveSoul = ::onSaveSoul,
         onChangeAgentTuning = ::onChangeAgentTuning,
         onToggleDynamicUi = ::onToggleDynamicUi,
@@ -552,6 +553,11 @@ class SettingsViewModel(
 
     private fun onSetActiveProfileSkills(ids: Set<String>) {
         dataRepository.setActiveProfileSkillIds(ids)
+        refreshAgentProfileState()
+    }
+
+    private fun onSetAgentProfileSkills(id: String, ids: Set<String>) {
+        dataRepository.setAgentProfileSkillIds(id, ids)
         refreshAgentProfileState()
     }
 

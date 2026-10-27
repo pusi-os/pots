@@ -327,10 +327,10 @@ fun ChatScreenContent(
             )
             profileHandoff?.let { (outgoing, incoming) ->
                 AgentProfileHandoffOverlay(
+                    stage = stage,
                     outgoing = outgoing,
                     incoming = incoming,
                     onActivateIncoming = {
-                        stage.clearPinned()
                         uiState.actions.activateAgentProfile(incoming.id)
                     },
                     onFinished = { profileHandoff = null },

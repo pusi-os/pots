@@ -2,20 +2,30 @@
 
 package com.pusios.pots.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -27,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -256,13 +267,14 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AgentProfilesSection(uiState: SettingsUiState, actions: SettingsActions) {
-    val activeProfile = uiState.agentProfiles.firstOrNull { it.id == uiState.activeAgentProfileId }
-    var newProfileName by remember { mutableStateOf("") }
-    var editedName by remember(activeProfile?.id, activeProfile?.name) { mutableStateOf(activeProfile?.name.orEmpty()) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var createDraft by remember { mutableStateOf("") }
+    var profileToRename by remember { mutableStateOf<com.pusios.pots.data.AgentProfile?>(null) }
+    var renameDraft by remember { mutableStateOf("") }
+    var profileToDelete by remember { mutableStateOf<com.pusios.pots.data.AgentProfile?>(null) }
+    var profileForSkills by remember { mutableStateOf<com.pusios.pots.data.AgentProfile?>(null) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -276,112 +288,120 @@ private fun AgentProfilesSection(uiState: SettingsUiState, actions: SettingsActi
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            uiState.agentProfiles.forEach { profile ->
-                FilterChip(
-                    selected = profile.id == uiState.activeAgentProfileId,
-                    onClick = { actions.onActivateAgentProfile(profile.id) },
-                    label = { Text(profile.name) },
-                    modifier = Modifier.handCursor(),
-                )
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PotsOutlinedTextField(
-                modifier = Modifier.weight(1f),
-                value = newProfileName,
-                onValueChange = { newProfileName = it.take(60) },
-                singleLine = true,
-                label = { Text(stringResource(Res.string.settings_agent_profile_name)) },
-            )
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    actions.onCreateAgentProfile(newProfileName)
-                    newProfileName = ""
-                },
-                enabled = newProfileName.isNotBlank(),
-                modifier = Modifier.handCursor(),
-            ) {
-                Text(stringResource(Res.string.settings_agent_profile_create))
-            }
-        }
 
-        if (activeProfile != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PotsOutlinedTextField(
-                    modifier = Modifier.weight(1f),
-                    value = editedName,
-                    onValueChange = { editedName = it.take(60) },
-                    singleLine = true,
-                    label = { Text(stringResource(Res.string.settings_agent_profile_name)) },
-                )
-                Spacer(Modifier.width(8.dp))
-                TextButton(
-                    onClick = { actions.onRenameAgentProfile(activeProfile.id, editedName) },
-                    enabled = editedName.isNotBlank() && editedName != activeProfile.name,
-                    modifier = Modifier.handCursor(),
-                ) {
-                    Text(stringResource(Res.string.settings_agent_profile_rename))
-                }
-                if (uiState.agentProfiles.size > 1) {
-                    TextButton(onClick = { showDeleteDialog = true }, modifier = Modifier.handCursor()) {
-                        Text(stringResource(Res.string.settings_agent_profile_delete), color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stringResource(Res.string.settings_agent_profile_skills),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            if (uiState.skills.isEmpty()) {
-                Text(
-                    text = stringResource(Res.string.settings_agent_profile_no_skills),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            } else {
-                uiState.skills.forEach { skill ->
-                    val checked = !uiState.activeProfileSkillSelectionConfigured || skill.id in uiState.activeProfileSkillIds
-                    Row(
-                        modifier = Modifier.fillMaxWidth().handCursor(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(
-                            checked = checked,
-                            onCheckedChange = { enabled ->
-                                val selected = if (uiState.activeProfileSkillSelectionConfigured) {
-                                    uiState.activeProfileSkillIds.toMutableSet()
-                                } else {
-                                    uiState.skills.map { it.id }.toMutableSet()
-                                }
-                                if (enabled) selected += skill.id else selected -= skill.id
-                                actions.onSetActiveProfileSkills(selected)
-                            },
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(skill.displayName, style = MaterialTheme.typography.bodyMedium)
-                            Text(skill.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val allCards = uiState.agentProfiles + null
+        allCards.chunked(2).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                row.forEach { profile ->
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (profile == null) {
+                            AddProfileCard(onClick = {
+                                createDraft = ""
+                                showCreateDialog = true
+                            })
+                        } else {
+                            ProfileCard(
+                                profile = profile,
+                                isActive = profile.id == uiState.activeAgentProfileId,
+                                skills = uiState.skills,
+                                onActivate = { actions.onActivateAgentProfile(profile.id) },
+                                onRename = {
+                                    profileToRename = profile
+                                    renameDraft = profile.name
+                                },
+                                onSkills = { profileForSkills = profile },
+                                onDelete = { profileToDelete = profile },
+                                canDelete = profile.id != "default" && uiState.agentProfiles.size > 1,
+                            )
                         }
                     }
+                }
+                if (row.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
     }
 
-    if (showDeleteDialog && activeProfile != null) {
+    if (showCreateDialog) {
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text(stringResource(Res.string.settings_agent_profile_create)) },
+            text = {
+                PotsOutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = createDraft,
+                    onValueChange = { createDraft = it.take(60) },
+                    singleLine = true,
+                    label = { Text(stringResource(Res.string.settings_agent_profile_name)) },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        actions.onCreateAgentProfile(createDraft)
+                        showCreateDialog = false
+                    },
+                    enabled = createDraft.isNotBlank(),
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_agent_profile_create))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false }, modifier = Modifier.handCursor()) {
+                    Text(stringResource(Res.string.settings_memories_edit_cancel))
+                }
+            },
+        )
+    }
+
+    profileToRename?.let { profile ->
+        AlertDialog(
+            onDismissRequest = { profileToRename = null },
+            title = { Text(stringResource(Res.string.settings_agent_profile_rename)) },
+            text = {
+                PotsOutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = renameDraft,
+                    onValueChange = { renameDraft = it.take(60) },
+                    singleLine = true,
+                    label = { Text(stringResource(Res.string.settings_agent_profile_name)) },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        actions.onRenameAgentProfile(profile.id, renameDraft)
+                        profileToRename = null
+                    },
+                    enabled = renameDraft.isNotBlank() && renameDraft != profile.name,
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_agent_profile_rename))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { profileToRename = null }, modifier = Modifier.handCursor()) {
+                    Text(stringResource(Res.string.settings_memories_edit_cancel))
+                }
+            },
+        )
+    }
+
+    profileToDelete?.let { profile ->
+        AlertDialog(
+            onDismissRequest = { profileToDelete = null },
             title = { Text(stringResource(Res.string.settings_agent_profile_delete)) },
             text = { Text(stringResource(Res.string.settings_agent_profile_delete_confirm)) },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showDeleteDialog = false
-                        actions.onDeleteAgentProfile(activeProfile.id)
+                        profileToDelete = null
+                        actions.onDeleteAgentProfile(profile.id)
                     },
                     modifier = Modifier.handCursor(),
                 ) {
@@ -389,15 +409,183 @@ private fun AgentProfilesSection(uiState: SettingsUiState, actions: SettingsActi
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }, modifier = Modifier.handCursor()) {
+                TextButton(onClick = { profileToDelete = null }, modifier = Modifier.handCursor()) {
                     Text(stringResource(Res.string.settings_soul_reset_cancel))
                 }
             },
         )
     }
+
+    profileForSkills?.let { profile ->
+        AgentProfileSkillsDialog(
+            profile = profile,
+            skills = uiState.skills,
+            onDismiss = { profileForSkills = null },
+            onSave = { ids ->
+                actions.onSetAgentProfileSkills(profile.id, ids)
+                profileForSkills = null
+            },
+        )
+    }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProfileCard(
+    profile: com.pusios.pots.data.AgentProfile,
+    isActive: Boolean,
+    skills: ImmutableList<com.pusios.pots.skills.SkillManifest>,
+    onActivate: () -> Unit,
+    onRename: () -> Unit,
+    onSkills: () -> Unit,
+    onDelete: () -> Unit,
+    canDelete: Boolean,
+) {
+    Surface(
+        onClick = onActivate,
+        modifier = Modifier.fillMaxWidth().height(156.dp).handCursor(),
+        color = if (isActive) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f)
+        },
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(
+            1.dp,
+            if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                com.pusios.pots.ui.potsik.PotsikAvatar(
+                    look = profile.potsikLook,
+                    phase = com.pusios.pots.ui.potsik.PotsikPhase.IDLE,
+                    size = 58.dp,
+                    modifier = Modifier.size(58.dp),
+                )
+            }
+            Text(
+                text = profile.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                IconButton(onClick = onRename, modifier = Modifier.size(32.dp).handCursor()) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.settings_agent_profile_rename), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = onSkills, modifier = Modifier.size(32.dp).handCursor()) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.settings_agent_profile_skills), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (canDelete) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp).handCursor()) {
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.settings_agent_profile_delete), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    Spacer(Modifier.size(32.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddProfileCard(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(156.dp).handCursor(),
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.45f),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = stringResource(Res.string.settings_agent_profile_create),
+                modifier = Modifier.size(36.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(Res.string.settings_agent_profile_create),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AgentProfileSkillsDialog(
+    profile: com.pusios.pots.data.AgentProfile,
+    skills: ImmutableList<com.pusios.pots.skills.SkillManifest>,
+    onDismiss: () -> Unit,
+    onSave: (Set<String>) -> Unit,
+) {
+    val initial = remember(profile.id) {
+        if (profile.skillSelectionConfigured) profile.enabledSkillIds.toSet() else skills.map { it.id }.toSet()
+    }
+    var selected by remember(profile.id) { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(profile.name) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                if (skills.isEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.settings_agent_profile_no_skills),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    skills.forEach { skill ->
+                        val checked = skill.id in selected
+                        Row(
+                            modifier = Modifier.fillMaxWidth().handCursor(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = { enabled ->
+                                    val next = selected.toMutableSet()
+                                    if (enabled) next += skill.id else next -= skill.id
+                                    selected = next
+                                },
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(skill.displayName, style = MaterialTheme.typography.bodyMedium)
+                                Text(skill.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(selected) }, modifier = Modifier.handCursor()) {
+                Text(stringResource(Res.string.settings_memories_edit_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
+                Text(stringResource(Res.string.settings_soul_reset_cancel))
+            }
+        },
+    )
+}
+
 @Composable
 private fun AgentTuningSection(
     tuning: AgentTuning,

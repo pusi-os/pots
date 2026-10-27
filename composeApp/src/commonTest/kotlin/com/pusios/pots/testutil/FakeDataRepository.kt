@@ -392,6 +392,7 @@ class FakeDataRepository : DataRepository {
         return true
     }
     override fun deleteAgentProfile(id: String): Boolean {
+        if (id == "default") return false
         if (agentProfiles.value.size <= 1) return false
         val removed = agentProfiles.value.any { it.id == id }
         agentProfiles.value = agentProfiles.value.filterNot { it.id == id }
@@ -407,6 +408,11 @@ class FakeDataRepository : DataRepository {
     override fun setActiveProfileSkillIds(ids: Set<String>) {
         agentProfiles.value = agentProfiles.value.map { profile ->
             if (profile.id == activeAgentProfileId.value) profile.copy(enabledSkillIds = ids.toList(), skillSelectionConfigured = true) else profile
+        }
+    }
+    override fun setAgentProfileSkillIds(id: String, ids: Set<String>) {
+        agentProfiles.value = agentProfiles.value.map { profile ->
+            if (profile.id == id) profile.copy(enabledSkillIds = ids.toList(), skillSelectionConfigured = true) else profile
         }
     }
 

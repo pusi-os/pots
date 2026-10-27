@@ -14,12 +14,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,6 +47,8 @@ import com.pusios.pots.ui.potsik.PotsikAction
 import com.pusios.pots.ui.potsik.PotsikAnimationCatalog
 import com.pusios.pots.ui.potsik.PotsikAvatar
 import com.pusios.pots.ui.potsik.PotsikPhase
+import com.pusios.pots.ui.potsik.PotsikPlacement
+import com.pusios.pots.ui.potsik.PotsikStage
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -62,14 +66,14 @@ internal fun AgentProfilesToolbar(
         exit = slideOutVertically { -it / 2 } + fadeOut(),
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp, vertical = 2.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
+            modifier = Modifier.fillMaxWidth().height(86.dp).padding(horizontal = 12.dp, vertical = 2.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f),
             shape = RoundedCornerShape(20.dp),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 profiles.forEach { profile ->
@@ -83,19 +87,21 @@ internal fun AgentProfilesToolbar(
                         color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.78f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
                         shape = RoundedCornerShape(16.dp),
                     ) {
-                        Row(
-                            modifier = Modifier.height(48.dp).padding(horizontal = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        Column(
+                            modifier = Modifier.width(64.dp).padding(horizontal = 4.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
                         ) {
                             ProfilePotsikAvatar(profile = profile)
+                            Spacer(Modifier.height(2.dp))
                             Text(
                                 text = profile.name,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.widthIn(max = 104.dp),
+                                modifier = Modifier.widthIn(max = 56.dp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             )
                         }
                     }
@@ -128,6 +134,7 @@ private fun ProfilePotsikAvatar(profile: AgentProfile) {
 
 @Composable
 internal fun AgentProfileHandoffOverlay(
+    stage: PotsikStage,
     outgoing: AgentProfile,
     incoming: AgentProfile,
     onActivateIncoming: () -> Unit,
@@ -135,11 +142,17 @@ internal fun AgentProfileHandoffOverlay(
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val travelPx = with(density) { (maxWidth + 144.dp).toPx() }
+        val startPlacement = remember(outgoing.id, incoming.id) { stage.placement.value }
+        val area = remember(outgoing.id, incoming.id) { stage.area.value }
+        val startCharacterPx = stage.baseCharacterSize.value * startPlacement.scale
+        val startCxPx = startPlacement.x * area.width.toFloat()
+        val startFeetYpx = startPlacement.y * area.height.toFloat()
+        val avatarSize = with(density) { startCharacterPx.toDp() }
+        val travelPx = with(density) { (area.width.toFloat() + startCharacterPx + 144.dp.toPx()) }
         val horizontalOffset = remember(outgoing.id, incoming.id) { Animatable(0f) }
         var showingIncoming by remember(outgoing.id, incoming.id) { mutableStateOf(false) }
         LaunchedEffect(outgoing.id, incoming.id) {
-            delay(650L) // give the outgoing Потсик time to wave goodbye
+            delay(650L)
             horizontalOffset.animateTo(-travelPx, animationSpec = tween(420))
             onActivateIncoming()
             showingIncoming = true
@@ -149,17 +162,19 @@ internal fun AgentProfileHandoffOverlay(
             onFinished()
         }
         val profile = if (showingIncoming) incoming else outgoing
-        val key = if (showingIncoming) 2 else 1
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        Box(modifier = Modifier.fillMaxSize()) {
             PotsikAvatar(
                 look = profile.potsikLook,
                 phase = PotsikPhase.IDLE,
-                size = 132.dp,
-                modifier = Modifier
-                    .padding(bottom = 128.dp)
-                    .offset { IntOffset(horizontalOffset.value.roundToInt(), 0) },
+                size = avatarSize,
+                modifier = Modifier.offset {
+                    IntOffset(
+                        (startCxPx - startCharacterPx / 2f + horizontalOffset.value).roundToInt(),
+                        (startFeetYpx - startCharacterPx).roundToInt(),
+                    )
+                },
                 animationOverride = PotsikAction.IDLE_WAVE,
-                animationKey = key,
+                animationKey = if (showingIncoming) 2 else 1,
             )
         }
     }

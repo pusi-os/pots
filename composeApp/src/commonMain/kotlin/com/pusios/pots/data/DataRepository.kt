@@ -102,6 +102,7 @@ interface DataRepository {
     fun deleteAgentProfile(id: String): Boolean
     suspend fun activateAgentProfile(id: String): Boolean
     fun setActiveProfileSkillIds(ids: Set<String>)
+    fun setAgentProfileSkillIds(id: String, ids: Set<String>)
 
     // Skills (stored in the Linux sandbox at ~/skills/<id>/; Android-only)
     fun getInstalledSkills(): List<SkillManifest>

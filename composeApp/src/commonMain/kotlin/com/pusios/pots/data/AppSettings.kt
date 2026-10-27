@@ -249,6 +249,7 @@ class AppSettings(internal val settings: Settings) {
 
     fun deleteAgentProfile(id: String): Boolean {
         val current = _agentProfilesFlow.value
+        if (id == DEFAULT_AGENT_PROFILE_ID) return false
         if (current.size <= 1 || current.none { it.id == id }) return false
         val remaining = current.filterNot { it.id == id }
         if (_activeAgentProfileIdFlow.value == id) {
@@ -279,6 +280,18 @@ class AppSettings(internal val settings: Settings) {
 
     fun setActiveProfileSkillIds(ids: Set<String>) {
         updateActiveAgentProfile { copy(enabledSkillIds = ids.toList().sorted(), skillSelectionConfigured = true) }
+    }
+
+    fun setAgentProfileSkillIds(id: String, ids: Set<String>) {
+        saveAgentProfiles(
+            _agentProfilesFlow.value.map { profile ->
+                if (profile.id == id) {
+                    profile.copy(enabledSkillIds = ids.toList().sorted(), skillSelectionConfigured = true)
+                } else {
+                    profile
+                }
+            },
+        )
     }
 
     fun isActiveProfileSkillEnabled(skillId: String): Boolean {
