@@ -114,12 +114,12 @@ internal fun TopBar(
                     tint = MaterialTheme.colorScheme.onBackground,
                 )
             }
-        }
-        if (onToggleProfiles != null) {
-            AgentProfilesButton(open = profilesOpen, onClick = onToggleProfiles)
-        }
-        if (onToggleMiniApps != null) {
-            MiniAppsButton(open = miniAppsOpen, onClick = onToggleMiniApps)
+            if (onToggleProfiles != null) {
+                AgentProfilesButton(open = profilesOpen, onClick = onToggleProfiles)
+            }
+            if (onToggleMiniApps != null) {
+                MiniAppsButton(open = miniAppsOpen, onClick = onToggleMiniApps)
+            }
         }
     }
 }

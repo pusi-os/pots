@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 interface VectorizationManager {
     val isModelReady: StateFlow<Boolean>
     val isIndexing: StateFlow<Boolean>
+    val isPaused: StateFlow<Boolean>
     val progress: StateFlow<Float?>
     val status: StateFlow<String>
 
@@ -43,6 +44,9 @@ interface VectorizationManager {
     suspend fun indexDocuments()
 
     fun cancelIndexing()
+
+    fun pauseIndexing()
+    fun resumeIndexing()
 
     suspend fun search(
         query: String,

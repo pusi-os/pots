@@ -61,6 +61,9 @@ class AndroidVectorizationManager(
     private val _indexing = MutableStateFlow(false)
     override val isIndexing: StateFlow<Boolean> = _indexing.asStateFlow()
 
+    private val _paused = MutableStateFlow(false)
+    override val isPaused: StateFlow<Boolean> = _paused.asStateFlow()
+
     private val _progress = MutableStateFlow<Float?>(null)
     override val progress: StateFlow<Float?> = _progress.asStateFlow()
 
@@ -111,6 +114,7 @@ class AndroidVectorizationManager(
     private val embeddingEngine = MutableStateFlow<EmbeddingEngine?>(null)
     private val entries = mutableListOf<VectorEntry>()
     private var cancelRequested = false
+    private var indexingSource: String? = null
 
     init {
         loadStore()
@@ -206,9 +210,33 @@ class AndroidVectorizationManager(
 
     override fun cancelIndexing() {
         cancelRequested = true
+        _paused.value = false
+    }
+
+    override fun pauseIndexing() {
+        _paused.value = true
+    }
+
+    override fun resumeIndexing() {
+        _paused.value = false
+        if (!_indexing.value) {
+            val source = indexingSource
+            scope.launch {
+                runCatching {
+                    if (source == "document") indexDocuments() else indexPhotos()
+                }
+            }
+        }
     }
 
     override suspend fun indexPhotos() {
+        if (_indexing.value) return
+        val job = scope.launch { runCatching { indexPhotosInternal() } }
+        job.join()
+        return
+    }
+
+    private suspend fun indexPhotosInternal() {
         if (_indexing.value) return
         if (!hasPhotoPermission()) {
             _needsPhotoPermission.value = true
@@ -221,7 +249,9 @@ class AndroidVectorizationManager(
             return
         }
         cancelRequested = false
+        _paused.value = false
         _indexing.value = true
+        indexingSource = "photo"
         _progress.value = 0f
         _currentProcessedCount.value = 0
         _skippedPhotoCount.value = 0
@@ -240,6 +270,9 @@ class AndroidVectorizationManager(
         var skipped = 0
         try {
             for (rec in toIndex) {
+                while (_paused.value && !cancelRequested) {
+                    kotlinx.coroutines.delay(300L)
+                }
                 if (cancelRequested || !scope.isActive) break
                 val bytes = readBytes(Uri.parse(rec.uri))?.let { downscaleImage(it) }
                 val baseText = listOfNotNull(rec.name, rec.bucket).joinToString(" ")
@@ -249,6 +282,7 @@ class AndroidVectorizationManager(
                     processed++
                     _currentProcessedCount.value = processed
                     _progress.value = if (toIndex.size > 0) processed.toFloat() / toIndex.size else 1f
+                    saveStore()
                     continue
                 }
                 val vec = embedImage(e, bytes)
@@ -257,6 +291,7 @@ class AndroidVectorizationManager(
                     processed++
                     _currentProcessedCount.value = processed
                     _progress.value = if (toIndex.size > 0) processed.toFloat() / toIndex.size else 1f
+                    saveStore()
                     continue
                 }
                 val labels = zeroShotLabels(e, vec)
@@ -275,6 +310,7 @@ class AndroidVectorizationManager(
                 _currentProcessedCount.value = processed
                 _progress.value = if (toIndex.size > 0) processed.toFloat() / toIndex.size else 1f
                 _status.value = "Индексация фото: $processed/${toIndex.size}"
+                saveStore()
             }
             _skippedPhotoCount.value = skipped
             saveStore()
@@ -284,6 +320,8 @@ class AndroidVectorizationManager(
             _status.value = "Ошибка индексации фото: ${t.message ?: t::class.simpleName}"
         } finally {
             _indexing.value = false
+            _paused.value = false
+            indexingSource = null
             _progress.value = null
             _currentTotalCount.value = 0
             _currentProcessedCount.value = 0
@@ -292,6 +330,13 @@ class AndroidVectorizationManager(
     }
 
     override suspend fun indexDocuments() {
+        if (_indexing.value) return
+        val job = scope.launch { runCatching { indexDocumentsInternal() } }
+        job.join()
+        return
+    }
+
+    private suspend fun indexDocumentsInternal() {
         if (!hasDocumentPermission()) {
             _needsDocumentPermission.value = true
             _status.value = "Нужно разрешение на доступ к документам"
@@ -303,7 +348,9 @@ class AndroidVectorizationManager(
             return
         }
         cancelRequested = false
+        _paused.value = false
         _indexing.value = true
+        indexingSource = "document"
         _progress.value = 0f
         _currentProcessedCount.value = 0
         _status.value = "Подготовка индексации документов…"
@@ -314,11 +361,17 @@ class AndroidVectorizationManager(
         var processed = 0
         try {
             for (rec in docs) {
+                while (_paused.value && !cancelRequested) {
+                    kotlinx.coroutines.delay(300L)
+                }
                 if (cancelRequested || !scope.isActive) break
                 when {
                     rec.mime == "application/pdf" -> {
                         val pages = renderPdfPages(Uri.parse(rec.uri))
                         for ((idx, bytes) in pages.withIndex()) {
+                            while (_paused.value && !cancelRequested) {
+                                kotlinx.coroutines.delay(300L)
+                            }
                             if (cancelRequested || !scope.isActive) break
                             val b = bytes?.let { downscaleImage(it) } ?: continue
                             val vec = embedImage(e, b)
@@ -342,6 +395,9 @@ class AndroidVectorizationManager(
                         if (!text.isNullOrBlank()) {
                             val chunks = chunkText(text)
                             for (chunk in chunks) {
+                                while (_paused.value && !cancelRequested) {
+                                    kotlinx.coroutines.delay(300L)
+                                }
                                 if (cancelRequested || !scope.isActive) break
                                 val vec = embed(e, "title: ${rec.name} | text: $chunk")
                                 if (vec != null) {
@@ -365,6 +421,9 @@ class AndroidVectorizationManager(
                         if (!text.isNullOrBlank()) {
                             val chunks = chunkText(text)
                             for (chunk in chunks) {
+                                while (_paused.value && !cancelRequested) {
+                                    kotlinx.coroutines.delay(300L)
+                                }
                                 if (cancelRequested || !scope.isActive) break
                                 val vec = embed(e, "title: ${rec.name} | text: $chunk")
                                 if (vec != null) {
@@ -387,6 +446,7 @@ class AndroidVectorizationManager(
                 _currentProcessedCount.value = processed
                 _progress.value = processed.toFloat() / docs.size.coerceAtLeast(1)
                 _status.value = "Индексация документов: $processed/${docs.size}"
+                saveStore()
             }
             saveStore()
             _indexedDocumentCount.value = entries.count { it.source == "document" }
@@ -395,6 +455,8 @@ class AndroidVectorizationManager(
             _status.value = "Ошибка индексации документов: ${t.message ?: t::class.simpleName}"
         } finally {
             _indexing.value = false
+            _paused.value = false
+            indexingSource = null
             _progress.value = null
             _currentTotalCount.value = 0
             _currentProcessedCount.value = 0

@@ -201,6 +201,7 @@ private fun VectorStorageSection() {
     val scope = rememberCoroutineScope()
     val isReady by manager.isModelReady.collectAsState()
     val isIndexing by manager.isIndexing.collectAsState()
+    val isPaused by manager.isPaused.collectAsState()
     val progress by manager.progress.collectAsState()
     val status by manager.status.collectAsState()
     val autoPhotos by manager.autoIndexPhotos.collectAsState()
@@ -270,12 +271,25 @@ private fun VectorStorageSection() {
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    androidx.compose.material3.TextButton(onClick = { scope.launch { manager.indexPhotos() } }, enabled = !isIndexing && !needsPhotoPermission) {
-                        Text("Индексировать фото")
+                if (isIndexing) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.TextButton(onClick = {
+                            if (isPaused) manager.resumeIndexing() else manager.pauseIndexing()
+                        }) {
+                            Text(if (isPaused) "Продолжить" else "Пауза")
+                        }
+                        androidx.compose.material3.TextButton(onClick = { manager.cancelIndexing() }) {
+                            Text("Остановить")
+                        }
                     }
-                    androidx.compose.material3.TextButton(onClick = { scope.launch { manager.indexDocuments() } }, enabled = !isIndexing && !needsDocumentPermission) {
-                        Text("Индексировать документы")
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.TextButton(onClick = { scope.launch { manager.indexPhotos() } }, enabled = !needsPhotoPermission) {
+                            Text("Индексировать фото")
+                        }
+                        androidx.compose.material3.TextButton(onClick = { scope.launch { manager.indexDocuments() } }, enabled = !needsDocumentPermission) {
+                            Text("Индексировать документы")
+                        }
                     }
                 }
 

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 class NoOpVectorizationManager : VectorizationManager {
     override val isModelReady: StateFlow<Boolean> = MutableStateFlow(false)
     override val isIndexing: StateFlow<Boolean> = MutableStateFlow(false)
+    override val isPaused: StateFlow<Boolean> = MutableStateFlow(false)
     override val progress: StateFlow<Float?> = MutableStateFlow(null)
     override val status: StateFlow<String> = MutableStateFlow("")
 
@@ -37,6 +38,8 @@ class NoOpVectorizationManager : VectorizationManager {
     override suspend fun indexDocuments() {}
 
     override fun cancelIndexing() {}
+    override fun pauseIndexing() {}
+    override fun resumeIndexing() {}
 
     override suspend fun search(query: String, source: String?, limit: Int, minScore: Double): List<Map<String, Any?>> = emptyList()
 }
