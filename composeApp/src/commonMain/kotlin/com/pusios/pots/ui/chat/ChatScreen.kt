@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -79,6 +80,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pusios.pots.BackIcon
 import com.pusios.pots.TerminalLine
@@ -795,6 +797,7 @@ private fun ChatModeScreen(
     val potsikStage = LocalPotsikStage.current
     var showHistorySheet by remember { mutableStateOf(false) }
     var showAgentProfilesToolbar by remember { mutableStateOf(false) }
+    var topBarHeightPx by remember { mutableStateOf(0) }
     var showMiniAppsToolbar by rememberSaveable { mutableStateOf(false) }
     var showMiniAppsSheet by remember { mutableStateOf(false) }
     var showTokenStats by remember { mutableStateOf(false) }
@@ -895,6 +898,7 @@ private fun ChatModeScreen(
         Column(Modifier.fillMaxSize()) {
             Box(
                 Modifier.onGloballyPositioned { coords ->
+                    topBarHeightPx = coords.size.height
                     runCatching { potsikStage.setTopInset(coords.boundsInWindow().bottom - potsikStage.areaOrigin.value.y) }
                 },
             ) {
@@ -940,31 +944,6 @@ private fun ChatModeScreen(
                     onToggleProfiles = { showAgentProfilesToolbar = !showAgentProfilesToolbar },
                 )
             }
-
-            AgentProfilesToolbar(
-                visible = showAgentProfilesToolbar,
-                profiles = uiState.agentProfiles,
-                activeProfileId = uiState.activeAgentProfileId,
-                onSelectProfile = { profile ->
-                    showAgentProfilesToolbar = false
-                    onSelectAgentProfile(profile)
-                },
-            )
-
-            MiniAppsGlassToolbar(
-                visible = showMiniAppsToolbar,
-                apps = uiState.miniApps,
-                pinned = uiState.pinnedMiniApps,
-                onOpenApp = { id ->
-                    showMiniAppsToolbar = false
-                    onOpenMiniApp(id)
-                },
-                onOpenLibrary = { showMiniAppsSheet = true },
-                onNewApp = {
-                    showMiniAppsToolbar = false
-                    uiState.actions.newMiniAppSession()
-                },
-            )
 
             HeartbeatBanner(
                 visible = uiState.hasUnreadHeartbeat,
@@ -1354,6 +1333,37 @@ private fun ChatModeScreen(
                     installedSkills = uiState.installedSkills,
                 )
             }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { androidx.compose.ui.unit.IntOffset(0, topBarHeightPx) }
+                .zIndex(20f),
+        ) {
+            AgentProfilesToolbar(
+                visible = showAgentProfilesToolbar,
+                profiles = uiState.agentProfiles,
+                activeProfileId = uiState.activeAgentProfileId,
+                onSelectProfile = { profile ->
+                    showAgentProfilesToolbar = false
+                    onSelectAgentProfile(profile)
+                },
+            )
+
+            MiniAppsGlassToolbar(
+                visible = showMiniAppsToolbar,
+                apps = uiState.miniApps,
+                pinned = uiState.pinnedMiniApps,
+                onOpenApp = { id ->
+                    showMiniAppsToolbar = false
+                    onOpenMiniApp(id)
+                },
+                onOpenLibrary = { showMiniAppsSheet = true },
+                onNewApp = {
+                    showMiniAppsToolbar = false
+                    uiState.actions.newMiniAppSession()
+                },
+            )
         }
         SnackbarHost(
             hostState = snackbarHostState,

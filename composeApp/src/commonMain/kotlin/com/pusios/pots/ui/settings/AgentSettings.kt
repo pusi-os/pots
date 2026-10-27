@@ -457,8 +457,9 @@ private fun ProfileCard(
         Column(
             modifier = Modifier.fillMaxSize().padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.Top,
         ) {
+            Spacer(Modifier.height(16.dp))
             Box(contentAlignment = Alignment.Center) {
                 com.pusios.pots.ui.potsik.PotsikAvatar(
                     look = profile.potsikLook,
@@ -467,6 +468,7 @@ private fun ProfileCard(
                     modifier = Modifier.size(58.dp),
                 )
             }
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = profile.name,
                 style = MaterialTheme.typography.titleSmall,
@@ -475,14 +477,15 @@ private fun ProfileCard(
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
+            Spacer(Modifier.weight(1f))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 IconButton(onClick = onRename, modifier = Modifier.size(32.dp).handCursor()) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.settings_agent_profile_rename), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.settings_agent_profile_rename), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = onSkills, modifier = Modifier.size(32.dp).handCursor()) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.settings_agent_profile_skills), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Default.List, contentDescription = stringResource(Res.string.settings_agent_profile_skills), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (canDelete) {
                     IconButton(onClick = onDelete, modifier = Modifier.size(32.dp).handCursor()) {
@@ -511,7 +514,7 @@ private fun AddProfileCard(onClick: () -> Unit) {
             verticalArrangement = Arrangement.Center,
         ) {
             Icon(
-                Icons.Default.Delete,
+                Icons.Default.Add,
                 contentDescription = stringResource(Res.string.settings_agent_profile_create),
                 modifier = Modifier.size(36.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
