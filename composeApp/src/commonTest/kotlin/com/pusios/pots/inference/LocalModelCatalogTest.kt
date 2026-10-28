@@ -9,7 +9,7 @@ class LocalModelCatalogTest {
 
     private val hfResolve =
         Regex(
-            """^https://huggingface\.co/litert-community/([^/]+)/resolve/([0-9a-f]{40})/(.+)$""",
+            """^https://huggingface\.co/([^/]+/[^/]+)/resolve/([0-9a-f]{40})/(.+)$""",
         )
     private val hex64 = Regex("^[0-9a-f]{64}$")
 

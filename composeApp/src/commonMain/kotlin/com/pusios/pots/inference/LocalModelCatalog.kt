@@ -126,9 +126,21 @@ val MODEL_CATALOG = listOf(
         downloadUrl = "https://huggingface.co/litert-community/LFM3-Omni-2B-LiteRT/resolve/5afeef5fe4b49e13eaefd7b6957fe856d763db6d/LFM3-Omni-2B_int8.litertlm",
         sha256 = "959617973a7ddcb3d887fa0d9891d79556a266490d5c432b02a18ffcac3124ed",
         gpuMemoryMb = 4130,
-        defaultContextTokens = 4_096,
+        defaultContextTokens = 2_048,
         maxContextTokens = 4_096,
         kvPerTokenBytes = 50_000,
+    ),
+    LocalModel(
+        id = "lfm3-1.7b-int4",
+        displayName = "LFM3 1.7B int4 (experimental)",
+        fileName = "lfm3-1.7b-int4.litertlm",
+        sizeBytes = 888_866_720L,
+        downloadUrl = "https://huggingface.co/cheesefelys/LFM3-1.7B-litertlm/resolve/32bfc5823ca7947a4a1226b5ba6cb670edf565c0/lfm3-1.7b-int4.litertlm",
+        sha256 = "8dc4f5dc3c94c25c25f149a7aa0f534ae8f061dd351ca02685216455443f4f49",
+        gpuMemoryMb = 900,
+        defaultContextTokens = 2_048,
+        maxContextTokens = 4_096,
+        kvPerTokenBytes = 20_000,
     ),
 )
 

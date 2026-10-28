@@ -227,17 +227,15 @@ class RemoteDataRepository(
     }
 
     /**
-     * Whether the on-device model file for [modelId] carries a tool section in its chat
-     * template. A model that doesn't isn't merely worse at tools — it answers *instead* of
-     * calling them, inventing whatever the tool would have returned, which is how Qwen3
-     * 0.6B reports a fictional time rather than calling `get_local_time`. Withholding the
-     * tools makes it a plain chat model, which is what it actually is.
-     *
-     * The engine reports null when it cannot read the declaration (iOS, or a bundle whose
-     * metadata predates it). That is *unknown*, not *no*: keep offering the allowlist there
-     * so existing setups behave exactly as before.
+     * LiquidAI's LFM3 bundles declare template-level (XML) tool calling rather than the
+     * LiteRT `ModelInfo.supportsFunctionCalling` flag, so the auto-tools gate would otherwise
+     * drop them. Opt those ids in by name until the bundles advertise the capability in their
+     * metadata.
      */
-    private suspend fun localModelDeclaresTools(modelId: String): Boolean = localInferenceEngine?.modelCapabilities(modelId)?.supportsFunctionCalling != false
+    private suspend fun localModelDeclaresTools(modelId: String): Boolean {
+        if (modelId.contains("lfm", ignoreCase = true)) return true
+        return localInferenceEngine?.modelCapabilities(modelId)?.supportsFunctionCalling != false
+    }
 
     // Per-instance model storage: instanceId -> models flow
     private val modelsByInstance: MutableMap<String, MutableStateFlow<List<SettingsModel>>> = mutableMapOf()

@@ -22,6 +22,10 @@ Status: research only. No new backend beyond LiteRT-LM is wired today.
 - There is no official LiteRT-LM bundle. The only public conversion is community-maintained (`cheesefelys/LFM3-1.7B-litertlm`, 889 MB, 23 downloads) and has not been validated against Pots' tool/voice requirements. Link only; do not ship as a download until verified.
 - `LFM3-Audio-2B` is GGUF-only officially (`LiquidAI/LFM3-Audio-2B-GGUF`); its LiteRT counterpart is not published. Until a llama.cpp runtime is integrated, it cannot be used for on-device inference in Pots.
 
+## Additional finding: LiquidAI FP8
+
+- `LiquidAI/LFM3-1.7B-FP8` ships a 2.2 GB FP8 safetensors snapshot but no GGUF or LiteRT bundle. It is useful as a reference weight format, not as a directly runnable on-device option in Pots today.
+
 ## Summary of useful links
 
 - LFM3-1.7B: https://huggingface.co/LiquidAI/LFM3-1.7B
