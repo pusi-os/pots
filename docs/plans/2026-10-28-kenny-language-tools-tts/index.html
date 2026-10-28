@@ -1,0 +1,1446 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Pots - AI Assistant App">
+      
+      
+      
+        <link rel="canonical" href="https://pusi-os.github.io/pots/docs/plans/2026-10-28-kenny-language-tools-tts/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>План: Кенни, язык интерфейса, вылет Инструментов, Ollama-скрипты, STT/TTS + Piper - Pots Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ollama-stttts-piper" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Pots Documentation" class="md-header__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pots Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              План: Кенни, язык интерфейса, вылет Инструментов, Ollama-скрипты, STT/TTS + Piper
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Pots Documentation" class="md-nav__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pots Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat & Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/hands-free/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hands-Free Voice Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/multi-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/dynamic-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/mini-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/mini-app-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-app server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/memories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/heartbeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/encryption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encryption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/on-device-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    On-Device Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasoning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/system-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/pots-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pots Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/sms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/potsiki/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/settings-export-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings Export & Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/splinterlands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splinterlands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../desktop-release-smoketest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop Release Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-parka" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Кенни (PARKA) + удаление «Полосатого»
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Вылет «Инструментов» и провайдер локальных моделей
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Язык интерфейса
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-ollama-openai-compatible" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Ollama через openai-compatible
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-stttts-piper-14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. STT/TTS: секция в «Общих» + движок Piper (после пп. 1–4)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-prosvetim-telegram-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Провайдер Prosvetim + уборка дубля Telegram-кнопки
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-desktop-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Desktop-окно: корректный ресайз
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-desktop-tools-ollama-embeddings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Desktop Tools через Ollama embeddings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Сборки и публикация
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="ollama-stttts-piper">План: Кенни, язык интерфейса, вылет Инструментов, Ollama-скрипты, STT/TTS + Piper</h1>
+<p>Дата: 2026-10-28 · Статус: выполнено, сборки и публикация — в §9</p>
+<p>Скоуп согласован с пользователем:
+- <strong>Кенни</strong>: круг капюшона дорисовать впереди перед глазами (как у настоящего
+  персонажа); образ <strong>«Полосатый» удалить целиком</strong> (Гермес остаётся, про него
+  отдельной задачи нет).
+- LiteRT на десктопе считается рабочим; нужно только убрать вылет раздела
+  «Инструменты» и вернуть провайдера локальных моделей в «Сервисы», а там, где
+  движок недоступен, — показывать секции неактивными с сообщением.
+- Ollama подключается как openai-compatible endpoint (<code>http://localhost:11434/v1</code>);
+  никаких масштабных изменений в приложении — только вспомогательные скрипты для
+  установки/скачивания моделей.
+- <strong>Desktop Tools</strong>: когда локального LiteRT-движка нет (нет AVX2), использовать
+  Ollama как embedding-бэкенд: скачивать в Ollama embedding-модель
+  (<code>embeddinggemma</code>, аналог мобильной <code>embeddinggemma-2-text-vision-440m</code>) через
+  настроенный в «Сервисах» OpenAI-Compatible endpoint и считать векторы через
+  Ollama API (<code>/api/embed</code>), а не через LiteRT.
+- <strong>Desktop-окно</strong>: UI должен корректно перестраиваться при изменении размера окна —
+  рабочая область больше/меньше, элементы перемещаются за границами; проверить, что
+  Canvas и адаптивные колонки следуют за размером окна (старый <code>Pots.desktop</code>
+  указывал на ProGuard-билд; теперь <code>run-pots-desktop.sh</code> указывает на dev-сборку).
+- <strong>Prosvetim</strong>: добавить провайдером (тот же endpoint, что у Trial Smart
+  <code>https://omni.prosvetim.ru/v1</code>, но со своим ключом пользователя и выбором
+  моделей из API).
+- Убрать дублирующую кнопку «Наш Telegram-канал» в «Настройки → Сервисы» (остаётся
+  только кнопка-ссылка выше).
+- Переключатель языка интерфейса в «Настройки → Общие» перед секцией темы.
+- В конце: секция STT/TTS в «Общих» + встроенный движок Piper (см. §5).</p>
+<h2 id="1-parka">1. Кенни (PARKA) + удаление «Полосатого»</h2>
+<p>Проблемы (подтверждены рендером Paparazzi, <code>screenshotTests/.../PotsikDebugTest.kt</code>):
+- Щель-«окно» капюшона задана в сырых пикселях <code>hh+2..hh+12</code> без <code>S()</code>, поэтому на
+  любом масштабе кроме 1.0 она не совпадает с глазами: глаза полностью скрыты.
+- Из-за дробного <code>hh</code> (bob) строки у границы окна «перещёлкиваются» между
+  «в окне/не в окне» — мерцание каймы.
+- Очки рисуются на лице и выглядывают из щели — для капюшона должны быть выключены
+  всегда.</p>
+<p>Решение:
+- <code>PotsikCostumes.drawParka()</code>: границы окна в целых строках относительно <code>oy</code>,
+  т.е. <code>dy2 ∈ [-S(3) .. S(7)]</code> (окно = юниты 5..15: кайма глаз видима, рот и нос
+  скрыты), ширина <code>S(14)</code>; кайма-линии на тех же целых строках. Мерцание исчезает,
+  т.к. условие стало чисто целочисленным.
+- <strong>Круг капюшона впереди</strong>: эллиптическое кольцо (мех + чернила с обеих сторон)
+  вокруг проёма лица — как у настоящего персонажа, лицо сидит глубоко в капюшоне.
+- <code>PotsikBody</code>: для PARKA не рисуем нос (в окне только глаза) и всегда трактуем
+  <code>glassesOn = false</code>.
+- «Потсики» в настройках: при Кенни переключатель очков неактивен с пояснением.
+- Проверка: рендеры в двух масштабах, обновление золотых образов.
+- <strong>«Полосатый» (STRIPES) удалён целиком</strong>: enum в <code>PotsikModel</code>, <code>drawStripedCap()</code>
+  в <code>PotsikCostumes</code>, <code>drawPrisonStripes()</code> + <code>ankleCuff()</code> + мёртвые <code>sqDist()</code>/
+  <code>distToSegment()</code> в <code>PotsikBody</code>, таблица костюмов в <code>docs/features/potsiki.md</code>
+  (18 → 17); бантер <code>KENNY</code> оставлен (упоминание имени, не образ).</p>
+<h2 id="2">2. Вылет «Инструментов» и провайдер локальных моделей</h2>
+<p>Первопричина (найдена): в рабочем дереве (незакоммичено) из <code>AppModule.kt</code> удалена
+регистрация <code>single&lt;LocalInferenceEngine?&gt; { createLocalInferenceEngine() }</code>, а
+<code>RemoteDataRepository</code> переведён на <code>getOrNull()</code>. Из-за этого:
+- <code>koinInject&lt;LocalInferenceEngine&gt;()</code> в <code>ToolsSettings.VectorStorageSection</code> падает
+  <code>NoDefinitionException</code> → вылет при открытии «Инструментов»;
+- <code>isLocalInferenceAvailable()</code> всегда <code>false</code> → провайдер «Local Model» исчезает из
+  «Сервисов» на всех платформах.</p>
+<p>Решение (минимальное):
+- Вернуть регистрацию в <code>AppModule</code> и <code>get()</code> в <code>RemoteDataRepository</code>.
+- <code>ToolsSettings</code>: <code>koinInject&lt;LocalInferenceEngine?&gt;()</code>; при <code>null</code> секция
+  векторного поиска рендерится неактивной с текстом «инструмент не поддерживается
+  на этом компьютере».
+- «Сервисы»: он-девайс сервис больше не прячется из списка добавления/настроек —
+  карточка рендерится неактивной с тем же сообщением, когда движка нет.</p>
+<h2 id="3">3. Язык интерфейса</h2>
+<ul>
+<li><code>AppLanguage { SYSTEM, ENGLISH, RUSSIAN }</code> в <code>AppSettings</code> (ключ + StateFlow).</li>
+<li>Корень приложения: <code>CompositionLocalProvider(LocalComposeEnvironment provides …)</code>
+  (CMP 1.12: официальный способ переопределить локаль ресурсов) + <code>key(language)</code>
+  для полной рекомпозиции.</li>
+<li>Все точки, читающие <code>Locale.current.language</code> (бантер Потсика, подписи образов,
+  пресеты характера, имена фонов), читают переопределение.</li>
+<li>«Настройки → Общие»: карточка «Язык интерфейса» перед секцией темы;
+  варианты: Системный (по умолчанию) / Русский / English.</li>
+</ul>
+<h2 id="4-ollama-openai-compatible">4. Ollama через openai-compatible</h2>
+<p>Приложение уже умеет: <code>OpenAICompatible</code> с базой по умолчанию
+<code>http://localhost:11434/v1</code> — список моделей <code>/v1/models</code>, чат <code>/v1/chat/completions</code>,
+инструменты работают. Добавляем только скрипты:</p>
+<ul>
+<li><code>scripts/ollama-setup.sh</code> — детект установки/запуска, установка с официального
+  релиза под ОС/архитектуру (Linux <code>tar.zst</code> в <code>~/.local</code>, macOS <code>ollama-darwin.tgz</code>,
+  Windows — по инструкции), старт <code>ollama serve</code>, проверка <code>/api/version</code>.</li>
+<li><code>scripts/ollama-models.sh</code> — <code>list</code> (что стоит), <code>pull &lt;модель&gt;</code> с прогрессом,
+  <code>recommended</code> (короткий список актуальных небольших моделей), подсказка какие id
+  вписать в openai-compatible в настройках.</li>
+</ul>
+<h2 id="5-stttts-piper-14">5. STT/TTS: секция в «Общих» + движок Piper (после пп. 1–4)</h2>
+<p>Задача (дописана по просьбе пользователя; расширена после регрессии голоса):
+- Сбивка голоса/языка: приложение не выставляло голос явно — движок говорил
+  голосом системной локали, а не языка приложения (русский текст читался
+  английским голосом). Исправлено: <code>App.kt</code> при каждом изменении языка/голоса/
+  скорости/тона выбирает голос под язык приложения (сохранённый → по языку →
+  дефолтный движка) и применяет rate/pitch.
+- Секция «Озвучивание» в «Настройки → Общие»:
+  - выбор движка: Нативный (системный, по умолчанию — как было), Piper
+    (офлайн, встроенный), Облачный (заглушка: через inference-эндпоинт, позже);
+  - для нативного — выбор системного голоса (Android: список голосов TTS;
+    desktop/iOS/Web: авто-режим) + слайдеры скорости и высоты;
+  - для Piper — выбор языка, затем голосов, загрузка модели с прогресс-баром
+    и докачкой, персистентное хранение (<code>~/.pots/piper/</code>);
+  - для облачного — список доступных моделей/голосов/языков (когда появится).
+- Настройки: <code>TtsEngine { NATIVE, PIPER, CLOUD }</code> в <code>AppSettings</code> (ключи
+  <code>tts_engine</code>, <code>tts_system_voice</code>, <code>tts_piper_voice</code>, <code>tts_rate</code>, <code>tts_pitch</code>)
+  + <code>DataRepository</code>/<code>SettingsViewModel</code>/<code>SettingsUiState</code>/<code>SettingsActions</code>.
+- Desktop: Piper ставится туда же (<code>~/.pots/piper/</code>), faster-whisper — для
+  распознавания; та же секция в «Общих», те же ключи настроек.
+- Лучшие практики: докачка через HTTP Range, проверка размера/чек-суммы,
+  загрузка в temp + атомарная замена, запуск бинарника как child process
+  (никакого root), выбор голоса по языку интерфейса пользователя.</p>
+<p>Критерии приёмки: переключение движка сразу влияет на озвучку чата; обрыв загрузки
+продолжается с места остановки; выбранный голос переживает перезапуск.</p>
+<h2 id="6-prosvetim-telegram-">6. Провайдер Prosvetim + уборка дубля Telegram-кнопки</h2>
+<ul>
+<li>Новый провайдер <code>Prosvetim</code> (<code>prosvetim</code>): тот же endpoint, что у Trial Smart
+  (<code>https://omni.prosvetim.ru/v1/chat|models</code>), но <code>requiresApiKey = true</code> —
+  пользователь вводит свой ключ и выбирает модели из своего аккаунта через
+  обычный <code>/v1/models</code>. Иконка <code>ic_service_prosvetim.xml</code>, referral-инструкция
+  и расширенная сортировка моделей в <code>ServicesSettings</code>, каталог
+  в <code>docs/features/multi-service.md</code>, тесты <code>ServiceCatalogTest</code>.</li>
+<li>Убран дублирующий <code>TextButton</code> «Наш Telegram-канал» в «Настройки → Сервисы»
+  (осталась кнопка-ссылка <code>settings_telegram_nerosekta</code>); неиспользуемый импорт
+  и строки <code>settings_telegram_channel</code> (EN/RU) удалены.</li>
+</ul>
+<h2 id="7-desktop-">7. Desktop-окно: корректный ресайз</h2>
+<ul>
+<li><code>main.kt</code>: минимальный размер окна 640×480; начальный размер 1280×800 —
+  только стартовый. Весь контент (<code>ChatScreen</code>, <code>SettingsScreen</code>,
+  <code>PotsikOverlay</code>, <code>AnimatedBackdrop</code>, <code>StaggeredSettingsColumns</code>) уже построен
+  на <code>fillMaxSize</code>/<code>BoxWithConstraints</code> и следует за живым размером окна; Canvas
+  Потсика пересчитывает <code>area</code> через <code>onGloballyPositioned</code> на каждую смену
+  размера. Отдельного «кусочного» канваса в коде нет — симптом соответствовал
+  старому бинарю из ProGuard-сборки, на который указывал <code>Pots.desktop</code>.</li>
+</ul>
+<h2 id="8-desktop-tools-ollama-embeddings">8. Desktop Tools через Ollama embeddings</h2>
+<ul>
+<li><code>OllamaVectorizationManager.desktop.kt</code>: когда <code>createLocalInferenceEngine()</code>
+  вернул <code>null</code> (нет AVX2), десктоп использует Ollama вместо LiteRT:
+  <code>POST {ollama}/api/embed</code> (<code>nomic-embed-text</code>, аналог мобильной
+  embeddinggemma), фото из <code>~/Pictures</code>, документы из <code>~/Documents</code>,
+  стор <code>~/.pots/vector_store_ollama.json</code> со схемой/моделью/размерностью.</li>
+<li><code>ToolsSettings</code>: на десктопе карточка показывает Ollama-инструкцию и кнопку
+  «Проверить Ollama» вместо скачивания LiteRT-модели; <code>scripts/ollama-models.sh</code>
+  рекомендует <code>nomic-embed-text</code>.</li>
+<li><code>docs/features/vector-search.md</code> обновлён; <code>Last verified</code> — 2026-10-28.</li>
+</ul>
+<p>Задача (дописана по просьбе пользователя):
+- Секция «Озвучивание (TTS/STT)» в «Настройки → Общие»:
+  - выбор движка: системный (по умолчанию, как сейчас) и Piper;
+  - для системного — выбор голоса из доступных системе;
+  - для Piper — выбор языка, затем голоса (все доступные для языка), загрузка
+    модели с прогресс-баром и докачкой при обрыве, персистентное хранение.
+- Piper встроен в приложение: при выборе движка автоматически скачивается и
+  разворачивается среда Piper (бинарник + espeak-ng-data по ОС), модель голоса
+  (<code>*.onnx</code> + <code>*.onnx.json</code> с HuggingFace <code>rhasspy/piper-voices</code>) качается в
+  хранилище приложения и используется для TTS в чате и всюду, где нужен голос.
+- Лучшие практики: докачка через HTTP Range, проверка размера/чек-суммы, загрузка
+  в temp + атомарная замена, запуск бинарника как child process (никакого root),
+  кэш моделей в <code>~/.pots/piper/</code>, выбор голоса по языку интерфейса пользователя.</p>
+<p>Дизайн (кратко):
+- <code>TtsEngineId { SYSTEM, PIPER }</code> + настройки в <code>AppSettings</code> (движок, голос Piper,
+  голос системный).
+- Desktop: <code>PiperVoiceManager</code> (скачивание/распаковка/реестр голосов) +
+  <code>PiperTtsInstance : TextToSpeechInstance</code> (генерация wav через процесс piper,
+  воспроизведение через javax.sound). Мобильные остаются на системном движке.
+- Каталог голосов: <code>voices.json</code> из релиза Piper (имя, язык, качество, размер,
+  URL) — группировка по языку, показ всех доступных.</p>
+<p>Критерии приёмки: переключение движка сразу влияет на озвучку чата; обрыв загрузки
+продолжается с места остановки; выбранный голос переживает перезапуск.</p>
+<h2 id="9">9. Сборки и публикация</h2>
+<p>Порядок CI: <code>spotlessApply</code> → <code>updateScreenshots</code> → <code>desktopTest</code>.
+Релиз APK: <code>./gradlew :assembleFossRelease</code> (setsid, ~4 мин) →
+<code>scripts/publish-apk.sh --no-bump --no-commit</code> → 222
+(<code>manifest.json</code>, <code>pots-latest.apk</code>), бамп версии, <code>push origin/main</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>

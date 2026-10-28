@@ -1155,8 +1155,9 @@
 
 
 <h1 id="local-vector-search">Local Vector Search</h1>
-<p><strong>Last verified:</strong> 2026-10-27</p>
+<p><strong>Last verified:</strong> 2026-10-28</p>
 <p>On Android, Pots can build a private semantic index of the user's photos and documents. Embeddings are generated on-device with <code>embeddinggemma-2-text-vision-440m</code>; the index is stored in the app's private files and is not sent to a cloud service.</p>
+<p>On desktop, where the LiteRT native runtime is unavailable, the same screen uses Ollama as the embedding backend: the <code>/api/embed</code> endpoint of the OpenAI-Compatible base URL configured in Services (default <code>http://localhost:11434</code>), model <code>nomic-embed-text</code> (pull with <code>scripts/ollama-models.sh pull nomic-embed-text</code>). Photos come from <code>~/Pictures</code>, documents from <code>~/Documents</code>; vectors live in <code>~/.pots/vector_store_ollama.json</code>. Text queries are embedded remotely by Ollama; only the query text travels to the local Ollama server.</p>
 <h2 id="setup-and-indexing">Setup and indexing</h2>
 <p>In <strong>Settings → Tools</strong>, download the embedding model, grant access to photos or documents when prompted, then start indexing. Automatic photo and document indexing can be enabled separately. The screen shows progress, item counts and status; when the stored index is incompatible with the current model or embedding format, it is marked stale and should be rebuilt.</p>
 <p>Photo indexing downsizes images, corrects EXIF orientation, embeds image content, and adds a small set of semantic labels. It is incremental: unchanged photos are retained, modified photos are re-embedded, and photos no longer present in MediaStore are removed. Images that cannot be read or embedded are skipped and reported rather than being inserted with a text-only substitute.</p>
@@ -1182,6 +1183,10 @@
 <tr>
 <td><code>composeApp/src/androidMain/kotlin/com/pusios/pots/inference/VectorizationManager.android.kt</code></td>
 <td>On-device embeddings, Android media access, indexing and the versioned private store</td>
+</tr>
+<tr>
+<td><code>composeApp/src/desktopMain/kotlin/com/pusios/pots/inference/OllamaVectorizationManager.desktop.kt</code></td>
+<td>Desktop embedding backend via Ollama <code>/api/embed</code>, <code>~/Pictures</code> + <code>~/Documents</code> scans, versioned store</td>
 </tr>
 <tr>
 <td><code>composeApp/src/androidMain/kotlin/com/pusios/pots/tools/VectorSearchTool.kt</code></td>

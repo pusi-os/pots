@@ -1606,7 +1606,7 @@
 
 
 <h1 id="multi-service">Multi-Service</h1>
-<p><strong>Last verified:</strong> 2026-10-25</p>
+<p><strong>Last verified:</strong> 2026-10-28</p>
 <p>The RF build supports the built-in trial presets plus five Russian-accessible gateways: Polza.ai, GPTunnel, AITUNNEL, ProxyAPI and VseGPT. All of them use the <strong>OpenAI-compatible</strong> chat-completions format; the remaining choices are the generic <strong>OpenAI-Compatible API</strong> adapter and <strong>LiteRT on-device</strong> inference. A handful of OpenAI models additionally require OpenAI's <strong>Responses API</strong>; Pots switches to it per model when an OpenAI-compatible base URL points at <code>api.openai.com</code>. Users can configure multiple service instances, reorder them, and Pots automatically falls back through the chain on failure.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="service">Service</h3>
@@ -1714,6 +1714,12 @@
 <td><code>aitunnel</code></td>
 <td>Yes</td>
 <td>OpenAI-compatible</td>
+</tr>
+<tr>
+<td>Prosvetim</td>
+<td><code>prosvetim</code></td>
+<td>Yes</td>
+<td>OpenAI-compatible (same endpoint family as Trial Smart, own key, model list from the account)</td>
 </tr>
 <tr>
 <td>ProxyAPI</td>
