@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pusios.pots.LocalAppLanguageCode
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -79,7 +80,7 @@ fun PotsikOverlay(
     hasMessages: Boolean = false,
 ) {
     // The character's own language: the app's, which is the device's.
-    val isRussian = Locale.current.language.lowercase().startsWith("ru")
+    val isRussian = LocalAppLanguageCode.current.lowercase().startsWith("ru")
 
     if (!look.isVisible) return
 

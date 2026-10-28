@@ -354,9 +354,15 @@ internal class PotsikPainter(
         if (!hideFace) {
             drawHead()
             drawCowlick()
-            drawEars()
-            drawCheeks()
-            drawNose()
+            // The parka's hood covers the whole head but the eye slit: the
+            // ears would poke through it and the nose and the cheeks would
+            // fill its lower edge, so none of them are drawn under it.
+            val hooded = outfit == PotsikOutfit.PARKA
+            if (!hooded) {
+                drawEars()
+                drawCheeks()
+                drawNose()
+            }
             drawFace()
             drawMouth(noMouth)
         }
@@ -1422,6 +1428,10 @@ internal class PotsikPainter(
         // TH3 0N3 wears his own round glasses instead (drawn with the costume),
         // and the firmware skips the plain shades for him.
         if (look.outfit == PotsikOutfit.TH3_0N3) return
+        // The parka's hood shows nothing but the eyes through its slit, so the
+        // shades never go on with it — the glasses switch is disabled while
+        // Kenny is worn.
+        val glassesOn = look.glassesOn && look.outfit != PotsikOutfit.PARKA
         val shadeTint = look.shadeTint.color
         val blink = isBlinking(now)
         val winking = frame.mood == PotsikMood.WINK
@@ -1430,7 +1440,7 @@ internal class PotsikPainter(
         val lensR = if (blink) PotsikPalette.BLACK else openLens
         val sd = frame.shadeDrop
 
-        if (!look.glassesOn) {
+        if (!glassesOn) {
             // The bare eyes: the big Simpsons-style eyes, with the lashes on
             // the outside corner when they are switched on.
             val eex = S(6)

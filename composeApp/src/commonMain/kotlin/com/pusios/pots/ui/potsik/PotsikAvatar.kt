@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.LocalAppLanguageCode
 
 /**
  * Потсик on his own, in a box.
@@ -53,7 +54,7 @@ fun PotsikAvatar(
     val density = LocalDensity.current
     val boxPx = with(density) { size.toPx() }
 
-    val isRussian = Locale.current.language.lowercase().startsWith("ru")
+    val isRussian = LocalAppLanguageCode.current.lowercase().startsWith("ru")
     val behaviour = look.behaviour()
     val engine = remember(behaviour, isRussian) { PotsikEngine(behaviour, { isRussian }) }
     LaunchedEffect(phase, toolName, animationOverride, animationKey) {

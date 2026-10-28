@@ -2081,6 +2081,7 @@ class RemoteDataRepository(
     }
 
     override fun getThemeMode(): ThemeMode = appSettings.getThemeMode()
+    override fun getAppLanguage(): com.pusios.pots.data.AppLanguage = appSettings.getAppLanguage()
 
     override fun getAnimatedBackground() = appSettings.getAnimatedBackground()
 
@@ -2090,6 +2091,9 @@ class RemoteDataRepository(
 
     override fun setThemeMode(mode: ThemeMode) {
         appSettings.setThemeMode(mode)
+    }
+    override fun setAppLanguage(mode: com.pusios.pots.data.AppLanguage) {
+        appSettings.setAppLanguage(mode)
     }
 
     override val potsikLookFlow: StateFlow<PotsikLook> = appSettings.potsikLookFlow

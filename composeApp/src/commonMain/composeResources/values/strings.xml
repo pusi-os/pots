@@ -94,6 +94,7 @@
     <string name="potsiki_shades">Shades</string>
     <string name="potsiki_glasses">Sunglasses</string>
     <string name="potsiki_glasses_description">The removable shades. Turn them off to see the bare eyes underneath.</string>
+    <string name="potsiki_glasses_hood">The parka's hood shows nothing but the eyes, so the shades stay off.</string>
     <string name="potsiki_lashes">Eyelashes</string>
     <string name="potsiki_lashes_description">Lashes on the bare eyes. Only visible with the shades off.</string>
     <string name="potsiki_size">Size</string>
@@ -238,6 +239,10 @@
     <string name="bot_message_thinking_label">Thinking</string>
     <string name="bot_message_thinking_expand_content_description">Expand or collapse thinking</string>
     <string name="settings_theme">Theme</string>
+    <string name="settings_language">Interface language</string>
+    <string name="settings_language_system">System</string>
+    <string name="settings_language_ru">Russian</string>
+    <string name="settings_language_en">English</string>
     <string name="settings_theme_description">Choose between system default, light, dark, or pure-black OLED.</string>
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>

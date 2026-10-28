@@ -44,6 +44,12 @@ enum class ThemeMode {
     OledBlack,
 }
 
+enum class AppLanguage {
+    System,
+    Russian,
+    English,
+}
+
 /**
  * Stricter than [detectImportSections]: only includes sections that contain actual user data,
  * skipping ones that exist purely because of default feature-toggle flags (e.g. `sms_enabled = false`,
@@ -660,6 +666,28 @@ class AppSettings(internal val settings: Settings) {
         return if (settings.getBoolean(KEY_OLED_MODE_ENABLED, false)) ThemeMode.OledBlack else ThemeMode.System
     }
 
+    private val _appLanguageFlow = MutableStateFlow(loadInitialAppLanguage())
+    val appLanguageFlow: StateFlow<AppLanguage> = _appLanguageFlow
+
+    fun getAppLanguage(): AppLanguage = _appLanguageFlow.value
+
+    fun setAppLanguage(language: AppLanguage) {
+        settings.putString(KEY_APP_LANGUAGE, language.name)
+        _appLanguageFlow.value = language
+    }
+
+    private fun loadInitialAppLanguage(): AppLanguage {
+        val raw = settings.getString(KEY_APP_LANGUAGE, "")
+        if (raw.isNotEmpty()) {
+            return try {
+                AppLanguage.valueOf(raw)
+            } catch (_: IllegalArgumentException) {
+                AppLanguage.System
+            }
+        }
+        return AppLanguage.System
+    }
+
     // Потсик — the animated character.
     //
     // Legacy individual appearance fields are read once while creating the
@@ -1002,6 +1030,7 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_DYNAMIC_UI_ENABLED = "dynamic_ui_enabled"
         const val KEY_OLED_MODE_ENABLED = "oled_mode_enabled"
         const val KEY_THEME_MODE = "theme_mode"
+        const val KEY_APP_LANGUAGE = "app_language"
         const val KEY_ANIMATED_BACKGROUND = "animated_background"
         const val KEY_DAEMON_ENABLED = "daemon_enabled"
         const val KEY_HEARTBEAT_CONFIG = "heartbeat_config"

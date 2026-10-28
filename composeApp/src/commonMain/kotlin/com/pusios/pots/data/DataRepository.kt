@@ -140,6 +140,8 @@ interface DataRepository {
     // Theme mode
     fun getThemeMode(): ThemeMode
     fun setThemeMode(mode: ThemeMode)
+    fun getAppLanguage(): com.pusios.pots.data.AppLanguage
+    fun setAppLanguage(mode: com.pusios.pots.data.AppLanguage)
 
     fun getAnimatedBackground(): com.pusios.pots.ui.background.AnimatedBackground
     fun setAnimatedBackground(kind: com.pusios.pots.ui.background.AnimatedBackground)

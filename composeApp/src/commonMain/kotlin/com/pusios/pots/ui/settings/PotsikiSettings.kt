@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.LocalAppLanguageCode
 import com.pusios.pots.ui.components.PotsSlider
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.potsik.PotsikAvatar
@@ -56,6 +57,7 @@ import pots.composeapp.generated.resources.potsiki_drag
 import pots.composeapp.generated.resources.potsiki_drag_description
 import pots.composeapp.generated.resources.potsiki_glasses
 import pots.composeapp.generated.resources.potsiki_glasses_description
+import pots.composeapp.generated.resources.potsiki_glasses_hood
 import pots.composeapp.generated.resources.potsiki_lashes
 import pots.composeapp.generated.resources.potsiki_lashes_description
 import pots.composeapp.generated.resources.potsiki_outfit
@@ -175,11 +177,20 @@ internal fun PotsikiContent(uiState: SettingsUiState, actions: SettingsActions) 
                         onSelect = { actions.onChangePotsikLook(look.copy(shadeTint = it)) },
                     )
 
+                    // The parka's hood hides everything but the eyes, so the
+                    // shades cannot be worn with it — the switch stays off and
+                    // disabled while Kenny is on.
+                    val glassesAvailable = look.outfit != PotsikOutfit.PARKA
                     ToggleableHeadline(
                         title = stringResource(Res.string.potsiki_glasses),
-                        description = stringResource(Res.string.potsiki_glasses_description),
-                        checked = look.glassesOn,
+                        description = if (glassesAvailable) {
+                            stringResource(Res.string.potsiki_glasses_description)
+                        } else {
+                            stringResource(Res.string.potsiki_glasses_hood)
+                        },
+                        checked = glassesAvailable && look.glassesOn,
                         onCheckedChange = { actions.onChangePotsikLook(look.copy(glassesOn = it)) },
+                        enabled = glassesAvailable,
                     )
 
                     ToggleableHeadline(
@@ -381,7 +392,8 @@ private fun PotsikSizeRow(
  * settings screen reads the same in both languages as the firmware's own
  * appearance page does.
  */
-private fun outfitLabel(outfit: PotsikOutfit): String = outfit.name(Locale.current.language)
+@Composable
+private fun outfitLabel(outfit: PotsikOutfit): String = outfit.name(LocalAppLanguageCode.current)
 
 /**
  * A percentage row.

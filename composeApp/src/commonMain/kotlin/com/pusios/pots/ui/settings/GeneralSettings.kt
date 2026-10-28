@@ -23,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.LocalAppLanguageCode
+import com.pusios.pots.data.AppLanguage
 import com.pusios.pots.data.ThemeMode
 import com.pusios.pots.ui.PotsOutlinedTextField
 import com.pusios.pots.ui.background.AnimatedBackground
@@ -38,6 +40,10 @@ import pots.composeapp.generated.resources.settings_daemon_mode
 import pots.composeapp.generated.resources.settings_daemon_mode_description
 import pots.composeapp.generated.resources.settings_dynamic_ui
 import pots.composeapp.generated.resources.settings_dynamic_ui_description
+import pots.composeapp.generated.resources.settings_language
+import pots.composeapp.generated.resources.settings_language_en
+import pots.composeapp.generated.resources.settings_language_ru
+import pots.composeapp.generated.resources.settings_language_system
 import pots.composeapp.generated.resources.settings_theme
 import pots.composeapp.generated.resources.settings_theme_dark
 import pots.composeapp.generated.resources.settings_theme_description
@@ -63,6 +69,12 @@ internal fun GeneralContent(uiState: SettingsUiState, actions: SettingsActions) 
                 DynamicUiToggle(
                     isDynamicUiEnabled = uiState.isDynamicUiEnabled,
                     onToggleDynamicUi = actions.onToggleDynamicUi,
+                )
+            }
+            SettingsCard {
+                AppLanguagePicker(
+                    appLanguage = uiState.appLanguage,
+                    onChangeAppLanguage = actions.onChangeAppLanguage,
                 )
             }
             SettingsCard {
@@ -125,6 +137,63 @@ private fun DynamicUiToggle(
             checked = isDynamicUiEnabled,
             onCheckedChange = onToggleDynamicUi,
         )
+    }
+}
+
+@Composable
+private fun AppLanguagePicker(
+    appLanguage: AppLanguage,
+    onChangeAppLanguage: (AppLanguage) -> Unit,
+) {
+    val options = listOf(
+        AppLanguage.System to stringResource(Res.string.settings_language_system),
+        AppLanguage.Russian to stringResource(Res.string.settings_language_ru),
+        AppLanguage.English to stringResource(Res.string.settings_language_en),
+    )
+    val selectedLabel = options.first { it.first == appLanguage }.second
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(Res.string.settings_language),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Box(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            PotsOutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = selectedLabel,
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = {
+                    Icon(
+                        modifier = Modifier.handCursor(),
+                        imageVector = vectorResource(Res.drawable.ic_arrow_drop_down),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                },
+            )
+            Box(
+                modifier = Modifier.matchParentSize().handCursor().clickable { expanded = true },
+            )
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                options.forEach { (lang, label) ->
+                    val isSelected = lang == appLanguage
+                    DropdownMenuItem(
+                        text = { Text(text = label, style = MaterialTheme.typography.bodyMedium) },
+                        onClick = {
+                            expanded = false
+                            onChangeAppLanguage(lang)
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -266,7 +335,7 @@ private fun AnimatedBackgroundSection(
     onChangeKind: (AnimatedBackground) -> Unit,
 ) {
     val enabled = kind != AnimatedBackground.NONE
-    val language = Locale.current.language
+    val language = LocalAppLanguageCode.current
     var expanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {

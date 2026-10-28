@@ -14,10 +14,13 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Composer
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -77,6 +80,8 @@ object Home
 @Serializable
 @SerialName("settings")
 object Settings
+
+val LocalAppLanguageCode = compositionLocalOf { "en" }
 
 @Composable
 fun App(
@@ -150,10 +155,11 @@ private fun AppContent(
     // Keep the voice the engine already defaults to — that is the one the user picked in the
     // system speech settings. Only pick another voice when the default one cannot speak the
     // system language.
+    val currentAppLanguage = LocalAppLanguageCode.current
     @OptIn(ExperimentalVoiceApi::class)
     LaunchedEffect(textToSpeech) {
         val tts = textToSpeech ?: return@LaunchedEffect
-        val systemLanguage = Locale.current.language
+        val systemLanguage = currentAppLanguage
         if (tts.language.startsWith(systemLanguage)) return@LaunchedEffect
         val matchingVoice = tts.voices
             .firstOrNull { it.languageTag.startsWith(systemLanguage) }
@@ -177,96 +183,111 @@ private fun AppContent(
         ThemeMode.OledBlack -> darkColorScheme.withBlackBackground()
     }
 
+    val appLanguage by appSettings.appLanguageFlow.collectAsStateWithLifecycle()
+    val resolvedLanguageCode = when (appLanguage) {
+        com.pusios.pots.data.AppLanguage.System -> Locale.current.language
+        com.pusios.pots.data.AppLanguage.Russian -> "ru"
+        com.pusios.pots.data.AppLanguage.English -> "en"
+    }
+    val isSystemDark = isSystemInDarkTheme()
+
+    LaunchedEffect(resolvedLanguageCode) {
+        java.util.Locale.setDefault(java.util.Locale(resolvedLanguageCode))
+    }
+
     val sandboxController = koinInject<SandboxController>()
     val sandboxAwareUriHandler = rememberSandboxAwareUriHandler(sandboxController)
 
-    CompositionLocalProvider(
-        LocalDensity provides scaledDensity,
-        LocalUriHandler provides sandboxAwareUriHandler,
-    ) {
-        Theme(colorScheme = effectiveColorScheme) {
-            val animatedBackground by appSettings.animatedBackgroundFlow.collectAsStateWithLifecycle()
-            val backgroundOn = animatedBackground != com.pusios.pots.ui.background.AnimatedBackground.NONE
-            // The animation sits behind every screen; screens that paint an opaque
-            // background opt out through LocalAnimatedBackgroundOn.
-            Box(Modifier.fillMaxSize()) {
-                AnimatedBackdrop(kind = animatedBackground, modifier = Modifier)
-            }
-            CompositionLocalProvider(com.pusios.pots.ui.background.LocalAnimatedBackgroundOn provides backgroundOn) {
-                FullScreenImageHost {
-                    val chatViewModel: ChatViewModel = koinViewModel()
-                    val showTabBar = currentPlatform !is Platform.Mobile
-                    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-                    val isHome = currentBackStackEntry?.destination?.route == "home"
+    key(appLanguage) {
+        CompositionLocalProvider(
+            LocalDensity provides scaledDensity,
+            LocalUriHandler provides sandboxAwareUriHandler,
+            LocalAppLanguageCode provides resolvedLanguageCode,
+        ) {
+            Theme(colorScheme = effectiveColorScheme) {
+                val animatedBackground by appSettings.animatedBackgroundFlow.collectAsStateWithLifecycle()
+                val backgroundOn = animatedBackground != com.pusios.pots.ui.background.AnimatedBackground.NONE
+                // The animation sits behind every screen; screens that paint an opaque
+                // background opt out through LocalAnimatedBackgroundOn.
+                Box(Modifier.fillMaxSize()) {
+                    AnimatedBackdrop(kind = animatedBackground, modifier = Modifier)
+                }
+                CompositionLocalProvider(com.pusios.pots.ui.background.LocalAnimatedBackgroundOn provides backgroundOn) {
+                    FullScreenImageHost {
+                        val chatViewModel: ChatViewModel = koinViewModel()
+                        val showTabBar = currentPlatform !is Platform.Mobile
+                        val currentBackStackEntry by navController.currentBackStackEntryAsState()
+                        val isHome = currentBackStackEntry?.destination?.route == "home"
 
-                    val navigationTabBar: @Composable () -> Unit = {
-                        val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-                        val count = 2
-                        SingleChoiceSegmentedButtonRow {
-                            SegmentedButton(
-                                selected = isHome,
-                                onClick = {
-                                    navController.navigate(Home) {
-                                        popUpTo(Home) { inclusive = true }
-                                        launchSingleTop = true
-                                    }
-                                },
-                                shape = SegmentedButtonDefaults.itemShape(index = if (isRtl) count - 1 else 0, count = count),
-                                modifier = Modifier.handCursor(),
-                            ) {
-                                Text(stringResource(Res.string.tab_chat))
-                            }
-                            SegmentedButton(
-                                selected = !isHome,
-                                onClick = {
-                                    navController.navigate(Settings) {
-                                        popUpTo(Home)
-                                        launchSingleTop = true
-                                    }
-                                },
-                                shape = SegmentedButtonDefaults.itemShape(index = if (isRtl) 0 else count - 1, count = count),
-                                modifier = Modifier.handCursor(),
-                            ) {
-                                Text(stringResource(Res.string.tab_settings))
-                            }
-                        }
-                    }
-
-                    NavHost(
-                        navController,
-                        startDestination = Home,
-                        // Keep the animated backdrop visible: when it is on, the host (and
-                        // every screen using screenBackground()) stays transparent instead
-                        // of painting the theme's opaque surface over it.
-                        modifier = Modifier.screenBackground(),
-                    ) {
-                        composable<Home> {
-                            ChatScreen(
-                                viewModel = chatViewModel,
-                                textToSpeech = textToSpeech,
-                                onNavigateToSettings = {
-                                    navController.navigate(Settings)
-                                },
-                                isSandboxAvailable = currentPlatform is Platform.Mobile.Android,
-                                isPotsBuildAvailable = currentPlatform is Platform.Mobile.Android,
-                                navigationTabBar = if (showTabBar) navigationTabBar else null,
-                            )
-                        }
-                        composable<Settings> {
-                            if (showTabBar) {
-                                DisposableEffect(Unit) {
-                                    onDispose {
-                                        chatViewModel.refreshSettings()
-                                    }
+                        val navigationTabBar: @Composable () -> Unit = {
+                            val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+                            val count = 2
+                            SingleChoiceSegmentedButtonRow {
+                                SegmentedButton(
+                                    selected = isHome,
+                                    onClick = {
+                                        navController.navigate(Home) {
+                                            popUpTo(Home) { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    shape = SegmentedButtonDefaults.itemShape(index = if (isRtl) count - 1 else 0, count = count),
+                                    modifier = Modifier.handCursor(),
+                                ) {
+                                    Text(stringResource(Res.string.tab_chat))
+                                }
+                                SegmentedButton(
+                                    selected = !isHome,
+                                    onClick = {
+                                        navController.navigate(Settings) {
+                                            popUpTo(Home)
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    shape = SegmentedButtonDefaults.itemShape(index = if (isRtl) 0 else count - 1, count = count),
+                                    modifier = Modifier.handCursor(),
+                                ) {
+                                    Text(stringResource(Res.string.tab_settings))
                                 }
                             }
-                            SettingsScreen(
-                                onNavigateBack = {
-                                    chatViewModel.refreshSettings()
-                                    navController.navigateUp()
-                                },
-                                navigationTabBar = if (showTabBar) navigationTabBar else null,
-                            )
+                        }
+
+                        NavHost(
+                            navController,
+                            startDestination = Home,
+                            // Keep the animated backdrop visible: when it is on, the host (and
+                            // every screen using screenBackground()) stays transparent instead
+                            // of painting the theme's opaque surface over it.
+                            modifier = Modifier.screenBackground(),
+                        ) {
+                            composable<Home> {
+                                ChatScreen(
+                                    viewModel = chatViewModel,
+                                    textToSpeech = textToSpeech,
+                                    onNavigateToSettings = {
+                                        navController.navigate(Settings)
+                                    },
+                                    isSandboxAvailable = currentPlatform is Platform.Mobile.Android,
+                                    isPotsBuildAvailable = currentPlatform is Platform.Mobile.Android,
+                                    navigationTabBar = if (showTabBar) navigationTabBar else null,
+                                )
+                            }
+                            composable<Settings> {
+                                if (showTabBar) {
+                                    DisposableEffect(Unit) {
+                                        onDispose {
+                                            chatViewModel.refreshSettings()
+                                        }
+                                    }
+                                }
+                                SettingsScreen(
+                                    onNavigateBack = {
+                                        chatViewModel.refreshSettings()
+                                        navController.navigateUp()
+                                    },
+                                    navigationTabBar = if (showTabBar) navigationTabBar else null,
+                                )
+                            }
                         }
                     }
                 }

@@ -601,20 +601,25 @@ internal class PotsikCostumePainter(
         val hdr = r + mr
 
         // The hood's rim: the orange ring round his head. The face shows only
-        // through a band of rows (hh+2..hh+12) that is S(14) wide each side;
-        // every other row is orange right across, so the hood covers the mouth
-        // and the chin, like a hood drawn down over the lower face.
+        // through a band of rows that is S(14) wide each side; every other row
+        // is orange right across, so the hood covers the mouth and the chin,
+        // like a hood drawn down over the lower face.
+        //
+        // The band sits over the eyes — units 5..14 — and it is measured in
+        // whole rows from the hood's own centre, not in raw pixels off hh: the
+        // bounds stay glued to the face at every scale, and the purely integer
+        // test keeps the rim from flickering as the head bobs under it.
         val faceHalf = S(14).toInt()
-        val bandTop = hh + 2f
-        val bandBot = hh + 12f
+        val bandFrom = (S(5) - S(8)).toInt()
+        val bandTo = (S(14) - S(8)).toInt()
         for (dy2 in -(rInt + 1)..(rInt + 1)) {
-            val yy = oy + dy2
+            val yy = lround(oy + dy2).toFloat()
             val a2 = (rInt + 1) * (rInt + 1) - dy2 * dy2
             if (a2 < 0) continue
             val xo = sqrt(a2.toFloat()).toInt()
             val b2 = rInt * rInt - dy2 * dy2
             val xr = if (b2 > 0) sqrt(b2.toFloat()).toInt() else -1
-            val inBand = yy.toFloat() >= bandTop && yy.toFloat() <= bandBot
+            val inBand = dy2 in bandFrom..bandTo
             val xj = if (inBand) faceHalf else 0
             val xk = if (inBand) faceHalf + 2 else 0
             if (xo > xj) {
@@ -628,9 +633,10 @@ internal class PotsikCostumePainter(
         }
         drawCircleOutline(cx2, oy, (r + 1).toFloat(), ink)
 
-        // The ink edges across the top and the bottom of the face opening.
-        drawFastHLine(cx2 - faceHalf, hh + 2f, 2 * faceHalf + 1, ink)
-        drawFastHLine(cx2 - faceHalf, hh + 13f, 2 * faceHalf + 1, ink)
+        // The ink edges across the top and the bottom of the face opening, on
+        // the same whole rows the band is measured with.
+        drawFastHLine(cx2 - faceHalf, oy + bandFrom, 2 * faceHalf + 1, ink)
+        drawFastHLine(cx2 - faceHalf, oy + bandTo, 2 * faceHalf + 1, ink)
 
         // The mittens.
         for (sg in listOf(-1, 1)) {

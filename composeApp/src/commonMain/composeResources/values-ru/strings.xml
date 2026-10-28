@@ -117,6 +117,7 @@
     <string name="potsiki_shades">Очки</string>
     <string name="potsiki_glasses">Солнцезащитные очки</string>
     <string name="potsiki_glasses_description">Снимаемые очки. Выключите их, чтобы увидеть обычные глаза.</string>
+    <string name="potsiki_glasses_hood">Капюшон парки оставляет видными только глаза — очки всегда сняты.</string>
     <string name="potsiki_lashes">Ресницы</string>
     <string name="potsiki_lashes_description">Ресницы на обычных глазах. Видны только без очков.</string>
     <string name="potsiki_size">Размер</string>
@@ -513,6 +514,10 @@
     <string name="bot_message_thinking_label">Размышление</string>
     <string name="bot_message_thinking_expand_content_description">Развернуть или свернуть размышления</string>
     <string name="settings_theme">Тема</string>
+    <string name="settings_language">Язык интерфейса</string>
+    <string name="settings_language_system">Системный</string>
+    <string name="settings_language_ru">Русский</string>
+    <string name="settings_language_en">English</string>
     <string name="settings_theme_description">Выберите системную по умолчанию, светлую, тёмную или чисто чёрную OLED.</string>
     <string name="settings_theme_system">Системная</string>
     <string name="settings_theme_light">Светлая</string>

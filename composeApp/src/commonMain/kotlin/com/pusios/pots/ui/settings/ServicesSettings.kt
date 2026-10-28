@@ -96,6 +96,7 @@ import kotlinx.collections.immutable.toImmutableList
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
+import org.koin.compose.koinInject
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.ic_arrow_drop_down
 import pots.composeapp.generated.resources.litert_cancel
@@ -558,28 +559,37 @@ private fun ConfiguredServiceCardContent(
         if (isExpanded) {
             Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                 if (entry.service.isOnDevice) {
-                    LiteRTSettings(
-                        selectedModel = entry.selectedModel,
-                        downloadedModels = entry.models,
-                        availableModels = localAvailableModels,
-                        importedModels = localImportedModels,
-                        totalDeviceMemoryBytes = totalDeviceMemoryBytes,
-                        freeSpaceBytes = localFreeSpaceBytes,
-                        downloadingModelId = localDownloadingModelId,
-                        downloadProgress = localDownloadProgress,
-                        downloadError = localDownloadError,
-                        importingFileName = localImportingFileName,
-                        importProgress = localImportProgress,
-                        importError = localImportError,
-                        onSelectModel = onSelectModel,
-                        onDownloadModel = onDownloadLocalModel,
-                        onCancelDownload = onCancelLocalModelDownload,
-                        onImportModel = onImportLocalModel,
-                        onCancelImport = onCancelLocalModelImport,
-                        onDeleteModel = onDeleteLocalModel,
-                        onChangeModelContextTokens = onChangeModelContextTokens,
-                        modelContextTokens = modelContextTokens,
-                    )
+                    val localEngine = koinInject<com.pusios.pots.inference.LocalInferenceEngine?>()
+                    if (localEngine == null) {
+                        Text(
+                            text = "Инструмент не поддерживается на этом компьютере.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        LiteRTSettings(
+                            selectedModel = entry.selectedModel,
+                            downloadedModels = entry.models,
+                            availableModels = localAvailableModels,
+                            importedModels = localImportedModels,
+                            totalDeviceMemoryBytes = totalDeviceMemoryBytes,
+                            freeSpaceBytes = localFreeSpaceBytes,
+                            downloadingModelId = localDownloadingModelId,
+                            downloadProgress = localDownloadProgress,
+                            downloadError = localDownloadError,
+                            importingFileName = localImportingFileName,
+                            importProgress = localImportProgress,
+                            importError = localImportError,
+                            onSelectModel = onSelectModel,
+                            onDownloadModel = onDownloadLocalModel,
+                            onCancelDownload = onCancelLocalModelDownload,
+                            onImportModel = onImportLocalModel,
+                            onCancelImport = onCancelLocalModelImport,
+                            onDeleteModel = onDeleteLocalModel,
+                            onChangeModelContextTokens = onChangeModelContextTokens,
+                            modelContextTokens = modelContextTokens,
+                        )
+                    }
                 } else if (entry.service is Service.OpenAICompatible) {
                     OpenAICompatibleSettings(
                         baseUrl = entry.baseUrl,

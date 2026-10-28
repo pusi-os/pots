@@ -619,15 +619,22 @@ internal fun ToggleableHeadline(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     actions: @Composable RowScope.() -> Unit = {},
+    enabled: Boolean = true,
 ) {
     val switchInteractionSource = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
-                interactionSource = switchInteractionSource,
-                indication = null,
-            ) { onCheckedChange(!checked) }
+            .then(
+                if (enabled) {
+                    Modifier.clickable(
+                        interactionSource = switchInteractionSource,
+                        indication = null,
+                    ) { onCheckedChange(!checked) }
+                } else {
+                    Modifier
+                },
+            )
             .handCursor(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -642,6 +649,7 @@ internal fun ToggleableHeadline(
             checked = checked,
             onCheckedChange = null,
             interactionSource = switchInteractionSource,
+            enabled = enabled,
         )
     }
     Spacer(Modifier.size(4.dp))

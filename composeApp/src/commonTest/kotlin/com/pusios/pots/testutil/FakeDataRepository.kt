@@ -20,6 +20,7 @@ import com.pusios.pots.data.ServiceInstance
 import com.pusios.pots.data.SmsDraft
 import com.pusios.pots.data.SmsSyncState
 import com.pusios.pots.data.SystemPromptVariant
+import com.pusios.pots.data.AppLanguage
 import com.pusios.pots.data.ThemeMode
 import com.pusios.pots.data.ensureSelectedModelPresent
 import com.pusios.pots.inference.DownloadError
@@ -454,6 +455,14 @@ class FakeDataRepository : DataRepository {
     private var themeMode: ThemeMode = ThemeMode.System
 
     override fun getThemeMode(): ThemeMode = themeMode
+
+    private var appLanguage: AppLanguage = AppLanguage.System
+
+    override fun getAppLanguage(): AppLanguage = appLanguage
+
+    override fun setAppLanguage(mode: AppLanguage) {
+        appLanguage = mode
+    }
 
     private var animatedBackground: com.pusios.pots.ui.background.AnimatedBackground =
         com.pusios.pots.ui.background.AnimatedBackground.NONE

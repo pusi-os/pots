@@ -56,6 +56,7 @@ import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.LocalAppLanguageCode
 import com.pusios.pots.data.AgentPersonaPresets
 import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.AppSettings
@@ -865,13 +866,13 @@ private fun SoulEditor(
                 FilterChip(
                     selected = presetId == id,
                     onClick = { selectPreset(id) },
-                    label = { Text(AgentPersonaPresets.presetName(id, Locale.current.language)) },
+                    label = { Text(AgentPersonaPresets.presetName(id, LocalAppLanguageCode.current)) },
                     modifier = Modifier.handCursor(),
                 )
             }
         }
         Text(
-            text = AgentPersonaPresets.presetDescription(presetId, Locale.current.language),
+            text = AgentPersonaPresets.presetDescription(presetId, LocalAppLanguageCode.current),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),

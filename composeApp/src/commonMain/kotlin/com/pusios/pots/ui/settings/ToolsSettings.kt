@@ -222,7 +222,16 @@ private fun VectorStorageSection() {
         }
     }
 
-    val localInferenceEngine = koinInject<com.pusios.pots.inference.LocalInferenceEngine>()
+    val localInferenceEngine = koinInject<com.pusios.pots.inference.LocalInferenceEngine?>()
+    if (localInferenceEngine == null) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(text = "Локальный векторный поиск", style = MaterialTheme.typography.titleMedium)
+                Text(text = "Инструмент не поддерживается на этом компьютере.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        return
+    }
     val downloadingId by localInferenceEngine.downloadingModelId.collectAsState()
     val downloadProgress by localInferenceEngine.downloadProgress.collectAsState()
 

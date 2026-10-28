@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Pots
+Comment=Pots desktop (latest release build)
+Exec=/run/media/al/ARCHIVE/code/pusi/apps/pots/run-pots-desktop.sh
+Type=Application
+Terminal=false
+Categories=Utility;

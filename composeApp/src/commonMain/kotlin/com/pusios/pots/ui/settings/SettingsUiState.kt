@@ -81,6 +81,7 @@ data class SettingsUiState(
     val agentTuning: AgentTuning = AgentTuning.Default,
     val isDynamicUiEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.System,
+    val appLanguage: com.pusios.pots.data.AppLanguage = com.pusios.pots.data.AppLanguage.System,
     val animatedBackground: com.pusios.pots.ui.background.AnimatedBackground = com.pusios.pots.ui.background.AnimatedBackground.NONE,
     /** How the animated character (Потсик) looks. */
     val potsikLook: PotsikLook = PotsikLook.Default,

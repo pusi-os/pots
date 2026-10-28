@@ -6,6 +6,7 @@ import com.pusios.pots.DaemonController
 import com.pusios.pots.Platform
 import com.pusios.pots.currentPlatform
 import com.pusios.pots.data.AgentTuning
+import com.pusios.pots.data.AppLanguage
 import com.pusios.pots.data.DataRepository
 import com.pusios.pots.data.ImportSection
 import com.pusios.pots.data.LocalToolSelection
@@ -103,6 +104,7 @@ class SettingsViewModel(
             agentTuning = dataRepository.getAgentTuning(),
             isDynamicUiEnabled = dataRepository.isDynamicUiEnabled(),
             themeMode = dataRepository.getThemeMode(),
+            appLanguage = dataRepository.getAppLanguage(),
             animatedBackground = dataRepository.getAnimatedBackground(),
             potsikLook = dataRepository.getPotsikLook(),
             isMemoryEnabled = dataRepository.isMemoryEnabled(),
@@ -188,6 +190,7 @@ class SettingsViewModel(
         onChangeAgentTuning = ::onChangeAgentTuning,
         onToggleDynamicUi = ::onToggleDynamicUi,
         onChangeThemeMode = ::onChangeThemeMode,
+        onChangeAppLanguage = ::onChangeAppLanguage,
         onChangeAnimatedBackground = ::onChangeAnimatedBackground,
         onChangePotsikLook = ::onChangePotsikLook,
         onResetPotsikLook = ::onResetPotsikLook,
@@ -374,7 +377,6 @@ class SettingsViewModel(
         // hide services unsupported on this platform, then sort alphabetically.
         return Service.all
             .filter { !it.isFreeTier }
-            .filter { !it.isOnDevice || dataRepository.isLocalInferenceAvailable() }
             .sortedWith(
                 compareBy<Service> {
                     if (it is Service.OpenAICompatible || it.isOnDevice) 0 else 1
@@ -606,6 +608,11 @@ class SettingsViewModel(
     private fun onChangeThemeMode(mode: ThemeMode) {
         dataRepository.setThemeMode(mode)
         _state.update { it.copy(themeMode = mode) }
+    }
+
+    private fun onChangeAppLanguage(language: AppLanguage) {
+        dataRepository.setAppLanguage(language)
+        _state.update { it.copy(appLanguage = language) }
     }
 
     private fun onChangePotsikLook(look: PotsikLook) {
