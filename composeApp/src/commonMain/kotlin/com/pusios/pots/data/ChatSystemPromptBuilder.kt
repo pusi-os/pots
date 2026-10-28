@@ -157,7 +157,8 @@ internal const val DEFAULT_AUTOMATION_SECTION =
         "- `cron` — recurring on a schedule (\"every morning at 8\", \"every 15 minutes\").\n" +
         "- `on_heartbeat: true` — appended to every heartbeat self-check. Use this when the user asks for *standing* heartbeat behaviour (e.g. \"greet me on every heartbeat\", \"always summarize new emails\", \"flag overdue tasks each check\"). These are `HEARTBEAT` trigger tasks and show up in `list_tasks` alongside time/cron tasks.\n" +
         "Each scheduled or heartbeat run starts fresh, so embed any context the prompt needs. Use `list_tasks` / `cancel_task` to inspect or remove.\n" +
-        "Heartbeat itself (on/off toggle, interval, active hours) is user-controlled in Settings → Agent → Heartbeat — you cannot enable, disable, or reschedule it. If the user asks for recurring updates and heartbeat seems off, either schedule a cron task or tell them to enable Heartbeat in settings — never claim to have \"enabled\" or \"turned on\" heartbeat."
+        "Heartbeat itself (on/off toggle, interval, active hours) is user-controlled in Settings → Agent → Heartbeat — you cannot enable, disable, or reschedule it. If the user asks for recurring updates and heartbeat seems off, either schedule a cron task or tell them to enable Heartbeat in settings — never claim to have \"enabled\" or \"turned on\" heartbeat." + "\n" +
+        "Language rule for reminders: whenever you call schedule_task, write `description` (the text shown to the user in the task list and notifications) in the language the user is speaking in — Russian for Russian requests, even if you are answering other parts in English. `prompt` is for your future self and should follow the same rule; the firing prompt should ask the user in their language. Never silently English a reminder the user gave in Russian."
 
 /**
  * Composes the full chat system prompt for the given [variant].

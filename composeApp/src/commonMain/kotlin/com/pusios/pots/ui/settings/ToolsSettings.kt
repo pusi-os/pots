@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -88,14 +90,41 @@ internal fun ToolsContent(
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = stringResource(Res.string.settings_obsidian_vault), style = MaterialTheme.typography.titleMedium)
                 Text(text = stringResource(Res.string.settings_obsidian_vault_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    text = if (obsidianVaultUri.isBlank()) {
-                        stringResource(Res.string.settings_obsidian_vault_not_configured)
-                    } else {
-                        stringResource(Res.string.settings_obsidian_vault_configured, obsidianVaultUri.substringAfterLast('/'))
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                if (obsidianVaultUri.isNotBlank()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = obsidianFolderName(obsidianVaultUri),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = stringResource(Res.string.settings_obsidian_vault_configured, obsidianFolderName(obsidianVaultUri)),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.settings_obsidian_vault_not_configured),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
+                }
                 ObsidianVaultPicker(currentUri = obsidianVaultUri) { uri ->
                     if (uri != null) {
                         appSettings?.setObsidianVaultUri(uri)
@@ -262,12 +291,12 @@ private fun VectorStorageSection() {
                 Text(text = "Модель не загружена", style = MaterialTheme.typography.bodyMedium)
                 if (isDesktop) {
                     Text(
-                        text = "Векторный поиск на десктопе работает через Ollama: scripts/ollama-models.sh pull nomic-embed-text. Кнопка ниже проверяет доступность модели.",
+                        text = "Векторный поиск на десктопе работает через Ollama. Кнопка ниже запускает `ollama pull embeddinggemma-2:440m` и затем проверяет доступность модели.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     androidx.compose.material3.TextButton(onClick = { manager.downloadModel() }) {
-                        Text("Проверить Ollama")
+                        Text("Скачать embeddinggemma-2:440m в Ollama")
                     }
                 } else if (downloadingId == "embeddinggemma-2-text-vision-440m") {
                     LinearProgressIndicator(progress = { downloadProgress ?: 0f }, modifier = Modifier.fillMaxWidth())
@@ -384,4 +413,44 @@ private fun ToolItem(
             )
         }
     }
+}
+
+internal fun obsidianFolderName(uri: String): String {
+    if (uri.isBlank()) return ""
+    if (!uri.startsWith("content://")) {
+        val idx = uri.lastIndexOfAny(charArrayOf('/', '\\'))
+        if (idx >= 0) {
+            val tail = uri.substring(idx + 1)
+            if (tail.isNotBlank()) return tail
+        }
+        return uri.substringAfterLast('/')
+    }
+    return try {
+        val decoded = decodePercent(uri)
+        val docId = decoded.substringAfterLast(':').substringBefore('?').substringBefore('#').trim()
+        val name = docId.substringAfterLast('/').substringAfterLast('\\')
+        name.ifBlank { decoded.substringAfterLast('/').ifBlank { uri.substringAfterLast('/') } }
+    } catch (_: Exception) {
+        uri.substringAfterLast('/')
+    }
+}
+
+private fun decodePercent(value: String): String {
+    val result = StringBuilder()
+    var i = 0
+    while (i < value.length) {
+        val ch = value[i]
+        if (ch == '%' && i + 2 < value.length) {
+            val hex = value.substring(i + 1, i + 3)
+            val code = hex.toIntOrNull(16)
+            if (code != null) {
+                result.append(code.toChar())
+                i += 3
+                continue
+            }
+        }
+        result.append(ch)
+        i += 1
+    }
+    return result.toString()
 }

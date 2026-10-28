@@ -111,6 +111,25 @@ val MODEL_CATALOG = listOf(
         kvPerTokenBytes = 0,
         isEmbedding = true,
     ),
+    // Experimental: a community LiteRT conversion of LiquidAI's omni model. It reads
+    // text, 512x512 images and audio (30 s windows) and replies in text on
+    // LiteRT-LM 0.18.1, so it can be wired into the existing on-device chat path.
+    // Speech output needs the extra TFLite graphs from the same repo (depth decoder,
+    // frame embedding, codec, runner) and is NOT covered by Pots' LiteRT-LM chat
+    // today — text/picture/audio input only. One Engine per conversation, 4,096-token
+    // context; created only on non-embedded devices, slotted here as optional.
+    LocalModel(
+        id = "lfm3-omni-2b-int8",
+        displayName = "LFM3 Omni 2B (int8, experimental)",
+        fileName = "LFM3-Omni-2B_int8.litertlm",
+        sizeBytes = 3_226_750_192L,
+        downloadUrl = "https://huggingface.co/litert-community/LFM3-Omni-2B-LiteRT/resolve/5afeef5fe4b49e13eaefd7b6957fe856d763db6d/LFM3-Omni-2B_int8.litertlm",
+        sha256 = "959617973a7ddcb3d887fa0d9891d79556a266490d5c432b02a18ffcac3124ed",
+        gpuMemoryMb = 4130,
+        defaultContextTokens = 4_096,
+        maxContextTokens = 4_096,
+        kvPerTokenBytes = 50_000,
+    ),
 )
 
 fun findCatalogModelById(id: String): LocalModel? = MODEL_CATALOG.find { it.id == id }

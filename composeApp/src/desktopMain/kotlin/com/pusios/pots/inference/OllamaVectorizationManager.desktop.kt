@@ -136,15 +136,43 @@ class OllamaVectorizationManager(
         _autoDocs.value = enabled
     }
 
+    private var pullProcess: Process? = null
+
     override fun downloadModel() {
-        // The embedding model lives inside Ollama: pull it with
-        // `scripts/ollama-models.sh pull nomic-embed-text`.
-        _status.value = "Скачайте embedding-модель в Ollama: scripts/ollama-models.sh pull nomic-embed-text"
-        scope.launch { runCatching { refreshModelReady() } }
+        // Pull the embedding model directly through Ollama: keeps the whole flow on
+        // one button inside Tools instead of asking the user to run a shell script.
+        scope.launch {
+            val model = DEFAULT_EMBEDDING_MODEL
+            _status.value = "Запуск `ollama pull $model`…"
+            pullProcess = null
+            runCatching {
+                val process = ProcessBuilder("ollama", "pull", model)
+                    .redirectErrorStream(true)
+                    .start()
+                pullProcess = process
+                process.inputStream.bufferedReader().forEachLine { line ->
+                    val trimmed = line.trim()
+                    if (trimmed.isNotEmpty()) _status.value = trimmed.takeLast(200)
+                }
+                val code = process.waitFor()
+                if (code != 0) _status.value = "Ollama вернула код выхода $code"
+            }.onFailure { t ->
+                _status.value = "Не удалось запустить ollama: ${t.message ?: t::class.simpleName}"
+            }
+            pullProcess = null
+            runCatching { refreshModelReady() }
+            if (!_modelReady.value) {
+                if (_status.value.isBlank()) _status.value = "Модель пока не готова — запустите Ollama"
+            } else {
+                _status.value = "Модель $model готова"
+            }
+        }
     }
 
     override fun cancelDownload() {
-        // Nothing to cancel: the model is pulled by Ollama itself.
+        pullProcess?.destroyForcibly()
+        pullProcess = null
+        _status.value = "Загрузка отменена"
     }
 
     private fun ollamaBase(): String {
@@ -159,7 +187,9 @@ class OllamaVectorizationManager(
         val chatModel = appSettings.getSelectedModelId(Service.OpenAICompatible)
         val looksEmbed = chatModel.contains("embed", ignoreCase = true) ||
             chatModel.contains("nomic", ignoreCase = true) ||
-            chatModel.contains("mxbai", ignoreCase = true)
+            chatModel.contains("mxbai", ignoreCase = true) ||
+            chatModel.contains("gemma", ignoreCase = true) ||
+            chatModel.contains("embeddinggemma", ignoreCase = true)
         return if (looksEmbed) chatModel else DEFAULT_EMBEDDING_MODEL
     }
 
@@ -202,7 +232,7 @@ class OllamaVectorizationManager(
         if (texts.isEmpty()) return emptyList()
         val base = ollamaBase()
         val model = probeModel() ?: run {
-            _status.value = "Ollama недоступна или нет embedding-модели (nomic-embed-text)"
+            _status.value = "Ollama недоступна или нет embedding-модели ($DEFAULT_EMBEDDING_MODEL)"
             return null
         }
         return runCatching {
@@ -245,7 +275,7 @@ class OllamaVectorizationManager(
     private suspend fun indexPhotosInternal() {
         if (_indexing.value) return
         val model = probeModel() ?: run {
-            _status.value = "Сначала запустите Ollama и скачайте nomic-embed-text"
+            _status.value = "Сначала запустите Ollama и скачайте $DEFAULT_EMBEDDING_MODEL"
             return
         }
         _modelReady.value = true
@@ -314,7 +344,7 @@ class OllamaVectorizationManager(
     private suspend fun indexDocumentsInternal() {
         if (_indexing.value) return
         val model = probeModel() ?: run {
-            _status.value = "Сначала запустите Ollama и скачайте nomic-embed-text"
+            _status.value = "Сначала запустите Ollama и скачайте $DEFAULT_EMBEDDING_MODEL"
             return
         }
         _modelReady.value = true
@@ -555,7 +585,7 @@ class OllamaVectorizationManager(
     }
 
     private companion object {
-        const val DEFAULT_EMBEDDING_MODEL = "nomic-embed-text"
+        const val DEFAULT_EMBEDDING_MODEL = "embeddinggemma-2:440m"
         const val STORE_FILE = "vector_store_ollama.json"
         const val SCHEMA_VERSION = 1
         val PHOTO_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")

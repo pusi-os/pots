@@ -21,6 +21,10 @@ import com.pusios.pots.mcp.McpServerManager
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.tools.CommonTools
+import com.pusios.pots.tools.ObsidianListNotesTool
+import com.pusios.pots.tools.ObsidianReadNoteTool
+import com.pusios.pots.tools.ObsidianSearchNotesTool
+import com.pusios.pots.tools.ObsidianWriteNoteTool
 import com.pusios.pots.tools.ProcessManagerTool
 import com.pusios.pots.tools.ShellCommandTool
 import com.pusios.pots.tools.buildAgentToolSet
@@ -139,7 +143,7 @@ actual fun createSecureSettings(): Settings = EncryptedFileSettings()
 
 actual fun createLegacySettings(): Settings? = null // Same storage location, no migration needed
 
-actual fun getPlatformToolDefinitions(): List<ToolInfo> = listOf(ShellCommandTool.toolInfo, ProcessManagerTool.toolInfo) + CommonTools.commonToolDefinitions
+actual fun getPlatformToolDefinitions(): List<ToolInfo> = listOf(ShellCommandTool.toolInfo, ProcessManagerTool.toolInfo, ObsidianListNotesTool.toolInfo, ObsidianReadNoteTool.toolInfo, ObsidianWriteNoteTool.toolInfo, ObsidianSearchNotesTool.toolInfo) + CommonTools.commonToolDefinitions
 
 actual fun getAvailableTools(): List<Tool> {
     val appSettings: AppSettings by inject(AppSettings::class.java)
@@ -163,6 +167,19 @@ actual fun getAvailableTools(): List<Tool> {
         if (appSettings.isToolEnabled(ShellCommandTool.schema.name, defaultEnabled = false)) {
             add(ShellCommandTool)
             add(ProcessManagerTool)
+        }
+
+        if (appSettings.isToolEnabled(ObsidianListNotesTool.ID)) {
+            add(ObsidianListNotesTool.create(appSettings))
+        }
+        if (appSettings.isToolEnabled(ObsidianReadNoteTool.ID)) {
+            add(ObsidianReadNoteTool.create(appSettings))
+        }
+        if (appSettings.isToolEnabled(ObsidianWriteNoteTool.ID)) {
+            add(ObsidianWriteNoteTool.create(appSettings))
+        }
+        if (appSettings.isToolEnabled(ObsidianSearchNotesTool.ID)) {
+            add(ObsidianSearchNotesTool.create(appSettings))
         }
     }
 }

@@ -10,11 +10,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -239,7 +243,7 @@ private fun TtsSection(
     onChangeRate: (Float) -> Unit,
     onChangePitch: (Float) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             text = stringResource(Res.string.settings_tts),
             style = MaterialTheme.typography.titleMedium,
@@ -249,7 +253,6 @@ private fun TtsSection(
             text = stringResource(Res.string.settings_tts_description),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
         )
         Text(
             text = stringResource(Res.string.settings_tts_engine),
@@ -262,30 +265,36 @@ private fun TtsSection(
             Triple(TtsEngine.Cloud, stringResource(Res.string.settings_tts_engine_cloud), stringResource(Res.string.settings_tts_engine_cloud_description)),
         )
         engineOptions.forEach { (option, label, description) ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Card(
+                onClick = { if (option != TtsEngine.Cloud) onChangeEngine(option) },
+                colors = CardDefaults.cardColors(
+                    containerColor = if (engine == option) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = label, style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (option == TtsEngine.Cloud) {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.material3.RadioButton(
+                        selected = engine == option,
+                        onClick = null,
+                        enabled = option != TtsEngine.Cloud,
                     )
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = label, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-                androidx.compose.material3.RadioButton(
-                    selected = engine == option,
-                    onClick = if (option == TtsEngine.Cloud) null else ({ onChangeEngine(option) }),
-                    enabled = option != TtsEngine.Cloud,
-                )
             }
         }
-        Spacer(Modifier.height(8.dp))
+
         when (engine) {
             TtsEngine.Native -> NativeVoicePicker(
                 selectedVoice = systemVoice,
@@ -302,13 +311,12 @@ private fun TtsSection(
                     text = stringResource(Res.string.settings_tts_piper_soon),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
 
             TtsEngine.Cloud -> Unit
         }
-        Spacer(Modifier.height(8.dp))
+
         RatePitchSlider(
             label = stringResource(Res.string.settings_tts_rate),
             value = rate,

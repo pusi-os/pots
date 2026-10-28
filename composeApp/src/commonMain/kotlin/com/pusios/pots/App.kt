@@ -201,7 +201,7 @@ private fun AppContent(
     val isSystemDark = isSystemInDarkTheme()
 
     LaunchedEffect(resolvedLanguageCode) {
-        java.util.Locale.setDefault(java.util.Locale(resolvedLanguageCode))
+        applyAppLocale(resolvedLanguageCode)
     }
 
     val sandboxController = koinInject<SandboxController>()
