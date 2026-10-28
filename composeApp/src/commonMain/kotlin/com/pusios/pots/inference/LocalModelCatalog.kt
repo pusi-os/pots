@@ -35,6 +35,7 @@ val MODEL_CATALOG = listOf(
         defaultContextTokens = 4_096,
         maxContextTokens = 32_768,
         kvPerTokenBytes = 50_000,
+        supportsImages = true,
         isRecommended = true,
     ),
     LocalModel(
@@ -48,6 +49,7 @@ val MODEL_CATALOG = listOf(
         defaultContextTokens = 4_096,
         maxContextTokens = 32_768,
         kvPerTokenBytes = 75_000,
+        supportsImages = true,
     ),
     // Upstream replaced this file on 2026-09-03: the current build adds vision and audio
     // modalities and Multi-Token Prediction for speculative decoding, and its model card
@@ -65,6 +67,7 @@ val MODEL_CATALOG = listOf(
         defaultContextTokens = 4_096,
         maxContextTokens = 32_768,
         kvPerTokenBytes = 140_000,
+        supportsImages = true,
     ),
     // The `_int4_gpu` build, not the plain `_int4`: only this one lowers fully for the GPU
     // delegate (the other leaves GATHER_ND and some INT64 tensors behind and then fails
@@ -129,6 +132,7 @@ val MODEL_CATALOG = listOf(
         defaultContextTokens = 4_096,
         maxContextTokens = 32_768,
         kvPerTokenBytes = 50_000,
+        supportsImages = true,
     ),
     LocalModel(
         id = "lfm3-1.7b-int4",
@@ -139,7 +143,7 @@ val MODEL_CATALOG = listOf(
         sha256 = "8dc4f5dc3c94c25c25f149a7aa0f534ae8f061dd351ca02685216455443f4f49",
         gpuMemoryMb = 900,
         defaultContextTokens = 4_096,
-        maxContextTokens = 4_096,
+        maxContextTokens = 65_536,
         kvPerTokenBytes = 20_000,
     ),
 )

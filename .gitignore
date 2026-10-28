@@ -29,3 +29,7 @@ fastlane/README.md
 # Python bytecode from the asset scripts
 __pycache__/
 *.pyc
+
+/scripts/publish-apk.sh
+/run-pots-desktop.sh
+/scripts/ollama-models.sh

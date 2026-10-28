@@ -1,5 +1,6 @@
 package com.pusios.pots.inference
 
+import com.pusios.pots.data.Attachment
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.flow.StateFlow
 
@@ -23,6 +24,8 @@ data class LocalModel(
     val isImported: Boolean = false,
     /** True for embedding models used by local vector search, not chat inference. */
     val isEmbedding: Boolean = false,
+    /** True when the bundle can process image content (used for chat attachments). */
+    val supportsImages: Boolean = false,
 )
 
 enum class DevicePerformance {
@@ -65,6 +68,7 @@ enum class EngineState {
 data class InferenceMessage(
     val role: String,
     val content: String,
+    val attachments: List<Attachment>? = null,
 )
 
 /**

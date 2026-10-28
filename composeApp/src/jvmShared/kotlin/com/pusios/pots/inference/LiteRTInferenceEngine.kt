@@ -1,6 +1,7 @@
 package com.pusios.pots.inference
 
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
@@ -44,6 +45,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import kotlin.coroutines.coroutineContext
+import kotlin.io.encoding.Base64
 import kotlin.time.Duration.Companion.milliseconds
 
 class LiteRTInferenceEngine : LocalInferenceEngine {
@@ -291,6 +293,33 @@ class LiteRTInferenceEngine : LocalInferenceEngine {
         idleReleaseJob = scope.launch { release() }
     }
 
+    private fun buildContents(msg: InferenceMessage, sanitizedContent: String?): com.google.ai.edge.litertlm.Contents {
+        val allowImages = currentModelCapabilities?.supportsVision == true
+        val parts = mutableListOf<com.google.ai.edge.litertlm.Content>()
+        val textPrefix = msg.attachments?.filter { it.mimeType.isTextMimeType() }?.joinToString("\n\n") { att ->
+            runCatching { Base64.decode(att.data).decodeToString() }
+                .getOrNull()
+                ?.let { body -> if (att.fileName != null) "--- ${att.fileName} ---\n$body" else body }
+                ?: ""
+        }?.trim()
+        val textBody = listOfNotNull(textPrefix?.takeIf { it.isNotBlank() }, sanitizedContent?.takeIf { it.isNotBlank() }).joinToString("\n\n")
+        if (textBody.isNotBlank()) {
+            parts += com.google.ai.edge.litertlm.Content.Text(sanitizeForLiteRt(textBody).orEmpty())
+        }
+        if (allowImages) {
+            msg.attachments?.filter { it.mimeType.startsWith("image/") }?.forEach { att ->
+                runCatching { Content.ImageBytes(Base64.decode(att.data)) }.getOrNull()?.let(parts::add)
+            }
+        }
+        if (parts.isEmpty()) {
+            parts += com.google.ai.edge.litertlm.Content.Text("")
+        }
+        return com.google.ai.edge.litertlm.Contents.of(parts)
+    }
+
+    private fun String.isTextMimeType(): Boolean = startsWith("text/") || this == "application/json" || this == "application/xml" ||
+        this == "application/javascript" || this == "application/x-yaml" || this == "application/yaml"
+
     @OptIn(ExperimentalApi::class)
     override suspend fun chat(
         messages: List<InferenceMessage>,
@@ -306,10 +335,10 @@ class LiteRTInferenceEngine : LocalInferenceEngine {
 
             val sanitizedSystemPrompt = sanitizeForLiteRt(systemPrompt)
             val initialMessages = messages.subList(0, lastUserIndex).map { msg ->
-                val sanitized = sanitizeForLiteRt(msg.content) ?: ""
+                val sanitized = sanitizeForLiteRt(msg.content)
                 when (msg.role) {
-                    "user" -> Message.user(sanitized)
-                    else -> Message.model(sanitized)
+                    "user" -> Message.user(buildContents(msg, sanitized))
+                    else -> Message.model(com.google.ai.edge.litertlm.Contents.of(com.google.ai.edge.litertlm.Content.Text(sanitized.orEmpty())), emptyList(), emptyMap())
                 }
             }
 
@@ -331,10 +360,10 @@ class LiteRTInferenceEngine : LocalInferenceEngine {
             val conv = currentEngine.createConversation(config)
             conversation = conv
 
-            val lastMessage = sanitizeForLiteRt(messages[lastUserIndex].content) ?: ""
+            val lastMessage = sanitizeForLiteRt(messages[lastUserIndex].content)
             val response = try {
                 withTimeout(INFERENCE_TIMEOUT_MS.milliseconds) {
-                    conv.sendMessage(lastMessage)
+                    conv.sendMessage(buildContents(messages[lastUserIndex], lastMessage))
                 }
             } catch (e: TimeoutCancellationException) {
                 throw InferenceTimeoutException()

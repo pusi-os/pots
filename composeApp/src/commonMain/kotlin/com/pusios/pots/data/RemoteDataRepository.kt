@@ -234,12 +234,13 @@ class RemoteDataRepository(
      */
     private suspend fun localModelDeclaresTools(modelId: String): Boolean {
         // Trust the user's explicit local-tool selection over the bundle's self-report.
-        // Someotherwise capable models (LFM's XML function-calling templates, Gemma
-        // builds whose metadata lags) advertise `supportsFunctionCalling == false`,
-        // which would silently strip the tools the user activated in settings.
-        if (getLocalSafeTools().isNotEmpty()) return true
-        // No tools selected -> fall back to the bundle's declaration, or assume
-        // capable when the engine could not read the metadata (unknown, not "no").
+        // Otherwise capable models (LFM XML templates, Gemma metadata lag) can advertise
+        // `supportsFunctionCalling == false` and strip tools activated in settings.
+        val available = getAvailableTools()
+        val selection = appSettings.getLocalToolSelection()
+        val activeIds = if (selection.configured) selection.toolIds.toSet() else LOCAL_TOOL_ALLOWLIST
+        if (available.any { it.schema.name in activeIds }) return true
+        if (!selection.configured) return getLocalSafeTools().isNotEmpty()
         return localInferenceEngine?.modelCapabilities(modelId)?.supportsFunctionCalling != false
     }
 
@@ -584,7 +585,7 @@ class RemoteDataRepository(
 
         val inferenceMessages = messages.mapNotNull { msg ->
             when (msg.role) {
-                History.Role.USER -> InferenceMessage(role = "user", content = msg.content)
+                History.Role.USER -> InferenceMessage(role = "user", content = msg.content, attachments = msg.attachments)
                 History.Role.ASSISTANT -> InferenceMessage(role = "assistant", content = msg.content)
                 else -> null
             }
@@ -1734,7 +1735,11 @@ class RemoteDataRepository(
 
     override fun supportedFileExtensions(): List<String> {
         val service = currentService()
-        if (service.isOnDevice) return emptyList()
+        if (service.isOnDevice) {
+            val allowsImages = localInferenceEngine?.getAvailableModels()?.firstOrNull { it.id == currentModelId() }?.supportsImages == true
+            val extensionSet = if (allowsImages) supportedFileExtensions.toSet() else (supportedFileExtensions - imageExtensions)
+            return extensionSet.toList()
+        }
         // Images are offered only when both the service and the active model accept them —
         // mixed services (e.g. Z.AI) pair text-only models with multimodal ones.
         val imagesSupported = service.supportsImages && modelSupportsImages(currentModelId())
