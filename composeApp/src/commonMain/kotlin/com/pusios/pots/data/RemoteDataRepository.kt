@@ -233,7 +233,13 @@ class RemoteDataRepository(
      * metadata.
      */
     private suspend fun localModelDeclaresTools(modelId: String): Boolean {
-        if (modelId.contains("lfm", ignoreCase = true)) return true
+        // Trust the user's explicit local-tool selection over the bundle's self-report.
+        // Someotherwise capable models (LFM's XML function-calling templates, Gemma
+        // builds whose metadata lags) advertise `supportsFunctionCalling == false`,
+        // which would silently strip the tools the user activated in settings.
+        if (getLocalSafeTools().isNotEmpty()) return true
+        // No tools selected -> fall back to the bundle's declaration, or assume
+        // capable when the engine could not read the metadata (unknown, not "no").
         return localInferenceEngine?.modelCapabilities(modelId)?.supportsFunctionCalling != false
     }
 
