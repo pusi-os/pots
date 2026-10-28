@@ -63,6 +63,11 @@ Small, capable models that run on a laptop CPU (pull with: scripts/ollama-models
   phi3.5:3.8b         - Microsoft, ~2.2 GB
   gemma2:2b           - Google, ~1.6 GB
 
+Embedding models for Pots vector search (Settings -> Tools):
+
+  nomic-embed-text    - desktop embeddings backend, ~274 MB
+                        (mobile uses embeddinggemma-2-text-vision-440m via LiteRT)
+
 After pulling, add in Pots: Settings -> Services -> Add service -> OpenAI-compatible
 Base URL: http://localhost:11434/v1   Model: <id above>
 EOF

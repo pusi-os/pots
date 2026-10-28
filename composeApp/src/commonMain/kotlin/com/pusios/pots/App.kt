@@ -152,19 +152,28 @@ private fun AppContent(
         SetupPermissionHandler(koinInject<PermissionController>(permissionQualifier(permission)))
     }
 
-    // Keep the voice the engine already defaults to — that is the one the user picked in the
-    // system speech settings. Only pick another voice when the default one cannot speak the
-    // system language.
+    // The spoken language follows the app language: the saved system voice wins
+    // when it can speak it, otherwise the engine's default for that language is
+    // picked explicitly (the library default is the device locale, which is why
+    // Russian answers were once read by an English voice). Rate and pitch apply
+    // on top, every time any of the inputs changes.
     val currentAppLanguage = LocalAppLanguageCode.current
+    val ttsSystemVoice by appSettings.ttsSystemVoiceFlow.collectAsStateWithLifecycle()
+    val ttsRate by appSettings.ttsRateFlow.collectAsStateWithLifecycle()
+    val ttsPitch by appSettings.ttsPitchFlow.collectAsStateWithLifecycle()
+    val ttsPiperVoice by appSettings.ttsPiperVoiceFlow.collectAsStateWithLifecycle()
     @OptIn(ExperimentalVoiceApi::class)
-    LaunchedEffect(textToSpeech) {
+    LaunchedEffect(textToSpeech, currentAppLanguage, ttsSystemVoice, ttsRate, ttsPitch) {
         val tts = textToSpeech ?: return@LaunchedEffect
-        val systemLanguage = currentAppLanguage
-        if (tts.language.startsWith(systemLanguage)) return@LaunchedEffect
-        val matchingVoice = tts.voices
-            .firstOrNull { it.languageTag.startsWith(systemLanguage) }
-        if (matchingVoice != null) {
-            tts.currentVoice = matchingVoice
+        tts.rate = ttsRate
+        tts.pitch = ttsPitch
+        val saved = tts.voices.firstOrNull { it.name == ttsSystemVoice && ttsSystemVoice.isNotBlank() }
+        val byLanguage = tts.voices.firstOrNull { it.languageTag.startsWith(currentAppLanguage) }
+        val fallback = tts.voices.firstOrNull { it.isDefault }
+        val chosen = saved ?: byLanguage ?: fallback ?: return@LaunchedEffect
+        val current = runCatching { tts.currentVoice }.getOrNull()
+        if (current?.name != chosen.name) {
+            tts.currentVoice = chosen
         }
     }
 

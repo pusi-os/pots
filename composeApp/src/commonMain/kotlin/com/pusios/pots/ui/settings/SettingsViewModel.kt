@@ -144,6 +144,11 @@ class SettingsViewModel(
             isFreeFallbackEnabled = dataRepository.isFreeFallbackEnabled(),
             uiScale = dataRepository.getUiScale(),
             showUiScale = currentPlatform is Platform.Desktop,
+            ttsEngine = dataRepository.getTtsEngine(),
+            ttsSystemVoice = dataRepository.getTtsSystemVoice(),
+            ttsPiperVoice = dataRepository.getTtsPiperVoice(),
+            ttsRate = dataRepository.getTtsRate(),
+            ttsPitch = dataRepository.getTtsPitch(),
             mcpServers = buildMcpServerEntries().toImmutableList(),
             localToolSelection = LocalToolSelection.effective(
                 selection = dataRepository.getLocalToolSelection(),
@@ -222,6 +227,11 @@ class SettingsViewModel(
         onClearPendingNotifications = ::onClearPendingNotifications,
         onToggleFreeFallback = ::onToggleFreeFallback,
         onChangeUiScale = ::onChangeUiScale,
+        onChangeTtsEngine = ::onChangeTtsEngine,
+        onChangeTtsSystemVoice = ::onChangeTtsSystemVoice,
+        onChangeTtsPiperVoice = ::onChangeTtsPiperVoice,
+        onChangeTtsRate = ::onChangeTtsRate,
+        onChangeTtsPitch = ::onChangeTtsPitch,
         onAddMcpServer = ::onAddMcpServer,
         onRemoveMcpServer = ::onRemoveMcpServer,
         onToggleMcpServer = ::onToggleMcpServer,
@@ -926,6 +936,31 @@ class SettingsViewModel(
     private fun onChangeUiScale(scale: Float) {
         dataRepository.setUiScale(scale)
         _state.update { it.copy(uiScale = scale) }
+    }
+
+    private fun onChangeTtsEngine(engine: com.pusios.pots.data.TtsEngine) {
+        dataRepository.setTtsEngine(engine)
+        _state.update { it.copy(ttsEngine = engine) }
+    }
+
+    private fun onChangeTtsSystemVoice(voiceName: String) {
+        dataRepository.setTtsSystemVoice(voiceName)
+        _state.update { it.copy(ttsSystemVoice = voiceName) }
+    }
+
+    private fun onChangeTtsPiperVoice(voiceId: String) {
+        dataRepository.setTtsPiperVoice(voiceId)
+        _state.update { it.copy(ttsPiperVoice = voiceId) }
+    }
+
+    private fun onChangeTtsRate(rate: Float) {
+        dataRepository.setTtsRate(rate)
+        _state.update { it.copy(ttsRate = dataRepository.getTtsRate()) }
+    }
+
+    private fun onChangeTtsPitch(pitch: Float) {
+        dataRepository.setTtsPitch(pitch)
+        _state.update { it.copy(ttsPitch = dataRepository.getTtsPitch()) }
     }
 
     private fun onExportSettings(sections: Set<ImportSection>): String = dataRepository.exportSettingsToJson(sections)

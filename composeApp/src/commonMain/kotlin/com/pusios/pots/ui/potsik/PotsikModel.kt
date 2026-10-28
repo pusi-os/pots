@@ -193,9 +193,6 @@ enum class PotsikOutfit(
 
     /** TH3 0N3: the coat, the three red stripes. */
     TH3_0N3("Chosen One", "Избранный", Int.MAX_VALUE, rgb565(0x200A), rgb565(0x200A)),
-
-    /** The prison stripes and the cap, with the iron cuff. */
-    STRIPES("Striped", "Полосатый", Int.MAX_VALUE),
     ;
 
     /**

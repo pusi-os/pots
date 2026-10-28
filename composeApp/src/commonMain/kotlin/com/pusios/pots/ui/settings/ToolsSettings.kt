@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.AppSettings
+import com.pusios.pots.data.DataRepository
 import com.pusios.pots.data.VectorizationManager
 import com.pusios.pots.mcp.PopularMcpServer
 import com.pusios.pots.network.tools.ToolInfo
@@ -222,8 +223,10 @@ private fun VectorStorageSection() {
         }
     }
 
-    val localInferenceEngine = koinInject<com.pusios.pots.inference.LocalInferenceEngine?>()
-    if (localInferenceEngine == null) {
+    val dataRepository = koinInject<com.pusios.pots.data.DataRepository>()
+    val localInferenceEngine = dataRepository.getLocalInferenceEngine()
+    val isDesktop = com.pusios.pots.currentPlatform is com.pusios.pots.Platform.Desktop
+    if (localInferenceEngine == null && !isDesktop) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = "Локальный векторный поиск", style = MaterialTheme.typography.titleMedium)
@@ -232,13 +235,21 @@ private fun VectorStorageSection() {
         }
         return
     }
-    val downloadingId by localInferenceEngine.downloadingModelId.collectAsState()
-    val downloadProgress by localInferenceEngine.downloadProgress.collectAsState()
+    val downloadingId = localInferenceEngine?.downloadingModelId?.collectAsState()?.value
+    val downloadProgress = localInferenceEngine?.downloadProgress?.collectAsState()?.value
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = "Локальный векторный поиск", style = MaterialTheme.typography.titleMedium)
-            Text(text = "Скачайте модель один раз — и ассистент сможет искать по вашим фото и документам. Например: «найди фото с котом», «где договор аренды», «покажи скриншоты с кодом».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = if (isDesktop) {
+                    "На этом компьютере векторы считает Ollama: запустите её, скачайте embedding-модель (nomic-embed-text) и укажите её в «Сервисах» → OpenAI-Compatible. Затем ассистент сможет искать по вашим фото (~/Pictures) и документам (~/Documents)."
+                } else {
+                    "Скачайте модель один раз — и ассистент сможет искать по вашим фото и документам. Например: «найди фото с котом», «где договор аренды», «покажи скриншоты с кодом»."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             var detailsExpanded by remember { mutableStateOf(false) }
             androidx.compose.material3.TextButton(onClick = { detailsExpanded = !detailsExpanded }) {
                 Text(if (detailsExpanded) "Скрыть подробности" else "Подробнее")
@@ -249,7 +260,16 @@ private fun VectorStorageSection() {
 
             if (!isReady) {
                 Text(text = "Модель не загружена", style = MaterialTheme.typography.bodyMedium)
-                if (downloadingId == "embeddinggemma-2-text-vision-440m") {
+                if (isDesktop) {
+                    Text(
+                        text = "Векторный поиск на десктопе работает через Ollama: scripts/ollama-models.sh pull nomic-embed-text. Кнопка ниже проверяет доступность модели.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    androidx.compose.material3.TextButton(onClick = { manager.downloadModel() }) {
+                        Text("Проверить Ollama")
+                    }
+                } else if (downloadingId == "embeddinggemma-2-text-vision-440m") {
                     LinearProgressIndicator(progress = { downloadProgress ?: 0f }, modifier = Modifier.fillMaxWidth())
                     Text(text = "${((downloadProgress ?: 0f) * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
                 } else {

@@ -2096,6 +2096,17 @@ class RemoteDataRepository(
         appSettings.setAppLanguage(mode)
     }
 
+    override fun getTtsEngine(): com.pusios.pots.data.TtsEngine = appSettings.getTtsEngine()
+    override fun setTtsEngine(engine: com.pusios.pots.data.TtsEngine) = appSettings.setTtsEngine(engine)
+    override fun getTtsSystemVoice(): String = appSettings.getTtsSystemVoice()
+    override fun setTtsSystemVoice(voiceName: String) = appSettings.setTtsSystemVoice(voiceName)
+    override fun getTtsPiperVoice(): String = appSettings.getTtsPiperVoice()
+    override fun setTtsPiperVoice(voiceId: String) = appSettings.setTtsPiperVoice(voiceId)
+    override fun getTtsRate(): Float = appSettings.getTtsRate()
+    override fun setTtsRate(rate: Float) = appSettings.setTtsRate(rate)
+    override fun getTtsPitch(): Float = appSettings.getTtsPitch()
+    override fun setTtsPitch(pitch: Float) = appSettings.setTtsPitch(pitch)
+
     override val potsikLookFlow: StateFlow<PotsikLook> = appSettings.potsikLookFlow
 
     override fun getPotsikLook(): PotsikLook = appSettings.getPotsikLook()
@@ -2541,6 +2552,7 @@ class RemoteDataRepository(
     // On-device inference (LiteRT)
 
     override fun isLocalInferenceAvailable(): Boolean = localInferenceEngine != null
+    override fun getLocalInferenceEngine(): com.pusios.pots.inference.LocalInferenceEngine? = localInferenceEngine
 
     override fun getLocalEngineState(): StateFlow<EngineState>? = localInferenceEngine?.engineState
 

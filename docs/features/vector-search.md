@@ -1,8 +1,10 @@
 # Local Vector Search
 
-**Last verified:** 2026-10-27
+**Last verified:** 2026-10-28
 
 On Android, Pots can build a private semantic index of the user's photos and documents. Embeddings are generated on-device with `embeddinggemma-2-text-vision-440m`; the index is stored in the app's private files and is not sent to a cloud service.
+
+On desktop, where the LiteRT native runtime is unavailable, the same screen uses Ollama as the embedding backend: the `/api/embed` endpoint of the OpenAI-Compatible base URL configured in Services (default `http://localhost:11434`), model `nomic-embed-text` (pull with `scripts/ollama-models.sh pull nomic-embed-text`). Photos come from `~/Pictures`, documents from `~/Documents`; vectors live in `~/.pots/vector_store_ollama.json`. Text queries are embedded remotely by Ollama; only the query text travels to the local Ollama server.
 
 ## Setup and indexing
 
@@ -28,5 +30,6 @@ The index records its schema, embedding model, vector dimensions, prompt version
 |---|---|
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/data/VectorizationManager.kt` | Platform-neutral indexing and search contract |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/inference/VectorizationManager.android.kt` | On-device embeddings, Android media access, indexing and the versioned private store |
+| `composeApp/src/desktopMain/kotlin/com/pusios/pots/inference/OllamaVectorizationManager.desktop.kt` | Desktop embedding backend via Ollama `/api/embed`, `~/Pictures` + `~/Documents` scans, versioned store |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/VectorSearchTool.kt` | Search tool schema and result metadata |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/settings/ToolsSettings.kt` | Model download, permissions, indexing controls and progress |

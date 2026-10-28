@@ -86,7 +86,6 @@ internal class PotsikCostumePainter(
             PotsikOutfit.OVER9000 -> drawOver9000()
             PotsikOutfit.SHAMBLER -> drawShambler()
             PotsikOutfit.TH3_0N3 -> drawTh3()
-            PotsikOutfit.STRIPES -> drawStripedCap()
         }
     }
 
@@ -638,6 +637,18 @@ internal class PotsikCostumePainter(
         drawFastHLine(cx2 - faceHalf, oy + bandFrom, 2 * faceHalf + 1, ink)
         drawFastHLine(cx2 - faceHalf, oy + bandTo, 2 * faceHalf + 1, ink)
 
+        // The hood's own front rim: Kenny's face sits deep inside the hood,
+        // so a fur ring runs round the face opening, in front of everything
+        // but the eyes. An ellipse one module wider than the opening, stroked
+        // in fur with an ink outline on both sides, reads as the hood's
+        // thickness instead of a flat orange disc.
+        val rimRx = faceHalf + S(3)
+        val rimRy = ((bandTo - bandFrom) / 2f + S(4))
+        val rimCy = oy + (bandFrom + bandTo) / 2f
+        drawEllipseOutline(cx2, rimCy, rimRx + 1f, rimRy + 1f, ink)
+        drawEllipseOutline(cx2, rimCy, rimRx, rimRy, fur)
+        drawEllipseOutline(cx2, rimCy, rimRx - S(2), rimRy - S(2), ink)
+
         // The mittens.
         for (sg in listOf(-1, 1)) {
             val ax = if (sg < 0) limbs.armL1x else limbs.armR1x
@@ -1183,25 +1194,6 @@ internal class PotsikCostumePainter(
             // The glint across the top of the lens.
             drawLine(lx - S(3), ey - S(1), lx - S(1), ey - S(3), white)
         }
-    }
-
-    /** The striped cap of the prison stripes. */
-    private fun drawStripedCap() {
-        val w = S(19)
-        val h = S(5).coerceAtLeast(4f)
-        val x = cx2 - w / 2f
-        val y = hh - S(1) / 2f - 1
-        val band = lround(1.1f * scale).coerceAtLeast(2)
-        fillRect(x - 1, y - 1, w + 2, h + 2, PotsikPalette.BLACK)
-        var r = 0
-        while (r < h) {
-            drawFastHLine(x, y + r, w, if ((r / band) and 1 == 1) rgb565(0x18E3) else rgb565(0xF79D))
-            r++
-        }
-        drawFastHLine(x, y, w, PotsikPalette.WHITE)
-        val bh = S(1).coerceAtLeast(2f)
-        fillRect(x - 3, y + h, w + 6, bh + 1, PotsikPalette.BLACK)
-        fillRect(x - 2, y + h, w + 4, bh, rgb565(0xF79D))
     }
 
     // ------------------------------------------------------------------

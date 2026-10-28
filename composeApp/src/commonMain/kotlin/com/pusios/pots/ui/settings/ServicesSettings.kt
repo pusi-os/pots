@@ -146,7 +146,6 @@ import pots.composeapp.generated.resources.settings_status_error_invalid_key
 import pots.composeapp.generated.resources.settings_status_error_local_network
 import pots.composeapp.generated.resources.settings_status_error_quota_exhausted
 import pots.composeapp.generated.resources.settings_status_error_rate_limited
-import pots.composeapp.generated.resources.settings_telegram_channel
 import pots.composeapp.generated.resources.settings_telegram_nerosekta
 import sh.calvin.reorderable.ReorderableColumn
 import kotlin.math.roundToInt
@@ -216,15 +215,6 @@ internal fun FreeSettings(
                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(Res.string.settings_telegram_nerosekta))
-            }
-
-            TextButton(
-                onClick = { uriHandler.openUri("https://t.me/nerosekta") },
-                modifier = Modifier
-                    .align(CenterHorizontally)
-                    .handCursor(),
-            ) {
-                Text(stringResource(Res.string.settings_telegram_channel))
             }
 
             val allSponsors = remember(currentSponsors, pastSponsors) {
@@ -559,8 +549,8 @@ private fun ConfiguredServiceCardContent(
         if (isExpanded) {
             Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                 if (entry.service.isOnDevice) {
-                    val localEngine = koinInject<com.pusios.pots.inference.LocalInferenceEngine?>()
-                    if (localEngine == null) {
+                    val localEngineAvailable = koinInject<com.pusios.pots.data.DataRepository>().isLocalInferenceAvailable()
+                    if (!localEngineAvailable) {
                         Text(
                             text = "Инструмент не поддерживается на этом компьютере.",
                             style = MaterialTheme.typography.bodySmall,
@@ -671,13 +661,14 @@ private fun ServiceSettings(
 
     Spacer(Modifier.height(8.dp))
 
-    val isReferralProvider = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel)
+    val isReferralProvider = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim)
     if (isReferralProvider) {
         val uriHandler = LocalUriHandler.current
         val instruction = when (service) {
             Service.Polza -> "Polza.ai → Вход/Регистрация → API-Ключи → Создать и скопировать ключ → Вставить здесь"
             Service.Gptunnel -> "GPTunnel → Вход/Регистрация → Профиль → API-Ключи → Создать и скопировать ключ → Вставить здесь"
             Service.AiTunnel -> "AITUNNEL → Вход/Регистрация → Ключи API → Создать и скопировать ключ → Вставить здесь"
+            Service.Prosvetim -> "Prosvetim → Личный кабинет → API-Ключи → Создать и скопировать ключ → Вставить здесь"
             else -> ""
         }
         Text(
@@ -719,7 +710,7 @@ private fun ServiceSettings(
     Spacer(Modifier.height(16.dp))
 
     if (connectionStatus == ConnectionStatus.Connected || models.isNotEmpty()) {
-        ModelSelection(selectedModel, models, onSelectModel, showExtendedSorts = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel))
+        ModelSelection(selectedModel, models, onSelectModel, showExtendedSorts = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim))
     }
 }
 

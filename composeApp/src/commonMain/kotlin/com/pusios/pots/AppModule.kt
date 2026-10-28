@@ -130,8 +130,7 @@ val appModule = module {
     single<SkillManager> {
         SkillManager(get<SandboxController>())
     }
-    single<com.pusios.pots.inference.LocalInferenceEngine?> { createLocalInferenceEngine() }
-    single<com.pusios.pots.data.VectorizationManager> { createVectorizationManager(get(), get()) }
+    single<com.pusios.pots.data.VectorizationManager> { createVectorizationManager(createLocalInferenceEngine(), get()) }
     single<RemoteDataRepository> {
         RemoteDataRepository(
             requests = get(),
@@ -155,7 +154,7 @@ val appModule = module {
             mcpServerManager = get(),
             skillManager = get(),
             sandboxController = get(),
-            localInferenceEngine = get(),
+            localInferenceEngine = createLocalInferenceEngine(),
         )
     }
     single<DataRepository> { get<RemoteDataRepository>() }

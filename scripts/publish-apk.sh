@@ -113,6 +113,11 @@ say "building the $VARIANT APK"
 
 if [ ! -f "$APK" ]; then
     # The flavour folder is named after the flavour, not the build type.
+    # Prefer a release APK: a stale debug build from an earlier check must
+    # never shadow the release on the dashboard.
+    APK="$(find androidApp/build/outputs/apk -name '*release*.apk' -newer gradle/libs.versions.toml | head -1)"
+fi
+if [ ! -f "$APK" ]; then
     APK="$(find androidApp/build/outputs/apk -name '*.apk' -newer gradle/libs.versions.toml | head -1)"
 fi
 if [ ! -f "$APK" ]; then

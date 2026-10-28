@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -26,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.LocalAppLanguageCode
 import com.pusios.pots.data.AppLanguage
 import com.pusios.pots.data.ThemeMode
+import com.pusios.pots.data.TtsEngine
 import com.pusios.pots.ui.PotsOutlinedTextField
 import com.pusios.pots.ui.background.AnimatedBackground
 import com.pusios.pots.ui.components.PotsSlider
@@ -50,6 +53,22 @@ import pots.composeapp.generated.resources.settings_theme_description
 import pots.composeapp.generated.resources.settings_theme_light
 import pots.composeapp.generated.resources.settings_theme_oled
 import pots.composeapp.generated.resources.settings_theme_system
+import pots.composeapp.generated.resources.settings_tts
+import pots.composeapp.generated.resources.settings_tts_description
+import pots.composeapp.generated.resources.settings_tts_engine
+import pots.composeapp.generated.resources.settings_tts_engine_cloud
+import pots.composeapp.generated.resources.settings_tts_engine_cloud_description
+import pots.composeapp.generated.resources.settings_tts_engine_native
+import pots.composeapp.generated.resources.settings_tts_engine_native_description
+import pots.composeapp.generated.resources.settings_tts_engine_piper
+import pots.composeapp.generated.resources.settings_tts_engine_piper_description
+import pots.composeapp.generated.resources.settings_tts_piper_soon
+import pots.composeapp.generated.resources.settings_tts_piper_voice
+import pots.composeapp.generated.resources.settings_tts_pitch
+import pots.composeapp.generated.resources.settings_tts_rate
+import pots.composeapp.generated.resources.settings_tts_system_voice
+import pots.composeapp.generated.resources.settings_tts_system_voice_auto
+import pots.composeapp.generated.resources.settings_tts_voices_unavailable
 import pots.composeapp.generated.resources.settings_ui_scale
 import kotlin.math.roundToInt
 
@@ -75,6 +94,18 @@ internal fun GeneralContent(uiState: SettingsUiState, actions: SettingsActions) 
                 AppLanguagePicker(
                     appLanguage = uiState.appLanguage,
                     onChangeAppLanguage = actions.onChangeAppLanguage,
+                )
+            }
+            SettingsCard {
+                TtsSection(
+                    engine = uiState.ttsEngine,
+                    systemVoice = uiState.ttsSystemVoice,
+                    rate = uiState.ttsRate,
+                    pitch = uiState.ttsPitch,
+                    onChangeEngine = actions.onChangeTtsEngine,
+                    onChangeSystemVoice = actions.onChangeTtsSystemVoice,
+                    onChangeRate = actions.onChangeTtsRate,
+                    onChangePitch = actions.onChangeTtsPitch,
                 )
             }
             SettingsCard {
@@ -195,6 +226,138 @@ private fun AppLanguagePicker(
             }
         }
     }
+}
+
+@Composable
+private fun TtsSection(
+    engine: TtsEngine,
+    systemVoice: String,
+    rate: Float,
+    pitch: Float,
+    onChangeEngine: (TtsEngine) -> Unit,
+    onChangeSystemVoice: (String) -> Unit,
+    onChangeRate: (Float) -> Unit,
+    onChangePitch: (Float) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(Res.string.settings_tts),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = stringResource(Res.string.settings_tts_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+        )
+        Text(
+            text = stringResource(Res.string.settings_tts_engine),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        val engineOptions = listOf(
+            Triple(TtsEngine.Native, stringResource(Res.string.settings_tts_engine_native), stringResource(Res.string.settings_tts_engine_native_description)),
+            Triple(TtsEngine.Piper, stringResource(Res.string.settings_tts_engine_piper), stringResource(Res.string.settings_tts_engine_piper_description)),
+            Triple(TtsEngine.Cloud, stringResource(Res.string.settings_tts_engine_cloud), stringResource(Res.string.settings_tts_engine_cloud_description)),
+        )
+        engineOptions.forEach { (option, label, description) ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = label, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (option == TtsEngine.Cloud) {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+                androidx.compose.material3.RadioButton(
+                    selected = engine == option,
+                    onClick = if (option == TtsEngine.Cloud) null else ({ onChangeEngine(option) }),
+                    enabled = option != TtsEngine.Cloud,
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        when (engine) {
+            TtsEngine.Native -> NativeVoicePicker(
+                selectedVoice = systemVoice,
+                onChangeVoice = onChangeSystemVoice,
+            )
+
+            TtsEngine.Piper -> {
+                Text(
+                    text = stringResource(Res.string.settings_tts_piper_voice),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(Res.string.settings_tts_piper_soon),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+
+            TtsEngine.Cloud -> Unit
+        }
+        Spacer(Modifier.height(8.dp))
+        RatePitchSlider(
+            label = stringResource(Res.string.settings_tts_rate),
+            value = rate,
+            onChange = onChangeRate,
+        )
+        RatePitchSlider(
+            label = stringResource(Res.string.settings_tts_pitch),
+            value = pitch,
+            onChange = onChangePitch,
+        )
+    }
+}
+
+@Composable
+internal expect fun NativeVoicePicker(
+    selectedVoice: String,
+    onChangeVoice: (String) -> Unit,
+)
+
+@Composable
+private fun RatePitchSlider(
+    label: String,
+    value: Float,
+    onChange: (Float) -> Unit,
+) {
+    var sliderValue by remember(value) { mutableStateOf(value) }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = "${(sliderValue * 100).roundToInt()}%",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+    }
+    PotsSlider(
+        value = sliderValue,
+        onValueChange = { sliderValue = it },
+        onValueChangeFinished = { onChange(sliderValue) },
+        valueRange = 0.5f..2.0f,
+        steps = 14,
+    )
 }
 
 @Composable

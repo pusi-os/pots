@@ -33,6 +33,10 @@ fun main() {
         System.setProperty("sun.java2d.uiScale", "auto")
     }
     application {
+        // The window only sets the initial size: everything inside the content
+        // follows the live window size, so resizing stretches/shrinks the chat,
+        // the settings columns and the character canvas with it. A minimum size
+        // keeps the toolbars and pickers usable when the window gets small.
         val windowState = rememberWindowState(size = DpSize(1280.dp, 800.dp))
         Window(
             onCloseRequest = ::exitApplication,
@@ -40,6 +44,9 @@ fun main() {
             title = "Pots",
             icon = painterResource(Res.drawable.logo),
         ) {
+            LaunchedEffect(Unit) {
+                window.minimumSize = java.awt.Dimension(640, 480)
+            }
             // Defer TTS initialization until after the first frame
             var ttsReady by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) { ttsReady = true }

@@ -1,6 +1,6 @@
 # Потсик (Potsik)
 
-**Last verified:** 2026-10-27
+**Last verified:** 2026-10-28
 
 Потсик is the animated character that keeps you company in the chat. He is
 drawn entirely in code — no images, no sprite sheets, no animation files — so he
@@ -237,7 +237,7 @@ the recovery source if writing the readable profile folder fails.
 
 ## The costumes
 
-All eighteen, with the firmware's names and the names the product gave them.
+All seventeen, with the firmware's names and the names the product gave them.
 The app has no catch counter, so every costume is available from the start.
 
 | Costume | Name | What it is |
@@ -254,19 +254,18 @@ The app has no catch counter, so every costume is available from the start.
 | `CAPTAIN` | Капитан | The tricorn with the gold braid and the skull and crossbones |
 | `CHROMEWING` | Хром крыло (Инсектоид) | The chrome wings, flapping behind him, with the shine that slides along them |
 | `VOIDEYE` | Глаз пустоты | His head becomes a sphere of stars, with an iris that snaps to a new place and holds, and a lid that blinks |
-| `PARKA` | Снежная парка (Кенни) | The snow parka: the hood, the mittens, the swinging drawstrings, the arms brought back over the hood |
+| `PARKA` | Снежная парка (Кенни) | The snow parka: the hood with its fur front rim, the mittens, the swinging drawstrings, the arms brought back over the hood |
 | `YZZERD` | Йззерд (Волшебник) | The robe, the wide hat, the forked beard, the orbiting orb with its trail of motes, the gold star going the other way |
 | `OVER9000` | Свыше 9000 (Гермес) | The gi, the eight swaying spikes of hair, the fringe, the scouter, the statics |
 | `SHAMBLER` | Шамблер (Фрэнки) | Green-grey, the torn jeans and the torn shirt, the scar, the bandage, the flies |
 | `TH3_0N3` | Избранный | The coat with its stirring hem, the round glasses with the code falling inside them |
-| `STRIPES` | Полосатый | The prison stripes, the cap, the number on his chest, the iron cuff on his ankle |
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `composeApp/.../ui/potsik/PotsikBody.kt` | The character: the firmware's `drawBody()`, shape for shape |
-| `composeApp/.../ui/potsik/PotsikCostumes.kt` | The eighteen costumes: the firmware's `drawOutfit()` |
+| `composeApp/.../ui/potsik/PotsikCostumes.kt` | The seventeen costumes: the firmware's `drawOutfit()` |
 | `composeApp/.../ui/potsik/PotsikEngine.kt` | His behaviour: the moods, the timings, the touch reactions, the idle roll |
 | `composeApp/.../ui/potsik/PotsikBanter.kt` | The lines he says, English and Russian side by side |
 | `composeApp/.../ui/potsik/PotsikBubble.kt` | The bubble above his head |

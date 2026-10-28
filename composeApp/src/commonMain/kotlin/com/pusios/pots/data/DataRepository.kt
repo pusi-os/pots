@@ -143,6 +143,18 @@ interface DataRepository {
     fun getAppLanguage(): com.pusios.pots.data.AppLanguage
     fun setAppLanguage(mode: com.pusios.pots.data.AppLanguage)
 
+    // Speech (TTS)
+    fun getTtsEngine(): com.pusios.pots.data.TtsEngine
+    fun setTtsEngine(engine: com.pusios.pots.data.TtsEngine)
+    fun getTtsSystemVoice(): String
+    fun setTtsSystemVoice(voiceName: String)
+    fun getTtsPiperVoice(): String
+    fun setTtsPiperVoice(voiceId: String)
+    fun getTtsRate(): Float
+    fun setTtsRate(rate: Float)
+    fun getTtsPitch(): Float
+    fun setTtsPitch(pitch: Float)
+
     fun getAnimatedBackground(): com.pusios.pots.ui.background.AnimatedBackground
     fun setAnimatedBackground(kind: com.pusios.pots.ui.background.AnimatedBackground)
 
@@ -303,6 +315,7 @@ interface DataRepository {
 
     // On-device inference (LiteRT)
     fun isLocalInferenceAvailable(): Boolean
+    fun getLocalInferenceEngine(): com.pusios.pots.inference.LocalInferenceEngine?
     fun getLocalEngineState(): StateFlow<EngineState>?
     fun getLocalDownloadedModels(): List<DownloadedModel>
     fun getLocalAvailableModels(): List<LocalModel>

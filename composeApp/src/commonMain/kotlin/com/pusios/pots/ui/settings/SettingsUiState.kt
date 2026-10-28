@@ -125,6 +125,11 @@ data class SettingsUiState(
     val isFreeFallbackEnabled: Boolean = true,
     val uiScale: Float = 1.0f,
     val showUiScale: Boolean = false,
+    val ttsEngine: com.pusios.pots.data.TtsEngine = com.pusios.pots.data.TtsEngine.Native,
+    val ttsSystemVoice: String = "",
+    val ttsPiperVoice: String = "",
+    val ttsRate: Float = 1.0f,
+    val ttsPitch: Float = 1.0f,
     val mcpServers: ImmutableList<McpServerUiState> = persistentListOf(),
     val showAddMcpServerDialog: Boolean = false,
     /** Tools and MCP servers the on-device model may call, already resolved to the effective set. */

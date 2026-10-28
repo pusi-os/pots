@@ -51,6 +51,20 @@ enum class AppLanguage {
 }
 
 /**
+ * Which speech engine reads answers aloud.
+ *
+ * NATIVE is the platform engine (Android system TTS — the default, as before);
+ * PIPER is the bundled offline engine (downloaded models, works on desktop and
+ * mobile); CLOUD is a future server-side voice via an OpenAI-compatible
+ * inference endpoint (placeholder for now).
+ */
+enum class TtsEngine {
+    Native,
+    Piper,
+    Cloud,
+}
+
+/**
  * Stricter than [detectImportSections]: only includes sections that contain actual user data,
  * skipping ones that exist purely because of default feature-toggle flags (e.g. `sms_enabled = false`,
  * `splinterlands_enabled = false`, `mcp_servers = []`). Used to drive the Export preview dialog.
@@ -688,6 +702,69 @@ class AppSettings(internal val settings: Settings) {
         return AppLanguage.System
     }
 
+    // Speech (TTS): engine, voices, rate and pitch.
+    private val _ttsEngineFlow = MutableStateFlow(loadInitialTtsEngine())
+    val ttsEngineFlow: StateFlow<TtsEngine> = _ttsEngineFlow
+
+    fun getTtsEngine(): TtsEngine = _ttsEngineFlow.value
+
+    fun setTtsEngine(engine: TtsEngine) {
+        settings.putString(KEY_TTS_ENGINE, engine.name)
+        _ttsEngineFlow.value = engine
+    }
+
+    private fun loadInitialTtsEngine(): TtsEngine {
+        val raw = settings.getString(KEY_TTS_ENGINE, "")
+        if (raw.isNotEmpty()) {
+            return try {
+                TtsEngine.valueOf(raw)
+            } catch (_: IllegalArgumentException) {
+                TtsEngine.Native
+            }
+        }
+        return TtsEngine.Native
+    }
+
+    private val _ttsSystemVoiceFlow = MutableStateFlow(settings.getString(KEY_TTS_SYSTEM_VOICE, ""))
+    val ttsSystemVoiceFlow: StateFlow<String> = _ttsSystemVoiceFlow
+
+    fun getTtsSystemVoice(): String = _ttsSystemVoiceFlow.value
+
+    fun setTtsSystemVoice(voiceName: String) {
+        settings.putString(KEY_TTS_SYSTEM_VOICE, voiceName)
+        _ttsSystemVoiceFlow.value = voiceName
+    }
+
+    private val _ttsPiperVoiceFlow = MutableStateFlow(settings.getString(KEY_TTS_PIPER_VOICE, ""))
+    val ttsPiperVoiceFlow: StateFlow<String> = _ttsPiperVoiceFlow
+
+    fun getTtsPiperVoice(): String = _ttsPiperVoiceFlow.value
+
+    fun setTtsPiperVoice(voiceId: String) {
+        settings.putString(KEY_TTS_PIPER_VOICE, voiceId)
+        _ttsPiperVoiceFlow.value = voiceId
+    }
+
+    private val _ttsRateFlow = MutableStateFlow(settings.getFloat(KEY_TTS_RATE, 1.0f))
+    val ttsRateFlow: StateFlow<Float> = _ttsRateFlow
+
+    fun getTtsRate(): Float = _ttsRateFlow.value
+
+    fun setTtsRate(rate: Float) {
+        settings.putFloat(KEY_TTS_RATE, rate.coerceIn(0.5f, 2.0f))
+        _ttsRateFlow.value = rate.coerceIn(0.5f, 2.0f)
+    }
+
+    private val _ttsPitchFlow = MutableStateFlow(settings.getFloat(KEY_TTS_PITCH, 1.0f))
+    val ttsPitchFlow: StateFlow<Float> = _ttsPitchFlow
+
+    fun getTtsPitch(): Float = _ttsPitchFlow.value
+
+    fun setTtsPitch(pitch: Float) {
+        settings.putFloat(KEY_TTS_PITCH, pitch.coerceIn(0.5f, 2.0f))
+        _ttsPitchFlow.value = pitch.coerceIn(0.5f, 2.0f)
+    }
+
     // Потсик — the animated character.
     //
     // Legacy individual appearance fields are read once while creating the
@@ -1031,6 +1108,11 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_OLED_MODE_ENABLED = "oled_mode_enabled"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_APP_LANGUAGE = "app_language"
+        const val KEY_TTS_ENGINE = "tts_engine"
+        const val KEY_TTS_SYSTEM_VOICE = "tts_system_voice"
+        const val KEY_TTS_PIPER_VOICE = "tts_piper_voice"
+        const val KEY_TTS_RATE = "tts_rate"
+        const val KEY_TTS_PITCH = "tts_pitch"
         const val KEY_ANIMATED_BACKGROUND = "animated_background"
         const val KEY_DAEMON_ENABLED = "daemon_enabled"
         const val KEY_HEARTBEAT_CONFIG = "heartbeat_config"

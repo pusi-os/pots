@@ -2,6 +2,7 @@ package com.pusios.pots.testutil
 
 import com.pusios.pots.data.AgentProfile
 import com.pusios.pots.data.AgentTuning
+import com.pusios.pots.data.AppLanguage
 import com.pusios.pots.data.Conversation
 import com.pusios.pots.data.DataRepository
 import com.pusios.pots.data.EmailAccount
@@ -20,12 +21,12 @@ import com.pusios.pots.data.ServiceInstance
 import com.pusios.pots.data.SmsDraft
 import com.pusios.pots.data.SmsSyncState
 import com.pusios.pots.data.SystemPromptVariant
-import com.pusios.pots.data.AppLanguage
 import com.pusios.pots.data.ThemeMode
 import com.pusios.pots.data.ensureSelectedModelPresent
 import com.pusios.pots.inference.DownloadError
 import com.pusios.pots.inference.DownloadedModel
 import com.pusios.pots.inference.EngineState
+import com.pusios.pots.inference.LocalInferenceEngine
 import com.pusios.pots.inference.LocalModel
 import com.pusios.pots.inference.ModelImportError
 import com.pusios.pots.inference.ModelImportResult
@@ -464,6 +465,36 @@ class FakeDataRepository : DataRepository {
         appLanguage = mode
     }
 
+    private var ttsEngine: com.pusios.pots.data.TtsEngine = com.pusios.pots.data.TtsEngine.Native
+    override fun getTtsEngine(): com.pusios.pots.data.TtsEngine = ttsEngine
+    override fun setTtsEngine(engine: com.pusios.pots.data.TtsEngine) {
+        ttsEngine = engine
+    }
+
+    private var ttsSystemVoice: String = ""
+    override fun getTtsSystemVoice(): String = ttsSystemVoice
+    override fun setTtsSystemVoice(voiceName: String) {
+        ttsSystemVoice = voiceName
+    }
+
+    private var ttsPiperVoice: String = ""
+    override fun getTtsPiperVoice(): String = ttsPiperVoice
+    override fun setTtsPiperVoice(voiceId: String) {
+        ttsPiperVoice = voiceId
+    }
+
+    private var ttsRate: Float = 1.0f
+    override fun getTtsRate(): Float = ttsRate
+    override fun setTtsRate(rate: Float) {
+        ttsRate = rate
+    }
+
+    private var ttsPitch: Float = 1.0f
+    override fun getTtsPitch(): Float = ttsPitch
+    override fun setTtsPitch(pitch: Float) {
+        ttsPitch = pitch
+    }
+
     private var animatedBackground: com.pusios.pots.ui.background.AnimatedBackground =
         com.pusios.pots.ui.background.AnimatedBackground.NONE
 
@@ -730,6 +761,7 @@ class FakeDataRepository : DataRepository {
     var localInferenceAvailable = false
     var fakeLocalDownloadedModels: List<DownloadedModel> = emptyList()
     override fun isLocalInferenceAvailable(): Boolean = localInferenceAvailable
+    override fun getLocalInferenceEngine(): com.pusios.pots.inference.LocalInferenceEngine? = null
     override fun getLocalEngineState(): StateFlow<EngineState>? = null
     override fun getLocalDownloadedModels(): List<DownloadedModel> = fakeLocalDownloadedModels
     override fun getLocalAvailableModels(): List<LocalModel> = emptyList()
