@@ -1127,6 +1127,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#additional-finding-liquidai-fp8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Additional finding: LiquidAI FP8
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#summary-of-useful-links" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1185,6 +1196,10 @@
 <ul>
 <li>There is no official LiteRT-LM bundle. The only public conversion is community-maintained (<code>cheesefelys/LFM3-1.7B-litertlm</code>, 889 MB, 23 downloads) and has not been validated against Pots' tool/voice requirements. Link only; do not ship as a download until verified.</li>
 <li><code>LFM3-Audio-2B</code> is GGUF-only officially (<code>LiquidAI/LFM3-Audio-2B-GGUF</code>); its LiteRT counterpart is not published. Until a llama.cpp runtime is integrated, it cannot be used for on-device inference in Pots.</li>
+</ul>
+<h2 id="additional-finding-liquidai-fp8">Additional finding: LiquidAI FP8</h2>
+<ul>
+<li><code>LiquidAI/LFM3-1.7B-FP8</code> ships a 2.2 GB FP8 safetensors snapshot but no GGUF or LiteRT bundle. It is useful as a reference weight format, not as a directly runnable on-device option in Pots today.</li>
 </ul>
 <h2 id="summary-of-useful-links">Summary of useful links</h2>
 <ul>
