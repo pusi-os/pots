@@ -1736,7 +1736,8 @@ class RemoteDataRepository(
     override fun supportedFileExtensions(): List<String> {
         val service = currentService()
         if (service.isOnDevice) {
-            val allowsImages = localInferenceEngine?.getAvailableModels()?.firstOrNull { it.id == currentModelId() }?.supportsImages == true
+            val allowsImages = localInferenceEngine?.getAvailableModels()?.firstOrNull { it.id == currentModelId() }?.supportsImages == true ||
+                com.pusios.pots.inference.MODEL_CATALOG.firstOrNull { it.id == currentModelId() }?.supportsImages == true
             val extensionSet = if (allowsImages) supportedFileExtensions.toSet() else (supportedFileExtensions - imageExtensions)
             return extensionSet.toList()
         }

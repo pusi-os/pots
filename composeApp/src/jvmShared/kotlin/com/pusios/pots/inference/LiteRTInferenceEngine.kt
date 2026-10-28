@@ -294,7 +294,8 @@ class LiteRTInferenceEngine : LocalInferenceEngine {
     }
 
     private fun buildContents(msg: InferenceMessage, sanitizedContent: String?): com.google.ai.edge.litertlm.Contents {
-        val allowImages = currentModelCapabilities?.supportsVision == true
+        val allowImages = currentModelCapabilities?.supportsVision == true ||
+            MODEL_CATALOG.firstOrNull { it.id == currentModelId }?.supportsImages == true
         val parts = mutableListOf<com.google.ai.edge.litertlm.Content>()
         val textPrefix = msg.attachments?.filter { it.mimeType.isTextMimeType() }?.joinToString("\n\n") { att ->
             runCatching { Base64.decode(att.data).decodeToString() }

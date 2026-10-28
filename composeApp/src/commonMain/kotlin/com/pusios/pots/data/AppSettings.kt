@@ -440,7 +440,8 @@ class AppSettings(internal val settings: Settings) {
     }
 
     // Tool enable/disable settings
-    fun isToolEnabled(toolId: String, defaultEnabled: Boolean = true): Boolean = getActiveAgentProfile().toolOverrides[toolId] ?: defaultEnabled
+    fun isToolEnabled(toolId: String, defaultEnabled: Boolean = true): Boolean = getActiveAgentProfile().toolOverrides[toolId] ?: defaultEnabled ||
+        getLocalToolSelection().toolIds.contains(toolId)
 
     fun setToolEnabled(toolId: String, enabled: Boolean) {
         updateActiveAgentProfile { copy(toolOverrides = toolOverrides + (toolId to enabled)) }
