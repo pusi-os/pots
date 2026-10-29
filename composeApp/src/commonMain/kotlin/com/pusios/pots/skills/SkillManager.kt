@@ -39,6 +39,9 @@ class SkillManager(
     val skills: StateFlow<List<SkillManifest>> = _skills
 
     init {
+        // Make bundled skills (including create-skill) available even before the sandbox
+        // finishes installing, so the slash menu and Settings list show them right away.
+        scope.launch { runCatching { load() } }
         // Load once the sandbox is installed (the file ops resolve real paths only
         // then); the StateFlow re-emits when it flips, so reset/install refresh too.
         scope.launch {
