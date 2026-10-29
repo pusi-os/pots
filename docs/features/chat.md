@@ -1,6 +1,6 @@
 # Chat & Conversations
 
-**Last verified:** 2026-10-25
+**Last verified:** 2026-10-29
 
 Pots's chat system manages the message history, conversation persistence, file attachments, and speech output. Conversations are service-independent — switching providers does not affect which conversation is loaded or restored. Multiple conversations are persisted and browsable via a history sheet.
 

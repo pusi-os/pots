@@ -209,16 +209,26 @@ class RemoteDataRepository(
         val selection = appSettings.getLocalToolSelection()
 
         val selectedBuiltIn = if (selection.configured) {
-            builtInTools.filter { it.schema.name in selection.toolIds }
+            val filtered = builtInTools.filter { tool -> selection.toolIds.any { id -> id.equals(tool.schema.name, ignoreCase = true) } }
+            if (filtered.isEmpty()) {
+                // Guard against a stale/mismatched selection: keep the built-in defaults
+                // rather than silently handing the model no tools at all.
+                builtInTools.filter { it.schema.name in LOCAL_TOOL_ALLOWLIST }
+            } else {
+                filtered
+            }
         } else {
             builtInTools.filter { it.schema.name in LOCAL_TOOL_ALLOWLIST }
         }
 
-        // MCP tools are handed to the local model too: the engine drives the tool loop itself,
-        // so an MCP tool is called exactly like a built-in one. Which servers contribute is
-        // the user's call — by default every enabled server does.
         val selectedMcp = if (selection.configured) {
-            mcpTools.filter { it.serverId in selection.mcpServerIds }
+            val filtered = mcpTools.filter { it.serverId in selection.mcpServerIds }
+            if (filtered.isEmpty() && mcpTools.isNotEmpty() && selection.mcpServerIds.isEmpty()) {
+                // Unconfigured-looking but flagged configured: keep all enabled servers
+                mcpTools
+            } else {
+                filtered
+            }
         } else {
             mcpTools
         }
@@ -233,14 +243,7 @@ class RemoteDataRepository(
      * metadata.
      */
     private suspend fun localModelDeclaresTools(modelId: String): Boolean {
-        // Trust the user's explicit local-tool selection over the bundle's self-report.
-        // Otherwise capable models (LFM XML templates, Gemma metadata lag) can advertise
-        // `supportsFunctionCalling == false` and strip tools activated in settings.
-        val available = getAvailableTools()
-        val selection = appSettings.getLocalToolSelection()
-        val activeIds = if (selection.configured) selection.toolIds.toSet() else LOCAL_TOOL_ALLOWLIST
-        if (available.any { it.schema.name in activeIds }) return true
-        if (!selection.configured) return getLocalSafeTools().isNotEmpty()
+        if (getLocalSafeTools().isNotEmpty()) return true
         return localInferenceEngine?.modelCapabilities(modelId)?.supportsFunctionCalling != false
     }
 
@@ -257,11 +260,13 @@ class RemoteDataRepository(
     private var sessionTokenCount: Int = 0
     private var sessionPromptTokenCount: Int = 0
     private var sessionCompletionTokenCount: Int = 0
+    private var lastRequestPromptTokens: Int = 0
 
     private fun seedSessionCounters(metrics: TurnMetrics?) {
         sessionTokenCount = metrics?.sessionTokens ?: 0
         sessionPromptTokenCount = metrics?.sessionPromptTokens ?: 0
         sessionCompletionTokenCount = metrics?.sessionCompletionTokens ?: 0
+        lastRequestPromptTokens = metrics?.promptTokens ?: 0
     }
 
     /** Rebuilds the running totals from the newest reply still in the history. */
@@ -898,12 +903,10 @@ class RemoteDataRepository(
             askInternal(question, files, uiSubmission)
         } finally {
             pendingActiveSkillId = null
-            // The create-skill flow writes a new /root/skills/<id>/SKILL.md via
-            // execute_shell_command; rescan so it shows up in the slash menu and Settings
-            // without a restart. Cheap (one listDirectory) and only runs on those turns.
-            if (resolvedSkillId == createSkillId) {
-                skillManager.load()
-            }
+            // The create-skill flow (and any other path that writes into ~/skills) must
+            // be reflected in the installed-skills list without a restart. Rescan after
+            // every turn so agent-authored skills show up in Settings → Tools → Skills.
+            runCatching { skillManager.load() }
         }
     }
 
@@ -1046,9 +1049,15 @@ class RemoteDataRepository(
                 val promptTokens = turn.usage?.promptTokens ?: 0
                 val completionTokens = turn.usage?.completionTokens ?: 0
                 val totalTokens = turn.usage?.totalTokens?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
-                sessionTokenCount += totalTokens
-                sessionPromptTokenCount += promptTokens
+                // The API reports the full prompt (including the whole history) in every response,
+                // so advancing the running prompt total by the whole value double-counts the
+                // context. Raise it only by the growth over the previous request instead; the
+                // completion count keeps accumulating normally.
+                val promptDelta = (promptTokens - lastRequestPromptTokens).coerceAtLeast(0)
+                if (promptTokens > lastRequestPromptTokens) lastRequestPromptTokens = promptTokens
+                sessionPromptTokenCount += promptDelta
                 sessionCompletionTokenCount += completionTokens
+                sessionTokenCount = sessionPromptTokenCount + sessionCompletionTokenCount
                 val turnMetrics = TurnMetrics(
                     sessionTokens = sessionTokenCount,
                     sessionPromptTokens = sessionPromptTokenCount,
@@ -1059,7 +1068,7 @@ class RemoteDataRepository(
                     durationMs = durationMs,
                     promptTokens = promptTokens,
                     completionTokens = completionTokens,
-                    totalTokens = totalTokens,
+                    totalTokens = promptTokens + completionTokens,
                 )
                 chatHistory.update {
                     it.toMutableList().apply {
@@ -1189,9 +1198,11 @@ class RemoteDataRepository(
         var iteration = 0
         val recentSignatures = mutableListOf<String>()
         val toolCallTimestamps = mutableListOf<Long>()
-        // A turn can take several provider rounds (one per tool call). Every round bills its own
-        // tokens, so the turn's usage is the sum over all of them.
-        var promptTokens = 0
+        // A turn can take several provider rounds (one per tool call). Every round bills
+        // its own completion tokens, but the prompt it bills is the full context of that
+        // round — accumulating all of them double-counts the context. Keep the latest
+        // prompt size for context accounting and sum the completions.
+        var lastPromptTokens = 0
         var completionTokens = 0
         var totalTokens = 0
         var sawUsage = false
@@ -1212,7 +1223,7 @@ class RemoteDataRepository(
             val result = strategy.chat(visible, systemPrompt)
             result.usage?.let { usage ->
                 sawUsage = true
-                promptTokens += usage.promptTokens
+                lastPromptTokens = usage.promptTokens.takeIf { it > 0 } ?: lastPromptTokens
                 completionTokens += usage.completionTokens
                 totalTokens += usage.totalTokens
             }
@@ -1223,7 +1234,7 @@ class RemoteDataRepository(
                 return AssistantTurn(
                     result.textContent,
                     reasoning,
-                    usage = if (sawUsage) TokenUsage(promptTokens, completionTokens, totalTokens) else null,
+                    usage = if (sawUsage) TokenUsage(lastPromptTokens, completionTokens, lastPromptTokens + completionTokens) else null,
                 )
             }
 
@@ -1837,6 +1848,7 @@ class RemoteDataRepository(
         sessionTokenCount = 0
         sessionPromptTokenCount = 0
         sessionCompletionTokenCount = 0
+        lastRequestPromptTokens = 0
     }
 
     override fun popLastExchange() {

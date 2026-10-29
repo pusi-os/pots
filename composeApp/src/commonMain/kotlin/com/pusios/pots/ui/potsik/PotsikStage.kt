@@ -534,8 +534,8 @@ class PotsikStage {
             // put him somewhere. Keep that, centred, until the layout has
             // something to say.
             PotsikPlacement(
-                x = pinned?.x ?: PotsikPlacement.FALLBACK_X,
-                y = pinned?.y ?: PotsikPlacement.FALLBACK_Y,
+                x = pinned?.x ?: _placement.value.x,
+                y = pinned?.y ?: _placement.value.y,
                 scale = factors * _userScale.value,
             )
         } else {

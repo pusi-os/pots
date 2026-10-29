@@ -315,6 +315,9 @@ class AppSettings(internal val settings: Settings) {
     }
 
     fun isActiveProfileSkillEnabled(skillId: String): Boolean {
+        // Built-in skills ship with the app and cannot be uninstalled; keep them available
+        // to every agent profile so the model can always reach them.
+        if (skillId in setOf("create-skill", "obsidian-vault")) return true
         val profile = getActiveAgentProfile()
         return !profile.skillSelectionConfigured || skillId in profile.enabledSkillIds
     }
@@ -440,8 +443,10 @@ class AppSettings(internal val settings: Settings) {
     }
 
     // Tool enable/disable settings
-    fun isToolEnabled(toolId: String, defaultEnabled: Boolean = true): Boolean = getActiveAgentProfile().toolOverrides[toolId] ?: defaultEnabled ||
-        getLocalToolSelection().toolIds.contains(toolId)
+    fun isToolEnabled(toolId: String, defaultEnabled: Boolean = true): Boolean = getActiveAgentProfile().toolOverrides[toolId] ?: (
+        defaultEnabled ||
+            getLocalToolSelection().toolIds.contains(toolId)
+        )
 
     fun setToolEnabled(toolId: String, enabled: Boolean) {
         updateActiveAgentProfile { copy(toolOverrides = toolOverrides + (toolId to enabled)) }

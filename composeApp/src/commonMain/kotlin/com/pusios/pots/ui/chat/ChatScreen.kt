@@ -1322,7 +1322,10 @@ private fun ChatModeScreen(
                     files = uiState.files,
                     addFile = uiState.actions.addFile,
                     removeFile = uiState.actions.removeFile,
-                    ask = uiState.actions.ask,
+                    ask = { text ->
+                        keyboardController?.hide()
+                        uiState.actions.ask(text)
+                    },
                     supportedFileExtensions = uiState.supportedFileExtensions,
                     textState = questionInputText,
                     onTextStateChange = { questionInputText = it },
