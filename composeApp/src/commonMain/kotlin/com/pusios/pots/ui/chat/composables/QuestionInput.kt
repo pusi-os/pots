@@ -277,7 +277,9 @@ fun QuestionInput(
         )
         val inInspection = LocalInspectionMode.current
         LaunchedEffect(Unit) {
-            if (!inInspection) focusRequester.requestFocus()
+            // On mobile the keyboard must never pop up on its own — only when the user
+            // explicitly taps the composer. Desktop still grabs focus for convenience.
+            if (!inInspection && currentPlatform !is Platform.Mobile) focusRequester.requestFocus()
         }
     }
 }

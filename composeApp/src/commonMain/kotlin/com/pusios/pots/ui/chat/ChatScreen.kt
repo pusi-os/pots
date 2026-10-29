@@ -218,6 +218,10 @@ fun ChatScreenContent(
 
     // The character's stage. The app hands in the one the agent's tool writes
     // to; a preview that has no app behind it gets its own.
+    val screenKeyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(uiState.isLoading) {
+        if (uiState.isLoading) screenKeyboardController?.hide()
+    }
     val stage = potsikStage ?: remember { PotsikStage() }
 
     // Where he was left is the chat's business, so it is written back into
@@ -240,7 +244,10 @@ fun ChatScreenContent(
             scope = handsFreeScope,
             textToSpeech = textToSpeech,
             speechToText = speechToText,
-            onSubmit = { question -> uiState.actions.ask(question) },
+            onSubmit = { question ->
+                screenKeyboardController?.hide()
+                uiState.actions.ask(question)
+            },
         )
     }
     DisposableEffect(speechToText) {
