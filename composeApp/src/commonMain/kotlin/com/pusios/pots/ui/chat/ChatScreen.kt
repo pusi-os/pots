@@ -76,6 +76,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -808,6 +809,7 @@ private fun ChatModeScreen(
         mutableStateOf(TextFieldValue(""))
     }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Speak every new assistant reply while the hands-free loop is running. The effect is
@@ -1324,6 +1326,7 @@ private fun ChatModeScreen(
                     removeFile = uiState.actions.removeFile,
                     ask = { text ->
                         keyboardController?.hide()
+                        focusManager.clearFocus(force = true)
                         uiState.actions.ask(text)
                     },
                     supportedFileExtensions = uiState.supportedFileExtensions,
