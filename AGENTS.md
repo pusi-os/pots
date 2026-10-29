@@ -88,7 +88,7 @@ and verifies the APK certificate. Do not bypass that check when publishing.
   action.
 - The only repository branding link is `pusi-os/pots`. Package ids, flatpak
   app ids, and desktop identifiers remain as installed (`com.pusios.pots`,
-  `io.github.pusi-os.Pots`).
+  `io.github.pusi.Pots`).
 
 ## Docs to keep in sync
 

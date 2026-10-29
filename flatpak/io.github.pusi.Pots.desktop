@@ -2,7 +2,7 @@
 Name=Pots
 Comment=AI assistant powered by Ollama, Gemini, ChatGPT and more
 Exec=pots-wrapper
-Icon=io.github.pusi-os.Pots
+Icon=io.github.pusi.Pots
 Type=Application
 Categories=Utility;Network;
 Keywords=AI;Chat;Ollama;Gemini;LLM;Assistant;

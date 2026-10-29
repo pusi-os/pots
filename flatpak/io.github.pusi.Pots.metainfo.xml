@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.pusi-os.Pots</id>
+  <id>io.github.pusi.Pots</id>
 
   <name>Pots</name>
   <summary>AI assistant powered by Ollama, Gemini, ChatGPT and more</summary>
@@ -30,7 +30,7 @@
     </ul>
   </description>
 
-  <launchable type="desktop-id">io.github.pusi-os.Pots.desktop</launchable>
+  <launchable type="desktop-id">io.github.pusi.Pots.desktop</launchable>
 
   <url type="homepage">https://github.com/pusi-os/pots</url>
   <url type="bugtracker">https://github.com/pusi-os/pots/issues</url>

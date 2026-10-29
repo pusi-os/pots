@@ -35,19 +35,11 @@ jobs:
           sdkmanager "build-tools;29.0.3"
       - name: Build APK
         run: bash ./gradlew :androidApp:assembleFossRelease --stacktrace
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: androidApp/build/outputs/apk/foss/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_B64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: signed-apk
-          path: androidApp/build/outputs/apk/foss/release/androidApp-foss-release-signed.apk
+          name: android-apk
+          path: androidApp/build/outputs/apk/foss/release/androidApp-foss-release.apk
 
   dmg:
     name: Generate DMG
@@ -271,12 +263,12 @@ jobs:
 
           # Patch manifest to use local tarball instead of URL
           cd flatpak
-          sed -i "s|url: https://github.com/pusi-os/pots/releases/download/.*|path: Pots-linux-x86_64.tar.gz|" io.github.pusi-os.Pots.yaml
-          sed -i "s|sha256: .*|sha256: ${SHA256}|" io.github.pusi-os.Pots.yaml
+          sed -i "s|url: https://github.com/pusi-os/pots/releases/download/.*|path: Pots-linux-x86_64.tar.gz|" io.github.pusi.Pots.yaml
+          sed -i "s|sha256: .*|sha256: ${SHA256}|" io.github.pusi.Pots.yaml
 
           # Build and bundle
-          flatpak-builder --repo=repo --force-clean build-dir io.github.pusi-os.Pots.yaml
-          flatpak build-bundle repo ../Pots.flatpak io.github.pusi-os.Pots
+          flatpak-builder --repo=repo --force-clean build-dir io.github.pusi.Pots.yaml
+          flatpak build-bundle repo ../Pots.flatpak io.github.pusi.Pots
       - name: Upload Flatpak Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -298,7 +290,7 @@ jobs:
       - name: Download APK Artifact
         uses: actions/download-artifact@v4.1.7
         with:
-          name: signed-apk
+          name: android-apk
 
       - name: Download DMG Artifact
         uses: actions/download-artifact@v4.1.7
@@ -341,7 +333,7 @@ jobs:
       - name: Rename assets
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          mv androidApp-foss-release-signed.apk "Pots-${VERSION}-android.apk"
+          mv androidApp-foss-release.apk "Pots-${VERSION}-android.apk"
           mv *.dmg "Pots-${VERSION}-macos.dmg"
           mv *.msi "Pots-${VERSION}-windows.msi"
           mv *.deb "Pots-${VERSION}-linux.deb"
