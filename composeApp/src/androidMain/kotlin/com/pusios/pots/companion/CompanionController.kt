@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
+import com.pusios.pots.companion.cophone.CoPhoneCrypto
+import com.pusios.pots.companion.cophone.CoPhoneUuids
 import android.bluetooth.le.AdvertiseSettings
 import android.content.Context
 import android.content.pm.PackageManager
@@ -13,7 +15,6 @@ import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 import com.pusios.pots.companion.cophone.CoPhoneGatt
 import com.pusios.pots.companion.cophone.CoPhonePrefs
-import com.pusios.pots.companion.cophone.CoPhoneUuids
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,10 +72,12 @@ class CompanionControllerImpl(
     private val gattListener = object : CoPhoneGatt.Listener {
         override fun onConnected(mac: String) {
             currentMac = mac
-            prefs.connected = true
-            prefs.connectedAtMs = System.currentTimeMillis()
-            _status.value = CompanionStatus.Available
-            _devices.value = devicesFromPrefs().map { it.copy(connected = true, status = CompanionStatus.Available) }
+            if (prefs.paired) {
+                prefs.connected = true
+                prefs.connectedAtMs = System.currentTimeMillis()
+            }
+            _status.value = CompanionStatus.Pairing
+            _devices.value = devicesFromPrefs().map { it.copy(status = _status.value) }
         }
 
         override fun onDisconnected(mac: String) {
@@ -89,16 +92,53 @@ class CompanionControllerImpl(
         override fun onCtrl(op: Int, rest: ByteArray) {
             val mac = currentMac
             if (mac.isBlank()) return
-            // Auth challenge from the cube.
-            if (op == 0x17 && rest.size >= 16) {
-                val pairKey = bytesFromHex(prefs.pairKeyHex)
-                if (pairKey == null) return
-                val phoneNonce = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
-                val respKey = com.pusios.pots.companion.cophone.CoPhoneCrypto.respKey(pairKey)
-                val msg = rest.copyOfRange(0, 16) + phoneNonce
-                val hmac = com.pusios.pots.companion.cophone.CoPhoneCrypto.hmacSha256(respKey, msg).copyOfRange(0, 16)
-                val reply = hmac + phoneNonce
-                gatt?.notify(mac, com.pusios.pots.companion.cophone.CoPhoneUuids.CTRL, byteArrayOf(0x18.toByte()) + reply)
+            when (op) {
+                0x13 -> { // OP_PAIR_HELLO from the cube
+                    val cubeEph = rest.copyOfRange(0, 32.coerceAtMost(rest.size))
+                    val cubeNode = rest.copyOfRange(32, 40.coerceAtMost(rest.size))
+                    if (cubeEph.size < 32 || cubeNode.size < 8) return
+                    if (prefs.phoneIdHex.length != 12) {
+                        val id = ByteArray(6).also { java.security.SecureRandom().nextBytes(it) }
+                        prefs.phoneIdHex = bytesToHex(id)
+                    }
+                    val phoneId = bytesFromHex(prefs.phoneIdHex) ?: return
+                    val priv = CoPhoneCrypto.randomScalar()
+                    val pub = CoPhoneCrypto.publicKey(priv)
+                    val shared = CoPhoneCrypto.x25519(priv, cubeEph)
+                    val pairKey = CoPhoneCrypto.pairKey(shared, cubeNode, phoneId)
+                    prefs.pairKeyHex = bytesToHex(pairKey)
+                    prefs.deviceNodeHex = bytesToHex(cubeNode)
+                    prefs.sas = CoPhoneCrypto.sas(pairKey)
+                    prefs.awaitCode = true
+                    prefs.pairing = true
+                    val reply = pub + phoneId
+                    gatt?.notify(mac, CoPhoneUuids.CTRL, byteArrayOf(0x14.toByte()) + reply)
+                    _status.value = CompanionStatus.Pairing
+                    _devices.value = devicesFromPrefs()
+                }
+                0x15 -> { // OP_PAIR_ACCEPT from cube (ack) or confirmation
+                    prefs.pairing = false
+                    prefs.awaitCode = false
+                    prefs.connected = true
+                    prefs.connectedAtMs = System.currentTimeMillis()
+                    _status.value = CompanionStatus.Available
+                    _devices.value = devicesFromPrefs().map { it.copy(connected = true, status = CompanionStatus.Available) }
+                }
+                0x17 -> { // auth challenge
+                    val pairKey = bytesFromHex(prefs.pairKeyHex)
+                    if (pairKey == null) return
+                    val phoneNonce = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+                    val respKey = CoPhoneCrypto.respKey(pairKey)
+                    val msg = rest.copyOfRange(0, 16) + phoneNonce
+                    val hmac = CoPhoneCrypto.hmacSha256(respKey, msg).copyOfRange(0, 16)
+                    val reply = hmac + phoneNonce
+                    gatt?.notify(mac, CoPhoneUuids.CTRL, byteArrayOf(0x18.toByte()) + reply)
+                }
+                0x19 -> { // auth OK
+                    prefs.connected = true
+                    prefs.connectedAtMs = System.currentTimeMillis()
+                    _status.value = CompanionStatus.Available
+                }
             }
         }
     }
@@ -133,6 +173,12 @@ class CompanionControllerImpl(
     }
 
     override fun startPairing() {
+        if (prefs.phoneIdHex.length != 12) {
+            val id = ByteArray(6).also { java.security.SecureRandom().nextBytes(it) }
+            prefs.phoneIdHex = bytesToHex(id)
+        }
+        prefs.pairing = true
+        prefs.awaitCode = false
         if (!prefs.enabled) prefs.enabled = true
         _status.value = CompanionStatus.Pairing
         try {
@@ -160,9 +206,16 @@ class CompanionControllerImpl(
     }
 
     override fun confirmCode(code: String): Boolean {
-        prefs.sas = -1
-        prefs.pairing = false
-        refresh()
+        val pairKey = bytesFromHex(prefs.pairKeyHex) ?: return false
+        val cubeNode = bytesFromHex(prefs.deviceNodeHex) ?: return false
+        val phoneId = bytesFromHex(prefs.phoneIdHex) ?: return false
+        if (code.length != 6) return false
+        val hmac = CoPhoneCrypto.confirmHmac(pairKey, cubeNode, phoneId, code)
+        val payload = phoneId + code.toByteArray(Charsets.UTF_8) + hmac
+        val mac = currentMac
+        if (mac.isBlank()) return false
+        gatt?.notify(mac, CoPhoneUuids.CTRL, byteArrayOf(0x15.toByte()) + payload)
+        prefs.awaitCode = false
         return true
     }
 
@@ -177,6 +230,9 @@ class CompanionControllerImpl(
         _status.value = status
         _devices.value = devicesFromPrefs().map { it.copy(status = status, connected = status != CompanionStatus.Disconnected) }
     }
+
+    private fun bytesToHex(bytes: ByteArray): String =
+        bytes.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
 
     private fun bytesFromHex(hex: String): ByteArray? {
         val t = hex.trim().lowercase()
