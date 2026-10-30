@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pusios.pots.companion.CompanionController
+import com.pusios.pots.ui.rememberPermissionLauncher
 import com.pusios.pots.companion.CompanionStatus
 import org.koin.compose.koinInject
 
@@ -38,7 +39,43 @@ internal fun CompanionContent() {
 
                 Text("Статус: ${status.name}")
 
-                Button(onClick = controller::startPairing) { Text("Сканировать и связать") }
+                val permissions = remember {
+                    listOf(
+                        "android.permission.BLUETOOTH_CONNECT",
+                        "android.permission.BLUETOOTH_ADVERTISE",
+                        "android.permission.BLUETOOTH_SCAN",
+                    )
+                }
+                var pendingIndex by remember { mutableStateOf(-1) }
+                var permissionError by remember { mutableStateOf(false) }
+                val requestPermission = rememberPermissionLauncher { granted ->
+                    if (!granted) {
+                        permissionError = true
+                        pendingIndex = -1
+                    } else {
+                        pendingIndex++
+                    }
+                }
+                androidx.compose.runtime.LaunchedEffect(pendingIndex) {
+                    when {
+                        pendingIndex in 0 until permissions.size -> requestPermission(permissions[pendingIndex])
+                        pendingIndex == permissions.size -> {
+                            pendingIndex = -1
+                            controller.startPairing()
+                        }
+                    }
+                }
+                Button(onClick = {
+                    permissionError = false
+                    pendingIndex = 0
+                }) { Text("Сканировать и связать") }
+                if (permissionError) {
+                    Text(
+                        "Нужны разрешения Bluetooth (CONNECT/ADVERTISE/SCAN)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 OutlinedButton(onClick = controller::cancelPairing) { Text("Отмена") }
                 OutlinedTextField(
                     value = code,

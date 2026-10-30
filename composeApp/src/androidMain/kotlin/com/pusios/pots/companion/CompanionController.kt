@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 class CompanionControllerImpl(
     private val context: Context,
 ) : CompanionController {
+    private var currentMac: String = ""
     private val prefs = CoPhonePrefs(context)
     private val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
 
@@ -67,6 +68,7 @@ class CompanionControllerImpl(
 
     private val gattListener = object : CoPhoneGatt.Listener {
         override fun onConnected(mac: String) {
+            currentMac = mac
             prefs.connected = true
             prefs.connectedAtMs = System.currentTimeMillis()
             _status.value = CompanionStatus.Available
@@ -82,7 +84,21 @@ class CompanionControllerImpl(
 
         override fun onAudioUp(bytes: ByteArray) = Unit
         override fun onTextUp(text: String) = Unit
-        override fun onCtrl(op: Int, rest: ByteArray) = Unit
+        override fun onCtrl(op: Int, rest: ByteArray) {
+            val mac = currentMac
+            if (mac.isBlank()) return
+            // Auth challenge from the cube.
+            if (op == 0x17 && rest.size >= 16) {
+                val pairKey = bytesFromHex(prefs.pairKeyHex)
+                if (pairKey == null) return
+                val phoneNonce = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+                val respKey = com.pusios.pots.companion.cophone.CoPhoneCrypto.respKey(pairKey)
+                val msg = rest.copyOfRange(0, 16) + phoneNonce
+                val hmac = com.pusios.pots.companion.cophone.CoPhoneCrypto.hmacSha256(respKey, msg).copyOfRange(0, 16)
+                val reply = hmac + phoneNonce
+                gatt?.notify(mac, com.pusios.pots.companion.cophone.CoPhoneUuids.CTRL, byteArrayOf(0x18.toByte()) + reply)
+            }
+        }
     }
 
     override fun refresh() {
@@ -100,6 +116,15 @@ class CompanionControllerImpl(
             cancelPairing()
             _status.value = CompanionStatus.Disconnected
             stopGatt()
+        } else {
+            if (gatt == null) {
+                try {
+                    val g = CoPhoneGatt(context, gattListener)
+                    if (g.start()) gatt = g
+                } catch (t: Throwable) {
+                    _status.value = CompanionStatus.Error
+                }
+            }
         }
         refresh()
     }
@@ -107,11 +132,20 @@ class CompanionControllerImpl(
     override fun startPairing() {
         if (!prefs.enabled) prefs.enabled = true
         _status.value = CompanionStatus.Pairing
-        val advertiseCallback = object : AdvertiseCallback() {}
-        advertisePairing(advertiseCallback)
+        try {
+            val advertiseCallback = object : AdvertiseCallback() {}
+            advertisePairing(advertiseCallback)
+        } catch (t: Throwable) {
+            _status.value = CompanionStatus.Error
+            return
+        }
         if (gatt == null) {
-            val g = CoPhoneGatt(context, gattListener)
-            if (g.start()) gatt = g
+            try {
+                val g = CoPhoneGatt(context, gattListener)
+                if (g.start()) gatt = g
+            } catch (t: Throwable) {
+                _status.value = CompanionStatus.Error
+            }
         }
     }
 
@@ -139,6 +173,16 @@ class CompanionControllerImpl(
     override fun updateStatus(status: CompanionStatus) {
         _status.value = status
         _devices.value = devicesFromPrefs().map { it.copy(status = status, connected = status != CompanionStatus.Disconnected) }
+    }
+
+    private fun bytesFromHex(hex: String): ByteArray? {
+        val t = hex.trim().lowercase()
+        if (t.length % 2 != 0) return null
+        return try {
+            ByteArray(t.length / 2) { t.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+        } catch (t: Throwable) {
+            null
+        }
     }
 
     private fun stopGatt() {

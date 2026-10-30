@@ -92,11 +92,11 @@ internal fun TopBar(
                 if (textToSpeech != null) {
                     SpeechToggleButton(textToSpeech, isSpeechOutputEnabled, isSpeaking, actions)
                 }
-                if (handsFreeStatus != null && onToggleHandsFree != null) {
-                    HandsFreeButton(status = handsFreeStatus, onClick = onToggleHandsFree)
-                }
                 if (companionStatus != null) {
                     CompanionIndicator(status = companionStatus, onClick = onToggleCompanion)
+                }
+                if (handsFreeStatus != null && onToggleHandsFree != null) {
+                    HandsFreeButton(status = handsFreeStatus, onClick = onToggleHandsFree)
                 }
                 if (onToggleProfiles != null) {
                     AgentProfilesButton(open = profilesOpen, onClick = onToggleProfiles)
@@ -113,11 +113,11 @@ internal fun TopBar(
             if (textToSpeech != null) {
                 SpeechToggleButton(textToSpeech, isSpeechOutputEnabled, isSpeaking, actions)
             }
-            if (handsFreeStatus != null && onToggleHandsFree != null) {
-                HandsFreeButton(status = handsFreeStatus, onClick = onToggleHandsFree)
-            }
             if (companionStatus != null) {
                 CompanionIndicator(status = companionStatus, onClick = onToggleCompanion)
+            }
+            if (handsFreeStatus != null && onToggleHandsFree != null) {
+                HandsFreeButton(status = handsFreeStatus, onClick = onToggleHandsFree)
             }
             IconButton(
                 modifier = Modifier.handCursor(),
