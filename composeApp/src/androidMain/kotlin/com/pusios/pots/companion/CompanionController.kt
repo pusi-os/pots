@@ -5,16 +5,16 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
-import com.pusios.pots.companion.cophone.CoPhoneCrypto
-import com.pusios.pots.companion.cophone.CoPhoneUuids
 import android.bluetooth.le.AdvertiseSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
+import com.pusios.pots.companion.cophone.CoPhoneCrypto
 import com.pusios.pots.companion.cophone.CoPhoneGatt
 import com.pusios.pots.companion.cophone.CoPhonePrefs
+import com.pusios.pots.companion.cophone.CoPhoneUuids
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +36,12 @@ class CompanionControllerImpl(
     override val paired: Boolean get() = prefs.paired
     private val _enabled = MutableStateFlow(prefs.enabled)
     override val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
+
+    init {
+        // Resume the link on process start so paired cubes can find the
+        // phone again without reopening Settings.
+        if (prefs.enabled) setEnabled(true)
+    }
 
     private var gatt: CoPhoneGatt? = null
 
@@ -116,6 +122,7 @@ class CompanionControllerImpl(
                     _status.value = CompanionStatus.Pairing
                     _devices.value = devicesFromPrefs()
                 }
+
                 0x15 -> { // OP_PAIR_ACCEPT from cube (ack) or confirmation
                     prefs.pairing = false
                     prefs.awaitCode = false
@@ -124,6 +131,7 @@ class CompanionControllerImpl(
                     _status.value = CompanionStatus.Available
                     _devices.value = devicesFromPrefs().map { it.copy(connected = true, status = CompanionStatus.Available) }
                 }
+
                 0x17 -> { // auth challenge
                     val pairKey = bytesFromHex(prefs.pairKeyHex)
                     if (pairKey == null) return
@@ -134,6 +142,7 @@ class CompanionControllerImpl(
                     val reply = hmac + phoneNonce
                     gatt?.notify(mac, CoPhoneUuids.CTRL, byteArrayOf(0x18.toByte()) + reply)
                 }
+
                 0x19 -> { // auth OK
                     prefs.connected = true
                     prefs.connectedAtMs = System.currentTimeMillis()
@@ -231,8 +240,7 @@ class CompanionControllerImpl(
         _devices.value = devicesFromPrefs().map { it.copy(status = status, connected = status != CompanionStatus.Disconnected) }
     }
 
-    private fun bytesToHex(bytes: ByteArray): String =
-        bytes.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+    private fun bytesToHex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
 
     private fun bytesFromHex(hex: String): ByteArray? {
         val t = hex.trim().lowercase()

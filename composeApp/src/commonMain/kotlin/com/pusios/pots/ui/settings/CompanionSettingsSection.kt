@@ -25,8 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pusios.pots.companion.CompanionController
-import com.pusios.pots.ui.rememberPermissionLauncher
 import com.pusios.pots.companion.CompanionStatus
+import com.pusios.pots.ui.rememberPermissionLauncher
 import org.koin.compose.koinInject
 
 @Composable
@@ -56,6 +56,7 @@ internal fun CompanionContent() {
     androidx.compose.runtime.LaunchedEffect(pendingIndex) {
         when {
             pendingIndex in 0 until permissions.size -> requestPermission(permissions[pendingIndex])
+
             pendingIndex == permissions.size -> {
                 pendingIndex = -1
                 controller.startPairing()
@@ -98,7 +99,7 @@ internal fun CompanionContent() {
                                     CompanionStatus.Unavailable -> MaterialTheme.colorScheme.outline
                                     CompanionStatus.Disconnected -> MaterialTheme.colorScheme.outline
                                     else -> MaterialTheme.colorScheme.secondary
-                                }
+                                },
                             ),
                     )
                     Text("Статус: " + status.label(), style = MaterialTheme.typography.bodySmall)
