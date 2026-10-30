@@ -33,6 +33,8 @@ class CompanionControllerImpl(
     override val status: StateFlow<CompanionStatus> = _status.asStateFlow()
     override val devices: StateFlow<List<CompanionDevice>> = _devices.asStateFlow()
     override val paired: Boolean get() = prefs.paired
+    private val _enabled = MutableStateFlow(prefs.enabled)
+    override val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 
     private var gatt: CoPhoneGatt? = null
 
@@ -112,6 +114,7 @@ class CompanionControllerImpl(
 
     override fun setEnabled(enabled: Boolean) {
         prefs.enabled = enabled
+        _enabled.value = enabled
         if (!enabled) {
             cancelPairing()
             _status.value = CompanionStatus.Disconnected

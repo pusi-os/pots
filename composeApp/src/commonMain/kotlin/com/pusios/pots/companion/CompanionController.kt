@@ -50,6 +50,7 @@ interface CompanionController {
     val devices: StateFlow<List<CompanionDevice>>
 
     val paired: Boolean
+    val enabled: StateFlow<Boolean>
 
     fun refresh()
     fun setEnabled(enabled: Boolean)
@@ -63,9 +64,11 @@ interface CompanionController {
 class NoOpCompanionController : CompanionController {
     private val _status = MutableStateFlow(CompanionStatus.Unavailable)
     private val _devices = MutableStateFlow(emptyList<CompanionDevice>())
+    private val _enabled = MutableStateFlow(false)
     override val status: StateFlow<CompanionStatus> = _status.asStateFlow()
     override val devices: StateFlow<List<CompanionDevice>> = _devices.asStateFlow()
     override val paired: Boolean = false
+    override val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 
     override fun refresh() = Unit
     override fun setEnabled(enabled: Boolean) = Unit
