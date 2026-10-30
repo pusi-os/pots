@@ -75,8 +75,8 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -85,6 +85,8 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pusios.pots.BackIcon
 import com.pusios.pots.TerminalLine
+import com.pusios.pots.companion.CompanionController
+import com.pusios.pots.companion.CompanionStatus
 import com.pusios.pots.data.AgentProfile
 import com.pusios.pots.data.Service
 import com.pusios.pots.data.supportsAgenticFlows
@@ -903,6 +905,8 @@ private fun ChatModeScreen(
         val next = status.nextServiceName?.let { stringResource(Res.string.fallback_trying_next, it) }
         if (next != null) "$failed\n$next" else failed
     }
+    val companionController = koinInject<CompanionController>()
+    val companionStatus by companionController.status.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize().screenBackground().navigationBarsPadding().statusBarsPadding().imePadding()) {
         Column(Modifier.fillMaxSize()) {
             Box(
@@ -947,6 +951,7 @@ private fun ChatModeScreen(
                             }
                         }
                     },
+                    companionStatus = companionStatus,
                     miniAppsOpen = showMiniAppsToolbar,
                     onToggleMiniApps = { showMiniAppsToolbar = !showMiniAppsToolbar },
                     profilesOpen = showAgentProfilesToolbar,

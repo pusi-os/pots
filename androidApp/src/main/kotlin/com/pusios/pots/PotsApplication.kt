@@ -11,11 +11,16 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 
 class PotsApplication : Application() {
+    companion object {
+        lateinit var instance: PotsApplication
+            private set
+    }
 
     private val taskScheduler: TaskScheduler by inject()
 
     override fun onCreate() {
         super.onCreate()
+        com.pusios.pots.PotsAppContext.application = this
         startKoin {
             androidContext(this@PotsApplication)
             modules(appModule, sandboxModule)

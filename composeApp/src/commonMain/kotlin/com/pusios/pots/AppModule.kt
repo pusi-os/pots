@@ -177,6 +177,7 @@ val appModule = module {
     single<DaemonController> { createDaemonController() }
     single<SandboxController> { createSandboxController() }
     single<PotsBuildController> { createPotsBuildController() }
+    single<com.pusios.pots.companion.CompanionController> { com.pusios.pots.companion.createCompanionController() }
     viewModel { SettingsViewModel(get<DataRepository>(), get<DaemonController>(), get(permissionQualifier(AppPermission.POST_NOTIFICATIONS)), get<TaskScheduler>(), localNetworkPermissionController = get(permissionQualifier(AppPermission.LOCAL_NETWORK))) }
     viewModel { SandboxViewModel(get<DataRepository>(), get<SandboxController>()) }
     viewModel { SandboxFileBrowserViewModel(get<SandboxController>()) }

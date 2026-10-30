@@ -9,8 +9,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -22,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.companion.CompanionStatus
 import com.pusios.pots.handsfree.HandsFreeStatus
 import com.pusios.pots.ui.chat.ChatActions
 import com.pusios.pots.ui.handCursor
@@ -64,6 +71,8 @@ internal fun TopBar(
     navigationTabBar: (@Composable () -> Unit)? = null,
     handsFreeStatus: HandsFreeStatus? = null,
     onToggleHandsFree: (() -> Unit)? = null,
+    companionStatus: CompanionStatus? = null,
+    onToggleCompanion: (() -> Unit)? = null,
     miniAppsOpen: Boolean = false,
     onToggleMiniApps: (() -> Unit)? = null,
     profilesOpen: Boolean = false,
@@ -86,6 +95,9 @@ internal fun TopBar(
                 if (handsFreeStatus != null && onToggleHandsFree != null) {
                     HandsFreeButton(status = handsFreeStatus, onClick = onToggleHandsFree)
                 }
+                if (companionStatus != null) {
+                    CompanionIndicator(status = companionStatus, onClick = onToggleCompanion)
+                }
                 if (onToggleProfiles != null) {
                     AgentProfilesButton(open = profilesOpen, onClick = onToggleProfiles)
                 }
@@ -103,6 +115,9 @@ internal fun TopBar(
             }
             if (handsFreeStatus != null && onToggleHandsFree != null) {
                 HandsFreeButton(status = handsFreeStatus, onClick = onToggleHandsFree)
+            }
+            if (companionStatus != null) {
+                CompanionIndicator(status = companionStatus, onClick = onToggleCompanion)
             }
             IconButton(
                 modifier = Modifier.handCursor(),
@@ -302,6 +317,33 @@ private fun SpeechToggleButton(
             },
             contentDescription = stringResource(Res.string.toggle_speech_output_content_description),
             tint = MaterialTheme.colorScheme.onBackground,
+        )
+    }
+}
+
+@Composable
+internal fun CompanionIndicator(
+    status: CompanionStatus,
+    onClick: (() -> Unit)? = null,
+) {
+    val (icon, tint) = when (status) {
+        CompanionStatus.Available -> Icons.Filled.Bluetooth to androidx.compose.material3.MaterialTheme.colorScheme.primary
+        CompanionStatus.Listening -> Icons.Filled.Mic to androidx.compose.material3.MaterialTheme.colorScheme.secondary
+        CompanionStatus.Thinking -> Icons.Filled.HourglassEmpty to androidx.compose.material3.MaterialTheme.colorScheme.tertiary
+        CompanionStatus.Speaking -> Icons.Filled.VolumeUp to androidx.compose.material3.MaterialTheme.colorScheme.primary
+        CompanionStatus.Pairing -> Icons.Filled.Bluetooth to androidx.compose.material3.MaterialTheme.colorScheme.tertiary
+        CompanionStatus.Error -> Icons.Filled.Error to androidx.compose.material3.MaterialTheme.colorScheme.error
+        else -> Icons.Filled.BluetoothDisabled to androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    if (onClick != null) {
+        androidx.compose.material3.IconButton(onClick = onClick, modifier = Modifier.handCursor()) {
+            androidx.compose.material3.Icon(imageVector = icon, contentDescription = "Companion", tint = tint)
+        }
+    } else {
+        androidx.compose.material3.Icon(
+            imageVector = icon,
+            contentDescription = "Companion",
+            tint = tint,
         )
     }
 }

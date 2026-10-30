@@ -64,6 +64,7 @@ enum class SettingsTab {
     Sandbox,
     Integrations,
     Potsiki,
+    Companion,
 }
 
 @Immutable

@@ -339,6 +339,10 @@ fun SettingsScreenContent(
                             SettingsTab.Potsiki -> {
                                 PotsikiContent(uiState = filteredUiState, actions = actions)
                             }
+
+                            SettingsTab.Companion -> {
+                                CompanionContent()
+                            }
                         }
 
                         Spacer(Modifier.height(16.dp))
@@ -442,6 +446,7 @@ private fun SettingsTabSelector(
                             SettingsTab.Sandbox -> stringResource(Res.string.settings_tab_sandbox)
                             SettingsTab.Integrations -> stringResource(Res.string.settings_tab_integrations)
                             SettingsTab.Potsiki -> stringResource(Res.string.settings_tab_potsiki)
+                            SettingsTab.Companion -> "Сompanion"
                         },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         color = MaterialTheme.colorScheme.primary,
