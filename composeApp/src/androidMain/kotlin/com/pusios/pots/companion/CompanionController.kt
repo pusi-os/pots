@@ -9,6 +9,7 @@ import android.bluetooth.le.AdvertiseSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 import com.pusios.pots.companion.cophone.CoPhoneCrypto
@@ -77,6 +78,7 @@ class CompanionControllerImpl(
 
     private val gattListener = object : CoPhoneGatt.Listener {
         override fun onConnected(mac: String) {
+            Log.i("CoPhone", "connected mac=$mac paired=${prefs.paired} pairing=${prefs.pairing}")
             currentMac = mac
             if (prefs.paired) {
                 prefs.connected = true
@@ -96,6 +98,7 @@ class CompanionControllerImpl(
         override fun onAudioUp(bytes: ByteArray) = Unit
         override fun onTextUp(text: String) = Unit
         override fun onCtrl(op: Int, rest: ByteArray) {
+            Log.i("CoPhone", "ctrl op=0x${"%02x".format(op)} len=${rest.size} mac=$currentMac")
             val mac = currentMac
             if (mac.isBlank()) return
             when (op) {
@@ -218,7 +221,7 @@ class CompanionControllerImpl(
         val pairKey = bytesFromHex(prefs.pairKeyHex) ?: return false
         val cubeNode = bytesFromHex(prefs.deviceNodeHex) ?: return false
         val phoneId = bytesFromHex(prefs.phoneIdHex) ?: return false
-        if (code.length != 6) return false
+        if (pairKey.size != 32 || cubeNode.size < 8 || phoneId.size < 6 || code.length != 6) return false
         val hmac = CoPhoneCrypto.confirmHmac(pairKey, cubeNode, phoneId, code)
         val payload = phoneId + code.toByteArray(Charsets.UTF_8) + hmac
         val mac = currentMac
