@@ -619,8 +619,8 @@ internal class CoPhoneDialog(
     }
 
     private fun sendStt(text: String) {
-        for (part in bubbleParts(deviceText(text))) {
-            sendText(JSONObject().put("type", "stt").put("text", part).toString())
+        for ((index, part) in bubbleParts(deviceText(text)).withIndex()) {
+            sendText(JSONObject().put("type", "stt").put("append", index > 0).put("text", part).toString())
         }
     }
 
@@ -636,12 +636,12 @@ internal class CoPhoneDialog(
         sendText(JSONObject().put("type", "tts").put("state", "stop").toString())
     }
 
-    /** One reply chunk; long ones are split at word boundaries (bubble 128 B). */
+    /** Split a reply into UTF-8-safe transport chunks, preserving whitespace. */
     private fun sendSentenceBubble(s: String) {
-        for (part in bubbleParts(deviceText(s))) {
+        for ((index, part) in bubbleParts(deviceText(s)).withIndex()) {
             sendText(
                 JSONObject().put("type", "tts").put("state", "sentence_start")
-                    .put("text", part).toString(),
+                    .put("text", if (index == 0) " $part" else part).toString(),
             )
         }
     }
@@ -661,12 +661,8 @@ internal class CoPhoneDialog(
                 bytes += size
                 cut += count
             }
-            if (cut < rest.length) {
-                val sp = rest.lastIndexOf(' ', cut - 1)
-                if (sp > 0) cut = sp
-            }
-            val part = rest.substring(0, cut).trim()
-            rest = rest.substring(cut).trim()
+            val part = rest.substring(0, cut)
+            rest = rest.substring(cut)
             if (part.isNotEmpty()) parts.add(part)
         }
         return parts
