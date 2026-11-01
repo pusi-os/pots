@@ -36,7 +36,11 @@ internal fun CompanionContent() {
     val status by controller.status.collectAsStateWithLifecycle()
     val devices by controller.devices.collectAsStateWithLifecycle()
     var code by remember { mutableStateOf("") }
+    var codeDone by remember { mutableStateOf(false) }
     var pendingIndex by remember { mutableStateOf(-1) }
+    androidx.compose.runtime.LaunchedEffect(status) {
+        if (status != CompanionStatus.Pairing) codeDone = false
+    }
     var permissionError by remember { mutableStateOf(false) }
     val permissions = remember {
         listOf(
@@ -125,22 +129,49 @@ internal fun CompanionContent() {
                     }) { Text("Связать") }
                 }
                 if (enabled && status == CompanionStatus.Pairing) {
-                    Text(
-                        "Ожидаем подключение устройства PotsCharm...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedButton(onClick = controller::cancelPairing) { Text("Отмена") }
-                    OutlinedTextField(
-                        value = code,
-                        onValueChange = { code = it },
-                        label = { Text("Код с устройства") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Button(onClick = {
-                        controller.confirmCode(code)
-                        code = ""
-                    }) { Text("Подтвердить код") }
+                    val awaitingFinal = codeDone
+                    if (!awaitingFinal) {
+                        Text(
+                            "Введите на телефоне код, показанный на кубике (6 цифр).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedTextField(
+                            value = code,
+                            onValueChange = { code = it.filter { c -> c.isDigit() }.take(6) },
+                            label = { Text("Код с кубика") },
+                            modifier = Modifier.fillMaxWidth(),
+                            supportingText = { Text("${code.length}/6") },
+                            singleLine = true,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    if (controller.confirmCode(code)) {
+                                        codeDone = true
+                                        code = ""
+                                    }
+                                },
+                                enabled = code.length == 6,
+                            ) { Text("Подтвердить код") }
+                            OutlinedButton(onClick = {
+                                codeDone = false
+                                code = ""
+                                controller.cancelPairing()
+                            }) { Text("Отмена") }
+                        }
+                    } else {
+                        Text(
+                            "Код отправлен. Ожидаем завершения связи с кубиком...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedButton(onClick = {
+                            codeDone = false
+                            code = ""
+                            controller.cancelPairing()
+                        }) { Text("Отмена") }
+                    }
                 }
                 if (enabled && devices.isNotEmpty()) {
                     devices.forEach { device ->
