@@ -2076,7 +2076,7 @@ class RemoteDataRepository(
 
         val activeSkill = pendingActiveSkillId?.let { skillManager.getSkill(it) }
 
-        return buildChatSystemPrompt(
+        val prompt = buildChatSystemPrompt(
             variant = variant,
             soul = soul,
             hasTools = hasTools,
@@ -2093,7 +2093,19 @@ class RemoteDataRepository(
             runtime = runtime,
             uiMode = uiMode,
             activeSkill = activeSkill,
-        ).ifEmpty { null }
+        )
+        val authoring = if (uiMode == ChatPromptUiMode.INTERACTIVE_UI && activeSkill?.id != "mini-app-authoring") {
+            skillManager.getSkill("mini-app-authoring")
+        } else {
+            null
+        }
+        return buildString {
+            append(prompt)
+            if (authoring != null) {
+                append("\n\n## Mini-app authoring\n")
+                append(authoring.body.trim())
+            }
+        }.ifEmpty { null }
     }
 
     override fun isDynamicUiEnabled(): Boolean = appSettings.isDynamicUiEnabled()
