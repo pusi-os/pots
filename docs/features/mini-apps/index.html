@@ -1493,8 +1493,9 @@ models to use and still gives the UI a schema to render.</p>
   round-trip; <code>navigate</code> switches to another saved screen.</li>
 </ul>
 <p>While the user is still building, records and schemas are written under the
-current conversation id. Save moves them onto the app, so the first save is not
-a copy step the user has to think about.</p>
+current conversation id. The interactive renderer can also write to its own
+draft. Saving combines their declared collections, records and files into the
+app, so the user does not have to copy them by hand.</p>
 <h3 id="the-library">The library</h3>
 <p><strong>My mini-apps</strong> is a sheet, reachable from the interactive top bar and from the
 chat's glass toolbar. It lists saved apps and provides:</p>
