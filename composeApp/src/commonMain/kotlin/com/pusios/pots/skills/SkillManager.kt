@@ -145,7 +145,7 @@ class SkillManager(
          * `composeResources/files/skills/<id>/SKILL.md`. Hardcoded so the asset path is
          * explicit at compile time and we don't need a resource directory listing.
          */
-        private val BUILT_IN_SKILL_IDS = listOf("create-skill", "obsidian-vault")
+        private val BUILT_IN_SKILL_IDS = listOf("create-skill", "mini-app-authoring", "obsidian-vault")
     }
 }
 

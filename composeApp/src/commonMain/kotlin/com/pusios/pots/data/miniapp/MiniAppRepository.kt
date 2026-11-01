@@ -186,12 +186,19 @@ class MiniAppRepository(
         val draftFolder = draftFolder(draft.id)
         val appFolder = folderFor(app)
         val source = draft.sourceConversationId
+        val oldFolder = existing?.let { folderFor(it) }
+        if (oldFolder != null && oldFolder != appFolder) {
+            writeFileAssets(appFolder, fileAssets(oldFolder))
+        }
         if (source != null && source != draft.id && get(source) == null) {
             writeFileAssets(draftFolder, fileAssets(draftFolder(source)))
         }
         if (draftFolder != appFolder) {
-            if (listAppStorageFiles(draftFolder).isNotEmpty() || readAppStorageBytes("$draftFolder/app.json") != null) {
-                moveAppStorageFolder(draftFolder, appFolder)
+            if (existing != null) {
+                writeFileAssets(appFolder, fileAssets(draftFolder))
+                deleteAppStorageFolder(draftFolder)
+            } else if (listAppStorageFiles(draftFolder).isNotEmpty() || readAppStorageBytes("$draftFolder/app.json") != null) {
+                check(moveAppStorageFolder(draftFolder, appFolder)) { "Could not move mini-app files" }
             }
         }
         // Resolve the new folder via the saved manifest before enumerating files.
@@ -201,15 +208,24 @@ class MiniAppRepository(
         // The agent writes draft records under the conversation id it is talking
         // in; when the user saves, they belong to the app.
         if (source != null && source != app.id) {
+            val currentRecords = persistence.loadAllRecords(app.id).associateBy { it.collection to it.recordId }
             persistence.loadAllRecords(source).forEach { record ->
-                persistence.upsertRecord(record.copy(appId = app.id))
+                val current = currentRecords[record.collection to record.recordId]
+                if (current == null || record.updatedAt > current.updatedAt) {
+                    persistence.upsertRecord(record.copy(appId = app.id))
+                }
             }
         }
         appendVersion(withFiles, draft.message.ifBlank { if (existing == null) "Created" else "Updated" })
         reload()
-        val oldFolder = existing?.let { folderFor(it) }
         if (oldFolder != null && oldFolder != folderFor(withFiles)) deleteAppStorageFolder(oldFolder)
         writeFolder(withFiles)
+        // Consume the conversation's staging data after a successful save. Otherwise
+        // a later save could resurrect records or files deleted from the saved app.
+        if (source != null && source != app.id && get(source) == null) {
+            persistence.deleteRecords(source)
+            deleteAppStorageFolder(draftFolder(source))
+        }
         return withFiles
     }
 
@@ -221,10 +237,11 @@ class MiniAppRepository(
             icon = icon ?: existing.icon,
             updatedAt = nowMs(),
         )
+        val oldFolder = folderFor(existing)
+        if (oldFolder != folderFor(updated)) writeFileAssets(folderFor(updated), fileAssets(oldFolder))
         persistence.saveApp(updated)
         appendVersion(updated, "Edited metadata")
         reload()
-        val oldFolder = folderFor(existing)
         if (oldFolder != folderFor(updated)) deleteAppStorageFolder(oldFolder)
         writeFolder(updated)
     }
@@ -411,7 +428,7 @@ class MiniAppRepository(
         assets.forEach { asset ->
             val safe = safePath(asset.path) ?: return@forEach
             val bytes = runCatching { Base64.decode(asset.dataBase64) }.getOrNull() ?: return@forEach
-            writeAppStorageBytes("$folder/$safe", bytes)
+            check(writeAppStorageBytes("$folder/$safe", bytes)) { "Could not write $safe" }
         }
     }
 

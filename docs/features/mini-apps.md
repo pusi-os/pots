@@ -50,6 +50,9 @@ the device browser. The agent builds it with `mini_app_data`'s file actions
 `set_entry` (`entry_point: "web/index.html"`). The browser app talks to the same
 records, files, notes and calendar through the [built-in server](mini-app-server.md).
 Web apps do not use the LLM unless their own JavaScript explicitly calls one.
+The bundled `mini-app-authoring` skill is available in the skills list and gives
+the agent the local API conventions when invoked while building an app. Saving
+does not automatically rewrite agent callbacks into local actions.
 
 Native apps can reach the same host services without the browser through the
 `host_call` action (`calendar.*`, `files.*`, `notes.*`), which writes the result
@@ -73,6 +76,8 @@ While the user is still building, records and schemas are written under the
 current conversation id. The interactive renderer can also write to its own
 draft. Saving combines their declared collections, records and files into the
 app, so the user does not have to copy them by hand.
+Existing app files are preserved when new draft files are saved or the app is
+renamed; new draft files with the same path replace the previous copies.
 
 ### The library
 
@@ -134,6 +139,8 @@ not already have.
   ones already there, so re-saving an unchanged session does not duplicate tabs.
 - `store_put`, `store_delete` and `navigate` work offline in a saved app; a
   `callback` needs the agent.
+- A delete action with an explicit record id that resolves to an empty value does
+  nothing. Deleting the whole collection requires omitting the record id.
 - The runner has no chat input of its own; **Edit** is how the user asks for a
   change, which keeps one conversation per app edit and makes the version tree
   readable.
@@ -177,3 +184,5 @@ not already have.
 | `composeApp/.../ui/chat/ChatScreen.kt` | Studio top bar, save dialog, library, runner branch, glass toolbar |
 | `composeApp/.../ui/chat/ChatViewModel.kt` | Draft/save/edit flows, automation registration, mini-app seeding |
 | `composeApp/.../data/ChatSystemPromptBuilder.kt` | Persistent-data instructions and the new component/action catalog |
+| `composeApp/.../skills/SkillManager.kt` | Loads the bundled authoring skill |
+| `composeApp/src/commonMain/composeResources/files/skills/mini-app-authoring/SKILL.md` | Built-in mini-app authoring guidance and API examples |

@@ -65,6 +65,28 @@ class MiniAppRepositoryTest {
     }
 
     @Test
+    fun resavingDoesNotOverwriteNewerAppRecordsWithOldConversationData() {
+        val settings = AppSettings(MapSettings())
+        val persistence = SettingsMiniAppPersistence(settings)
+        val repository = MiniAppRepository(settings, persistence)
+        persistence.upsertRecord(MiniAppRecord("conversation", "tasks", "one", buildJsonObject { put("title", JsonPrimitive("old")) }, updatedAt = 10))
+        repository.saveDraft(draft(id = "app-1", source = "conversation"))
+        persistence.upsertRecord(MiniAppRecord("app-1", "tasks", "one", buildJsonObject { put("title", JsonPrimitive("new")) }, updatedAt = 20))
+        repository.saveDraft(draft(id = "app-1", source = "conversation"))
+        assertEquals(JsonPrimitive("new"), repository.records("app-1", "tasks").single().value["title"])
+    }
+
+    @Test
+    fun resavingDoesNotResurrectDeletedConversationRecords() {
+        val repository = repository()
+        repository.putRecord("conversation", "tasks", "one", buildJsonObject { put("title", JsonPrimitive("old")) })
+        repository.saveDraft(draft(id = "app-1", source = "conversation"))
+        repository.deleteRecord("app-1", "tasks", "one")
+        repository.saveDraft(draft(id = "app-1", source = "conversation"))
+        assertTrue(repository.records("app-1", "tasks").isEmpty())
+    }
+
+    @Test
     fun collectionsDeclaredOnADraftSurviveSave() {
         val repository = repository()
         repository.setDraftCollections(

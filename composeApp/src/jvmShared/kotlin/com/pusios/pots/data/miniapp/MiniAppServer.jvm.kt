@@ -335,8 +335,8 @@ class NanoMiniAppServer(
                 val body = readBody(session)
                 val obj = runCatching { SharedJson.parseToJsonElement(body) }.getOrNull() as? JsonObject
                     ?: return error(NanoHTTPD.Response.Status.BAD_REQUEST, "body must be JSON")
-                val name = obj["path"]?.toString()?.trim('"')?.takeIf { it.isNotBlank() } ?: return error(NanoHTTPD.Response.Status.BAD_REQUEST, "missing path")
-                val content = obj["content"]?.toString()?.trim('"') ?: ""
+                val name = (obj["path"] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() } ?: return error(NanoHTTPD.Response.Status.BAD_REQUEST, "missing path")
+                val content = (obj["content"] as? JsonPrimitive)?.content ?: ""
                 val full = if (safe.isBlank()) "$base/$name" else "$base/$safe/$name"
                 if (full.split('/').any { it == ".." }) return error(NanoHTTPD.Response.Status.FORBIDDEN, "bad path")
                 val ok = writeAppStorageBytes(full, content.encodeToByteArray())
@@ -370,11 +370,11 @@ class NanoMiniAppServer(
             NanoHTTPD.Method.POST -> {
                 val obj = runCatching { SharedJson.parseToJsonElement(readBody(session)) }.getOrNull() as? JsonObject
                     ?: return error(NanoHTTPD.Response.Status.BAD_REQUEST, "body must be JSON")
-                val title = obj["title"]?.toString()?.trim('"')?.takeIf { it.isNotBlank() }
+                val title = (obj["title"] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
                     ?: return error(NanoHTTPD.Response.Status.BAD_REQUEST, "missing title")
-                val start = obj["start"]?.toString()?.trim('"') ?: return error(NanoHTTPD.Response.Status.BAD_REQUEST, "missing start")
-                val end = obj["end"]?.toString()?.trim('"')
-                val notes = obj["notes"]?.toString()?.trim('"')
+                val start = (obj["start"] as? JsonPrimitive)?.content ?: return error(NanoHTTPD.Response.Status.BAD_REQUEST, "missing start")
+                val end = (obj["end"] as? JsonPrimitive)?.content
+                val notes = (obj["notes"] as? JsonPrimitive)?.content
                 val id = host.createCalendar(title, start, end, notes)
                     ?: return error(NanoHTTPD.Response.Status.NOT_IMPLEMENTED, "calendar unavailable")
                 if (id < 0) return error(NanoHTTPD.Response.Status.FORBIDDEN, "calendar permission denied")

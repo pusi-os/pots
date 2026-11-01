@@ -45,7 +45,7 @@ const appId = location.pathname.split('/')[2];
 const base = '/api/apps/' + encodeURIComponent(appId) + '/records/';
 const host = {
   async call(method, path, body) {
-    const r = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
+    const r = await fetch(path, { method, headers: { "Content-Type": "application/json; charset=utf-8" }, body: body === undefined ? undefined : JSON.stringify(body), credentials: "same-origin" });
     if (!r.ok) throw new Error(r.status + " " + r.statusText);
     return r.json();
   },

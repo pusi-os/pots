@@ -17,6 +17,15 @@ class SkillManagerTest {
     private fun manager(sandbox: FakeSandboxController) = SkillManager(sandbox, backgroundDispatcher = UnconfinedTestDispatcher())
 
     @Test
+    fun `mini app authoring skill is bundled and loadable`() = runTest {
+        val mgr = manager(FakeSandboxController())
+        mgr.load()
+        val skill = mgr.getSkill("mini-app-authoring")
+        assertTrue(skill != null && skill.isBuiltIn)
+        assertTrue(skill.body.contains("store_put"))
+    }
+
+    @Test
     fun `load reads installed skill folders with their files`() = runTest {
         val sandbox = FakeSandboxController()
         sandbox.files["/root/skills/foo/SKILL.md"] = skillMd("foo", body = "Body of foo.")

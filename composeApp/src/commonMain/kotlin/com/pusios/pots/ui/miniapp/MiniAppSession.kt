@@ -67,8 +67,10 @@ class MiniAppSession(
             ?: values["id"]?.takeIf { it.isNotBlank() }
         if (recordId != null) {
             repository.deleteRecord(appId, action.collection, recordId)
-        } else {
+        } else if (action.recordId == null) {
             repository.clearCollection(appId, action.collection)
+        } else {
+            return
         }
         _revision.value++
     }

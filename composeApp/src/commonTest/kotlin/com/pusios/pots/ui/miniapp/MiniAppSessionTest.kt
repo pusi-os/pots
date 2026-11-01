@@ -65,4 +65,13 @@ class MiniAppSessionTest {
         assertEquals("fixed-id", repository.records("draft", "notes").single().recordId)
         assertTrue(repository.records("draft", "notes").single().value.containsKey("id"))
     }
+
+    @Test
+    fun unresolvedDeleteIdDoesNotClearCollection() {
+        val repository = repository()
+        val session = MiniAppSession("draft", repository)
+        session.onStorePut(StorePutAction(collection = "tasks"), mapOf("title" to "keep"))
+        session.onStoreDelete(StoreDeleteAction(collection = "tasks", recordId = "{{record.id}}"), emptyMap())
+        assertEquals(1, repository.records("draft", "tasks").size)
+    }
 }
