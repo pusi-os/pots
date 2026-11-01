@@ -1306,11 +1306,11 @@
 
 
 <h1 id="hands-free-voice-mode">Hands-Free Voice Mode</h1>
-<p><strong>Last verified:</strong> 2026-10-25</p>
+<p><strong>Last verified:</strong> 2026-11-01</p>
 <p>Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it heard, waits for the agent, speaks the answer and listens again. The user never has to touch the screen for the whole round trip.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="voice-mode">Voice mode</h3>
-<p>A toggle in the top bar, next to the speech-output button. It is only shown on platforms that have a speech recognizer — currently Android. On every other platform the button is hidden and nothing else changes.</p>
+<p>On a supported platform, the empty chat offers an animated circular voice button. Once a conversation has begun, a toggle also appears in the top bar next to speech output; it remains visible while voice mode is active even before the first message. Voice controls are only shown on platforms that have a speech recognizer — currently Android.</p>
 <h3 id="the-loop">The loop</h3>
 <p>The loop is a small state machine with four states:</p>
 <table>
@@ -1399,6 +1399,10 @@
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt</code></td>
 <td>The voice-mode button with its state icon and listening pulse</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/chat/composables/EmptyState.kt</code></td>
+<td>Animated voice-mode entry in the empty chat</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../tools/PermissionController.kt</code></td>

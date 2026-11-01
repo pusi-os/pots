@@ -12,7 +12,7 @@ Produce a saved mini-app that runs standalone: a last working version + Screen b
 
 1. Decide native vs web.
    - Native: pots-ui screens + collections + records, actions store_put/store_delete/navigate/host_call.
-   - Web: static assets served by MiniAppServer with a service worker + IndexedDB cache.
+   - Web: static assets served by MiniAppServer; keep all assets local and use its per-app records API.
 
 2. Declare collections first.
    - Define collections and records before wiring UI. Keep record shapes stable; add fields additively.
@@ -24,7 +24,7 @@ Produce a saved mini-app that runs standalone: a last working version + Screen b
    - index.html, app.js, styles.css, sw.js, manifest.webmanifest. Keep paths relative. Serve from same origin as the host API.
 
 5. Inject snippets.
-   - Host API client, IndexedDB wrapper, service worker, form-submit handler, offline fallback. See snippets below.
+   - Host API client and form-submit handler. See snippets below. The loopback server and SQLite work without internet.
 
 6. Sandbox testing.
    - Use execute_shell_command (node/python) to lint/test assets, validate JSON, run sqlite queries, generate icons. Document failures before saving.
@@ -41,14 +41,17 @@ Produce a saved mini-app that runs standalone: a last working version + Screen b
 
 ### Host API client
 ```js
+const appId = location.pathname.split('/')[2];
+const base = '/api/apps/' + encodeURIComponent(appId) + '/records/';
 const host = {
   async call(method, path, body) {
     const r = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
     if (!r.ok) throw new Error(r.status + " " + r.statusText);
     return r.json();
   },
-  storePut(collection, record) { return this.call("POST", "/api/store/" + collection, record); },
-  storeDelete(collection, id) { return this.call("DELETE", "/api/store/" + collection + "/" + id); },
+  records(collection) { return this.call("GET", base + encodeURIComponent(collection)); },
+  storePut(collection, record) { return this.call("POST", base + encodeURIComponent(collection), record); },
+  storeDelete(collection, id) { return this.call("DELETE", base + encodeURIComponent(collection) + '?recordId=' + encodeURIComponent(id)); },
   navigate(to) { window.location.href = to; }
 };
 ```
@@ -73,22 +76,8 @@ async function idbGet(db, store, key) {
 }
 ```
 
-### Service worker
-```js
-const CACHE = "app-shell-v1";
-const SHELL = ["/", "/index.html", "/app.js", "/styles.css", "/manifest.webmanifest"];
-self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
-});
-self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return;
-  e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request).then((res) => {
-    const copy = res.clone();
-    caches.open(CACHE).then((c) => c.put(e.request, copy));
-    return res;
-  }).catch(() => caches.match("/index.html"))));
-});
-```
+### Service workers
+The loopback server already serves local files without internet. If a service worker is needed, scope it to the app's own directory, use relative asset URLs, and never cache mutable `/api/` responses.
 
 ### Form submit -> store_put
 ```js
@@ -103,7 +92,7 @@ document.querySelector("#form").addEventListener("submit", async (e) => {
 
 ### host_call usage
 ```js
-const result = await host.call("POST", "/api/host", { tool: "list_records", args: { collection: "items" } });
+const result = await host.records("items");
 ```
 
 ### Offline fallback

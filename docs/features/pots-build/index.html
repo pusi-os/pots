@@ -1482,12 +1482,12 @@
 
 
 <h1 id="pots-build">Pots Build</h1>
-<p><strong>Last verified:</strong> 2026-10-02</p>
+<p><strong>Last verified:</strong> 2026-11-01</p>
 <p>Pots Build is an <strong>Android-only</strong> coding environment inside the Pots app. It is a separate <em>surface</em> from chat — no shared conversation store, no sandbox tools, no provider/settings coupling — but it is not necessarily a separate <em>Linux</em>: when the chat sandbox also runs Debian, both work in the same install.</p>
 <p>It is a <strong>single screen with three states</strong> — set up Linux, pick a project, work in that project's terminal.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="separate-product-surface">Separate product surface</h3>
-<p>Pots Build is opened from the <strong>empty chat state</strong> — an "Open Pots Build" button next to "Start Interactive UI", shown on Android only. It is the same pill and label style as the button above it, in the phosphor green of the terminal it opens, so what it leads to is readable before it is pressed. It then takes over the whole screen the same way Interactive UI mode does: no navigation destination, no second launcher icon, and no place in the back stack. A close button in its top bar and the system back gesture both return to the chat, leaving any drafted message intact. Inside a project, the same top-bar button and system back step back to the project list instead. The mode is not persisted across app restarts; it survives rotation only.</p>
+<p>Pots Build is opened from the sandbox using the action after <strong>Packages</strong>, shown on Android. The action is also available before the sandbox is installed. Once Linux is installed it can also be opened from the Linux Sandbox settings card. It takes over the whole screen: no navigation destination, no second launcher icon, and no place in the back stack. A close button in its top bar and the system back gesture return to the screen it was opened from, leaving any drafted message intact. Inside a project, the same top-bar button and system back step back to the project list instead. The mode is not persisted across app restarts; it survives rotation only.</p>
 <h3 id="which-linux-it-runs-in">Which Linux it runs in</h3>
 <p>Pots Build is always Debian: its coding agents are vendor scripts that expect glibc and apt.</p>
 <p>Debian has exactly one install on the device, normally under app-private <code>pots-build/</code>. Pots Build works in it unconditionally, and never moves. What varies is whether the chat <a href="../sandbox/">Linux sandbox</a> is pointed at the same install:</p>
@@ -1678,8 +1678,8 @@
 <td>Screen state, and the remembered "Open with" agent — read back at startup and checked against what is installed.</td>
 </tr>
 <tr>
-<td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/ui/chat/composables/EmptyState.kt</code></td>
-<td>Hosts the "Open Pots Build" entry button.</td>
+<td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/ui/sandbox/SandboxTabsContent.kt</code></td>
+<td>Hosts the Pots Build entry action.</td>
 </tr>
 </tbody>
 </table>
