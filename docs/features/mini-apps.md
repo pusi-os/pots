@@ -70,8 +70,9 @@ The UI reaches the same store through two `pots-ui` additions:
   round-trip; `navigate` switches to another saved screen.
 
 While the user is still building, records and schemas are written under the
-current conversation id. Save moves them onto the app, so the first save is not
-a copy step the user has to think about.
+current conversation id. The interactive renderer can also write to its own
+draft. Saving combines their declared collections, records and files into the
+app, so the user does not have to copy them by hand.
 
 ### The library
 

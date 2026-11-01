@@ -77,6 +77,15 @@ class MiniAppRepositoryTest {
     }
 
     @Test
+    fun conversationDeclarationsMergeIntoExistingEditorDraft() {
+        val repository = repository()
+        repository.setDraftCollections("editor", listOf(MiniAppCollection("old")))
+        repository.setDraftCollections("conversation", listOf(MiniAppCollection("new")))
+        repository.saveDraft(draft(id = "editor", source = "conversation"))
+        assertEquals(setOf("old", "new"), repository.get("editor")!!.collections.map { it.name }.toSet())
+    }
+
+    @Test
     fun editingForkKeepsCollectionsAndDataIndependent() {
         val repository = repository()
         repository.setDraftCollections("original", listOf(MiniAppCollection("tasks", listOf(MiniAppField("title")))))

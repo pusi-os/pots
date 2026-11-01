@@ -155,7 +155,8 @@ class MiniAppRepository(
     fun saveDraft(draft: MiniAppDraft): MiniApp {
         val now = nowMs()
         val existing = get(draft.id)
-        val meta = drafts[draft.id] ?: draft.sourceConversationId?.let { drafts[it] } ?: DraftMeta()
+        val meta = drafts[draft.id] ?: DraftMeta()
+        val conversationMeta = draft.sourceConversationId?.let { drafts[it] } ?: DraftMeta()
         val app = MiniApp(
             id = draft.id,
             name = draft.name.trim().ifEmpty { "Mini-app" },
@@ -165,19 +166,29 @@ class MiniAppRepository(
             createdAt = existing?.createdAt ?: now,
             updatedAt = now,
             screens = draft.screens,
-            collections = draft.collections.ifEmpty { meta.collections.ifEmpty { existing?.collections.orEmpty() } },
-            automations = draft.automations.ifEmpty { meta.automations.ifEmpty { existing?.automations.orEmpty() } },
-            capabilities = draft.capabilities.ifEmpty { meta.capabilities.ifEmpty { existing?.capabilities.orEmpty() } },
+            collections = draft.collections.ifEmpty { (meta.collections + conversationMeta.collections).associateBy { it.name }.values.toList().ifEmpty { existing?.collections.orEmpty() } },
+            automations = draft.automations.ifEmpty { (meta.automations + conversationMeta.automations).associateBy { it.id }.values.toList().ifEmpty { existing?.automations.orEmpty() } },
+            capabilities = draft.capabilities.ifEmpty { (meta.capabilities + conversationMeta.capabilities).distinct().ifEmpty { existing?.capabilities.orEmpty() } },
             sourceConversationId = draft.sourceConversationId,
             visible = existing?.visible ?: true,
-            kind = if (draft.entryPoint != null) draft.kind else meta.kind,
-            entryPoint = draft.entryPoint ?: meta.entryPoint,
+            kind = if (draft.entryPoint != null) {
+                draft.kind
+            } else if (conversationMeta.entryPoint != null) {
+                conversationMeta.kind
+            } else {
+                meta.kind
+            },
+            entryPoint = draft.entryPoint ?: conversationMeta.entryPoint ?: meta.entryPoint,
             standaloneReady = draft.standaloneReady || meta.standaloneReady,
         )
         // A new app starts life in the drafts folder; move the files the agent
         // wrote there into the app's own folder before recording them.
         val draftFolder = draftFolder(draft.id)
         val appFolder = folderFor(app)
+        val source = draft.sourceConversationId
+        if (source != null && source != draft.id && get(source) == null) {
+            writeFileAssets(draftFolder, fileAssets(draftFolder(source)))
+        }
         if (draftFolder != appFolder) {
             if (listAppStorageFiles(draftFolder).isNotEmpty() || readAppStorageBytes("$draftFolder/app.json") != null) {
                 moveAppStorageFolder(draftFolder, appFolder)
@@ -189,7 +200,6 @@ class MiniAppRepository(
         persistence.saveApp(withFiles)
         // The agent writes draft records under the conversation id it is talking
         // in; when the user saves, they belong to the app.
-        val source = draft.sourceConversationId
         if (source != null && source != app.id) {
             persistence.loadAllRecords(source).forEach { record ->
                 persistence.upsertRecord(record.copy(appId = app.id))

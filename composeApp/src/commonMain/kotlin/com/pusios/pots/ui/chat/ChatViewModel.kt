@@ -400,7 +400,8 @@ class ChatViewModel(
         val id = state.editingMiniAppId ?: state.miniAppDraftId ?: Uuid.random().toString()
         val existing = repository.get(id)
         val meta = repository.draftMeta(id)
-        val entryPoint = meta.entryPoint ?: existing?.entryPoint
+        val conversationMeta = dataRepository.currentConversationId.value?.let(repository::draftMeta)
+        val entryPoint = conversationMeta?.entryPoint ?: meta.entryPoint ?: existing?.entryPoint
         if (screens.isEmpty() && entryPoint == null) {
             _state.update { it.copy(snackbarMessage = Res.string.mini_app_nothing_to_save) }
             return
@@ -415,7 +416,13 @@ class ChatViewModel(
                     screens = screens,
                     sourceConversationId = dataRepository.currentConversationId.value ?: id,
                     message = if (state.editingMiniAppId == null) "Created" else "Saved from the editor",
-                    kind = if (entryPoint != null) meta.kind else existing?.kind ?: com.pusios.pots.data.miniapp.MiniAppKind.NATIVE,
+                    kind = if (conversationMeta?.entryPoint != null) {
+                        conversationMeta.kind
+                    } else if (meta.entryPoint != null) {
+                        meta.kind
+                    } else {
+                        existing?.kind ?: com.pusios.pots.data.miniapp.MiniAppKind.NATIVE
+                    },
                     entryPoint = entryPoint,
                 ),
             )
