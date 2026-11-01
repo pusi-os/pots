@@ -222,7 +222,9 @@ class CompanionControllerImpl(
         val cubeNode = bytesFromHex(prefs.deviceNodeHex) ?: return false
         val phoneId = bytesFromHex(prefs.phoneIdHex) ?: return false
         if (pairKey.size != 32 || cubeNode.size < 8 || phoneId.size < 6 || code.length != 6) return false
+        Log.i("CoPhone", "confirmCode cubeNode=${prefs.deviceNodeHex} phoneId=${prefs.phoneIdHex} code=$code")
         val hmac = CoPhoneCrypto.confirmHmac(pairKey, cubeNode, phoneId, code)
+        Log.i("CoPhone", "confirmCode hmac=${hmac.joinToString("") { "%02x".format(it.toInt() and 0xFF) }}")
         val payload = phoneId + code.toByteArray(Charsets.UTF_8) + hmac
         val mac = currentMac
         if (mac.isBlank()) return false
