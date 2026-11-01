@@ -1476,7 +1476,10 @@ the device browser. The agent builds it with <code>mini_app_data</code>'s file a
 (<code>write_file</code>, <code>write_file_base64</code>, <code>list_files</code>, <code>read_file</code>, <code>delete_file</code>) and
 <code>set_entry</code> (<code>entry_point: "web/index.html"</code>). The browser app talks to the same
 records, files, notes and calendar through the <a href="../mini-app-server/">built-in server</a>.
-Web apps do not use the LLM unless their own JavaScript explicitly calls one.</p>
+Web apps do not use the LLM unless their own JavaScript explicitly calls one.
+The bundled <code>mini-app-authoring</code> skill is available in the skills list and gives
+the agent the local API conventions when invoked while building an app. Saving
+does not automatically rewrite agent callbacks into local actions.</p>
 <p>Native apps can reach the same host services without the browser through the
 <code>host_call</code> action (<code>calendar.*</code>, <code>files.*</code>, <code>notes.*</code>), which writes the result
 into a collection for a <code>records</code> node to display.</p>
@@ -1495,7 +1498,9 @@ models to use and still gives the UI a schema to render.</p>
 <p>While the user is still building, records and schemas are written under the
 current conversation id. The interactive renderer can also write to its own
 draft. Saving combines their declared collections, records and files into the
-app, so the user does not have to copy them by hand.</p>
+app, so the user does not have to copy them by hand.
+Existing app files are preserved when new draft files are saved or the app is
+renamed; new draft files with the same path replace the previous copies.</p>
 <h3 id="the-library">The library</h3>
 <p><strong>My mini-apps</strong> is a sheet, reachable from the interactive top bar and from the
 chat's glass toolbar. It lists saved apps and provides:</p>
@@ -1546,6 +1551,8 @@ not already have.</p>
   ones already there, so re-saving an unchanged session does not duplicate tabs.</li>
 <li><code>store_put</code>, <code>store_delete</code> and <code>navigate</code> work offline in a saved app; a
   <code>callback</code> needs the agent.</li>
+<li>A delete action with an explicit record id that resolves to an empty value does
+  nothing. Deleting the whole collection requires omitting the record id.</li>
 <li>The runner has no chat input of its own; <strong>Edit</strong> is how the user asks for a
   change, which keeps one conversation per app edit and makes the version tree
   readable.</li>
@@ -1638,6 +1645,14 @@ not already have.</p>
 <tr>
 <td><code>composeApp/.../data/ChatSystemPromptBuilder.kt</code></td>
 <td>Persistent-data instructions and the new component/action catalog</td>
+</tr>
+<tr>
+<td><code>composeApp/.../skills/SkillManager.kt</code></td>
+<td>Loads the bundled authoring skill</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/composeResources/files/skills/mini-app-authoring/SKILL.md</code></td>
+<td>Built-in mini-app authoring guidance and API examples</td>
 </tr>
 </tbody>
 </table>
