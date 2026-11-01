@@ -205,3 +205,9 @@
 }
 -dontwarn com.google.gson.**
 -dontwarn sun.misc.Unsafe
+
+# Vosk — offline STT for the CoPhone cube voice path. The recognizer is loaded
+# via JNA (kept above); keep the API classes and their native methods so R8
+# does not strip or rename what the native lib binds to.
+-keep class org.vosk.** { *; }
+-dontwarn org.vosk.**

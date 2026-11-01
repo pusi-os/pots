@@ -290,6 +290,7 @@ private fun AppContent(
                                     }
                                 }
                                 SettingsScreen(
+                                    isPotsBuildAvailable = currentPlatform is Platform.Mobile.Android,
                                     onNavigateBack = {
                                         chatViewModel.refreshSettings()
                                         navController.navigateUp()

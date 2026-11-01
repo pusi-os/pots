@@ -9,10 +9,11 @@ import android.bluetooth.le.AdvertiseSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import android.os.ParcelUuid
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.pusios.pots.companion.cophone.CoPhoneCrypto
+import com.pusios.pots.companion.cophone.CoPhoneDialog
 import com.pusios.pots.companion.cophone.CoPhoneGatt
 import com.pusios.pots.companion.cophone.CoPhonePrefs
 import com.pusios.pots.companion.cophone.CoPhoneUuids
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class CompanionControllerImpl(
     private val context: Context,
+    private val dataRepository: com.pusios.pots.data.DataRepository,
 ) : CompanionController {
     private var currentMac: String = ""
     private val prefs = CoPhonePrefs(context)
@@ -38,13 +40,9 @@ class CompanionControllerImpl(
     private val _enabled = MutableStateFlow(prefs.enabled)
     override val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 
-    init {
-        // Resume the link on process start so paired cubes can find the
-        // phone again without reopening Settings.
-        if (prefs.enabled) setEnabled(true)
-    }
-
     private var gatt: CoPhoneGatt? = null
+    private var dialog: CoPhoneDialog? = null
+    private var audioUpCount = 0L
 
     private fun devicesFromPrefs(): List<CompanionDevice> {
         if (!prefs.paired) return emptyList()
@@ -80,6 +78,7 @@ class CompanionControllerImpl(
         override fun onConnected(mac: String) {
             Log.i("CoPhone", "connected mac=$mac paired=${prefs.paired} pairing=${prefs.pairing}")
             currentMac = mac
+            dialog?.onConnected(mac)
             if (prefs.paired) {
                 prefs.connected = true
                 prefs.connectedAtMs = System.currentTimeMillis()
@@ -89,18 +88,40 @@ class CompanionControllerImpl(
         }
 
         override fun onDisconnected(mac: String) {
+            dialog?.onDisconnected(mac)
             prefs.connected = false
             prefs.connectedAtMs = 0L
             _status.value = if (prefs.paired) CompanionStatus.Disconnected else CompanionStatus.Disconnected
             _devices.value = devicesFromPrefs()
         }
 
-        override fun onAudioUp(bytes: ByteArray) = Unit
-        override fun onTextUp(text: String) = Unit
+        override fun onAudioUp(bytes: ByteArray) {
+            if (++audioUpCount % 50L == 1L) Log.i("CoPhone", "audio up frames=$audioUpCount last=${bytes.size}B")
+            dialog?.onAudioUp(bytes)
+        }
+
+        override fun onTextUp(text: String) {
+            Log.i("CoPhone", "text up: ${text.take(100)}")
+            dialog?.onTextUp(text)
+        }
+
         override fun onCtrl(op: Int, rest: ByteArray) {
             Log.i("CoPhone", "ctrl op=0x${"%02x".format(op)} len=${rest.size} mac=$currentMac")
             val mac = currentMac
             if (mac.isBlank()) return
+            // Dialog opcodes belong to the voice bridge; pairing/auth stay here.
+            when (op) {
+                CoPhoneUuids.LISTEN_START, CoPhoneUuids.LISTEN_STOP,
+                CoPhoneUuids.ABORT, CoPhoneUuids.PING,
+                -> {
+                    if (op == CoPhoneUuids.PING) {
+                        gatt?.notify(mac, CoPhoneUuids.CTRL, byteArrayOf(CoPhoneUuids.PONG.toByte()))
+                    } else {
+                        dialog?.onCtrl(op, rest)
+                    }
+                    return
+                }
+            }
             when (op) {
                 0x13 -> { // OP_PAIR_HELLO from the cube
                     val cubeEph = rest.copyOfRange(0, 32.coerceAtMost(rest.size))
@@ -150,9 +171,15 @@ class CompanionControllerImpl(
                     prefs.connected = true
                     prefs.connectedAtMs = System.currentTimeMillis()
                     _status.value = CompanionStatus.Available
+                    dialog?.sendLook()
                 }
             }
         }
+    }
+
+    init {
+        // All listener and bridge fields must be initialized before restoring the link.
+        if (prefs.enabled) setEnabled(true)
     }
 
     override fun refresh() {
@@ -172,14 +199,7 @@ class CompanionControllerImpl(
             _status.value = CompanionStatus.Disconnected
             stopGatt()
         } else {
-            if (gatt == null) {
-                try {
-                    val g = CoPhoneGatt(context, gattListener)
-                    if (g.start()) gatt = g
-                } catch (t: Throwable) {
-                    _status.value = CompanionStatus.Error
-                }
-            }
+            ensureGatt()
         }
         refresh()
     }
@@ -200,13 +220,20 @@ class CompanionControllerImpl(
             _status.value = CompanionStatus.Error
             return
         }
-        if (gatt == null) {
-            try {
-                val g = CoPhoneGatt(context, gattListener)
-                if (g.start()) gatt = g
-            } catch (t: Throwable) {
-                _status.value = CompanionStatus.Error
+        ensureGatt()
+    }
+
+    /** Create the GATT server and the voice-dialog bridge together. */
+    private fun ensureGatt() {
+        if (gatt != null) return
+        try {
+            val g = CoPhoneGatt(context, gattListener)
+            if (g.start()) {
+                gatt = g
+                dialog = CoPhoneDialog(context, g, prefs, dataRepository)
             }
+        } catch (t: Throwable) {
+            _status.value = CompanionStatus.Error
         }
     }
 
@@ -258,13 +285,15 @@ class CompanionControllerImpl(
     }
 
     private fun stopGatt() {
+        dialog?.shutdown()
+        dialog = null
         gatt?.stop()
         gatt = null
     }
 }
 
-actual fun createCompanionController(): CompanionController {
+actual fun createCompanionController(dataRepository: com.pusios.pots.data.DataRepository): CompanionController {
     val app = com.pusios.pots.PotsAppContext.application
         ?: throw IllegalStateException("PotsApplication not initialized")
-    return CompanionControllerImpl(app)
+    return CompanionControllerImpl(app, dataRepository)
 }

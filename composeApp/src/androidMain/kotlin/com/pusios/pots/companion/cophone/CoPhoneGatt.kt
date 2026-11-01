@@ -126,6 +126,16 @@ class CoPhoneGatt(
                 Log.w(TAG, "cophone: write rsp failed", t)
             }
             val bytes = value ?: return
+            // A client can outlive an Android process restart while its new
+            // server has lost the CCCD bookkeeping. Force a clean reconnect
+            // rather than silently accepting audio that cannot be answered.
+            if (characteristic.uuid == CoPhoneUuids.AUDIO_UP &&
+                notifyOn[device.address]?.contains(CoPhoneUuids.AUDIO_DOWN) != true
+            ) {
+                Log.w(TAG, "cophone: missing audio subscription; reconnecting")
+                runCatching { server?.cancelConnection(device) }
+                return
+            }
             when (characteristic.uuid) {
                 CoPhoneUuids.AUDIO_UP -> if (bytes.isNotEmpty()) listener.onAudioUp(bytes)
 
@@ -219,17 +229,17 @@ class CoPhoneGatt(
 
     private fun buildService(): BluetoothGattService {
         val svc = BluetoothGattService(CoPhoneUuids.SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-        val write = BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+        val writeNoRsp = BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+        val writeRsp = BluetoothGattCharacteristic.PROPERTY_WRITE
         val notify = BluetoothGattCharacteristic.PROPERTY_NOTIFY
         val wPerm = BluetoothGattCharacteristic.PERMISSION_WRITE
         val rPerm = BluetoothGattCharacteristic.PERMISSION_READ
         // TEXT/CTRL must accept BOTH write types: the cube writes them as
-        // WRITE_CMD (no response) -- the mesh path has always done that, and
-        // a characteristic without WRITE_NO_RESPONSE silently drops a command
-        // at the ATT layer. That is exactly why the very first AUTH_CHAL
-        // vanished: the link was up, the write "succeeded", nothing arrived.
-        val both = write or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
-        val up = chr(CoPhoneUuids.AUDIO_UP, write, wPerm)
+        // WRITE_REQ (with response) -- a characteristic that only advertises
+        // WRITE_NO_RESPONSE can have such a write rejected at the ATT layer,
+        // which is exactly how the very first AUTH_CHAL once vanished.
+        val both = writeRsp or writeNoRsp
+        val up = chr(CoPhoneUuids.AUDIO_UP, writeNoRsp or writeRsp, wPerm)
         val down = chr(CoPhoneUuids.AUDIO_DOWN, notify, rPerm)
         down.addDescriptor(BluetoothGattDescriptor(CCCD, rPerm or wPerm))
         val text = chr(CoPhoneUuids.TEXT, both or notify, wPerm or rPerm)

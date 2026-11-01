@@ -905,8 +905,13 @@ private fun ChatModeScreen(
         val next = status.nextServiceName?.let { stringResource(Res.string.fallback_trying_next, it) }
         if (next != null) "$failed\n$next" else failed
     }
-    val companionController = koinInject<CompanionController>()
+    val companionController = if (LocalInspectionMode.current) {
+        remember { com.pusios.pots.companion.NoOpCompanionController() }
+    } else {
+        koinInject<CompanionController>()
+    }
     val companionStatus by companionController.status.collectAsStateWithLifecycle()
+    val companionEnabled by companionController.enabled.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize().screenBackground().navigationBarsPadding().statusBarsPadding().imePadding()) {
         Column(Modifier.fillMaxSize()) {
             Box(
@@ -932,7 +937,7 @@ private fun ChatModeScreen(
                         showHistorySheet = true
                     },
                     navigationTabBar = navigationTabBar,
-                    handsFreeStatus = handsFreeStatus.takeIf { handsFree.isSupported },
+                    handsFreeStatus = handsFreeStatus.takeIf { handsFree.isSupported && (uiState.history.isNotEmpty() || handsFreeStatus != HandsFreeStatus.Idle) },
                     onToggleHandsFree = {
                         when (handsFreeStatus) {
                             // While the agent talks, the button interrupts it instead of stopping
@@ -951,7 +956,7 @@ private fun ChatModeScreen(
                             }
                         }
                     },
-                    companionStatus = companionStatus,
+                    companionStatus = companionStatus.takeIf { companionEnabled },
                     miniAppsOpen = showMiniAppsToolbar,
                     onToggleMiniApps = { showMiniAppsToolbar = !showMiniAppsToolbar },
                     profilesOpen = showAgentProfilesToolbar,
@@ -998,6 +1003,7 @@ private fun ChatModeScreen(
                     onSetupSandbox = sandboxViewModel?.let { { it.onSetupSandbox() } } ?: {},
                     onCancelSandbox = sandboxViewModel?.let { { it.onCancelSandbox() } } ?: {},
                     previewLines = previewSandboxLines,
+                    onOpenPotsBuild = onOpenPotsBuild,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
@@ -1039,17 +1045,13 @@ private fun ChatModeScreen(
                             ),
                     ) {
                         if (uiState.history.isEmpty()) {
-                            // Interactive UI mode isn't offered on on-device LiteRT: the pots-ui
-                            // component schema is too large for small Gemma models to coherently
-                            // attend to, and even the minimal variant we tried was unreliable.
-                            val primaryIsOnDevice = uiState.availableServices
-                                .firstOrNull()
-                                ?.let { Service.fromId(it.serviceId).isOnDevice } == true
                             EmptyState(
                                 modifier = Modifier.fillMaxWidth().weight(1f),
-                                onStartInteractiveMode = uiState.actions.enterInteractiveMode
-                                    .takeUnless { primaryIsOnDevice },
-                                onOpenPotsBuild = onOpenPotsBuild,
+                                onStartHandsFree = {
+                                    textToSpeech?.stop()
+                                    uiState.actions.setIsSpeaking(false, "")
+                                    handsFree.toggle()
+                                }.takeIf { handsFree.isSupported && handsFreeStatus == HandsFreeStatus.Idle },
                             )
                         } else {
                             val listState = rememberLazyListState()

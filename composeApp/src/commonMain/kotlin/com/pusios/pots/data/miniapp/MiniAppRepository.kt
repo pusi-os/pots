@@ -70,6 +70,28 @@ class MiniAppRepository(
 
     fun draftMeta(appId: String): DraftMeta = drafts[appId] ?: DraftMeta()
 
+    /** Copy an app into an independent editor draft without modifying the original. */
+    fun forkToDraft(sourceId: String, draftId: String): Boolean {
+        val source = get(sourceId) ?: return false
+        if (sourceId == draftId || get(draftId) != null) return false
+        updateDraft(draftId) {
+            it.copy(
+                collections = source.collections,
+                automations = source.automations,
+                capabilities = source.capabilities,
+                kind = source.kind,
+                entryPoint = source.entryPoint,
+                standaloneReady = source.standaloneReady,
+            )
+        }
+        allRecords(sourceId).forEach { persistence.upsertRecord(it.copy(appId = draftId)) }
+        fileAssets(appFolder(sourceId)).forEach { asset ->
+            val bytes = Base64.decode(asset.dataBase64)
+            check(writeFileBytes(draftId, asset.path, bytes)) { "Could not copy ${asset.path}" }
+        }
+        return true
+    }
+
     /** The agent declares what the app's data looks like while it is still a draft. */
     fun setDraftCollections(appId: String, collections: List<MiniAppCollection>) {
         val app = get(appId)
@@ -143,14 +165,14 @@ class MiniAppRepository(
             createdAt = existing?.createdAt ?: now,
             updatedAt = now,
             screens = draft.screens,
-            collections = draft.collections.ifEmpty { meta.collections },
-            automations = draft.automations.ifEmpty { meta.automations },
-            capabilities = draft.capabilities.ifEmpty { meta.capabilities },
+            collections = draft.collections.ifEmpty { meta.collections.ifEmpty { existing?.collections.orEmpty() } },
+            automations = draft.automations.ifEmpty { meta.automations.ifEmpty { existing?.automations.orEmpty() } },
+            capabilities = draft.capabilities.ifEmpty { meta.capabilities.ifEmpty { existing?.capabilities.orEmpty() } },
             sourceConversationId = draft.sourceConversationId,
             visible = existing?.visible ?: true,
             kind = if (draft.entryPoint != null) draft.kind else meta.kind,
             entryPoint = draft.entryPoint ?: meta.entryPoint,
-            standaloneReady = draft.standaloneReady || meta.standaloneReady || (draft.screens.isNotEmpty() || (draft.entryPoint ?: meta.entryPoint) != null),
+            standaloneReady = draft.standaloneReady || meta.standaloneReady,
         )
         // A new app starts life in the drafts folder; move the files the agent
         // wrote there into the app's own folder before recording them.
@@ -161,6 +183,8 @@ class MiniAppRepository(
                 moveAppStorageFolder(draftFolder, appFolder)
             }
         }
+        // Resolve the new folder via the saved manifest before enumerating files.
+        persistence.saveApp(app)
         val withFiles = app.copy(files = fileInfos(app.id))
         persistence.saveApp(withFiles)
         // The agent writes draft records under the conversation id it is talking

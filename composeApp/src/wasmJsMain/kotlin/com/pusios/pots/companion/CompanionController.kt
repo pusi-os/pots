@@ -1,3 +1,5 @@
 package com.pusios.pots.companion
 
-actual fun createCompanionController(): CompanionController = NoOpCompanionController()
+import com.pusios.pots.data.DataRepository
+
+actual fun createCompanionController(dataRepository: DataRepository): CompanionController = NoOpCompanionController()

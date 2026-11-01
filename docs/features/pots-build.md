@@ -1,6 +1,6 @@
 # Pots Build
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-11-01
 
 Pots Build is an **Android-only** coding environment inside the Pots app. It is a separate *surface* from chat — no shared conversation store, no sandbox tools, no provider/settings coupling — but it is not necessarily a separate *Linux*: when the chat sandbox also runs Debian, both work in the same install.
 
@@ -10,7 +10,7 @@ It is a **single screen with three states** — set up Linux, pick a project, wo
 
 ### Separate product surface
 
-Pots Build is opened from the **empty chat state** — an "Open Pots Build" button next to "Start Interactive UI", shown on Android only. It is the same pill and label style as the button above it, in the phosphor green of the terminal it opens, so what it leads to is readable before it is pressed. It then takes over the whole screen the same way Interactive UI mode does: no navigation destination, no second launcher icon, and no place in the back stack. A close button in its top bar and the system back gesture both return to the chat, leaving any drafted message intact. Inside a project, the same top-bar button and system back step back to the project list instead. The mode is not persisted across app restarts; it survives rotation only.
+Pots Build is opened from the sandbox using the action after **Packages**, shown on Android. The action is also available before the sandbox is installed. Once Linux is installed it can also be opened from the Linux Sandbox settings card. It takes over the whole screen: no navigation destination, no second launcher icon, and no place in the back stack. A close button in its top bar and the system back gesture return to the screen it was opened from, leaving any drafted message intact. Inside a project, the same top-bar button and system back step back to the project list instead. The mode is not persisted across app restarts; it survives rotation only.
 
 ### Which Linux it runs in
 
@@ -175,4 +175,4 @@ The PTY hands Pots a block of output as often as the program produces one — un
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/build/TerminalInputView.kt` | The Android IME plumbing: null input type, key events, committed text. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/build/PotsBuildScreen.kt` | Screen shell and the setup / projects / terminal routing. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/build/PotsBuildViewModel.kt` | Screen state, and the remembered "Open with" agent — read back at startup and checked against what is installed. |
-| `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/chat/composables/EmptyState.kt` | Hosts the "Open Pots Build" entry button. |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/sandbox/SandboxTabsContent.kt` | Hosts the Pots Build entry action. |

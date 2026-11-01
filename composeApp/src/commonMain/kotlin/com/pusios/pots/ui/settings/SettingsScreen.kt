@@ -118,7 +118,9 @@ fun SettingsScreen(
     sandboxViewModel: SandboxViewModel = koinViewModel(),
     onNavigateBack: () -> Unit,
     navigationTabBar: (@Composable () -> Unit)? = null,
+    isPotsBuildAvailable: Boolean = false,
 ) {
+    var isPotsBuildOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val sandboxState by sandboxViewModel.state.collectAsStateWithLifecycle()
 
@@ -133,20 +135,25 @@ fun SettingsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    SettingsScreenContent(
-        uiState = uiState,
-        actions = viewModel.actions,
-        sandboxState = sandboxState,
-        onToggleSandbox = sandboxViewModel::onToggleSandbox,
-        onSelectDistro = sandboxViewModel::onSelectDistro,
-        onSetupSandbox = sandboxViewModel::onSetupSandbox,
-        onCancelSandbox = sandboxViewModel::onCancelSandbox,
-        onResetSandbox = sandboxViewModel::onResetSandbox,
-        onInstallPackages = sandboxViewModel::onInstallPackages,
-        onMigrateHome = sandboxViewModel::onMigrateHome,
-        onNavigateBack = onNavigateBack,
-        navigationTabBar = navigationTabBar,
-    )
+    if (isPotsBuildOpen && isPotsBuildAvailable) {
+        com.pusios.pots.ui.build.PotsBuildScreen(onExit = { isPotsBuildOpen = false })
+    } else {
+        SettingsScreenContent(
+            uiState = uiState,
+            actions = viewModel.actions,
+            sandboxState = sandboxState,
+            onToggleSandbox = sandboxViewModel::onToggleSandbox,
+            onSelectDistro = sandboxViewModel::onSelectDistro,
+            onSetupSandbox = sandboxViewModel::onSetupSandbox,
+            onCancelSandbox = sandboxViewModel::onCancelSandbox,
+            onResetSandbox = sandboxViewModel::onResetSandbox,
+            onInstallPackages = sandboxViewModel::onInstallPackages,
+            onMigrateHome = sandboxViewModel::onMigrateHome,
+            onNavigateBack = onNavigateBack,
+            navigationTabBar = navigationTabBar,
+            onOpenPotsBuild = { isPotsBuildOpen = true }.takeIf { isPotsBuildAvailable },
+        )
+    }
 }
 
 @Composable
@@ -163,6 +170,7 @@ fun SettingsScreenContent(
     onMigrateHome: () -> Unit = {},
     onNavigateBack: () -> Unit = {},
     navigationTabBar: (@Composable () -> Unit)? = null,
+    onOpenPotsBuild: (() -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val undoLabel = stringResource(Res.string.snackbar_undo)
@@ -333,6 +341,7 @@ fun SettingsScreenContent(
                                     onResetSandbox = onResetSandbox,
                                     onInstallPackages = onInstallPackages,
                                     onMigrateHome = onMigrateHome,
+                                    onOpenPotsBuild = onOpenPotsBuild,
                                 )
                             }
 

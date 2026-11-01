@@ -77,6 +77,23 @@ class MiniAppRepositoryTest {
     }
 
     @Test
+    fun editingForkKeepsCollectionsAndDataIndependent() {
+        val repository = repository()
+        repository.setDraftCollections("original", listOf(MiniAppCollection("tasks", listOf(MiniAppField("title")))))
+        repository.saveDraft(draft(id = "original"))
+        repository.putRecord("original", "tasks", "one", buildJsonObject { put("title", JsonPrimitive("Original")) })
+
+        assertTrue(repository.forkToDraft("original", "copy"))
+        repository.putRecord("copy", "tasks", "one", buildJsonObject { put("title", JsonPrimitive("Edited")) })
+        repository.saveDraft(draft(id = "copy"))
+
+        assertEquals(listOf("tasks"), repository.get("copy")!!.collections.map { it.name })
+        assertEquals(JsonPrimitive("Original"), repository.records("original", "tasks").single().value["title"])
+        assertEquals(JsonPrimitive("Edited"), repository.records("copy", "tasks").single().value["title"])
+        assertEquals(1, repository.versionCount("original"))
+    }
+
+    @Test
     fun exportImportRoundTripsScreensAndData() {
         val repository = repository()
         repository.saveDraft(draft())

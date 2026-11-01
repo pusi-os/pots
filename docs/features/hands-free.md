@@ -1,6 +1,6 @@
 # Hands-Free Voice Mode
 
-**Last verified:** 2026-10-25
+**Last verified:** 2026-11-01
 
 Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it heard, waits for the agent, speaks the answer and listens again. The user never has to touch the screen for the whole round trip.
 
@@ -8,7 +8,7 @@ Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it
 
 ### Voice mode
 
-A toggle in the top bar, next to the speech-output button. It is only shown on platforms that have a speech recognizer — currently Android. On every other platform the button is hidden and nothing else changes.
+On a supported platform, the empty chat offers an animated circular voice button. Once a conversation has begun, a toggle also appears in the top bar next to speech output; it remains visible while voice mode is active even before the first message. Voice controls are only shown on platforms that have a speech recognizer — currently Android.
 
 ### The loop
 
@@ -54,5 +54,6 @@ Recognizer and synthesizer never run at the same time. That is deliberate: with 
 | `composeApp/src/wasmJsMain/.../handsfree/SpeechToText.wasmJsMain.kt` | No recognizer on the web — the button is hidden |
 | `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Creates the controller, feeds assistant replies into it, wires the top-bar button |
 | `composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt` | The voice-mode button with its state icon and listening pulse |
+| `composeApp/src/commonMain/.../ui/chat/composables/EmptyState.kt` | Animated voice-mode entry in the empty chat |
 | `composeApp/src/commonMain/.../tools/PermissionController.kt` | The `RECORD_AUDIO` runtime permission |
 | `androidApp/src/main/AndroidManifest.xml` | `RECORD_AUDIO` permission declaration |

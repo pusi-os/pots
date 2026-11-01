@@ -1,129 +1,90 @@
 package com.pusios.pots.ui.chat.composables
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.pusios.pots.ui.components.animatedGradientBorder
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.potsik.PotsikAnchor
 import com.pusios.pots.ui.potsik.PotsikAnchorKind
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
-import pots.composeapp.generated.resources.pots_build_open
-import pots.composeapp.generated.resources.start_interactive_ui
+import pots.composeapp.generated.resources.handsfree_content_description
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
-/**
- * Phosphor green for the Pots Build button, taken from the ANSI palette its own
- * terminal paints with: the bright green on dark backgrounds, the darker normal
- * green where a light one would wash it out. Colors only — the button keeps the
- * shape and label style it shares with the rest of the empty state.
- */
-private val TerminalGreenOnDark = Color(0xFF16C60C)
-private val TerminalGreenOnLight = Color(0xFF13A10E)
-
-/**
- * The chat's empty state.
- *
- * Потсик stands where the welcome text used to be: the character's height is
- * roughly what the logo and the greeting line took up together, so the layout
- * does not jump when the first message arrives.
- */
 @Composable
-internal fun EmptyState(
-    modifier: Modifier,
-    onStartInteractiveMode: (() -> Unit)? = null,
-    onOpenPotsBuild: (() -> Unit)? = null,
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // The character's place in the empty screen. He is drawn by the
-        // overlay over the chat, so there is only ever one of him.
-        PotsikAnchor(
-            kind = PotsikAnchorKind.EMPTY,
-            size = EmptyStateCharacterSize,
-        )
-        if (onStartInteractiveMode != null) {
+internal fun EmptyState(modifier: Modifier, onStartHandsFree: (() -> Unit)? = null) {
+    Column(modifier, verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        PotsikAnchor(kind = PotsikAnchorKind.EMPTY, size = 132.dp)
+        if (onStartHandsFree != null) {
             Spacer(Modifier.height(16.dp))
-            AnimatedBorderButton(
-                text = stringResource(Res.string.start_interactive_ui),
-                onClick = onStartInteractiveMode,
-            )
+            VoiceButton(onStartHandsFree)
             Spacer(Modifier.height(8.dp))
-        }
-        if (onOpenPotsBuild != null) {
-            val terminalGreen = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
-                TerminalGreenOnDark
-            } else {
-                TerminalGreenOnLight
-            }
-            OutlinedButton(
-                onClick = onOpenPotsBuild,
-                modifier = Modifier.handCursor(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = terminalGreen),
-                border = BorderStroke(1.dp, terminalGreen.copy(alpha = 0.6f)),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Terminal,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(Res.string.pots_build_open))
-            }
-            Spacer(Modifier.height(8.dp))
+            Text(stringResource(Res.string.handsfree_content_description), style = MaterialTheme.typography.labelLarge)
         }
     }
 }
 
-/** How tall Потсик stands in the empty state. */
-private val EmptyStateCharacterSize = 132.dp
-
+/** One animated canvas keeps the decorative particles out of the composition tree. */
 @Composable
-private fun AnimatedBorderButton(
-    text: String,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .handCursor()
-            .clip(RoundedCornerShape(50))
-            .clickable(onClick = onClick)
-            .animatedGradientBorder(
-                cornerRadius = 50.dp,
-                borderWidth = 3.dp,
-                backgroundColor = MaterialTheme.colorScheme.background,
-            ),
+private fun VoiceButton(onClick: () -> Unit) {
+    val description = stringResource(Res.string.handsfree_content_description)
+    val transition = rememberInfiniteTransition()
+    val phase by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Restart))
+    Canvas(
+        Modifier.size(104.dp).handCursor().clip(CircleShape)
+            .semantics { contentDescription = description }
+            .clickable(role = Role.Button, onClick = onClick),
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        )
+        val r = size.minDimension / 2f
+        val t = phase * 2f * PI.toFloat()
+        val pulse = 0.96f + 0.025f * (sin(t * 3f) + sin(t * 6f).coerceAtLeast(0f))
+        drawCircle(brush = Brush.radialGradient(listOf(Color(0xFFEF7FCE), Color(0xFF8059E8), Color(0xFF3753B9)), center = Offset(r * (0.7f + 0.2f * sin(t)), r * (0.65f + 0.2f * cos(t))), radius = r * 1.8f), radius = r * pulse)
+        repeat(18) { i ->
+            val a = i * 2.4f + t * (if (i % 2 == 0) 1f else -1f)
+            val distance = r * (0.58f + 0.19f * sin(t + i * 1.7f))
+            val p = center + Offset(cos(a) * distance, sin(a * 1.3f) * distance)
+            val color = Color.White.copy(alpha = 0.25f + (i % 3) * 0.12f)
+            if (i % 3 == 0) {
+                drawLine(color, p - Offset(r * 0.025f, 0f), p + Offset(r * 0.025f, 0f), strokeWidth = r * 0.025f, cap = StrokeCap.Round)
+            } else {
+                drawCircle(color, radius = r * (0.015f + (i % 2) * 0.012f), center = p)
+            }
+        }
+        // A speech bubble and waveform combine conversation and voice in one vector mark.
+        drawCircle(Color.White.copy(alpha = 0.9f), radius = r * 0.39f, style = Stroke(width = r * 0.045f))
+        drawLine(Color.White, center + Offset(r * 0.18f, r * 0.33f), center + Offset(r * 0.34f, r * 0.43f), r * 0.045f, cap = StrokeCap.Round)
+        listOf(0.16f, 0.31f, 0.22f, 0.12f).forEachIndexed { i, height ->
+            val x = center.x + (i - 1.5f) * r * 0.13f
+            drawLine(Color.White, Offset(x, center.y - r * height / 2), Offset(x, center.y + r * height / 2), r * 0.055f, cap = StrokeCap.Round)
+        }
     }
 }

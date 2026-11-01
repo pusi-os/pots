@@ -1,6 +1,6 @@
 # Dynamic UI (pots-ui)
 
-**Last verified:** 2026-10-24
+**Last verified:** 2026-11-01
 
 AI-generated interactive UI layouts rendered inline in chat messages. The AI produces JSON-based layout definitions wrapped in `pots-ui` code fences. Compose renders them natively with support for forms, buttons, and multi-step flows. Enabled by default; users can disable it in Settings, which removes the instructions from the system prompt. Because the system prompt is rebuilt per request, toggling the setting takes effect on the next message in any conversation. Parsing and rendering stay active regardless so existing messages with pots-ui blocks always render.
 
@@ -53,7 +53,7 @@ A dedicated full-screen mode where the AI produces complete screen layouts via p
 
 ### Entering Interactive Mode
 
-Users click "Start Interactive UI" on the empty chat state. This enters interactive mode with a text input where they describe what they want (e.g., "Build me a quiz app"). The first message goes to the AI with an enhanced system prompt, and the AI responds with a full-screen UI. The button is hidden when the primary service is on-device (LiteRT), because small local models cannot reliably produce pots-ui JSON; on-device services are also filtered out of the interactive-mode service selector.
+The empty-chat entry to interactive mode is currently hidden. Existing interactive sessions continue to open with a text input where users describe what they want (e.g., "Build me a quiz app"). The first message goes to the AI with an enhanced system prompt, and the AI responds with a full-screen UI. On-device services are filtered out of the interactive-mode service selector because small local models cannot reliably produce pots-ui JSON.
 
 ### Screen Navigation
 

@@ -549,7 +549,11 @@ private fun ConfiguredServiceCardContent(
         if (isExpanded) {
             Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                 if (entry.service.isOnDevice) {
-                    val localEngineAvailable = koinInject<com.pusios.pots.data.DataRepository>().isLocalInferenceAvailable()
+                    val localEngineAvailable = if (androidx.compose.ui.platform.LocalInspectionMode.current) {
+                        true
+                    } else {
+                        koinInject<com.pusios.pots.data.DataRepository>().isLocalInferenceAvailable()
+                    }
                     if (!localEngineAvailable) {
                         Text(
                             text = "Инструмент не поддерживается на этом компьютере.",

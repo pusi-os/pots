@@ -50,8 +50,8 @@ class CoPhonePrefs(context: Context) {
 
     /** Speak replies on the cube (the text bubbles are shown either way). */
     var ttsReplies: Boolean
-        get() = prefs.getBoolean(KEY_TTS, true)
-        set(v) = prefs.edit().putBoolean(KEY_TTS, v).apply()
+        get() = prefs.getBoolean(KEY_TTS_REPLIES, true)
+        set(v) = prefs.edit().putBoolean(KEY_TTS_REPLIES, v).apply()
 
     var lastState: String
         get() = prefs.getString(KEY_STATE, "") ?: ""
@@ -111,7 +111,7 @@ class CoPhonePrefs(context: Context) {
      * default) or "cloud" (the endpoint's `/audio/speech`).
      */
     var ttsEngine: String
-        get() = prefs.getString(KEY_TTS, TTS_SYSTEM) ?: TTS_SYSTEM
+        get() = (prefs.all[KEY_TTS] as? String) ?: TTS_SYSTEM
         set(v) = prefs.edit().putString(KEY_TTS, if (v == TTS_CLOUD) TTS_CLOUD else TTS_SYSTEM).apply()
 
     /** System TTS voice name ("" = engine default for ru-RU). */
@@ -162,6 +162,7 @@ class CoPhonePrefs(context: Context) {
         private const val KEY_STT = "stt_engine"
         private const val KEY_STT_MODEL = "stt_model"
         private const val KEY_TTS = "tts_engine"
+        private const val KEY_TTS_REPLIES = "tts_replies"
         private const val KEY_TTS_VOICE = "tts_voice"
         private const val KEY_TTS_RATE = "tts_rate"
 

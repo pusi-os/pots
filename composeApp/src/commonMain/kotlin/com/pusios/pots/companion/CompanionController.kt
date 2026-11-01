@@ -1,5 +1,6 @@
 package com.pusios.pots.companion
 
+import com.pusios.pots.data.DataRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,4 +80,4 @@ class NoOpCompanionController : CompanionController {
     override fun updateStatus(status: CompanionStatus) = Unit
 }
 
-expect fun createCompanionController(): CompanionController
+expect fun createCompanionController(dataRepository: DataRepository): CompanionController

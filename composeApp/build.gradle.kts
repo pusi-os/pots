@@ -159,6 +159,9 @@ kotlin {
                 implementation(libs.sqldelight.android.driver)
                 implementation(libs.nanohttpd)
                 implementation(libs.xz)
+                // CoPhone cube voice: offline STT (Vosk) + its native loader.
+                implementation("com.alphacephei:vosk-android:0.3.47")
+                implementation("net.java.dev.jna:jna:5.13.0@aar")
             }
         }
         getByName("desktopMain") {

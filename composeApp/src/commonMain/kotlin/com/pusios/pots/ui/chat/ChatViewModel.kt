@@ -581,6 +581,8 @@ class ChatViewModel(
         currentJob = null
         viewModelScope.launch(backgroundDispatcher) {
             val app = repository.get(id) ?: return@launch
+            val draftId = Uuid.random().toString()
+            if (!repository.forkToDraft(id, draftId)) return@launch
             val screen = app.latestScreen ?: MiniAppScreen(
                 id = "web-summary",
                 title = app.name,
@@ -595,8 +597,8 @@ class ChatViewModel(
                     isLoading = false,
                     error = null,
                     showFreeProviderSuggestions = false,
-                    miniAppDraftId = app.id,
-                    editingMiniAppId = app.id,
+                    miniAppDraftId = draftId,
+                    editingMiniAppId = null,
                     editingMiniAppName = app.name,
                     editingMiniAppDescription = app.description,
                     editingMiniAppIcon = app.icon,

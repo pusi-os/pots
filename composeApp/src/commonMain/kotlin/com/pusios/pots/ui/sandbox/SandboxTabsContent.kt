@@ -44,6 +44,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.pots_build_open
 import pots.composeapp.generated.resources.sandbox_session_chip_session
 import pots.composeapp.generated.resources.sandbox_session_chip_temporary
 import pots.composeapp.generated.resources.settings_sandbox_cancel
@@ -62,6 +63,7 @@ internal fun SandboxTabsContent(
     onCancelSandbox: () -> Unit = {},
     previewLines: ImmutableList<TerminalLine> = persistentListOf(),
     modifier: Modifier = Modifier,
+    onOpenPotsBuild: (() -> Unit)? = null,
 ) {
     val statusText = sandboxStatusText(sandboxState.sandboxStatusLabel)
     if (sandboxState.sandboxReady) {
@@ -77,7 +79,7 @@ internal fun SandboxTabsContent(
             modifier = modifier,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SandboxSubTabSelector(currentTab = subTab, onSelectTab = onSelectTab)
+            SandboxSubTabSelector(currentTab = subTab, onSelectTab = onSelectTab, onOpenPotsBuild = onOpenPotsBuild)
 
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 when (subTab) {
@@ -114,6 +116,11 @@ internal fun SandboxTabsContent(
         }
     } else {
         Column(modifier = modifier.fillMaxWidth()) {
+            if (onOpenPotsBuild != null) {
+                TextButton(onClick = onOpenPotsBuild, modifier = Modifier.handCursor()) {
+                    Text(stringResource(Res.string.pots_build_open))
+                }
+            }
             SettingsCard {
                 Text(
                     text = "Alpine Linux",
@@ -205,6 +212,7 @@ private fun SessionChipRow(viewModel: SandboxSessionViewModel) {
 private fun SandboxSubTabSelector(
     currentTab: SandboxSubTab,
     onSelectTab: (SandboxSubTab) -> Unit,
+    onOpenPotsBuild: (() -> Unit)?,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(4.dp),
@@ -234,6 +242,11 @@ private fun SandboxSubTabSelector(
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
                 )
+            }
+        }
+        if (onOpenPotsBuild != null) {
+            TextButton(onClick = onOpenPotsBuild, modifier = Modifier.handCursor()) {
+                Text(stringResource(Res.string.pots_build_open), maxLines = 1)
             }
         }
     }

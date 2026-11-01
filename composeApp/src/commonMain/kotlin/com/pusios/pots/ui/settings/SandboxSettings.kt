@@ -32,6 +32,7 @@ import com.pusios.pots.ui.sandbox.SandboxProgressRow
 import com.pusios.pots.ui.sandbox.sandboxStatusText
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.pots_build_open
 import pots.composeapp.generated.resources.settings_sandbox_cancel
 import pots.composeapp.generated.resources.settings_sandbox_description
 import pots.composeapp.generated.resources.settings_sandbox_disk_usage
@@ -61,6 +62,7 @@ internal fun SandboxSettingsCard(
     onResetSandbox: () -> Unit,
     onInstallPackages: () -> Unit,
     onMigrateHome: () -> Unit,
+    onOpenPotsBuild: (() -> Unit)? = null,
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
     val statusText = sandboxStatusText(sandboxState.sandboxStatusLabel)
@@ -110,6 +112,12 @@ internal fun SandboxSettingsCard(
                 installed = sandboxState.installedDistros,
                 onSelect = onSelectDistro,
             )
+        }
+        if (sandboxState.sandboxReady && onOpenPotsBuild != null) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onOpenPotsBuild, modifier = Modifier.handCursor()) {
+                Text(stringResource(Res.string.pots_build_open))
+            }
         }
 
         if (sandboxState.sandboxProgress != null) {

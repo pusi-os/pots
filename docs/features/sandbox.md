@@ -1,10 +1,12 @@
 # Linux Sandbox
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-11-01
 
 Pots ships a self-contained Linux environment on Android so the assistant — and the user, via the in-app Terminal — can run real shell commands. The agent can install packages, write and run scripts, hit the network, and reach external servers over SSH/SFTP/FTP. The sandbox runs the user-space `proot` runtime against a rootfs extracted into the app's private storage; no root or system access is required.
 
 The sandbox is **Android-only**. iOS, desktop, and web have no-op stubs — sandbox operations are simply unavailable on those platforms.
+
+The sandbox toolbar offers Terminal, Files and Packages, followed by an action opening Pots Build. This action is also available before the chat sandbox is installed. Once Linux is installed, the Linux Sandbox settings card also offers an action to open Pots Build and return to settings afterwards.
 
 ## Concepts
 

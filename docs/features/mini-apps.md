@@ -1,6 +1,6 @@
 # Mini-apps (the Interactive UI studio)
 
-**Last verified:** 2026-10-24
+**Last verified:** 2026-11-01
 
 Interactive UI mode is also a small app studio. The agent designs the screens; the
 user saves the result as a **mini-app** with its own persistent data, version
@@ -80,7 +80,8 @@ chat's glass toolbar. It lists saved apps and provides:
 
 - **Open** — run the app;
 - **Open in editor** — seed a fresh interactive session with the app's final
-  screen, schema and records so the agent can change it;
+  screen and an independent draft copy of its schema, records and files; saving
+  creates a separate app without changing the original;
 - **Edit** — change the name and description (also a versioned save);
 - **Version history** — the tree, with a Restore button on every node;
 - **Export** — one `.json` bundle containing the app, its records and its

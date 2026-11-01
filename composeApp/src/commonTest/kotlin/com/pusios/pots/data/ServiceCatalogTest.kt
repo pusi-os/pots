@@ -50,7 +50,7 @@ class ServiceCatalogTest {
         assertEquals(ApiKeyAuthStyle.RAW, Service.Gptunnel.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.Polza.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.AiTunnel.apiKeyAuthStyle)
-            assertEquals(ApiKeyAuthStyle.BEARER, Service.Prosvetim.apiKeyAuthStyle)
+        assertEquals(ApiKeyAuthStyle.BEARER, Service.Prosvetim.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.PlusVibe.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.PlusVibeReserve.apiKeyAuthStyle)
     }
