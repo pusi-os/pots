@@ -1136,16 +1136,16 @@
 <p><strong>Date:</strong> 2026-11-01</p>
 <h2 id="delivered">Delivered</h2>
 <ul>
-<li>Android companion voice bridge, BLE pairing and appearance synchronization have been developed alongside the PusiCharm firmware. A previous device session confirmed a dialogue; the current build has not been fully exercised end to end.</li>
+<li>Android companion voice bridge, BLE pairing and appearance synchronization have been developed alongside the PusiCharm firmware. The user confirmed the flashed firmware works and long messages append in chunks.</li>
 <li>The empty chat offers a HandsFree entry on supported platforms. Pots Build is available from the sandbox and its settings.</li>
 <li>Editing a saved mini-app creates a separate draft with copied records, schema and assets. The authoring instructions use the actual per-app loopback API.</li>
-<li>Android release APK 3.10.4 (190+1) was published to the dashboard and installed on the connected phone. Its SHA-256 is <code>b87a8a71e5de5b2ee60dbe6660d377d1107c426eb17eb93bc0b9972b3603bfed</code>.</li>
-<li>Desktop tests and the firmware build passed; screenshot generation passed before the latest mini-app changes.</li>
+<li>Android release APK 3.10.7 (194) was published to the dashboard with signing verification and installed on the connected phone. Its SHA-256 is <code>ec2974d7b577cffe84e443eae0bc95f7917ac58ac8b585f871047ad8b7266547</code>.</li>
+<li>Desktop tests and the desktop distributable build passed. Firmware commit <code>0572d15</code> passed its GitHub Actions build.</li>
 </ul>
 <h2 id="outstanding">Outstanding</h2>
 <ul>
-<li>Long PusiCharm messages still exceed the bubble buffer and rendering limit. The latest BOOT, reconnect and appearance paths need device testing.</li>
-<li>The Russian Vosk model and Piper Irina are not bundled; voice synthesis uses the system engine. Model distribution and licensing require resolution. Offline agent answers additionally require a local LLM.</li>
+<li>The firmware uses a finite bubble buffer and line limit; arbitrarily long messages are not guaranteed to fit in one bubble. BOOT interruption, reconnect and appearance paths still need full device testing.</li>
+<li>Offline speech models were deferred to the next phase. Offline agent answers additionally require a local LLM.</li>
 <li>Mini-app local actions exist, but automatic conversion of arbitrary agent callbacks into a fully autonomous application is not implemented or verified. Do not treat an arbitrary saved UI as offline-ready.</li>
 <li>macOS, Windows and iOS releases and end-to-end mini-app flows have not been verified in this session.</li>
 </ul>

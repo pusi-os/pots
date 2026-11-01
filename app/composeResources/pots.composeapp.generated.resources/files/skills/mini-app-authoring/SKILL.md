@@ -18,7 +18,7 @@ Produce a saved mini-app that runs standalone: a last working version + Screen b
    - Define collections and records before wiring UI. Keep record shapes stable; add fields additively.
 
 3. Use host actions only.
-   - In saved apps use store_put, store_delete, navigate, host_call. Never embed LLM-dependent callbacks; convert any prototype callback to a host_call or store_* action during save.
+   - In saved apps use store_put, store_delete, navigate, host_call. Replace prototype callbacks with appropriate local actions while authoring; saving does not convert them automatically.
 
 4. Web app file layout.
    - index.html, app.js, styles.css, sw.js, manifest.webmanifest. Keep paths relative. Serve from same origin as the host API.
@@ -34,7 +34,7 @@ Produce a saved mini-app that runs standalone: a last working version + Screen b
    - [ ] Collections and records persisted.
    - [ ] Web assets written and valid.
    - [ ] Automations registered.
-   - [ ] Version marked standalone-ready.
+   - [ ] The local actions have been tested without an LLM.
    - [ ] Offline fallback present.
 
 ## Snippets
