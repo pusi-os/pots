@@ -1477,8 +1477,8 @@ the device browser. The agent builds it with <code>mini_app_data</code>'s file a
 <code>set_entry</code> (<code>entry_point: "web/index.html"</code>). The browser app talks to the same
 records, files, notes and calendar through the <a href="../mini-app-server/">built-in server</a>.
 Web apps do not use the LLM unless their own JavaScript explicitly calls one.
-The bundled <code>mini-app-authoring</code> skill is available in the skills list and gives
-the agent the local API conventions when invoked while building an app. Saving
+The bundled <code>mini-app-authoring</code> skill is available in the skills list and its
+instructions are included automatically in interactive mode. Saving
 does not automatically rewrite agent callbacks into local actions.</p>
 <p>Native apps can reach the same host services without the browser through the
 <code>host_call</code> action (<code>calendar.*</code>, <code>files.*</code>, <code>notes.*</code>), which writes the result
