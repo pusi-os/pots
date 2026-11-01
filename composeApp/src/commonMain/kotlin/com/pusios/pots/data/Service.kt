@@ -32,6 +32,7 @@ import pots.composeapp.generated.resources.ic_service_openai_compatible
 import pots.composeapp.generated.resources.ic_service_opencode
 import pots.composeapp.generated.resources.ic_service_openrouter
 import pots.composeapp.generated.resources.ic_service_perplexity
+import pots.composeapp.generated.resources.ic_service_plusvibe
 import pots.composeapp.generated.resources.ic_service_polza
 import pots.composeapp.generated.resources.ic_service_prosvetim
 import pots.composeapp.generated.resources.ic_service_publicai
@@ -249,6 +250,34 @@ sealed class Service(
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
 
+    data object PlusVibe : Service(
+        id = "plusvibe",
+        displayName = "PlusVibeAPI",
+        icon = Res.drawable.ic_service_plusvibe,
+        requiresApiKey = true,
+        defaultModel = null,
+        settingsKeyPrefix = "plusvibe",
+        chatUrl = "https://plusvibeapi.ru/v1/chat/completions",
+        modelsUrl = "https://plusvibeapi.ru/v1/models",
+        apiKeyUrl = "https://plusvibeapi.ru/?ref=9APNMZKK",
+        apiKeyUrlDisplay = "plusvibeapi.ru",
+        reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
+    )
+
+    data object PlusVibeReserve : Service(
+        id = "plusvibe-reserve",
+        displayName = "PlusVibeAPI (резерв)",
+        icon = Res.drawable.ic_service_plusvibe,
+        requiresApiKey = true,
+        defaultModel = null,
+        settingsKeyPrefix = "plusvibe-reserve",
+        chatUrl = "https://gw.plusvibeapi.ru/v1/chat/completions",
+        modelsUrl = "https://gw.plusvibeapi.ru/v1/models",
+        apiKeyUrl = "https://plusvibeapi.ru/?ref=9APNMZKK",
+        apiKeyUrlDisplay = "plusvibeapi.ru",
+        reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
+    )
+
     data object OpenAICompatible : Service(
         id = "openai-compatible",
         displayName = "OpenAI-Compatible API",
@@ -282,6 +311,8 @@ sealed class Service(
             Gptunnel,
             AiTunnel,
             Prosvetim,
+            PlusVibe,
+            PlusVibeReserve,
             OpenAICompatible,
             LiteRT,
         )
@@ -300,6 +331,15 @@ sealed class Service(
             .trimEnd('/')
 
         fun fromId(id: String): Service = all.find { it.id == id } ?: OpenCodeFree
+
+        // Compatibility aliases for possible naming variants.
+        val PlusVibePrimary = PlusVibe
+        val PlusVibeApi = PlusVibe
+        val PlusVibeAPI = PlusVibe
+        val PlusVibeGw = PlusVibeReserve
+        val PlusVibeFallback = PlusVibeReserve
+        val PlusVibeBackup = PlusVibeReserve
+        val PlusVibeSecondary = PlusVibeReserve
     }
 
     val apiKeyKey: String get() = "service_${settingsKeyPrefix}_api_key"

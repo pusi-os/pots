@@ -661,7 +661,7 @@ private fun ServiceSettings(
 
     Spacer(Modifier.height(8.dp))
 
-    val isReferralProvider = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim)
+    val isReferralProvider = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim, Service.PlusVibe, Service.PlusVibeReserve)
     if (isReferralProvider) {
         val uriHandler = LocalUriHandler.current
         val instruction = when (service) {
@@ -669,6 +669,7 @@ private fun ServiceSettings(
             Service.Gptunnel -> "GPTunnel → Вход/Регистрация → Профиль → API-Ключи → Создать и скопировать ключ → Вставить здесь"
             Service.AiTunnel -> "AITUNNEL → Вход/Регистрация → Ключи API → Создать и скопировать ключ → Вставить здесь"
             Service.Prosvetim -> "Prosvetim → Личный кабинет → API-Ключи → Создать и скопировать ключ → Вставить здесь"
+            Service.PlusVibe, Service.PlusVibeReserve -> "PlusVibeAPI → Личный кабинет → API-Ключи → Создать и скопировать ключ → Вставить здесь"
             else -> ""
         }
         Text(
@@ -710,7 +711,7 @@ private fun ServiceSettings(
     Spacer(Modifier.height(16.dp))
 
     if (connectionStatus == ConnectionStatus.Connected || models.isNotEmpty()) {
-        ModelSelection(selectedModel, models, onSelectModel, showExtendedSorts = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim))
+        ModelSelection(selectedModel, models, onSelectModel, showExtendedSorts = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim, Service.PlusVibe, Service.PlusVibeReserve))
     }
 }
 
