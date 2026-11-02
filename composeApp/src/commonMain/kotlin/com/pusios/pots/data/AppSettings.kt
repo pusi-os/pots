@@ -65,6 +65,18 @@ enum class TtsEngine {
 }
 
 /**
+ * Which engine recognises speech in the hands-free loop.
+ *
+ * VOSK is the bundled offline engine (works without internet, Android only);
+ * SYSTEM is the platform recognizer (Android `SpeechRecognizer`, which on most
+ * devices needs the network or a device-specific offline pack).
+ */
+enum class SttEngine {
+    Vosk,
+    System,
+}
+
+/**
  * Stricter than [detectImportSections]: only includes sections that contain actual user data,
  * skipping ones that exist purely because of default feature-toggle flags (e.g. `sms_enabled = false`,
  * `splinterlands_enabled = false`, `mcp_servers = []`). Used to drive the Export preview dialog.
@@ -771,6 +783,39 @@ class AppSettings(internal val settings: Settings) {
         _ttsPitchFlow.value = pitch.coerceIn(0.5f, 2.0f)
     }
 
+    // Speech recognition (STT): engine and model.
+    private val _sttEngineFlow = MutableStateFlow(loadInitialSttEngine())
+    val sttEngineFlow: StateFlow<SttEngine> = _sttEngineFlow
+
+    fun getSttEngine(): SttEngine = _sttEngineFlow.value
+
+    fun setSttEngine(engine: SttEngine) {
+        settings.putString(KEY_STT_ENGINE, engine.name)
+        _sttEngineFlow.value = engine
+    }
+
+    private fun loadInitialSttEngine(): SttEngine {
+        val raw = settings.getString(KEY_STT_ENGINE, "")
+        if (raw.isNotEmpty()) {
+            return try {
+                SttEngine.valueOf(raw)
+            } catch (_: IllegalArgumentException) {
+                SttEngine.Vosk
+            }
+        }
+        return SttEngine.Vosk
+    }
+
+    private val _sttVoskModelFlow = MutableStateFlow(settings.getString(KEY_STT_VOSK_MODEL, DEFAULT_STT_VOSK_MODEL))
+    val sttVoskModelFlow: StateFlow<String> = _sttVoskModelFlow
+
+    fun getSttVoskModel(): String = _sttVoskModelFlow.value
+
+    fun setSttVoskModel(modelId: String) {
+        settings.putString(KEY_STT_VOSK_MODEL, modelId)
+        _sttVoskModelFlow.value = modelId
+    }
+
     // Потсик — the animated character.
     //
     // Legacy individual appearance fields are read once while creating the
@@ -1119,6 +1164,11 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_TTS_PIPER_VOICE = "tts_piper_voice"
         const val KEY_TTS_RATE = "tts_rate"
         const val KEY_TTS_PITCH = "tts_pitch"
+        const val KEY_STT_ENGINE = "stt_engine"
+        const val KEY_STT_VOSK_MODEL = "stt_vosk_model"
+
+        /** The Vosk model selected out of the box: the recommended small Russian model. */
+        const val DEFAULT_STT_VOSK_MODEL = "vosk-model-small-ru-0.22"
         const val KEY_ANIMATED_BACKGROUND = "animated_background"
         const val KEY_DAEMON_ENABLED = "daemon_enabled"
         const val KEY_HEARTBEAT_CONFIG = "heartbeat_config"

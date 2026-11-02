@@ -495,6 +495,18 @@ class FakeDataRepository : DataRepository {
         ttsPitch = pitch
     }
 
+    private var sttEngine: com.pusios.pots.data.SttEngine = com.pusios.pots.data.SttEngine.Vosk
+    override fun getSttEngine(): com.pusios.pots.data.SttEngine = sttEngine
+    override fun setSttEngine(engine: com.pusios.pots.data.SttEngine) {
+        sttEngine = engine
+    }
+
+    private var sttVoskModel: String = com.pusios.pots.data.AppSettings.DEFAULT_STT_VOSK_MODEL
+    override fun getSttVoskModel(): String = sttVoskModel
+    override fun setSttVoskModel(modelId: String) {
+        sttVoskModel = modelId
+    }
+
     private var animatedBackground: com.pusios.pots.ui.background.AnimatedBackground =
         com.pusios.pots.ui.background.AnimatedBackground.NONE
 

@@ -149,6 +149,8 @@ class SettingsViewModel(
             ttsPiperVoice = dataRepository.getTtsPiperVoice(),
             ttsRate = dataRepository.getTtsRate(),
             ttsPitch = dataRepository.getTtsPitch(),
+            sttEngine = dataRepository.getSttEngine(),
+            sttVoskModel = dataRepository.getSttVoskModel(),
             mcpServers = buildMcpServerEntries().toImmutableList(),
             localToolSelection = LocalToolSelection.effective(
                 selection = dataRepository.getLocalToolSelection(),
@@ -232,6 +234,8 @@ class SettingsViewModel(
         onChangeTtsPiperVoice = ::onChangeTtsPiperVoice,
         onChangeTtsRate = ::onChangeTtsRate,
         onChangeTtsPitch = ::onChangeTtsPitch,
+        onChangeSttEngine = ::onChangeSttEngine,
+        onChangeSttVoskModel = ::onChangeSttVoskModel,
         onAddMcpServer = ::onAddMcpServer,
         onRemoveMcpServer = ::onRemoveMcpServer,
         onToggleMcpServer = ::onToggleMcpServer,
@@ -961,6 +965,16 @@ class SettingsViewModel(
     private fun onChangeTtsPitch(pitch: Float) {
         dataRepository.setTtsPitch(pitch)
         _state.update { it.copy(ttsPitch = dataRepository.getTtsPitch()) }
+    }
+
+    private fun onChangeSttEngine(engine: com.pusios.pots.data.SttEngine) {
+        dataRepository.setSttEngine(engine)
+        _state.update { it.copy(sttEngine = engine) }
+    }
+
+    private fun onChangeSttVoskModel(modelId: String) {
+        dataRepository.setSttVoskModel(modelId)
+        _state.update { it.copy(sttVoskModel = modelId) }
     }
 
     private fun onExportSettings(sections: Set<ImportSection>): String = dataRepository.exportSettingsToJson(sections)

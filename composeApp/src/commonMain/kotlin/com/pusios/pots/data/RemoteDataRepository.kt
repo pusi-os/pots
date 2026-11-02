@@ -2141,6 +2141,11 @@ class RemoteDataRepository(
     override fun getTtsPitch(): Float = appSettings.getTtsPitch()
     override fun setTtsPitch(pitch: Float) = appSettings.setTtsPitch(pitch)
 
+    override fun getSttEngine(): com.pusios.pots.data.SttEngine = appSettings.getSttEngine()
+    override fun setSttEngine(engine: com.pusios.pots.data.SttEngine) = appSettings.setSttEngine(engine)
+    override fun getSttVoskModel(): String = appSettings.getSttVoskModel()
+    override fun setSttVoskModel(modelId: String) = appSettings.setSttVoskModel(modelId)
+
     override val potsikLookFlow: StateFlow<PotsikLook> = appSettings.potsikLookFlow
 
     override fun getPotsikLook(): PotsikLook = appSettings.getPotsikLook()

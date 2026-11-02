@@ -155,6 +155,12 @@ interface DataRepository {
     fun getTtsPitch(): Float
     fun setTtsPitch(pitch: Float)
 
+    // Speech recognition (STT)
+    fun getSttEngine(): com.pusios.pots.data.SttEngine
+    fun setSttEngine(engine: com.pusios.pots.data.SttEngine)
+    fun getSttVoskModel(): String
+    fun setSttVoskModel(modelId: String)
+
     fun getAnimatedBackground(): com.pusios.pots.ui.background.AnimatedBackground
     fun setAnimatedBackground(kind: com.pusios.pots.ui.background.AnimatedBackground)
 
