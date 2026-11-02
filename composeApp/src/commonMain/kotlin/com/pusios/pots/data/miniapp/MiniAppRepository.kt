@@ -179,7 +179,7 @@ class MiniAppRepository(
                 meta.kind
             },
             entryPoint = draft.entryPoint ?: conversationMeta.entryPoint ?: meta.entryPoint,
-            standaloneReady = draft.standaloneReady || meta.standaloneReady,
+            standaloneReady = false,
         )
         // A new app starts life in the drafts folder; move the files the agent
         // wrote there into the app's own folder before recording them.
@@ -203,7 +203,8 @@ class MiniAppRepository(
         }
         // Resolve the new folder via the saved manifest before enumerating files.
         persistence.saveApp(app)
-        val withFiles = app.copy(files = fileInfos(app.id))
+        // Web assets and agent automations cannot be proven offline-safe by inspecting pots-ui.
+        val withFiles = app.copy(files = fileInfos(app.id)).withValidatedStandaloneStatus()
         persistence.saveApp(withFiles)
         // The agent writes draft records under the conversation id it is talking
         // in; when the user saves, they belong to the app.
@@ -282,7 +283,7 @@ class MiniAppRepository(
 
     fun restoreVersion(appId: String, version: Int) {
         val snapshot = persistence.loadVersions(appId).firstOrNull { it.version == version }?.snapshot ?: return
-        val restored = snapshot.copy(updatedAt = nowMs())
+        val restored = snapshot.copy(updatedAt = nowMs()).withValidatedStandaloneStatus()
         persistence.saveApp(restored)
         appendVersion(restored, "Restored v$version")
         reload()
@@ -336,7 +337,7 @@ class MiniAppRepository(
             app = app.copy(id = Uuid.random().toString(), updatedAt = nowMs())
         }
         val now = nowMs()
-        val imported = app.copy(createdAt = if (app.createdAt == 0L) now else app.createdAt, updatedAt = now)
+        val imported = app.copy(createdAt = if (app.createdAt == 0L) now else app.createdAt, updatedAt = now).withValidatedStandaloneStatus()
         persistence.saveApp(imported)
         if (bundle.versions.isEmpty()) {
             appendVersion(imported, "Imported")

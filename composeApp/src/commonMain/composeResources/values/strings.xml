@@ -471,6 +471,7 @@
     <string name="mini_app_save_content_description">Save mini-app</string>
     <string name="mini_app_library_content_description">My mini-apps</string>
     <string name="mini_app_saved">Mini-app saved</string>
+    <string name="mini_app_saved_not_verified_offline">Mini-app saved. Offline operation is not verified; some actions may need the agent or network.</string>
     <string name="mini_app_nothing_to_save">Nothing to save yet — the agent has not produced a screen.</string>
     <string name="mini_app_save_title">Save mini-app</string>
     <string name="mini_app_name_label">Name</string>
@@ -501,6 +502,7 @@
     <string name="mini_app_export_base">pots-mini-app</string>
     <string name="mini_app_chat_open">Open mini-app</string>
     <string name="mini_app_no_screens">This app has no saved screens.</string>
+    <string name="mini_app_runner_server_unavailable">The local web app server could not start on this device. You can still edit or export this app.</string>
     <string name="mini_app_screen_fallback">Screen</string>
     <string name="mini_app_unavailable">Saving is not available in this build.</string>
     <string name="mini_app_automations">Automations</string>

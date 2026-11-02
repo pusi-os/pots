@@ -67,6 +67,7 @@ import pots.composeapp.generated.resources.mini_app_needs_local_action
 import pots.composeapp.generated.resources.mini_app_no_screens
 import pots.composeapp.generated.resources.mini_app_open_editor
 import pots.composeapp.generated.resources.mini_app_run_automation
+import pots.composeapp.generated.resources.mini_app_runner_server_unavailable
 
 /**
  * A saved app, running on its own.
@@ -100,8 +101,10 @@ fun MiniAppRunnerScreen(
         val entry = current.entryPoint
         if (!isPreview && current.kind == MiniAppKind.WEB && !entry.isNullOrBlank()) {
             server.start()
-            openUrl("${server.state.value.url}/apps/${current.id}/$entry")
-            onExit()
+            if (server.state.value.running) {
+                openUrl("${server.state.value.url}/apps/${current.id}/$entry")
+                onExit()
+            }
         }
     }
 
@@ -207,7 +210,11 @@ fun MiniAppRunnerScreen(
             }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (screen == null) {
+                if (app.kind == MiniAppKind.WEB && !server.state.value.running) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(stringResource(Res.string.mini_app_runner_server_unavailable), modifier = Modifier.padding(16.dp))
+                    }
+                } else if (screen == null) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(stringResource(Res.string.mini_app_no_screens))
                     }

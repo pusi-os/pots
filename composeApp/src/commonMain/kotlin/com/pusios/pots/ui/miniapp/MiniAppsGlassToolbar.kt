@@ -33,6 +33,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.miniapp.MiniAppSummary
 import com.pusios.pots.ui.handCursor
@@ -93,6 +95,9 @@ fun MiniAppsGlassToolbar(
                     Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
             } else {
+                GlassChip(label = stringResource(Res.string.mini_app_toolbar_empty), onClick = onNewApp) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                }
                 pinned.forEach { app ->
                     AppIcon(app = app, onClick = { onOpenApp(app.id) })
                 }
@@ -111,7 +116,7 @@ fun MiniAppsGlassToolbar(
 private fun AppIcon(app: MiniAppSummary, onClick: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Surface(
-        modifier = Modifier.size(46.dp).clip(shape).handCursor(),
+        modifier = Modifier.size(46.dp).clip(shape).semantics { contentDescription = app.name }.handCursor(),
         shape = shape,
         color = accentColor(app.accent).copy(alpha = 0.22f),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),

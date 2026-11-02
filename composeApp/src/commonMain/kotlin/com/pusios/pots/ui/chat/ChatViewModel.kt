@@ -58,6 +58,7 @@ import pots.composeapp.generated.resources.error_unsupported_file_type
 import pots.composeapp.generated.resources.litert_no_model_warning
 import pots.composeapp.generated.resources.mini_app_nothing_to_save
 import pots.composeapp.generated.resources.mini_app_saved
+import pots.composeapp.generated.resources.mini_app_saved_not_verified_offline
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -434,7 +435,7 @@ class ChatViewModel(
                     editingMiniAppName = app.name,
                     editingMiniAppDescription = app.description,
                     editingMiniAppIcon = app.icon,
-                    snackbarMessage = Res.string.mini_app_saved,
+                    snackbarMessage = if (app.standaloneReady) Res.string.mini_app_saved else Res.string.mini_app_saved_not_verified_offline,
                 )
             }
         }

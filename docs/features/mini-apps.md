@@ -1,6 +1,6 @@
 # Mini-apps (the Interactive UI studio)
 
-**Last verified:** 2026-11-01
+**Last verified:** 2026-11-02
 
 Interactive UI mode is also a small app studio. The agent designs the screens; the
 user saves the result as a **mini-app** with its own persistent data, version
@@ -53,6 +53,8 @@ Web apps do not use the LLM unless their own JavaScript explicitly calls one.
 The bundled `mini-app-authoring` skill is available in the skills list and its
 instructions are included automatically in interactive mode. Saving
 does not automatically rewrite agent callbacks into local actions.
+The browser-hosted and iOS builds do not currently provide the loopback server;
+they show an explanation instead of opening an unavailable address.
 
 Native apps can reach the same host services without the browser through the
 `host_call` action (`calendar.*`, `files.*`, `notes.*`), which writes the result
@@ -139,6 +141,10 @@ not already have.
   ones already there, so re-saving an unchanged session does not duplicate tabs.
 - `store_put`, `store_delete` and `navigate` work offline in a saved app; a
   `callback` needs the agent.
+- On save, native screens are inspected for callbacks and unknown host actions.
+  Apps with agent automations, web apps and screens that cannot be checked are
+  not marked standalone-ready. The save message warns when offline operation is
+  unverified; host permissions and external resources can still affect an app.
 - A delete action with an explicit record id that resolves to an empty value does
   nothing. Deleting the whole collection requires omitting the record id.
 - The runner has no chat input of its own; **Edit** is how the user asks for a
@@ -160,8 +166,8 @@ not already have.
   the app id and say what to do with the records.
 - Capabilities are declarative. A capability the host app does not expose (for
   example a calendar on a platform without calendar tools) is inert.
-- Web has no SQLite and no filesystem: apps still save, version and run from
-  settings storage, but the readable folder is absent.
+- The Pots browser build uses settings storage rather than SQLite and does not
+  provide the local web-app server. Web mini-apps require Android or desktop.
 - Restoring an old version creates a new version; there is no destructive
   rollback.
 
@@ -172,6 +178,7 @@ not already have.
 | `composeApp/.../data/miniapp/MiniApp.kt` | App, screen, collection, record, bundle, version and summary models |
 | `composeApp/.../data/miniapp/MiniAppPersistence.kt` | SQLite-backed store and the settings fallback for web |
 | `composeApp/.../data/miniapp/MiniAppRepository.kt` | Save/version/delete/export/import, records, toolbar selection, storage folder |
+| `composeApp/.../data/miniapp/MiniAppStandaloneValidator.kt` | Checks saved native-screen actions for agent dependencies |
 | `composeApp/src/commonMain/sqldelight/.../miniapp.sq` | The three tables and their queries; `1.sqm` is the migration |
 | `composeApp/.../ui/miniapp/MiniAppsSheet.kt` | Library, CRUD, version tree, export/import |
 | `composeApp/.../ui/miniapp/MiniAppsGlassToolbar.kt` | The chat's glass strip of pinned app icons |

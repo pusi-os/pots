@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Upload
@@ -333,7 +334,7 @@ private fun MiniAppRow(
                     Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.mini_app_open_editor))
                 }
                 IconButton(onClick = onEditMetadata, modifier = Modifier.handCursor()) {
-                    Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.mini_app_edit))
+                    Icon(Icons.Default.Settings, contentDescription = stringResource(Res.string.mini_app_edit))
                 }
                 IconButton(onClick = onShowHistory, modifier = Modifier.handCursor()) {
                     Icon(Icons.Default.History, contentDescription = stringResource(Res.string.mini_app_versions))
