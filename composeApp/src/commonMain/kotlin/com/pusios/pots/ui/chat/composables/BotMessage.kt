@@ -61,12 +61,12 @@ import com.pusios.pots.ui.markdown.parseMarkdown
 import com.pusios.pots.ui.potsik.PotsikAnchor
 import com.pusios.pots.ui.potsik.PotsikAnchorKind
 import com.pusios.pots.ui.rememberCopyToClipboard
+import com.pusios.pots.ui.tts.PotsTextToSpeech
 import com.pusios.pots.ui.tts.sayChunked
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
-import nl.marc_apps.tts.TextToSpeechInstance
 import nl.marc_apps.tts.errors.TextToSpeechSynthesisInterruptedError
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
@@ -91,7 +91,7 @@ import kotlin.math.roundToInt
 @Composable
 internal fun BotMessage(
     message: String,
-    textToSpeech: TextToSpeechInstance?,
+    textToSpeech: PotsTextToSpeech?,
     isSpeaking: Boolean,
     setIsSpeaking: (Boolean) -> Unit,
     onRegenerate: (() -> Unit)? = null,

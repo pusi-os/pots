@@ -2,6 +2,7 @@ package com.pusios.pots.handsfree
 
 import androidx.compose.runtime.Stable
 import com.pusios.pots.ui.dynamicui.toSpeakableText
+import com.pusios.pots.ui.tts.PotsTextToSpeech
 import com.pusios.pots.ui.tts.sayChunked
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -9,7 +10,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import nl.marc_apps.tts.TextToSpeechInstance
 import nl.marc_apps.tts.errors.TextToSpeechSynthesisInterruptedError
 
 /** What the hands-free loop is currently doing. */
@@ -49,7 +49,7 @@ enum class HandsFreeStatus {
 @Stable
 class HandsFreeController(
     private val scope: CoroutineScope,
-    private val textToSpeech: TextToSpeechInstance?,
+    private val textToSpeech: PotsTextToSpeech?,
     private val speechToText: SpeechToText?,
     private val onSubmit: (String) -> Unit,
     /**

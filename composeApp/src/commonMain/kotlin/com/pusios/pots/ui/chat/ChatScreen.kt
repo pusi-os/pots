@@ -145,13 +145,13 @@ import com.pusios.pots.ui.potsik.PotsikStage
 import com.pusios.pots.ui.sandbox.SandboxTabsContent
 import com.pusios.pots.ui.settings.SandboxUiState
 import com.pusios.pots.ui.settings.SandboxViewModel
+import com.pusios.pots.ui.tts.PotsTextToSpeech
 import com.pusios.pots.ui.tts.sayChunked
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import nl.marc_apps.tts.TextToSpeechInstance
 import nl.marc_apps.tts.errors.TextToSpeechSynthesisInterruptedError
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.painterResource
@@ -193,7 +193,7 @@ import pots.composeapp.generated.resources.scroll_to_bottom_content_description
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel = koinViewModel(),
-    textToSpeech: TextToSpeechInstance?,
+    textToSpeech: PotsTextToSpeech?,
     onNavigateToSettings: () -> Unit,
     isSandboxAvailable: Boolean = false,
     isPotsBuildAvailable: Boolean = false,
@@ -216,7 +216,7 @@ fun ChatScreen(
 @Composable
 fun ChatScreenContent(
     uiState: ChatUiState,
-    textToSpeech: TextToSpeechInstance? = null,
+    textToSpeech: PotsTextToSpeech? = null,
     onNavigateToSettings: () -> Unit = {},
     isSandboxAvailable: Boolean = false,
     isPotsBuildAvailable: Boolean = false,
@@ -890,7 +890,7 @@ private fun InteractiveModeContent(
 @Composable
 private fun ChatModeScreen(
     uiState: ChatUiState,
-    textToSpeech: TextToSpeechInstance?,
+    textToSpeech: PotsTextToSpeech?,
     handsFree: HandsFreeController,
     onNavigateToSettings: () -> Unit,
     isSandboxAvailable: Boolean,

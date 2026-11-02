@@ -211,3 +211,12 @@
 # does not strip or rename what the native lib binds to.
 -keep class org.vosk.** { *; }
 -dontwarn org.vosk.**
+
+# sherpa-onnx — Piper offline TTS runtime. The Kotlin API binds JNI native
+# methods by exact name (System.loadLibrary("sherpa-onnx-jni")); renaming or
+# stripping any member breaks the native side. piper-phonemize ships the
+# espeak-ng text frontend the same way (libpiper-phonemize-jni.so).
+-keep class com.k2fsa.sherpa.onnx.** { *; }
+-dontwarn com.k2fsa.sherpa.onnx.**
+-keep class com.github.csukuangfj.piper.** { *; }
+-dontwarn com.github.csukuangfj.piper.**

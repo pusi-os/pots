@@ -4,6 +4,11 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.pusios.pots.data.AppSettings
+import com.pusios.pots.data.TtsEngine
+import com.pusios.pots.speech.piper.PiperTts
+import com.pusios.pots.ui.tts.DEFAULT_PIPER_VOICE_ID
+import org.koin.java.KoinJavaComponent.inject
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -13,10 +18,11 @@ import java.util.concurrent.TimeUnit
 
 /**
  * On-device TTS for the cube (ported from the PixelTag CoPhone reference): the
- * system engine synthesizes a WAV, which is resampled to 16 kHz and encoded to
- * raw Opus packets for `audio_down`. No cloud round-trip, deterministic
- * latency. Returns null when the engine/language/WAV is unavailable so the
- * caller can fall back.
+ * bundled Piper voice (when it is the app's chosen engine) or the system
+ * engine synthesizes audio, which is resampled to 16 kHz and encoded to raw
+ * Opus packets for `audio_down`. No cloud round-trip, deterministic latency.
+ * Returns null when the engine/language/WAV is unavailable so the caller can
+ * fall back.
  */
 internal class CoPhoneTts(private val ctx: Context) {
     private var tts: TextToSpeech? = null
@@ -91,6 +97,10 @@ internal class CoPhoneTts(private val ctx: Context) {
         rate: Float = 1.0f,
         pitch: Float = 1.0f,
     ): List<ByteArray>? {
+        // The bundled Piper voice wins when it is the app's chosen engine;
+        // the system engine below is the fallback that keeps the cube
+        // speaking no matter what.
+        piperPackets(text, rate)?.let { return it }
         if (!ensure() || !langOk) return null
         val t = tts ?: return null
         applyVoice(voiceName, rate, pitch)
@@ -152,6 +162,28 @@ internal class CoPhoneTts(private val ctx: Context) {
         val (pcm, rateOut) = wav
         val mono = if (rateOut == 16000) pcm else CoPhoneOpus.resample(pcm, rateOut, 16000)
         return CoPhoneOpus.encodeAll(mono)
+    }
+
+    /** Piper voice → 16 kHz mono PCM → Opus packets, or null to fall back. */
+    private fun piperPackets(text: String, rate: Float): List<ByteArray>? {
+        val settings = appSettings() ?: return null
+        if (settings.getTtsEngine() != TtsEngine.Piper) return null
+        val voiceId = settings.getTtsPiperVoice().ifEmpty { DEFAULT_PIPER_VOICE_ID }
+        val engine = PiperTts.shared(ctx, voiceId) ?: return null
+        val pcm = engine.synthesizeBlocking(text, rate) ?: return null
+        val (samples, sampleRate) = pcm
+        val shorts = ShortArray(samples.size) { i ->
+            (samples[i].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort()
+        }
+        val mono = if (sampleRate == 16000) shorts else CoPhoneOpus.resample(shorts, sampleRate, 16000)
+        return CoPhoneOpus.encodeAll(mono)
+    }
+
+    private fun appSettings(): AppSettings? = try {
+        val settings: AppSettings by inject(AppSettings::class.java)
+        settings
+    } catch (_: Exception) {
+        null
     }
 
     private fun readWav(f: File): Pair<ShortArray, Int>? {

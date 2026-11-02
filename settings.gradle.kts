@@ -25,6 +25,8 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        // piper-phonemize (the Piper TTS text frontend) is published via JitPack only.
+        maven("https://jitpack.io")
     }
 }
 

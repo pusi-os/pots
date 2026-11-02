@@ -32,7 +32,7 @@ import com.pusios.pots.companion.CompanionStatus
 import com.pusios.pots.handsfree.HandsFreeStatus
 import com.pusios.pots.ui.chat.ChatActions
 import com.pusios.pots.ui.handCursor
-import nl.marc_apps.tts.TextToSpeechInstance
+import com.pusios.pots.ui.tts.PotsTextToSpeech
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import pots.composeapp.generated.resources.Res
@@ -56,7 +56,7 @@ import pots.composeapp.generated.resources.toggle_speech_output_content_descript
 
 @Composable
 internal fun TopBar(
-    textToSpeech: TextToSpeechInstance? = null,
+    textToSpeech: PotsTextToSpeech? = null,
     isSpeechOutputEnabled: Boolean,
     isSpeaking: Boolean,
     actions: ChatActions,
@@ -163,7 +163,7 @@ private fun MiniAppsButton(open: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun LeadingButtons(
-    textToSpeech: TextToSpeechInstance?,
+    textToSpeech: PotsTextToSpeech?,
     isSpeechOutputEnabled: Boolean,
     isSpeaking: Boolean,
     actions: ChatActions,
@@ -294,7 +294,7 @@ private fun HandsFreeButton(
 
 @Composable
 private fun SpeechToggleButton(
-    textToSpeech: TextToSpeechInstance,
+    textToSpeech: PotsTextToSpeech,
     isSpeechOutputEnabled: Boolean,
     isSpeaking: Boolean,
     actions: ChatActions,

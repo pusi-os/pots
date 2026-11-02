@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,8 +67,11 @@ import pots.composeapp.generated.resources.settings_tts_engine_native
 import pots.composeapp.generated.resources.settings_tts_engine_native_description
 import pots.composeapp.generated.resources.settings_tts_engine_piper
 import pots.composeapp.generated.resources.settings_tts_engine_piper_description
-import pots.composeapp.generated.resources.settings_tts_piper_soon
+import pots.composeapp.generated.resources.settings_tts_piper_status_bundled
+import pots.composeapp.generated.resources.settings_tts_piper_test
+import pots.composeapp.generated.resources.settings_tts_piper_testing
 import pots.composeapp.generated.resources.settings_tts_piper_voice
+import pots.composeapp.generated.resources.settings_tts_piper_voice_irina
 import pots.composeapp.generated.resources.settings_tts_pitch
 import pots.composeapp.generated.resources.settings_tts_rate
 import pots.composeapp.generated.resources.settings_tts_system_voice
@@ -106,10 +110,12 @@ internal fun GeneralContent(uiState: SettingsUiState, actions: SettingsActions) 
                     systemVoice = uiState.ttsSystemVoice,
                     rate = uiState.ttsRate,
                     pitch = uiState.ttsPitch,
+                    isTestingPiperVoice = uiState.isTestingPiperVoice,
                     onChangeEngine = actions.onChangeTtsEngine,
                     onChangeSystemVoice = actions.onChangeTtsSystemVoice,
                     onChangeRate = actions.onChangeTtsRate,
                     onChangePitch = actions.onChangeTtsPitch,
+                    onTestPiperVoice = actions.onTestPiperVoice,
                 )
             }
             SettingsCard {
@@ -246,10 +252,12 @@ private fun TtsSection(
     systemVoice: String,
     rate: Float,
     pitch: Float,
+    isTestingPiperVoice: Boolean,
     onChangeEngine: (TtsEngine) -> Unit,
     onChangeSystemVoice: (String) -> Unit,
     onChangeRate: (Float) -> Unit,
     onChangePitch: (Float) -> Unit,
+    onTestPiperVoice: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
@@ -315,11 +323,31 @@ private fun TtsSection(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
-                Text(
-                    text = stringResource(Res.string.settings_tts_piper_soon),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(Res.string.settings_tts_piper_voice_irina),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        Text(
+                            text = stringResource(Res.string.settings_tts_piper_status_bundled),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = onTestPiperVoice, enabled = !isTestingPiperVoice) {
+                        Text(
+                            stringResource(
+                                if (isTestingPiperVoice) {
+                                    Res.string.settings_tts_piper_testing
+                                } else {
+                                    Res.string.settings_tts_piper_test
+                                },
+                            ),
+                        )
+                    }
+                }
             }
 
             TtsEngine.Cloud -> Unit

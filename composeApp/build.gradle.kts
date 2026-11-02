@@ -162,6 +162,11 @@ kotlin {
                 // CoPhone cube voice: offline STT (Vosk) + its native loader.
                 implementation("com.alphacephei:vosk-android:0.3.47")
                 implementation("net.java.dev.jna:jna:5.13.0@aar")
+                // Piper offline TTS: sherpa-onnx runtime (vendored AAR, GitHub
+                // releases have no Maven coordinate) + the piper-phonemize text
+                // frontend (JitPack, see settings.gradle.kts).
+                implementation(files("libs/sherpa-onnx-2.0.1.aar"))
+                implementation("com.github.csukuangfj.piper-phonemize:piper-phonemize:v1.5.9")
             }
         }
         getByName("desktopMain") {

@@ -739,7 +739,7 @@
     <string name="settings_tts_engine_piper">Piper (offline)</string>
     <string name="settings_tts_engine_cloud">Cloud (soon)</string>
     <string name="settings_tts_engine_native_description">The platform voice, as before. Default on Android.</string>
-    <string name="settings_tts_engine_piper_description">Bundled offline engine. Models download once and stay on the device.</string>
+    <string name="settings_tts_engine_piper_description">Bundled voice Irina — offline, no internet needed. Android only.</string>
     <string name="settings_tts_engine_cloud_description">Server-side voice through an inference endpoint. Not available yet.</string>
     <string name="settings_tts_system_voice">System voice</string>
     <string name="settings_tts_system_voice_auto">Auto (match app language)</string>
@@ -747,7 +747,10 @@
     <string name="settings_tts_pitch">Voice pitch</string>
     <string name="settings_tts_voices_unavailable">No voices found on this device</string>
     <string name="settings_tts_piper_voice">Piper voice</string>
-    <string name="settings_tts_piper_soon">Piper downloads land here in the next iteration: pick a language, then a voice, with resume and on-device storage.</string>
+    <string name="settings_tts_piper_voice_irina">Irina (Russian)</string>
+    <string name="settings_tts_piper_status_bundled">Included in the app — works without internet</string>
+    <string name="settings_tts_piper_test">Test the voice</string>
+    <string name="settings_tts_piper_testing">Speaking…</string>
     <string name="settings_stt">Speech recognition</string>
     <string name="settings_stt_description">Engine and model used to understand your voice in the hands-free dialogue</string>
     <string name="settings_stt_engine">Recognition engine</string>

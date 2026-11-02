@@ -41,6 +41,7 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.svg.SvgDecoder
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.ThemeMode
+import com.pusios.pots.data.TtsEngine
 import com.pusios.pots.data.miniapp.MiniAppServer
 import com.pusios.pots.data.miniapp.MiniAppServerController
 import com.pusios.pots.data.miniapp.isMiniAppServerBackgroundEnabled
@@ -59,6 +60,11 @@ import com.pusios.pots.ui.components.FullScreenImageHost
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.rememberSandboxAwareUriHandler
 import com.pusios.pots.ui.settings.SettingsScreen
+import com.pusios.pots.ui.tts.DEFAULT_PIPER_VOICE_ID
+import com.pusios.pots.ui.tts.NativeTextToSpeech
+import com.pusios.pots.ui.tts.PotsTextToSpeech
+import com.pusios.pots.ui.tts.createPiperTextToSpeech
+import com.pusios.pots.ui.tts.resolveTextToSpeech
 import com.pusios.pots.ui.withBlackBackground
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -177,6 +183,21 @@ private fun AppContent(
         }
     }
 
+    // The engine the whole app speaks with, per the settings. The platform
+    // engine is passed in and owned by the entry point; Piper (bundled,
+    // Android only) is created here and released when the engine changes.
+    val ttsEngine by appSettings.ttsEngineFlow.collectAsStateWithLifecycle()
+    val potsTextToSpeech: PotsTextToSpeech? = remember(textToSpeech, ttsEngine, ttsPiperVoice) {
+        resolveTextToSpeech(
+            engine = ttsEngine,
+            piper = { createPiperTextToSpeech(ttsPiperVoice.ifEmpty { DEFAULT_PIPER_VOICE_ID }) },
+            native = { textToSpeech?.let(::NativeTextToSpeech) },
+        )
+    }
+    DisposableEffect(potsTextToSpeech) {
+        onDispose { potsTextToSpeech?.close() }
+    }
+
     val uiScale by appSettings.uiScaleFlow.collectAsStateWithLifecycle()
     val defaultDensity = LocalDensity.current
     val scaledDensity = remember(defaultDensity, uiScale) {
@@ -272,7 +293,7 @@ private fun AppContent(
                             composable<Home> {
                                 ChatScreen(
                                     viewModel = chatViewModel,
-                                    textToSpeech = textToSpeech,
+                                    textToSpeech = potsTextToSpeech,
                                     onNavigateToSettings = {
                                         navController.navigate(Settings)
                                     },

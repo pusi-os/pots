@@ -131,6 +131,7 @@ data class SettingsUiState(
     val ttsPiperVoice: String = "",
     val ttsRate: Float = 1.0f,
     val ttsPitch: Float = 1.0f,
+    val isTestingPiperVoice: Boolean = false,
     val sttEngine: com.pusios.pots.data.SttEngine = com.pusios.pots.data.SttEngine.Vosk,
     val sttVoskModel: String = com.pusios.pots.data.AppSettings.DEFAULT_STT_VOSK_MODEL,
     val mcpServers: ImmutableList<McpServerUiState> = persistentListOf(),

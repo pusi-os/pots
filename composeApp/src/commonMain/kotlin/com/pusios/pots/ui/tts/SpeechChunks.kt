@@ -1,7 +1,5 @@
 package com.pusios.pots.ui.tts
 
-import nl.marc_apps.tts.TextToSpeechInstance
-
 /** Android TTS rejects very long utterances; stay comfortably below the platform limit. */
 const val MAX_SPEECH_CHUNK_CHARS = 3000
 
@@ -38,7 +36,7 @@ fun chunkTextForSpeech(
 }
 
 /** Speaks in platform-sized pieces while keeping barge-in and stop working between chunks. */
-suspend fun TextToSpeechInstance.sayChunked(
+suspend fun PotsTextToSpeech.sayChunked(
     text: String,
     flush: Boolean = true,
     interrupt: Boolean = true,

@@ -39,6 +39,8 @@ import com.pusios.pots.tools.AppPermission
 import com.pusios.pots.tools.PermissionController
 import com.pusios.pots.tools.isLocalNetworkUrl
 import com.pusios.pots.ui.potsik.PotsikLook
+import com.pusios.pots.ui.tts.DEFAULT_PIPER_VOICE_ID
+import com.pusios.pots.ui.tts.PIPER_TEST_PHRASE
 import io.github.vinceglb.filekit.PlatformFile
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -234,6 +236,7 @@ class SettingsViewModel(
         onChangeTtsPiperVoice = ::onChangeTtsPiperVoice,
         onChangeTtsRate = ::onChangeTtsRate,
         onChangeTtsPitch = ::onChangeTtsPitch,
+        onTestPiperVoice = ::onTestPiperVoice,
         onChangeSttEngine = ::onChangeSttEngine,
         onChangeSttVoskModel = ::onChangeSttVoskModel,
         onAddMcpServer = ::onAddMcpServer,
@@ -975,6 +978,16 @@ class SettingsViewModel(
     private fun onChangeSttVoskModel(modelId: String) {
         dataRepository.setSttVoskModel(modelId)
         _state.update { it.copy(sttVoskModel = modelId) }
+    }
+
+    private fun onTestPiperVoice() {
+        if (_state.value.isTestingPiperVoice) return
+        _state.update { it.copy(isTestingPiperVoice = true) }
+        viewModelScope.launch(backgroundDispatcher) {
+            val voiceId = dataRepository.getTtsPiperVoice().ifEmpty { DEFAULT_PIPER_VOICE_ID }
+            testPiperVoice(voiceId, PIPER_TEST_PHRASE)
+            _state.update { it.copy(isTestingPiperVoice = false) }
+        }
     }
 
     private fun onExportSettings(sections: Set<ImportSection>): String = dataRepository.exportSettingsToJson(sections)
