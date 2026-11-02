@@ -220,3 +220,7 @@
 -dontwarn com.k2fsa.sherpa.onnx.**
 -keep class com.github.csukuangfj.piper.** { *; }
 -dontwarn com.github.csukuangfj.piper.**
+# The streaming TTS callback is invoked from JNI through
+# GetMethodID(cls, "invoke", "([F)Ljava/lang/Integer;") on the callback's own
+# class; keep it so R8 cannot strip the specialized invoke method.
+-keep class com.pusios.pots.speech.piper.PiperTextToSpeech$StreamingCallback { *; }

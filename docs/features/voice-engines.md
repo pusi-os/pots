@@ -31,7 +31,12 @@ it.
 Text is phonemized with espeak-ng (the `piper-phonemize` library) and
 synthesized by the sherpa-onnx runtime, streaming audio as it is produced, so
 stop and barge-in cut the speech mid-sentence. The speaking rate follows the
-rate slider in the settings; pitch does not apply to Piper.
+rate slider in the settings; pitch does not apply to Piper. The streaming
+callback is an explicit class (`StreamingCallback`), never a lambda: the
+sherpa-onnx JNI finds it with `GetMethodID(cls, "invoke",
+"([F)Ljava/lang/Integer;")` on the callback's own class, and R8 strips that
+specialized method from lambdas, which aborts the process. A keep rule in
+`composeApp/proguard-rules.pro` protects it in release builds.
 
 The Settings card shows the voice (Ирина, русский), notes that it is bundled
 and works without internet, and offers a test button that speaks a short
@@ -90,8 +95,9 @@ redistribution of the Android build.
 |---|---|
 | `composeApp/src/commonMain/.../ui/tts/PotsTextToSpeech.kt` | Engine-independent speaking interface + engine resolution |
 | `composeApp/src/commonMain/.../ui/tts/SpeechChunks.kt` | Long-answer chunking shared by both engines |
-| `composeApp/src/androidMain/.../speech/piper/PiperTextToSpeech.kt` | Piper engine: sherpa-onnx + phonemizer + audio streaming |
+| `composeApp/src/androidMain/.../speech/piper/PiperTextToSpeech.kt` | Piper engine: sherpa-onnx + phonemizer + audio streaming (`StreamingCallback` must stay an explicit class for JNI) |
 | `composeApp/src/androidMain/.../speech/piper/PiperVoices.kt` | Asset install and location of bundled Piper voices |
+| `composeApp/proguard-rules.pro` | Keep rules for sherpa-onnx, piper-phonemize and the streaming callback |
 | `composeApp/src/commonMain/.../ui/settings/PiperVoiceTest.kt` | The Settings "test the voice" button backend |
 | `composeApp/src/commonMain/.../ui/settings/GeneralSettings.kt` | Engine cards, voice row and test button UI |
 | `composeApp/src/androidMain/.../speech/vosk/VoskModels.kt` | Vosk model registry, asset install and download |

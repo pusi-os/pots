@@ -126,11 +126,30 @@ class PiperTextToSpeech internal constructor(
                 phonemeCodepoints = phonemes
                 speed = rateProvider().coerceIn(0.5f, 2.0f)
             },
-        ) { samples ->
+            callback = StreamingCallback(token, audioTrack),
+        )
+    }
+
+    /**
+     * The streaming callback as an explicit class, not a lambda.
+     *
+     * The sherpa-onnx JNI finds the callback method with
+     * `GetMethodID(class, "invoke", "([F)Ljava/lang/Integer;")` on the
+     * callback's own runtime class (CallCallback in
+     * sherpa-onnx/jni/offline-tts.cc). R8 sees no Java caller of that
+     * specialized method and strips it from a lambda, after which the native
+     * side dies with NoSuchMethodError — so this class exists and is kept in
+     * proguard-rules.pro.
+     */
+    private inner class StreamingCallback(
+        private val token: Int,
+        private val audioTrack: AudioTrack,
+    ) : Function1<FloatArray, Int> {
+        override fun invoke(samples: FloatArray): Int {
             // Returning 0 aborts generation on the native side.
-            if (token != utteranceToken) return@generateWithConfigAndCallback 0
+            if (token != utteranceToken) return 0
             writeSamples(audioTrack, samples)
-            if (token != utteranceToken) 0 else samples.size
+            return if (token != utteranceToken) 0 else samples.size
         }
     }
 
