@@ -1,6 +1,7 @@
 # Third-Party Licenses
 
-This project includes the following third-party binaries in `androidApp/src/main/jniLibs/`.
+This project includes the following third-party binaries in `androidApp/src/main/jniLibs/`,
+plus the voice-engine libraries and models listed at the end.
 The app shows these notices, the full license texts and a written offer for the source under
 Settings › Licenses (`composeApp/src/commonMain/composeResources/files/licenses/THIRD_PARTY_NOTICES.txt`).
 Keep the pinned versions there and in `build-proot.sh` in sync.
@@ -26,3 +27,15 @@ The full GPL-2.0 license text is available at: https://www.gnu.org/licenses/old-
 talloc is a hierarchical memory allocator used as a dependency of PRoot. It is dynamically linked.
 
 The full LGPL-3.0 license text is available at: https://www.gnu.org/licenses/lgpl-3.0.html
+
+## Voice engines (Android)
+
+Offline speech synthesis and recognition, linked on Android with models shipped in the assets:
+
+- **piper-phonemize v1.5.9** — GPL-3.0, https://github.com/csukuangfj/piper-phonemize (Piper text frontend)
+- **sherpa-onnx 2.0.1** — Apache-2.0, https://github.com/k2-fsa/sherpa-onnx (vendored AAR in `composeApp/libs/`)
+- **Piper voice ru_RU-irina-medium** — MIT, https://huggingface.co/rhasspy/piper-voices (bundled in `androidApp/src/main/assets/piper/`)
+- **vosk-android 0.3.47** — Apache-2.0, https://github.com/alphacephei/vosk-api
+- **Vosk model vosk-model-small-ru-0.22** — Apache-2.0, https://alphacephei.com/vosk/models (bundled in `androidApp/src/main/assets/vosk/`)
+
+Note: piper-phonemize is GPLv3 and linked into the Android build. See `docs/features/voice-engines.md`.

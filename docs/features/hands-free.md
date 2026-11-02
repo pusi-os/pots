@@ -1,6 +1,6 @@
 # Hands-Free Voice Mode
 
-**Last verified:** 2026-11-02
+**Last verified:** 2026-11-03
 
 Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it heard, waits for the agent, speaks the answer and listens again. The user never has to touch the screen for the whole round trip.
 
@@ -18,6 +18,10 @@ Settings → General → Speech recognition picks the engine:
 - **System** — the device's own recognition service. Depending on the device it may need the network or a downloaded language pack.
 
 The chosen engine and model are picked up by the loop the next time the chat opens the recognizer.
+
+### The speaking voice
+
+The loop speaks through the same engine the chat uses (Settings → General → Озвучивание): the bundled offline Piper voice when it is selected, otherwise the system voice. See `docs/features/voice-engines.md`.
 
 ### The loop
 
@@ -64,6 +68,8 @@ Recognizer and synthesizer never run at the same time. That is deliberate: with 
 | `composeApp/src/iosMain/.../handsfree/SpeechToText.iosMain.kt` | No recognizer on iOS — the button is hidden |
 | `composeApp/src/wasmJsMain/.../handsfree/SpeechToText.wasmJsMain.kt` | No recognizer on the web — the button is hidden |
 | `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Creates the controller, feeds assistant replies into it, wires the top-bar button |
+| `composeApp/src/commonMain/.../ui/tts/PotsTextToSpeech.kt` | Engine-independent speaking interface the loop talks to |
+| `composeApp/src/commonMain/.../ui/tts/SpeechChunks.kt` | Splits long replies into platform-sized chunks |
 | `composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt` | The voice-mode button with its state icon and listening pulse |
 | `composeApp/src/commonMain/.../ui/chat/composables/EmptyState.kt` | Animated voice-mode entry in the empty chat |
 | `composeApp/src/commonMain/.../tools/PermissionController.kt` | The `RECORD_AUDIO` runtime permission |
