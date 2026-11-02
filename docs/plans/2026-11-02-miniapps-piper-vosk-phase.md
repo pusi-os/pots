@@ -1,6 +1,6 @@
 # Plan: mini-app completion + Piper TTS + Vosk STT (out-of-the-box offline voice)
 
-Status: in progress.
+Status: complete (shipped as Pots 3.11.1, build 198, published to dashboard 222).
 Date: 2026-11-02
 
 ## Goal
