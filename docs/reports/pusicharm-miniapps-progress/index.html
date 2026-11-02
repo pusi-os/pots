@@ -1133,7 +1133,7 @@
 
 
 <h1 id="pusicharm-and-mini-app-progress">PusiCharm and mini-app progress</h1>
-<p><strong>Date:</strong> 2026-11-01</p>
+<p><strong>Date:</strong> 2026-11-02</p>
 <h2 id="delivered">Delivered</h2>
 <ul>
 <li>Android companion voice bridge, BLE pairing and appearance synchronization have been developed alongside the PusiCharm firmware. The user confirmed the flashed firmware works and long messages append in chunks.</li>
@@ -1141,13 +1141,18 @@
 <li>Editing a saved mini-app creates a separate draft with copied records, schema and assets. The authoring instructions use the actual per-app loopback API.</li>
 <li>Android release APK 3.10.7 (194) was published to the dashboard with signing verification and installed on the connected phone. Its SHA-256 is <code>ec2974d7b577cffe84e443eae0bc95f7917ac58ac8b585f871047ad8b7266547</code>.</li>
 <li>Desktop tests and the desktop distributable build passed. Firmware commit <code>0572d15</code> passed its GitHub Actions build.</li>
+<li>The mini-app save path now computes offline readiness from persisted UI actions. Local store, navigation, toggle, clipboard, URL and supported host actions are accepted; callbacks, unknown actions, invalid UI and agent automations are not marked standalone-ready.</li>
+<li>The native runner keeps local actions connected to the app store and shows a safe fallback for agent actions. The web runner now reports unavailable platform servers instead of opening a dead localhost URL.</li>
+<li>The mini-app library and glass toolbar were checked for complete CRUD flow, version history, export/import, pinning and new-app access. App shortcuts have vector controls and accessible names.</li>
+<li>Desktop tests, Android debug compilation, screenshot tests and the Wasm browser distribution passed after the mini-app changes.</li>
+<li>Branding audit of desktop, web and Android source paths found no remaining <code>Kai</code> product references. External URLs found are intentional project, integration or license links.</li>
 </ul>
 <h2 id="outstanding">Outstanding</h2>
 <ul>
 <li>The firmware uses a finite bubble buffer and line limit; arbitrarily long messages are not guaranteed to fit in one bubble. BOOT interruption, reconnect and appearance paths still need full device testing.</li>
 <li>Offline speech models were deferred to the next phase. Offline agent answers additionally require a local LLM.</li>
-<li>Mini-app local actions exist, but automatic conversion of arbitrary agent callbacks into a fully autonomous application is not implemented or verified. Do not treat an arbitrary saved UI as offline-ready.</li>
-<li>macOS, Windows and iOS releases and end-to-end mini-app flows have not been verified in this session.</li>
+<li>Arbitrary agent callbacks are intentionally not converted automatically; they are reported as agent-dependent and remain available through the edit/agent flow.</li>
+<li>Physical-device verification was not performed because no device was connected. Android, desktop and browser distributions were compile/test checked; iOS, macOS and Windows release packaging still require their respective host environments.</li>
 </ul>
 
 
