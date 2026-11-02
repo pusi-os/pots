@@ -7,6 +7,9 @@ The Android app bundles the following programs, built from source by
 build-proot.sh in the Pots repository. They run as a separate process
 (PRoot) or are loaded by it (talloc); they are not linked into Pots's own code.
 
+The Android app also links the offline voice-engine libraries listed below
+(speech synthesis and recognition) and ships their models in its assets.
+
 
 PRoot (Termux fork)
 -------------------
@@ -39,6 +42,44 @@ For at least three years from the date you received this copy of Pots, the
 complete corresponding source code of PRoot and talloc as shipped in it is
 available to anyone, free of charge beyond the cost of providing it, on
 request by opening an issue at https://github.com/pusi-os/pots/issues.
+
+
+Offline voice engines (Android)
+-------------------------------
+
+piper-phonemize v1.5.9
+Files:     libpiper-phonemize-jni.so (via the piper-phonemize AAR)
+License:   GNU General Public License, version 3 (full text below)
+Copyright: Copyright (C) piper-phonemize authors
+Source:    https://github.com/csukuangfj/piper-phonemize/tree/v1.5.9
+
+sherpa-onnx 2.0.1
+Files:     composeApp/libs/sherpa-onnx-2.0.1.aar (libsherpa-onnx-jni.so,
+           libsherpa-onnx-c-api.so, libsherpa-onnx-cxx-api.so,
+           libonnxruntime.so)
+License:   Apache License, Version 2.0
+           https://www.apache.org/licenses/LICENSE-2.0
+Copyright: Copyright (C) sherpa-onnx authors (k2-fsa)
+Source:    https://github.com/k2-fsa/sherpa-onnx/tree/v2.0.1
+
+Piper voice ru_RU-irina-medium
+Files:     assets/piper/ru_RU-irina-medium/*
+License:   MIT License (Piper voice; training data RHVoice-derived)
+Source:    https://huggingface.co/rhasspy/piper-voices (repackaged in
+           https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models)
+
+vosk-android 0.3.47
+Files:     libvosk.so (via the vosk-android AAR)
+License:   Apache License, Version 2.0
+           https://www.apache.org/licenses/LICENSE-2.0
+Copyright: Copyright (C) Alpha Cephei Inc
+Source:    https://github.com/alphacephei/vosk-api
+
+Vosk model vosk-model-small-ru-0.22
+Files:     assets/vosk/vosk-model-small-ru-0.22.zip
+License:   Apache License, Version 2.0
+           https://www.apache.org/licenses/LICENSE-2.0
+Source:    https://alphacephei.com/vosk/models
 
 
 ================================================================================

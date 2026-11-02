@@ -37,6 +37,17 @@ Produce a saved mini-app that runs standalone: a last working version + Screen b
    - [ ] The local actions have been tested without an LLM.
    - [ ] Offline fallback present.
 
+8. Save and pin.
+   - When the checklist passes, tell the user to press **Save** in the top
+     toolbar of the interactive studio. The dialog shows what will be saved:
+     screens plus the backend (collections, records, files). If the app has
+     dynamic data, verify the backend counts are non-zero before saving; if
+     they are zero, declare the missing collections/records first.
+   - Offer the "add to the home mini-app panel" checkbox: it is on by default
+     for new apps, so the app appears on the toolbar right away.
+   - Saving a later version of the same app does not ask again; it appends a
+     version and keeps the pin.
+
 ## Snippets
 
 ### Host API client
