@@ -101,7 +101,7 @@ class CoPhonePrefs(context: Context) {
         get() = prefs.getString(KEY_STT, STT_VOSK) ?: STT_VOSK
         set(v) = prefs.edit().putString(KEY_STT, if (v == STT_CLOUD) STT_CLOUD else STT_VOSK).apply()
 
-    /** Which offline model the Vosk engine uses (see CoPhoneAsr.MODELS). */
+    /** Which offline model the Vosk engine uses (see VoskModels.MODELS). */
     var sttModel: String
         get() = prefs.getString(KEY_STT_MODEL, "ru") ?: "ru"
         set(v) = prefs.edit().putString(KEY_STT_MODEL, v.trim().ifEmpty { "ru" }).apply()

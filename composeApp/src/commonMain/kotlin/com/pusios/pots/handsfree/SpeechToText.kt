@@ -1,5 +1,7 @@
 package com.pusios.pots.handsfree
 
+import com.pusios.pots.data.SttEngine
+
 /**
  * Speech recognition for the hands-free dialogue loop.
  *
@@ -57,9 +59,10 @@ enum class SpeechToTextError {
 }
 
 /**
- * Creates the platform's speech recognizer, or null when the platform has none.
+ * Creates the platform's speech recognizer for the selected engine, or null
+ * when the platform has none.
  *
  * A null result is not an error: the hands-free button is simply hidden on platforms without
- * a recognizer.
+ * a recognizer. [voskModelId] selects the offline Vosk model (Android only).
  */
-expect fun createSpeechToText(): SpeechToText?
+expect fun createSpeechToText(engine: SttEngine, voskModelId: String): SpeechToText?

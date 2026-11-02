@@ -1,6 +1,6 @@
 # Hands-Free Voice Mode
 
-**Last verified:** 2026-11-01
+**Last verified:** 2026-11-02
 
 Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it heard, waits for the agent, speaks the answer and listens again. The user never has to touch the screen for the whole round trip.
 
@@ -9,6 +9,15 @@ Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it
 ### Voice mode
 
 On a supported platform, the empty chat offers an animated circular voice button. Once a conversation has begun, a toggle also appears in the top bar next to speech output; it remains visible while voice mode is active even before the first message. Voice controls are only shown on platforms that have a speech recognizer — currently Android.
+
+### Recognition engines
+
+Settings → General → Speech recognition picks the engine:
+
+- **Vosk (offline)** — the default. The Russian small model ships inside the app, so recognition works with no network at all. Vosk streams the microphone itself and ends a session when it detects the end of an utterance. More models (English small, a large Russian one) can be selected and are installed on first use.
+- **System** — the device's own recognition service. Depending on the device it may need the network or a downloaded language pack.
+
+The chosen engine and model are picked up by the loop the next time the chat opens the recognizer.
 
 ### The loop
 
@@ -48,7 +57,9 @@ Recognizer and synthesizer never run at the same time. That is deliberate: with 
 | `composeApp/src/commonMain/.../handsfree/HandsFreeController.kt` | The listen → send → speak state machine, barge-in handling and session bookkeeping |
 | `composeApp/src/commonMain/.../handsfree/SpeechToText.kt` | Platform-independent speech recognition interface and the platform factory |
 | `composeApp/src/androidMain/.../handsfree/AndroidSpeechToText.kt` | Android implementation on top of `SpeechRecognizer` |
-| `composeApp/src/androidMain/.../handsfree/SpeechToText.android.kt` | Android factory |
+| `composeApp/src/androidMain/.../handsfree/VoskSpeechToText.kt` | Offline Vosk implementation (bundled Russian model) |
+| `composeApp/src/androidMain/.../speech/vosk/VoskModels.kt` | Shared Vosk model install/load (assets first, download fallback) |
+| `composeApp/src/androidMain/.../handsfree/SpeechToText.android.kt` | Android factory (picks the engine from settings) |
 | `composeApp/src/desktopMain/.../handsfree/SpeechToText.desktopMain.kt` | No recognizer on desktop — the button is hidden |
 | `composeApp/src/iosMain/.../handsfree/SpeechToText.iosMain.kt` | No recognizer on iOS — the button is hidden |
 | `composeApp/src/wasmJsMain/.../handsfree/SpeechToText.wasmJsMain.kt` | No recognizer on the web — the button is hidden |

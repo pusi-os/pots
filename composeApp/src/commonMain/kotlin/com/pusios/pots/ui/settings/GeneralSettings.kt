@@ -113,6 +113,14 @@ internal fun GeneralContent(uiState: SettingsUiState, actions: SettingsActions) 
                 )
             }
             SettingsCard {
+                SttSection(
+                    engine = uiState.sttEngine,
+                    voskModel = uiState.sttVoskModel,
+                    onChangeEngine = actions.onChangeSttEngine,
+                    onChangeVoskModel = actions.onChangeSttVoskModel,
+                )
+            }
+            SettingsCard {
                 ThemeModePicker(
                     themeMode = uiState.themeMode,
                     onChangeThemeMode = actions.onChangeThemeMode,

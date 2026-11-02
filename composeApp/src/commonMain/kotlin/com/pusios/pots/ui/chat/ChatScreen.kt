@@ -91,7 +91,9 @@ import com.pusios.pots.TerminalLine
 import com.pusios.pots.companion.CompanionController
 import com.pusios.pots.companion.CompanionStatus
 import com.pusios.pots.data.AgentProfile
+import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.Service
+import com.pusios.pots.data.SttEngine
 import com.pusios.pots.data.supportsAgenticFlows
 import com.pusios.pots.getBackgroundDispatcher
 import com.pusios.pots.handsfree.HandsFreeController
@@ -147,6 +149,7 @@ import com.pusios.pots.ui.tts.sayChunked
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import nl.marc_apps.tts.TextToSpeechInstance
 import nl.marc_apps.tts.errors.TextToSpeechSynthesisInterruptedError
@@ -249,9 +252,16 @@ fun ChatScreenContent(
         onDispose { stage.onMoved = null }
     }
 
-    // The hands-free voice loop. The recognizer is created once and released with the
-    // screen; the controller owns the listen → speak cycle.
-    val speechToText = remember { createSpeechToText() }
+    // The hands-free voice loop. The recognizer is created once per engine
+    // selection and released with the screen; the controller owns the listen
+    // → speak cycle.
+    val isPreview = LocalInspectionMode.current
+    val appSettings: com.pusios.pots.data.AppSettings? = if (!isPreview) koinInject() else null
+    val sttEngine by (appSettings?.sttEngineFlow ?: remember { MutableStateFlow(SttEngine.System) })
+        .collectAsStateWithLifecycle()
+    val sttVoskModel by (appSettings?.sttVoskModelFlow ?: remember { MutableStateFlow(AppSettings.DEFAULT_STT_VOSK_MODEL) })
+        .collectAsStateWithLifecycle()
+    val speechToText = remember(sttEngine, sttVoskModel) { createSpeechToText(sttEngine, sttVoskModel) }
     val handsFreeScope = rememberCoroutineScope()
     val handsFree = remember(textToSpeech, speechToText) {
         HandsFreeController(
