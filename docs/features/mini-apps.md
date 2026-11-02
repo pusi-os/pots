@@ -19,6 +19,12 @@ data collections the agent declared, the records written while building, and the
 source conversation, then stores them as one app. The last screen is the one the
 app opens on; earlier screens stay available as tabs in the runner.
 
+The save dialog previews what will be linked to the app: the number of screens
+plus the backend (declared collections, records, files), or a note that the app
+keeps only its screens when there is none. For a new app it also offers a
+checkbox to add the app to the home mini-app panel right away (on by default);
+saving an existing app appends a version and keeps its current pin.
+
 The first save asks for a name, a description and an emoji icon; later saves of
 the same app append a new version without asking again.
 
@@ -103,10 +109,11 @@ The star on each row pins the app to the chat toolbar.
 
 ### The chat toolbar
 
-The button to the right of the chat's top bar opens a glass strip under it. With
-no saved apps the strip is a single plus that starts the studio. With apps it
-shows the pinned ones as icons; tapping one opens it, and the tune chip reopens
-the library to change the selection. The selection is remembered across restarts.
+The button to the right of the chat's top bar opens a glass strip under it. The
+strip always starts with an icon-only plus circle that enters the studio; with
+apps saved it also shows the pinned ones as icons. Tapping one opens it, and the
+tune chip reopens the library to change the selection. The selection is
+remembered across restarts.
 
 ### Running an app
 

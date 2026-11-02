@@ -165,6 +165,42 @@ class MiniAppRepositoryTest {
     }
 
     @Test
+    fun pinToToolbarAddsTheAppToAnExplicitSelection() {
+        val repository = repository()
+        repository.saveDraft(draft(id = "a", name = "A"))
+        repository.saveDraft(draft(id = "b", name = "B"))
+        repository.setToolbarIds(listOf("a"))
+
+        repository.pinToToolbar("b")
+
+        assertEquals(listOf("a", "b"), repository.pinnedApps().map { it.id })
+    }
+
+    @Test
+    fun pinToToolbarIsANoOpWithoutAnExplicitSelection() {
+        val repository = repository()
+        repository.saveDraft(draft(id = "a", name = "A"))
+
+        // null selection means "show every visible app", so pinning must not
+        // convert it into a one-app selection.
+        repository.pinToToolbar("a")
+
+        assertNull(repository.toolbarIds.value)
+        assertEquals(listOf("a"), repository.pinnedApps().map { it.id })
+    }
+
+    @Test
+    fun pinningAnAlreadyPinnedAppDoesNotDuplicateIt() {
+        val repository = repository()
+        repository.saveDraft(draft(id = "a", name = "A"))
+        repository.setToolbarIds(listOf("a"))
+
+        repository.pinToToolbar("a")
+
+        assertEquals(listOf("a"), repository.toolbarIds.value)
+    }
+
+    @Test
     fun deleteRemovesAppHistoryAndData() {
         val repository = repository()
         repository.saveDraft(draft())

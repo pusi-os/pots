@@ -259,6 +259,17 @@ class MiniAppRepository(
         }
     }
 
+    /**
+     * Adds the app to the explicit toolbar selection. When no explicit selection
+     * exists yet (null), every visible app is already shown on the toolbar, so
+     * there is nothing to pin.
+     */
+    fun pinToToolbar(id: String) {
+        val current = _toolbarIds.value ?: return
+        if (id in current) return
+        setToolbarIds(current + id)
+    }
+
     fun setToolbarIds(ids: List<String>?) {
         val normalized = ids?.distinct()
         _toolbarIds.value = normalized

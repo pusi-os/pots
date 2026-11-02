@@ -37,7 +37,7 @@ data class ChatActions(
     /** Starts a fresh interactive session for a new mini-app. */
     val newMiniAppSession: () -> Unit,
     /** Snapshots the current interactive screens into a saved mini-app. */
-    val saveMiniApp: (name: String, description: String, icon: String) -> Unit,
+    val saveMiniApp: (name: String, description: String, icon: String, pinToToolbar: Boolean) -> Unit,
     /** Reopens a saved mini-app in the interactive editor. */
     val editMiniApp: (String) -> Unit,
     /** Runs one declared automation of a saved app in a fresh interactive session. */

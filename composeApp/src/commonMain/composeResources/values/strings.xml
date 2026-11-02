@@ -477,6 +477,13 @@
     <string name="mini_app_name_label">Name</string>
     <string name="mini_app_description_label">Description</string>
     <string name="mini_app_icon_label">Icon (emoji)</string>
+    <string name="mini_app_save_backend_title">What will be saved</string>
+    <string name="mini_app_save_backend_screens">Screens: %1$d</string>
+    <string name="mini_app_save_backend_collections">Collections: %1$d</string>
+    <string name="mini_app_save_backend_records">Records: %1$d</string>
+    <string name="mini_app_save_backend_files">Files: %1$d</string>
+    <string name="mini_app_save_backend_empty">No backend — the app keeps only its screens.</string>
+    <string name="mini_app_save_pin">Add to the home mini-app panel</string>
     <string name="mini_app_cancel">Cancel</string>
     <string name="mini_app_save">Save</string>
     <string name="mini_app_library_title">My mini-apps</string>
@@ -493,7 +500,7 @@
     <string name="mini_app_versions">Version history</string>
     <string name="mini_app_restore">Restore</string>
     <string name="mini_app_version_entry">v%1$d · %2$s</string>
-    <string name="mini_app_toolbar_empty">No apps pinned yet</string>
+    <string name="mini_app_toolbar_add">Add mini-app</string>
     <string name="mini_app_toolbar_configure">Choose apps</string>
     <string name="mini_app_toolbar_show">Show on toolbar</string>
     <string name="mini_app_import_success">Mini-app imported</string>

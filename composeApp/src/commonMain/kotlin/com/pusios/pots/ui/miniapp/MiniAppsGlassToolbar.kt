@@ -40,8 +40,8 @@ import com.pusios.pots.data.miniapp.MiniAppSummary
 import com.pusios.pots.ui.handCursor
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.mini_app_toolbar_add
 import pots.composeapp.generated.resources.mini_app_toolbar_configure
-import pots.composeapp.generated.resources.mini_app_toolbar_empty
 
 /**
  * The glass strip under the chat's top bar.
@@ -87,17 +87,15 @@ fun MiniAppsGlassToolbar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (apps.isEmpty()) {
-                GlassChip(
-                    label = stringResource(Res.string.mini_app_toolbar_empty),
-                    onClick = onNewApp,
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                }
-            } else {
-                GlassChip(label = stringResource(Res.string.mini_app_toolbar_empty), onClick = onNewApp) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                }
+            // The plus is the entry into the studio: an icon-only circle, the
+            // same size as the app icons, so the strip stays clean vector art.
+            GlassIconButton(
+                onClick = onNewApp,
+                contentDescription = stringResource(Res.string.mini_app_toolbar_add),
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            }
+            if (apps.isNotEmpty()) {
                 pinned.forEach { app ->
                     AppIcon(app = app, onClick = { onOpenApp(app.id) })
                 }
@@ -124,6 +122,34 @@ private fun AppIcon(app: MiniAppSummary, onClick: () -> Unit) {
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(app.icon.ifBlank { "🧩" }, style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+/**
+ * An icon-only circle in the strip: no text label, just the vector glyph. Used
+ * for the studio "+" so adding an app is one obvious tap, with the description
+ * carried by accessibility instead of pixels.
+ */
+@Composable
+private fun GlassIconButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    icon: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .semantics { this.contentDescription = contentDescription }
+            .handCursor(),
+        shape = CircleShape,
+        color = Color.White.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+        onClick = onClick,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            icon()
         }
     }
 }

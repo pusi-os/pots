@@ -65,6 +65,31 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/**
+ * Every distinct pots-ui screen a chat history produced, in order of first
+ * appearance. Shared by the save flow (which persists them) and the save
+ * dialog (which previews how many screens the app will keep).
+ */
+@OptIn(ExperimentalUuidApi::class, kotlin.time.ExperimentalTime::class)
+internal fun distinctMiniAppScreens(history: List<History>): List<MiniAppScreen> {
+    val result = mutableListOf<MiniAppScreen>()
+    val now = Clock.System.now().toEpochMilliseconds()
+    for (message in history) {
+        if (message.role != History.Role.ASSISTANT || message.isThinking || message.content.isEmpty()) continue
+        val blocks = parseMarkdown(message.content).blocks.filterIsInstance<PotsUiBlock>()
+        for (block in blocks) {
+            if (result.any { it.potsUiJson == block.rawJson }) continue
+            result += MiniAppScreen(
+                id = Uuid.random().toString(),
+                title = "Screen ${result.size + 1}",
+                potsUiJson = block.rawJson,
+                createdAt = now,
+            )
+        }
+    }
+    return result
+}
+
 @OptIn(ExperimentalUuidApi::class, kotlin.time.ExperimentalTime::class)
 class ChatViewModel(
     private val dataRepository: DataRepository,
@@ -394,7 +419,7 @@ class ChatViewModel(
         }
     }
 
-    private fun saveMiniApp(name: String, description: String, icon: String) {
+    private fun saveMiniApp(name: String, description: String, icon: String, pinToToolbar: Boolean) {
         val repository = miniAppRepository ?: return
         val screens = collectScreens()
         val state = _state.value
@@ -428,6 +453,9 @@ class ChatViewModel(
                 ),
             )
             syncAutomations(app)
+            if (pinToToolbar) {
+                repository.pinToToolbar(app.id)
+            }
             _state.update {
                 it.copy(
                     miniAppDraftId = app.id,
@@ -564,24 +592,7 @@ class ChatViewModel(
      * Every distinct pots-ui screen the session produced, in order. The last one
      * is the final screen the user sees; earlier ones stay as navigable history.
      */
-    private fun collectScreens(): List<MiniAppScreen> {
-        val result = mutableListOf<MiniAppScreen>()
-        val now = Clock.System.now().toEpochMilliseconds()
-        for (message in dataRepository.chatHistory.value) {
-            if (message.role != History.Role.ASSISTANT || message.isThinking || message.content.isEmpty()) continue
-            val blocks = parseMarkdown(message.content).blocks.filterIsInstance<PotsUiBlock>()
-            for (block in blocks) {
-                if (result.any { it.potsUiJson == block.rawJson }) continue
-                result += MiniAppScreen(
-                    id = Uuid.random().toString(),
-                    title = "Screen ${result.size + 1}",
-                    potsUiJson = block.rawJson,
-                    createdAt = now,
-                )
-            }
-        }
-        return result
-    }
+    private fun collectScreens(): List<MiniAppScreen> = distinctMiniAppScreens(dataRepository.chatHistory.value)
 
     private fun editMiniApp(id: String) {
         val repository = miniAppRepository ?: return

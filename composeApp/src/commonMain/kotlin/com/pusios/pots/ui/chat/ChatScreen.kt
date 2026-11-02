@@ -14,6 +14,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -42,6 +44,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -126,9 +129,11 @@ import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.markdown.PotsUiBlock
 import com.pusios.pots.ui.markdown.parseMarkdown
 import com.pusios.pots.ui.miniapp.MiniAppRunnerScreen
+import com.pusios.pots.ui.miniapp.MiniAppSaveStats
 import com.pusios.pots.ui.miniapp.MiniAppSession
 import com.pusios.pots.ui.miniapp.MiniAppsGlassToolbar
 import com.pusios.pots.ui.miniapp.MiniAppsSheet
+import com.pusios.pots.ui.miniapp.saveStats
 import com.pusios.pots.ui.potsik.LocalPotsikStage
 import com.pusios.pots.ui.potsik.PotsikAnchor
 import com.pusios.pots.ui.potsik.PotsikAnchorKind
@@ -171,7 +176,14 @@ import pots.composeapp.generated.resources.mini_app_library_content_description
 import pots.composeapp.generated.resources.mini_app_name_label
 import pots.composeapp.generated.resources.mini_app_new_content_description
 import pots.composeapp.generated.resources.mini_app_save
+import pots.composeapp.generated.resources.mini_app_save_backend_collections
+import pots.composeapp.generated.resources.mini_app_save_backend_empty
+import pots.composeapp.generated.resources.mini_app_save_backend_files
+import pots.composeapp.generated.resources.mini_app_save_backend_records
+import pots.composeapp.generated.resources.mini_app_save_backend_screens
+import pots.composeapp.generated.resources.mini_app_save_backend_title
 import pots.composeapp.generated.resources.mini_app_save_content_description
+import pots.composeapp.generated.resources.mini_app_save_pin
 import pots.composeapp.generated.resources.mini_app_save_title
 import pots.composeapp.generated.resources.scroll_to_bottom_content_description
 
@@ -560,14 +572,28 @@ private fun InteractiveModeScreen(
     }
 
     if (showSaveDialog) {
+        // Preview what the save will persist: screens plus the backend linked
+        // to the draft (declared collections, staged records, files).
+        val stats = remember(draftId, uiState.history, miniAppRepository) {
+            val repository = miniAppRepository
+            val id = uiState.editingMiniAppId ?: draftId
+            if (repository == null || id == null) {
+                null
+            } else {
+                repository.saveStats(id, uiState.currentConversationId, distinctMiniAppScreens(uiState.history).size)
+            }
+        }
+        val isNewApp = uiState.editingMiniAppId == null
         MiniAppSaveDialog(
             initialName = uiState.editingMiniAppName ?: "",
             initialDescription = uiState.editingMiniAppDescription ?: "",
             initialIcon = uiState.editingMiniAppIcon ?: "🧩",
+            stats = stats,
+            showPin = isNewApp,
             onDismiss = { showSaveDialog = false },
-            onSave = { name, description, icon ->
+            onSave = { name, description, icon, pinToToolbar ->
                 showSaveDialog = false
-                uiState.actions.saveMiniApp(name, description, icon)
+                uiState.actions.saveMiniApp(name, description, icon, pinToToolbar)
             },
         )
     }
@@ -592,12 +618,15 @@ private fun MiniAppSaveDialog(
     initialName: String,
     initialDescription: String,
     initialIcon: String,
+    stats: MiniAppSaveStats?,
+    showPin: Boolean,
     onDismiss: () -> Unit,
-    onSave: (name: String, description: String, icon: String) -> Unit,
+    onSave: (name: String, description: String, icon: String, pinToToolbar: Boolean) -> Unit,
 ) {
     var name by remember(initialName) { mutableStateOf(initialName.ifBlank { "My mini-app" }) }
     var description by remember(initialDescription) { mutableStateOf(initialDescription) }
     var icon by remember(initialIcon) { mutableStateOf(initialIcon) }
+    var pin by remember(showPin) { mutableStateOf(showPin) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(Res.string.mini_app_save_title)) },
@@ -621,10 +650,29 @@ private fun MiniAppSaveDialog(
                     label = { Text(stringResource(Res.string.mini_app_icon_label)) },
                     singleLine = true,
                 )
+                if (stats != null) {
+                    SaveBackendPreview(stats)
+                }
+                if (showPin) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { pin = !pin }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = pin, onCheckedChange = { pin = it })
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(Res.string.mini_app_save_pin),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name, description, icon) }) {
+            TextButton(onClick = { onSave(name, description, icon, pin) }) {
                 Text(stringResource(Res.string.mini_app_save))
             }
         },
@@ -632,6 +680,46 @@ private fun MiniAppSaveDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(Res.string.mini_app_cancel)) }
         },
     )
+}
+
+/**
+ * The "what will be saved" block: screens plus the backend (declared
+ * collections, staged records, files) the app is linked to.
+ */
+@Composable
+private fun SaveBackendPreview(stats: MiniAppSaveStats) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            stringResource(Res.string.mini_app_save_backend_title),
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Text(
+            stringResource(Res.string.mini_app_save_backend_screens, stats.screens),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (stats.hasBackend) {
+            Text(
+                stringResource(Res.string.mini_app_save_backend_collections, stats.collections),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                stringResource(Res.string.mini_app_save_backend_records, stats.records),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                stringResource(Res.string.mini_app_save_backend_files, stats.files),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        } else {
+            Text(
+                stringResource(Res.string.mini_app_save_backend_empty),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
 }
 
 @Composable

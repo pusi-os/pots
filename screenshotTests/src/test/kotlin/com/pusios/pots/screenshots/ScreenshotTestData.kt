@@ -55,7 +55,7 @@ object ScreenshotTestData {
         consumeComposerPrefill = {},
         setPotsikLook = {},
         newMiniAppSession = {},
-        saveMiniApp = { _, _, _ -> },
+        saveMiniApp = { _, _, _, _ -> },
         editMiniApp = { },
         runMiniAppAutomation = { _, _ -> },
         runMiniAppPrompt = { _, _ -> },
