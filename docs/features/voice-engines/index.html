@@ -1209,7 +1209,12 @@ it.</p>
 <p>Text is phonemized with espeak-ng (the <code>piper-phonemize</code> library) and
 synthesized by the sherpa-onnx runtime, streaming audio as it is produced, so
 stop and barge-in cut the speech mid-sentence. The speaking rate follows the
-rate slider in the settings; pitch does not apply to Piper.</p>
+rate slider in the settings; pitch does not apply to Piper. The streaming
+callback is an explicit class (<code>StreamingCallback</code>), never a lambda: the
+sherpa-onnx JNI finds it with <code>GetMethodID(cls, "invoke",
+"([F)Ljava/lang/Integer;")</code> on the callback's own class, and R8 strips that
+specialized method from lambdas, which aborts the process. A keep rule in
+<code>composeApp/proguard-rules.pro</code> protects it in release builds.</p>
 <p>The Settings card shows the voice (Ирина, русский), notes that it is bundled
 and works without internet, and offers a test button that speaks a short
 phrase through exactly the same engine the chat uses.</p>
@@ -1323,11 +1328,15 @@ redistribution of the Android build.</p>
 </tr>
 <tr>
 <td><code>composeApp/src/androidMain/.../speech/piper/PiperTextToSpeech.kt</code></td>
-<td>Piper engine: sherpa-onnx + phonemizer + audio streaming</td>
+<td>Piper engine: sherpa-onnx + phonemizer + audio streaming (<code>StreamingCallback</code> must stay an explicit class for JNI)</td>
 </tr>
 <tr>
 <td><code>composeApp/src/androidMain/.../speech/piper/PiperVoices.kt</code></td>
 <td>Asset install and location of bundled Piper voices</td>
+</tr>
+<tr>
+<td><code>composeApp/proguard-rules.pro</code></td>
+<td>Keep rules for sherpa-onnx, piper-phonemize and the streaming callback</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/settings/PiperVoiceTest.kt</code></td>
