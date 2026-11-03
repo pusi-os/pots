@@ -42,9 +42,9 @@ The application uses **litert-lm's native function calling**: each exposed Pots 
 
 Two filters decide what the model actually receives.
 
-**The model file decides whether it gets tools at all.** Before building the tool list, Pots asks the `.litertlm` bundle what it declares about itself — a metadata read that needs no engine and no loaded weights. A bundle that declares no function-calling support carries no tool section in its chat template, and such a model does not politely ignore tools it was handed: it answers *instead* of calling them, inventing whatever the tool would have returned. Those models are given no tools and no tool guidance in the system prompt, which makes them plain chat models — which is what they are. A bundle that cannot answer (older metadata, or the iOS bridge, whose LiteRT-LM release predates the capability API) reports *unknown*, and unknown is treated as before: the allowlist is offered.
+**The model file decides whether it gets tools at all.** Before building the tool list, Pots asks the `.litertlm` bundle what it declares about itself — a metadata read that needs no engine and no loaded weights. A bundle that declares no function-calling support carries no tool section in its chat template, and such a model does not politely ignore tools it was handed: it answers *instead* of calling them, inventing whatever the tool would have returned. Those models are given no tools and no tool guidance in the system prompt, which makes them plain chat models — which is what they are. A bundle that cannot answer (older metadata, or the iOS bridge, whose LiteRT-LM release predates the capability API) reports *unknown*, and unknown is treated as before: the user's local tool selection is offered.
 
-**The allowlist then narrows what a tool-capable model sees**, because small Gemma models (2-4B params) struggle to emit valid function-call syntax for tools with many parameters or complex value types, and litert-lm's strict ANTLR parser crashes the call when the syntax is malformed.
+**That selection then narrows what a tool-capable model sees**, because small Gemma models (2-4B params) struggle to emit valid function-call syntax for tools with many parameters or complex value types, and litert-lm's strict ANTLR parser crashes the call when the syntax is malformed.
 
 **What the model sees is the user's choice.** The *Local Model* section in Settings lists the built-in tools and the MCP servers, each with a switch, and the selection is stored in the app settings. Out of the box the selection is the built-in default allowlist — `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, and `execute_shell_command` (when the user has enabled the shell tool in Settings) — but the user can widen it to any tool, and to the tools of any enabled MCP server. The first change to a switch replaces the default with an explicit selection; "Use the default tool set" goes back to the defaults. An explicit selection with every switch off means no tools at all — the only case that silently falls back to the defaults is a selection whose ids no longer match any known tool (e.g. after a rename). Email tools, task scheduling (`schedule_task` / `list_tasks` / `cancel_task`), structured `memory_learn`, heartbeat-config tools, and `promote_learning` are not in the default set because a 2-4B model handles them poorly, but nothing prevents the user from enabling them.
 
@@ -119,7 +119,7 @@ When the last LiteRT service instance is removed, all downloaded and imported mo
 
 - LiteRT instances participate in the normal fallback chain
 - On unsupported platforms (web), LiteRT instances are silently skipped
-- Background tool runs (heartbeat and scheduled tasks) use an explicitly chosen instance when there is one, otherwise prefer remote services and fall back to on-device only when no remote is configured. The on-device fallback works at any context size, since the simple-tool allowlist has no schema-overhead penalty.
+- Background tool runs (heartbeat and scheduled tasks) use an explicitly chosen instance when there is one, otherwise prefer remote services and fall back to on-device only when no remote is configured. The on-device fallback works at any context size, since the default local tool set has no schema-overhead penalty.
 
 ## Key Files
 
@@ -140,7 +140,7 @@ When the last LiteRT service instance is removed, all downloaded and imported mo
 | `composeApp/src/iosMain/.../inference/InferencePlatform.ios.kt` | iOS platform implementations (storage, memory, disk space) |
 | `composeApp/src/iosMain/.../inference/LocalInferenceEngineProvider.ios.kt` | iOS factory wiring |
 | `composeApp/src/androidMain/.../inference/ModelDownloadService.kt` | Android foreground service for background downloads |
-| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Inference dispatch, engine initialization status, local tool allowlist, and the declared-capability gate that withholds tools from models with no tool template |
+| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Inference dispatch, engine initialization status, the user's local tool selection, and the declared-capability gate that withholds tools from models with no tool template |
 | `composeApp/src/commonMain/.../network/NetworkExceptions.kt` | Maps inference failures, including a failed integrity check, to user-facing errors |
 | `composeApp/src/commonMain/.../ui/settings/ServicesSettings.kt` | LiteRT service card: model list, download/import controls, progress and error display |
 | `composeApp/src/commonMain/.../ui/settings/SettingsScreen.kt` | Hosts service settings including LiteRT model management |
