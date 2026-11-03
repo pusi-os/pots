@@ -800,6 +800,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#mini-app-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mini-app tasks
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1455,6 +1466,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#mini-app-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mini-app tasks
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1550,7 +1572,7 @@
 
 
 <h1 id="tasks">Tasks</h1>
-<p><strong>Last verified:</strong> 2026-10-02</p>
+<p><strong>Last verified:</strong> 2026-11-03</p>
 <p>Pots's tasks feature enables the AI to schedule one-time or recurring actions for future execution. Tasks are created through AI tools, stored persistently, and executed automatically by a background scheduler that polls on a fixed interval.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="task">Task</h3>
@@ -1568,7 +1590,7 @@
 <h2 id="task-lifecycle">Task Lifecycle</h2>
 <ol>
 <li>The AI calls the <code>schedule_task</code> tool with a description, prompt, and exactly one trigger: <code>execute_at</code>, <code>cron</code>, or <code>on_heartbeat: true</code></li>
-<li>A new task is created with a UUID and a trigger (TIME/CRON/HEARTBEAT), and persisted to storage</li>
+<li>A new task is created with a UUID and a trigger (TIME/CRON/HEARTBEAT), and persisted to storage. Standing tasks (CRON/HEARTBEAT) are deduplicated by description: scheduling a standing task whose description already exists updates the existing task (prompt, schedule, cron) instead of creating an identical twin. One-off TIME tasks are exempt — scheduling the same reminder twice is legitimate</li>
 <li>For cron-based tasks, the first execution time is computed from the cron expression</li>
 <li>The background scheduler polls every 60 seconds and checks for due tasks (TIME/CRON with execution time &lt;= now). HEARTBEAT tasks are not picked up here</li>
 <li>When due, the task's prompt is sent to the AI as a fresh standalone request with full tool access (it does not see or add to the user's chat history)</li>
@@ -1627,11 +1649,13 @@
 </ul>
 <h3 id="heartbeat-triggered-tasks">Heartbeat-triggered tasks</h3>
 <p>Tasks created with <code>on_heartbeat: true</code> carry <code>trigger = HEARTBEAT</code>. Their prompts are appended to every heartbeat self-check under <code>## Heartbeat Additions</code>. They're the mechanism for standing heartbeat behaviour ("greet me on every heartbeat", "always summarise new emails") — the main heartbeat prompt stays untouched, and each addition is a cancellable first-class task visible via <code>list_tasks</code> and in the Scheduled Tasks UI. They stay PENDING until cancelled.</p>
+<h3 id="mini-app-tasks">Mini-app tasks</h3>
+<p>Automations that belong to a mini-app are registered with a shared description prefix (<code>Mini-app &lt;app id&gt;:</code>). Deleting a mini-app removes every task carrying its prefix, so a deleted app never leaves a zombie recurring check behind. All such tasks remain individually visible and deletable in the Scheduled Tasks settings while the app exists.</p>
 <h2 id="settings-ui">Settings UI</h2>
 <p>The scheduled tasks section in settings provides:</p>
 <ul>
 <li><strong>Feature toggle</strong> — enables or disables the scheduling feature globally; when disabled, no tasks execute and scheduling tools are unavailable to the AI</li>
-<li><strong>Task list</strong> — shown only while the toggle is on. Each task shows its description, status (PENDING or COMPLETED), and either a local execution time with UTC offset, a human-readable cron description, or "on every heartbeat"</li>
+<li><strong>Task list</strong> — shown only while the toggle is on. The list is live: it follows the task store, so tasks the agent creates in the background appear without reopening the screen, and a deletion disappears the moment it is persisted. Each task shows its description, status (PENDING or COMPLETED), and either a local execution time with UTC offset, a human-readable cron description, or "on every heartbeat"</li>
 <li><strong>Tap a task</strong> — opens a details sheet with the trigger, status, schedule (or next run for cron), creation time, consecutive failure count (when non-zero), last result, and a recent-activity log of up to the last 10 runs (timestamp + OK/FAIL + reason). For HEARTBEAT-trigger tasks the activity list is sourced from the heartbeat-wide log instead, since they don't fire on their own schedule</li>
 <li><strong>Delete button</strong> — available on all tasks to remove them; deletion is deferred with a snackbar "Undo" option (~4 seconds) before the task is permanently cancelled</li>
 </ul>
@@ -1672,11 +1696,11 @@
 <tbody>
 <tr>
 <td><code>composeApp/src/commonMain/.../data/ScheduledTask.kt</code></td>
-<td>Task data class and status enum</td>
+<td>Task data class, status enum, and the mini-app task description prefix</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../data/TaskStore.kt</code></td>
-<td>Task CRUD operations and due-task queries</td>
+<td>Task CRUD operations, standing-task dedup, live task flow, and due-task queries</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../data/SettingsJson.kt</code></td>

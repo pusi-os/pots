@@ -1294,7 +1294,7 @@
 
 
 <h1 id="system-prompts">System Prompts</h1>
-<p><strong>Last verified:</strong> 2026-10-27</p>
+<p><strong>Last verified:</strong> 2026-11-03</p>
 <p>Pots has several distinct prompt-construction paths. Each one is built by a <strong>pure function</strong> with explicit inputs (no DI, no suspend, no resource loading, no clocks) and is covered by a unit-test suite so future edits don't silently break unrelated variations.</p>
 <h2 id="paths">Paths</h2>
 <table>
@@ -1333,9 +1333,9 @@
 </tr>
 </tbody>
 </table>
-<p>The on-device tool allowlist (<code>LOCAL_TOOL_ALLOWLIST</code> in <code>RemoteDataRepository.kt</code>) decides which tools reach the on-device engine. Renaming a tool without updating that set silently drops it from the on-device path.</p>
+<p>The on-device tool set is the user's local tool selection (<code>LocalToolSelection</code>, defaulting to <code>LOCAL_TOOL_ALLOWLIST</code> in <code>RemoteDataRepository.kt</code>). Renaming a tool without updating the defaults silently drops it from the unconfigured on-device path.</p>
 <h2 id="chat-variants">Chat variants</h2>
-<p><code>SystemPromptVariant</code> in <code>ChatSystemPromptBuilder.kt</code> controls which sections are composed. Each <code>if (variant == …)</code> block in <code>buildChatSystemPrompt</code> is the single source of truth for where a section belongs — there is no post-hoc regex stripping.</p>
+<p><code>SystemPromptVariant</code> in <code>ChatSystemPromptBuilder.kt</code> controls the memory budget; feature sections that teach or reference specific tools are instead gated on <code>toolNames</code> — the set of tools the request actually carries. The builder's conditionals are the single source of truth for where a section belongs — there is no post-hoc regex stripping.</p>
 <table>
 <thead>
 <tr>
@@ -1384,9 +1384,9 @@
 </tr>
 <tr>
 <td><code>## Structured Learning</code></td>
-<td style="text-align: center;">when memory enabled (remote-only)</td>
-<td style="text-align: center;">never</td>
-<td>baked into <code>DEFAULT_STRUCTURED_LEARNING_SECTION</code> constant. Gated on <code>memoryEnabled</code> — it references <code>memory_learn</code> / <code>memory_reinforce</code>, which are absent when memory is off</td>
+<td style="text-align: center;">when memory enabled</td>
+<td style="text-align: center;">when memory enabled and <code>memory_learn</code> selected</td>
+<td>baked into <code>DEFAULT_STRUCTURED_LEARNING_SECTION</code> constant. Gated on <code>memoryEnabled</code> and <code>memory_learn</code> in <code>toolNames</code> — it references <code>memory_learn</code> / <code>memory_reinforce</code>, which are absent otherwise</td>
 </tr>
 <tr>
 <td><code>## Your Memories</code></td>
@@ -1414,26 +1414,26 @@
 </tr>
 <tr>
 <td><code>## Automation</code></td>
-<td style="text-align: center;">when scheduling enabled (remote-only)</td>
-<td style="text-align: center;">never</td>
-<td>baked into <code>DEFAULT_AUTOMATION_SECTION</code> constant — teaches the AI that all future/recurring/heartbeat-standing behaviour goes through <code>schedule_task</code> with one of three triggers (<code>execute_at</code>, <code>cron</code>, <code>on_heartbeat</code>). Heartbeat schedule itself is user-controlled. Gated on <code>schedulingEnabled</code> — it references <code>schedule_task</code> / <code>list_tasks</code> / <code>cancel_task</code>, which are absent when scheduling is off</td>
+<td style="text-align: center;">when scheduling enabled</td>
+<td style="text-align: center;">when scheduling enabled and <code>schedule_task</code> selected</td>
+<td>baked into <code>DEFAULT_AUTOMATION_SECTION</code> constant — teaches the AI that all future/recurring/heartbeat-standing behaviour goes through <code>schedule_task</code> with one of three triggers (<code>execute_at</code>, <code>cron</code>, <code>on_heartbeat</code>). Heartbeat schedule itself is user-controlled. Gated on <code>schedulingEnabled</code> and <code>schedule_task</code> in <code>toolNames</code> — it references <code>schedule_task</code> / <code>list_tasks</code> / <code>cancel_task</code>, which are absent otherwise</td>
 </tr>
 <tr>
 <td><code>## Email Accounts</code></td>
 <td style="text-align: center;">when list non-empty (email enabled)</td>
-<td style="text-align: center;">never</td>
+<td style="text-align: center;">when list non-empty and <code>check_email</code> selected</td>
 <td><code>emailAccounts</code> — connected address, unread count, last sync, or last sync error. The section also embeds a multi-sentence "Sending policy" rule instructing the model to draft a message and confirm with the user before invoking <code>compose_email</code> or <code>reply_email</code>, so the per-account summary is not the only payload</td>
 </tr>
 <tr>
 <td><code>## Scheduled Tasks</code></td>
 <td style="text-align: center;">when list non-empty</td>
-<td style="text-align: center;">never</td>
+<td style="text-align: center;">when list non-empty and a scheduling tool selected</td>
 <td><code>pendingTasks</code> (time/cron only; heartbeat-trigger tasks live in the next section)</td>
 </tr>
 <tr>
 <td><code>## Heartbeat Additions</code></td>
 <td style="text-align: center;">when list non-empty</td>
-<td style="text-align: center;">never</td>
+<td style="text-align: center;">when list non-empty and a scheduling tool selected</td>
 <td><code>heartbeatAdditions</code> — standing <code>schedule_task(on_heartbeat=true)</code> entries the AI can see/reference/cancel</td>
 </tr>
 <tr>
@@ -1451,13 +1451,13 @@
 <tr>
 <td><code>## Dynamic UI</code></td>
 <td style="text-align: center;">when Dynamic UI is enabled in settings and the model supports tool calls (not in interactive mode)</td>
-<td style="text-align: center;">never</td>
+<td style="text-align: center;">when <code>mini_app_data</code> selected and Dynamic UI is enabled</td>
 <td>Dynamic UI setting + model tool support. Recommends short callback buttons for obvious choices/yes-no, draft review and next steps, while clarifying that callbacks only relay a choice and external/irreversible actions still need explicit confirmation</td>
 </tr>
 <tr>
 <td><code>## Interactive UI Mode</code></td>
 <td style="text-align: center;">when the conversation is in interactive mode</td>
-<td style="text-align: center;">never</td>
+<td style="text-align: center;">when <code>mini_app_data</code> selected and in interactive mode</td>
 <td>Interactive mode flag (takes precedence over Dynamic UI)</td>
 </tr>
 </tbody>
@@ -1466,7 +1466,7 @@
 <p><strong>Why two variants:</strong></p>
 <ul>
 <li><code>CHAT_REMOTE</code> — full chat prompt for remote services. No limits.</li>
-<li><code>CHAT_LOCAL</code> — trimmed chat prompt for on-device LiteRT. Small Gemma models (2-4B params) can't coherently attend to the full remote prompt, so Structured Learning, Automation, Email Accounts, Scheduled Tasks, Heartbeat Additions, and pots-ui sections are dropped, and memory sections are char-capped. The model still gets soul + basic memory guidance + memories (up to the cap) + runtime Context — memories matter because <code>memory_store</code> / <code>memory_forget</code> / <code>memory_reinforce</code> are all in the local tool allowlist, and a memory might have been learned via a remote model in an earlier turn.</li>
+<li><code>CHAT_LOCAL</code> — trimmed chat prompt for on-device LiteRT. Small Gemma models (2-4B params) can't coherently attend to the full remote prompt, so memory sections are char-capped and, with the default tool selection, Structured Learning, Automation, Email Accounts, Scheduled Tasks, Heartbeat Additions, and pots-ui sections stay out. Every one of those sections is gated on the tool it references, though: when the user's local tool selection hands the model <code>schedule_task</code>, <code>memory_learn</code>, email tools, or <code>mini_app_data</code>, the matching guidance and data dumps are composed in — a section never references a tool the model was not given. The model still gets soul + basic memory guidance + memories (up to the cap) + runtime Context — memories matter because <code>memory_store</code> / <code>memory_forget</code> / <code>memory_reinforce</code> are all in the default local selection, and a memory might have been learned via a remote model in an earlier turn.</li>
 </ul>
 <h2 id="ready-characters">Ready characters</h2>
 <p><code>AgentPersonaPresets.kt</code> keeps the built-in character instructions short and in Russian: Researcher, Creative partner, Productivity, Companion, Psychologist, Home health guide, Coach and Потсик. Assistant uses the localized base soul; Custom keeps user text. The shared language, honesty, tool-use and action rules are composed separately, so a custom soul cannot accidentally remove them. Потсик's persona prefers verification and useful tool work over premature refusal, uses durable memory and installed skills without claiming unsupported self-modification, and keeps a familiar Russian tone. Medical and psychological personas clearly limit diagnosis/treatment claims and surface urgent safety concerns.</p>
@@ -1557,7 +1557,7 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../data/AppSettings.kt</code></td>
-<td><code>DEFAULT_MEMORY_INSTRUCTIONS</code> (basic block, used by both variants). The advanced <code>## Structured Learning</code> block lives in <code>ChatSystemPromptBuilder.kt</code> and is remote-only</td>
+<td><code>DEFAULT_MEMORY_INSTRUCTIONS</code> (basic block, used by both variants). The advanced <code>## Structured Learning</code> block lives in <code>ChatSystemPromptBuilder.kt</code> and renders whenever the model is handed <code>memory_learn</code></td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../data/AgentPersonaPresets.kt</code></td>
