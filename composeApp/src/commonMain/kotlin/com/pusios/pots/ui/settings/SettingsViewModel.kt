@@ -274,6 +274,15 @@ class SettingsViewModel(
             combine(dataRepository.agentProfiles, dataRepository.activeAgentProfileId) { _, _ -> Unit }
                 .collect { refreshAgentProfileState() }
         }
+        // The scheduler and the agent create and remove tasks in the background, so the
+        // list must follow the store instead of freezing at the moment the screen was
+        // first built — otherwise a task the agent scheduled later is invisible (and
+        // undeletable) until the app restarts.
+        viewModelScope.launch {
+            dataRepository.scheduledTasksFlow.collect { tasks ->
+                _state.update { it.copy(scheduledTasks = tasks.toImmutableList()) }
+            }
+        }
         // Observe download state from the engine singleton (survives activity recreation)
         val downloadingFlow = dataRepository.getLocalDownloadingModelId() ?: flowOf(null)
         val progressFlow = dataRepository.getLocalDownloadProgress() ?: flowOf(null)

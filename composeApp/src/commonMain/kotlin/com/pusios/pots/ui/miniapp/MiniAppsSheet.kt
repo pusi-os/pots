@@ -254,7 +254,7 @@ fun MiniAppsSheet(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        repository.delete(app.id)
+                        scope.launch { repository.delete(app.id) }
                         deleting = null
                     },
                 ) { Text(stringResource(Res.string.mini_app_delete_confirm)) }

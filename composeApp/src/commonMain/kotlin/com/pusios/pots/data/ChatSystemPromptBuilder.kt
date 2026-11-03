@@ -144,9 +144,10 @@ internal const val DEFAULT_STRUCTURED_LEARNING_SECTION =
         "Use memory_reinforce when a stored learning produced a good outcome."
 
 /**
- * Teaches the model how the two automation mechanisms differ. Only composed into the
- * `CHAT_REMOTE` variant — scheduling tools aren't in the local allowlist, and the
- * heartbeat-is-user-controlled rule doesn't matter on-device. Placed before the
+ * Teaches the model how the two automation mechanisms differ. Composed into a prompt
+ * whenever the request actually carries `schedule_task` — remote requests always do
+ * while scheduling is enabled; the on-device model does when the local tool selection
+ * allows it. Placed before the
  * Scheduled Tasks data dump so the guidance precedes any rendered tasks.
  */
 internal const val DEFAULT_AUTOMATION_SECTION =
@@ -166,11 +167,18 @@ internal const val DEFAULT_AUTOMATION_SECTION =
  * Returns an empty string when there is literally nothing to render (which the caller
  * should map to `null`). All inputs are passed explicitly — memory lists are pre-split
  * by the caller so this function doesn't touch the `MemoryStore`.
+ *
+ * [toolNames] is the set of tool names the request will actually carry. Feature sections
+ * that teach or reference specific tools (automation, email, scheduled tasks, pots-ui)
+ * are gated on it instead of on [variant]: the on-device model's tool set is
+ * user-configurable, so a local model handed `schedule_task` gets the same automation
+ * guidance as a remote one, and a remote model with scheduling off gets none.
  */
 internal fun buildChatSystemPrompt(
     variant: SystemPromptVariant,
     soul: String,
     hasTools: Boolean,
+    toolNames: Set<String>,
     memoryEnabled: Boolean,
     schedulingEnabled: Boolean,
     memoryInstructions: String?,
@@ -213,9 +221,9 @@ internal fun buildChatSystemPrompt(
     }
 
     // Structured Learning references memory_learn / memory_reinforce, so it only makes sense
-    // when memory is enabled (those tools are absent otherwise). Remote-only — memory_learn
-    // isn't in the local allowlist.
-    if (variant == SystemPromptVariant.CHAT_REMOTE && memoryEnabled) {
+    // when memory is enabled AND the model is actually handed memory_learn — the on-device
+    // model only gets it when the user enabled it in the local tool selection.
+    if (memoryEnabled && "memory_learn" in toolNames) {
         if (isNotEmpty()) append("\n\n")
         append(DEFAULT_STRUCTURED_LEARNING_SECTION)
     }
@@ -235,25 +243,25 @@ internal fun buildChatSystemPrompt(
     remaining = appendMemoryCategorySection("Learnings", learningMemories, withHitCount = true, remaining)
     appendMemoryCategorySection("Known Issues & Resolutions", errorMemories, withHitCount = false, remaining)
 
-    // Automation guidance + Email Accounts + Scheduled Tasks stay remote-only — the
-    // matching tools aren't in the local allowlist. The Automation guidance references
-    // schedule_task / list_tasks / cancel_task, so it only renders when scheduling is
-    // enabled (those tools are absent otherwise). Email Accounts is independent of
-    // scheduling; the data dumps only render when non-empty.
-    if (variant == SystemPromptVariant.CHAT_REMOTE) {
-        if (schedulingEnabled) {
-            if (isNotEmpty()) append("\n\n")
-            append(DEFAULT_AUTOMATION_SECTION)
-        }
-        if (emailAccounts.isNotEmpty()) {
-            appendEmailAccountsSection(emailAccounts)
-        }
-        if (pendingTasks.isNotEmpty()) {
-            appendScheduledTasksSection(pendingTasks)
-        }
-        if (heartbeatAdditions.isNotEmpty()) {
-            appendHeartbeatAdditionsSection(heartbeatAdditions)
-        }
+    // Automation guidance, Email Accounts and the task dumps render whenever the model
+    // is actually handed the matching tools — for remote models that is the full set,
+    // for the on-device model whatever the local tool selection enabled. The Automation
+    // guidance references schedule_task / list_tasks / cancel_task, so it only renders
+    // when scheduling is enabled (those tools are absent otherwise). Email Accounts is
+    // independent of scheduling; the data dumps only render when non-empty.
+    val seesSchedulingTools = "schedule_task" in toolNames || "list_tasks" in toolNames || "cancel_task" in toolNames
+    if (schedulingEnabled && "schedule_task" in toolNames) {
+        if (isNotEmpty()) append("\n\n")
+        append(DEFAULT_AUTOMATION_SECTION)
+    }
+    if (emailAccounts.isNotEmpty() && "check_email" in toolNames) {
+        appendEmailAccountsSection(emailAccounts)
+    }
+    if (pendingTasks.isNotEmpty() && seesSchedulingTools) {
+        appendScheduledTasksSection(pendingTasks)
+    }
+    if (heartbeatAdditions.isNotEmpty() && seesSchedulingTools) {
+        appendHeartbeatAdditionsSection(heartbeatAdditions)
     }
 
     if (activeSkill != null) {
@@ -262,7 +270,11 @@ internal fun buildChatSystemPrompt(
 
     appendContextSection(runtime)
 
-    if (variant == SystemPromptVariant.CHAT_REMOTE) {
+    // pots-ui authoring guidance: only when the model gets mini_app_data. Remote models
+    // get it whenever Dynamic UI is on; the on-device model gets it only when the local
+    // tool selection enabled it — teaching UI authoring to a model without the tool just
+    // wastes its small context window.
+    if ("mini_app_data" in toolNames) {
         when (uiMode) {
             ChatPromptUiMode.DYNAMIC_UI -> appendDynamicUiSection()
             ChatPromptUiMode.INTERACTIVE_UI -> appendInteractiveUiSection()

@@ -50,6 +50,14 @@ data class TaskExecutionLogEntry(
 enum class TaskStatus { PENDING, COMPLETED }
 
 /**
+ * Description prefix that ties a scheduled task to the mini-app whose automation created
+ * it. `ChatViewModel.syncAutomations` creates tasks with this prefix, and deleting a
+ * mini-app removes every task carrying it — so a deleted app never leaves a zombie
+ * recurring check behind.
+ */
+fun miniAppTaskPrefix(appId: String): String = "Mini-app $appId:"
+
+/**
  * How a scheduled task is dispatched.
  *
  * - [TIME] — fires once at [ScheduledTask.scheduledAtEpochMs], transitions to COMPLETED.

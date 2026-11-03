@@ -77,7 +77,7 @@ val appModule = module {
         ConversationStorage(get(), createConversationPersistence(get()))
     }
     single<MiniAppRepository> {
-        MiniAppRepository(get(), createMiniAppPersistence(get()))
+        MiniAppRepository(get(), createMiniAppPersistence(get()), get())
     }
     single<MiniAppServer> {
         createMiniAppServer(get(), get())

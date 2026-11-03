@@ -1,6 +1,6 @@
 # Tasks
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-11-03
 
 Pots's tasks feature enables the AI to schedule one-time or recurring actions for future execution. Tasks are created through AI tools, stored persistently, and executed automatically by a background scheduler that polls on a fixed interval.
 
@@ -27,7 +27,7 @@ A 5-field schedule format (`minute hour day-of-month month day-of-week`) used fo
 ## Task Lifecycle
 
 1. The AI calls the `schedule_task` tool with a description, prompt, and exactly one trigger: `execute_at`, `cron`, or `on_heartbeat: true`
-2. A new task is created with a UUID and a trigger (TIME/CRON/HEARTBEAT), and persisted to storage
+2. A new task is created with a UUID and a trigger (TIME/CRON/HEARTBEAT), and persisted to storage. Standing tasks (CRON/HEARTBEAT) are deduplicated by description: scheduling a standing task whose description already exists updates the existing task (prompt, schedule, cron) instead of creating an identical twin. One-off TIME tasks are exempt — scheduling the same reminder twice is legitimate
 3. For cron-based tasks, the first execution time is computed from the cron expression
 4. The background scheduler polls every 60 seconds and checks for due tasks (TIME/CRON with execution time <= now). HEARTBEAT tasks are not picked up here
 5. When due, the task's prompt is sent to the AI as a fresh standalone request with full tool access (it does not see or add to the user's chat history)
@@ -73,12 +73,16 @@ A 5-field schedule format (`minute hour day-of-month month day-of-week`) used fo
 
 Tasks created with `on_heartbeat: true` carry `trigger = HEARTBEAT`. Their prompts are appended to every heartbeat self-check under `## Heartbeat Additions`. They're the mechanism for standing heartbeat behaviour ("greet me on every heartbeat", "always summarise new emails") — the main heartbeat prompt stays untouched, and each addition is a cancellable first-class task visible via `list_tasks` and in the Scheduled Tasks UI. They stay PENDING until cancelled.
 
+### Mini-app tasks
+
+Automations that belong to a mini-app are registered with a shared description prefix (`Mini-app <app id>:`). Deleting a mini-app removes every task carrying its prefix, so a deleted app never leaves a zombie recurring check behind. All such tasks remain individually visible and deletable in the Scheduled Tasks settings while the app exists.
+
 ## Settings UI
 
 The scheduled tasks section in settings provides:
 
 - **Feature toggle** — enables or disables the scheduling feature globally; when disabled, no tasks execute and scheduling tools are unavailable to the AI
-- **Task list** — shown only while the toggle is on. Each task shows its description, status (PENDING or COMPLETED), and either a local execution time with UTC offset, a human-readable cron description, or "on every heartbeat"
+- **Task list** — shown only while the toggle is on. The list is live: it follows the task store, so tasks the agent creates in the background appear without reopening the screen, and a deletion disappears the moment it is persisted. Each task shows its description, status (PENDING or COMPLETED), and either a local execution time with UTC offset, a human-readable cron description, or "on every heartbeat"
 - **Tap a task** — opens a details sheet with the trigger, status, schedule (or next run for cron), creation time, consecutive failure count (when non-zero), last result, and a recent-activity log of up to the last 10 runs (timestamp + OK/FAIL + reason). For HEARTBEAT-trigger tasks the activity list is sourced from the heartbeat-wide log instead, since they don't fire on their own schedule
 - **Delete button** — available on all tasks to remove them; deletion is deferred with a snackbar "Undo" option (~4 seconds) before the task is permanently cancelled
 
@@ -117,8 +121,8 @@ When daemon mode is active (Android foreground service), the app process is kept
 
 | File | Purpose |
 |---|---|
-| `composeApp/src/commonMain/.../data/ScheduledTask.kt` | Task data class and status enum |
-| `composeApp/src/commonMain/.../data/TaskStore.kt` | Task CRUD operations and due-task queries |
+| `composeApp/src/commonMain/.../data/ScheduledTask.kt` | Task data class, status enum, and the mini-app task description prefix |
+| `composeApp/src/commonMain/.../data/TaskStore.kt` | Task CRUD operations, standing-task dedup, live task flow, and due-task queries |
 | `composeApp/src/commonMain/.../data/SettingsJson.kt` | Shared settings-backed JSON persistence: decode-or-default, encode-and-write, locked read-modify-write |
 | `composeApp/src/commonMain/.../data/TaskScheduler.kt` | Background poll loop and task execution |
 | `composeApp/src/commonMain/.../data/CronExpression.kt` | Cron parsing and next-execution-time computation |

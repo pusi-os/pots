@@ -131,6 +131,13 @@ interface DataRepository {
     fun isSchedulingEnabled(): Boolean
     fun setSchedulingEnabled(enabled: Boolean)
     fun getScheduledTasks(): List<ScheduledTask>
+
+    /**
+     * Live task list. The settings screen collects it so every task the scheduler sees is
+     * shown — including ones the agent created while the app was running — and a deletion
+     * disappears the moment it is persisted.
+     */
+    val scheduledTasksFlow: StateFlow<List<ScheduledTask>>
     suspend fun cancelScheduledTask(id: String)
 
     // Dynamic UI

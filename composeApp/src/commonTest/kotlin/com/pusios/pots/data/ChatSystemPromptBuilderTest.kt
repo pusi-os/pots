@@ -52,10 +52,45 @@ class ChatSystemPromptBuilderTest {
         cron = cron,
     )
 
+    /**
+     * Tool-name sets the tests simulate. The remote default carries every tool name the
+     * prompt builder gates on; the local default mirrors the built-in local allowlist
+     * (none of the gated tools), which is the historical on-device shape. Tests that
+     * enable a tool for the local model pass an explicit [build] `toolNames`.
+     */
+    private val remoteToolNames = setOf(
+        "get_local_time",
+        "web_search",
+        "open_url",
+        "memory_store",
+        "memory_forget",
+        "memory_reinforce",
+        "memory_learn",
+        "schedule_task",
+        "list_tasks",
+        "cancel_task",
+        "check_email",
+        "read_email",
+        "mini_app_data",
+        "execute_shell_command",
+    )
+
+    private val defaultLocalToolNames = setOf(
+        "get_local_time",
+        "get_location_from_ip",
+        "web_search",
+        "open_url",
+        "memory_store",
+        "memory_forget",
+        "memory_reinforce",
+        "execute_shell_command",
+    )
+
     private fun build(
         variant: SystemPromptVariant,
         soul: String = "You are Pots.",
         hasTools: Boolean = true,
+        toolNames: Set<String>? = null,
         memoryEnabled: Boolean = true,
         schedulingEnabled: Boolean = true,
         memoryInstructions: String? = null,
@@ -72,6 +107,7 @@ class ChatSystemPromptBuilderTest {
         variant = variant,
         soul = soul,
         hasTools = hasTools,
+        toolNames = toolNames ?: if (variant == SystemPromptVariant.CHAT_REMOTE) remoteToolNames else defaultLocalToolNames,
         memoryEnabled = memoryEnabled,
         schedulingEnabled = schedulingEnabled,
         memoryInstructions = memoryInstructions,
@@ -525,7 +561,7 @@ class ChatSystemPromptBuilderTest {
     }
 
     @Test
-    fun `CHAT_LOCAL omits Scheduled Tasks regardless of input`() {
+    fun `CHAT_LOCAL omits Scheduled Tasks when no scheduling tool is selected`() {
         val out = build(
             variant = SystemPromptVariant.CHAT_LOCAL,
             pendingTasks = listOf(task(description = "Do the thing")),
@@ -535,14 +571,61 @@ class ChatSystemPromptBuilderTest {
     }
 
     @Test
-    fun `CHAT_LOCAL omits Automation section`() {
+    fun `CHAT_LOCAL omits Automation section when schedule_task is not selected`() {
         val out = build(variant = SystemPromptVariant.CHAT_LOCAL)
         assertFalse("## Automation" in out)
         assertFalse("schedule_task" in out)
     }
 
     @Test
-    fun `CHAT_LOCAL omits Email Accounts regardless of input`() {
+    fun `CHAT_LOCAL renders Automation and Scheduled Tasks when scheduling tools are selected`() {
+        // The local tool selection can hand the on-device model schedule_task; the prompt
+        // must then carry the same automation guidance a remote model gets.
+        val out = build(
+            variant = SystemPromptVariant.CHAT_LOCAL,
+            toolNames = defaultLocalToolNames + "schedule_task" + "list_tasks" + "cancel_task",
+            pendingTasks = listOf(task(id = "t1", description = "Morning check", cron = "0 9 * * *")),
+        )
+        assertTrue("## Automation" in out)
+        assertTrue("schedule_task" in out)
+        assertTrue("## Scheduled Tasks" in out)
+        assertTrue("- **Morning check** (id: t1" in out)
+    }
+
+    @Test
+    fun `CHAT_LOCAL renders Structured Learning when memory_learn is selected`() {
+        val out = build(
+            variant = SystemPromptVariant.CHAT_LOCAL,
+            toolNames = defaultLocalToolNames + "memory_learn",
+        )
+        assertTrue("## Structured Learning" in out)
+    }
+
+    @Test
+    fun `CHAT_LOCAL renders Email Accounts when email tools are selected`() {
+        val out = build(
+            variant = SystemPromptVariant.CHAT_LOCAL,
+            toolNames = defaultLocalToolNames + "check_email",
+            emailAccounts = listOf(
+                EmailAccountSummary(email = "alice@example.com", unreadCount = 3, lastSyncEpochMs = 0L),
+            ),
+        )
+        assertTrue("## Email Accounts" in out)
+        assertTrue("alice@example.com" in out)
+    }
+
+    @Test
+    fun `CHAT_LOCAL renders Dynamic UI when mini_app_data is selected`() {
+        val out = build(
+            variant = SystemPromptVariant.CHAT_LOCAL,
+            toolNames = defaultLocalToolNames + "mini_app_data",
+            uiMode = ChatPromptUiMode.DYNAMIC_UI,
+        )
+        assertTrue("## Dynamic UI" in out)
+    }
+
+    @Test
+    fun `CHAT_LOCAL omits Email Accounts when no email tool is selected`() {
         val out = build(
             variant = SystemPromptVariant.CHAT_LOCAL,
             emailAccounts = listOf(
@@ -558,7 +641,7 @@ class ChatSystemPromptBuilderTest {
     }
 
     @Test
-    fun `CHAT_LOCAL omits Heartbeat Additions regardless of input`() {
+    fun `CHAT_LOCAL omits Heartbeat Additions when no scheduling tool is selected`() {
         val out = build(
             variant = SystemPromptVariant.CHAT_LOCAL,
             heartbeatAdditions = listOf(
@@ -576,7 +659,7 @@ class ChatSystemPromptBuilderTest {
     }
 
     @Test
-    fun `CHAT_LOCAL omits Dynamic UI even when uiMode is DYNAMIC_UI`() {
+    fun `CHAT_LOCAL omits Dynamic UI when mini_app_data is not selected`() {
         val out = build(
             variant = SystemPromptVariant.CHAT_LOCAL,
             uiMode = ChatPromptUiMode.DYNAMIC_UI,
@@ -586,7 +669,7 @@ class ChatSystemPromptBuilderTest {
     }
 
     @Test
-    fun `CHAT_LOCAL omits Interactive UI Mode even when uiMode is INTERACTIVE_UI`() {
+    fun `CHAT_LOCAL omits Interactive UI Mode when mini_app_data is not selected`() {
         val out = build(
             variant = SystemPromptVariant.CHAT_LOCAL,
             uiMode = ChatPromptUiMode.INTERACTIVE_UI,

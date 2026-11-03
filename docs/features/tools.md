@@ -1,6 +1,6 @@
 # Tools
 
-**Last verified:** 2026-10-27
+**Last verified:** 2026-11-03
 
 Pots's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -251,7 +251,7 @@ Tool availability is controlled at multiple levels:
 - **Per-tool toggles** — individual tools can be enabled or disabled in settings, persisted with a `tool_enabled_` key prefix
 - **Default state** — most tools default to enabled; desktop's `execute_shell_command` defaults to disabled, and so does `potsik` — the character is the app's own, and letting the model move it around uninvited is not its business. On Android the shell has no per-tool switch — it follows the sandbox switch, which is on by default once the sandbox is installed
 - **Master-toggle-only** — memory, scheduling, heartbeat, email, SMS, and notification tools have no individual per-tool toggle; they are on whenever their master switch in Settings → Agent is on (heartbeat is bundled with the scheduling switch). The Android sandbox tools and desktop's `manage_process` are gated the same way — by the sandbox switch and the shell switch respectively — and likewise carry no switch of their own
-- **On-device (LiteRT) allowlist** — when the active model is an on-device LiteRT model, only a small allowlist of tools is exposed regardless of which other tools are enabled. The current allowlist is: `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, and `execute_shell_command`. Memory tools beyond the three listed, email tools, scheduling tools, and heartbeat tools are not surfaced to local models even when their master switches are on.
+- **On-device (LiteRT) tool selection** — when the active model is an on-device LiteRT model, the exposed tools come from the user's *local tool selection* (Settings → Local Model). Out of the box this is a small default set: `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, and `execute_shell_command` (when the shell tool is enabled). The user can widen it to any tool — calendar, email, scheduling, `mini_app_data`, and MCP server tools included — or switch everything off for a tool-free model; only a selection whose ids match no known tool falls back to the defaults. All normal gates still apply, so a tool can only be selected for the local model if its feature/per-tool switches already let it through. See [on-device-inference.md](on-device-inference.md).
 
 The platform layer assembles the final list of available tools by checking all gates and per-tool settings, and only enabled tools are sent to the AI provider.
 
@@ -306,7 +306,7 @@ The interactive-mode top bar shows only the static title — loading is surfaced
 | `composeApp/src/commonMain/.../network/tools/Tool.kt` | Tool interface, ToolSchema, ParameterSchema |
 | `composeApp/src/commonMain/.../network/tools/ToolInfo.kt` | Display metadata for settings |
 | `composeApp/src/commonMain/.../data/ToolExecutor.kt` | Execution, JSON parsing, timeout, truncation |
-| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Tool loop (OpenAI-compatible, Responses API, Gemini, Anthropic), parallel execution, context trimming, on-device allowlist |
+| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Tool loop (OpenAI-compatible, Responses API, Gemini, Anthropic), parallel execution, context trimming, on-device tool selection |
 | `composeApp/src/commonMain/.../data/providers/OpenAIMessages.kt` | OpenAI-compatible message building + tool-call pairing sanitization |
 | `composeApp/src/commonMain/.../tools/CommonTools.kt` | Common tool implementations and the cross-platform definition list |
 | `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Shared gating every platform's available-tools list is built from |

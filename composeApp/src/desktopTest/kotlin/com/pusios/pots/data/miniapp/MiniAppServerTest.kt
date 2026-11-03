@@ -25,7 +25,7 @@ class MiniAppServerTest {
     @AfterTest
     fun tearDown() {
         server.stop()
-        repository.delete("server-test")
+        kotlinx.coroutines.runBlocking { repository.delete("server-test") }
     }
 
     @Test
@@ -116,7 +116,7 @@ class MiniAppServerTest {
         repository.saveDraft(MiniAppDraft(id = "server-test", name = "Renamed", screens = emptyList(), sourceConversationId = "new-conversation", kind = MiniAppKind.WEB, entryPoint = "web/index.html"))
         assertEquals("original page", repository.readFile("server-test", "web/index.html"))
         assertEquals("new script", repository.readFile("server-test", "web/app.js"))
-        repository.delete("new-conversation")
+        kotlinx.coroutines.runBlocking { repository.delete("new-conversation") }
     }
 
     private fun get(url: String): String {

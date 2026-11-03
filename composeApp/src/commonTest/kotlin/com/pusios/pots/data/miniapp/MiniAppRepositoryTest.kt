@@ -1,7 +1,10 @@
 package com.pusios.pots.data.miniapp
 
 import com.pusios.pots.data.AppSettings
+import com.pusios.pots.data.TaskStore
+import com.pusios.pots.data.miniAppTaskPrefix
 import com.russhwolf.settings.MapSettings
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -201,7 +204,7 @@ class MiniAppRepositoryTest {
     }
 
     @Test
-    fun deleteRemovesAppHistoryAndData() {
+    fun deleteRemovesAppHistoryAndData() = runTest {
         val repository = repository()
         repository.saveDraft(draft())
         repository.putRecord("app-1", "tasks", null, JsonObject(emptyMap()))
@@ -210,5 +213,31 @@ class MiniAppRepositoryTest {
         assertNull(repository.get("app-1"))
         assertTrue(repository.versions("app-1").isEmpty())
         assertTrue(repository.records("app-1", "tasks").isEmpty())
+    }
+
+    @Test
+    fun deleteRemovesTheAppsScheduledTasks() = runTest {
+        val settings = AppSettings(MapSettings())
+        val taskStore = TaskStore(settings)
+        val repository = MiniAppRepository(settings, SettingsMiniAppPersistence(settings), taskStore)
+        repository.saveDraft(draft())
+
+        // The sync that runs when a mini-app with automations is saved.
+        taskStore.addTask(
+            description = "${miniAppTaskPrefix("app-1")} Check the things",
+            prompt = "Check",
+            scheduledAtEpochMs = 0L,
+            cron = "0 9 * * *",
+        )
+        // An unrelated task that must survive the deletion.
+        val other = taskStore.addTask(
+            description = "Water the flowers",
+            prompt = "Water",
+            scheduledAtEpochMs = 1700000000000,
+        )
+
+        repository.delete("app-1")
+
+        assertEquals(listOf(other.id), taskStore.getAllTasks().map { it.id })
     }
 }

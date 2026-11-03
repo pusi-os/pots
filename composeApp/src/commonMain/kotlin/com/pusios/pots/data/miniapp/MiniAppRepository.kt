@@ -4,6 +4,8 @@ package com.pusios.pots.data.miniapp
 
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.SharedJson
+import com.pusios.pots.data.TaskStore
+import com.pusios.pots.data.miniAppTaskPrefix
 import com.pusios.pots.deleteAppStorageFolder
 import com.pusios.pots.listAppStorageFiles
 import com.pusios.pots.moveAppStorageFolder
@@ -38,6 +40,7 @@ import kotlin.uuid.Uuid
 class MiniAppRepository(
     private val appSettings: AppSettings,
     private val persistence: MiniAppPersistence,
+    private val taskStore: TaskStore? = null,
 ) {
     private val _apps = MutableStateFlow<List<MiniApp>>(emptyList())
     val apps: StateFlow<List<MiniApp>> = _apps.asStateFlow()
@@ -282,13 +285,17 @@ class MiniAppRepository(
         return ids.mapNotNull { byId[it] }
     }
 
-    fun delete(id: String) {
+    suspend fun delete(id: String) {
         val app = get(id)
         persistence.deleteApp(id)
         if (drafts.remove(id) != null) persistDrafts(drafts)
         val current = _toolbarIds.value
         if (current != null) setToolbarIds(current - id)
         if (app != null) deleteAppStorageFolder(folderFor(app))
+        // Cascade: the scheduled tasks the app's automations registered must not survive
+        // the app — otherwise the scheduler keeps running checks for an app that no longer
+        // exists and keeps notifying the user about them.
+        taskStore?.removeTasksWithDescriptionPrefix(miniAppTaskPrefix(id))
         reload()
     }
 

@@ -1,6 +1,6 @@
 # Mini-apps (the Interactive UI studio)
 
-**Last verified:** 2026-11-02
+**Last verified:** 2026-11-03
 
 Interactive UI mode is also a small app studio. The agent designs the screens; the
 user saves the result as a **mini-app** with its own persistent data, version
@@ -103,7 +103,9 @@ chat's glass toolbar. It lists saved apps and provides:
 - **Import** — pick such a bundle; a colliding id gets a new one, so importing
   your own export adds a copy rather than overwriting the original;
 - **Delete** — asks first, names the app, and removes the database rows, records
-  and the storage folder.
+  and the storage folder. It also cascade-deletes every scheduled task the app's
+  automations registered, so a deleted app never keeps running checks in the
+  background.
 
 The star on each row pins the app to the chat toolbar.
 
@@ -129,8 +131,10 @@ screen that can be saved as the next version.
 
 Automations with a cron expression are registered as ordinary scheduled tasks
 when the app is saved (and re-registered on every save, replacing the app's
-previous tasks). They therefore ride the existing scheduling switch, heartbeat
-conversation and daemon.
+previous tasks). They carry a `Mini-app <app id>:` description prefix, which is
+what the delete cascade matches, and they stay individually visible and
+deletable in Settings → Agent → Scheduled tasks. They therefore ride the
+existing scheduling switch, heartbeat conversation and daemon.
 
 ### Capabilities
 

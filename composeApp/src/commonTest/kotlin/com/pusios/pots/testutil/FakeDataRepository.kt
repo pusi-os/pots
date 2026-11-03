@@ -560,7 +560,14 @@ class FakeDataRepository : DataRepository {
 
     // Scheduling management
     private var schedulingEnabled = true
-    private val scheduledTasks = mutableListOf<ScheduledTask>()
+    private val scheduledTasksFlowInternal = MutableStateFlow<List<ScheduledTask>>(emptyList())
+
+    override val scheduledTasksFlow: StateFlow<List<ScheduledTask>> = scheduledTasksFlowInternal
+
+    /** Test hook: seed the task list as if the agent had scheduled something. */
+    fun setScheduledTasks(tasks: List<ScheduledTask>) {
+        scheduledTasksFlowInternal.value = tasks
+    }
 
     override fun isSchedulingEnabled(): Boolean = schedulingEnabled
 
@@ -568,10 +575,10 @@ class FakeDataRepository : DataRepository {
         schedulingEnabled = enabled
     }
 
-    override fun getScheduledTasks(): List<ScheduledTask> = scheduledTasks.toList()
+    override fun getScheduledTasks(): List<ScheduledTask> = scheduledTasksFlowInternal.value.toList()
 
     override suspend fun cancelScheduledTask(id: String) {
-        scheduledTasks.removeAll { it.id == id }
+        scheduledTasksFlowInternal.value = scheduledTasksFlowInternal.value.filterNot { it.id == id }
     }
 
     // Daemon mode

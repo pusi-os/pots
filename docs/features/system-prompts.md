@@ -1,6 +1,6 @@
 # System Prompts
 
-**Last verified:** 2026-10-27
+**Last verified:** 2026-11-03
 
 Pots has several distinct prompt-construction paths. Each one is built by a **pure function** with explicit inputs (no DI, no suspend, no resource loading, no clocks) and is covered by a unit-test suite so future edits don't silently break unrelated variations.
 
@@ -13,11 +13,11 @@ Pots has several distinct prompt-construction paths. Each one is built by a **pu
 | Heartbeat | `buildHeartbeatPrompt(…)` | `HeartbeatPromptBuilderTest` | `TaskScheduler` via `HeartbeatManager.buildHeartbeatPrompt()` — sent as a USER message, not a system prompt |
 | Splinterlands LLM picker | `buildLlmPrompt(…)` in `SplinterlandsTeamPicker.kt` | `SplinterlandsTeamPickerPromptTest` | `SplinterlandsBattleRunner` — fully isolated, does not use the chat prompt builder |
 
-The on-device tool allowlist (`LOCAL_TOOL_ALLOWLIST` in `RemoteDataRepository.kt`) decides which tools reach the on-device engine. Renaming a tool without updating that set silently drops it from the on-device path.
+The on-device tool set is the user's local tool selection (`LocalToolSelection`, defaulting to `LOCAL_TOOL_ALLOWLIST` in `RemoteDataRepository.kt`). Renaming a tool without updating the defaults silently drops it from the unconfigured on-device path.
 
 ## Chat variants
 
-`SystemPromptVariant` in `ChatSystemPromptBuilder.kt` controls which sections are composed. Each `if (variant == …)` block in `buildChatSystemPrompt` is the single source of truth for where a section belongs — there is no post-hoc regex stripping.
+`SystemPromptVariant` in `ChatSystemPromptBuilder.kt` controls the memory budget; feature sections that teach or reference specific tools are instead gated on `toolNames` — the set of tools the request actually carries. The builder's conditionals are the single source of truth for where a section belongs — there is no post-hoc regex stripping.
 
 | Section | `CHAT_REMOTE` | `CHAT_LOCAL` | Gating input |
 |---|:-:|:-:|---|
@@ -27,26 +27,26 @@ The on-device tool allowlist (`LOCAL_TOOL_ALLOWLIST` in `RemoteDataRepository.kt
 | `## Tool Use` | when tools available | when tools available | baked into `DEFAULT_TOOL_USE_SECTION` constant — tells the model to reach for tools to resolve ambiguity, check tool availability before declaring a capability unavailable, prefer self-lookup over asking the user, and extract signal from noisy output. Gated on `hasTools`: with every tool disabled (or a model that doesn't support tool calls) the section is dropped rather than telling the model to use tools it doesn't have. Soul customization still can't drop it while tools exist |
 | `## When to Act` | always | always | baked into `DEFAULT_ACTING_SECTION` constant — caps clarifying questions at one, only when genuinely blocked; demands recovery after a failed first attempt; mandates seeing work through to a usable result. Always rendered (both variants), same rationale as above |
 | Memory instructions (basic) | when memory enabled | when memory enabled | Memory toggle on and the memory-instructions setting non-empty |
-| `## Structured Learning` | when memory enabled (remote-only) | never | baked into `DEFAULT_STRUCTURED_LEARNING_SECTION` constant. Gated on `memoryEnabled` — it references `memory_learn` / `memory_reinforce`, which are absent when memory is off |
+| `## Structured Learning` | when memory enabled | when memory enabled and `memory_learn` selected | baked into `DEFAULT_STRUCTURED_LEARNING_SECTION` constant. Gated on `memoryEnabled` and `memory_learn` in `toolNames` — it references `memory_learn` / `memory_reinforce`, which are absent otherwise |
 | `## Your Memories` | when list non-empty | when list non-empty (budget-capped) | `generalMemories` |
 | `## User Preferences` | when list non-empty | when list non-empty (budget-capped) | `preferenceMemories` |
 | `## Learnings` | when list non-empty | when list non-empty (budget-capped) | `learningMemories` (reinforcement count rendered) |
 | `## Known Issues & Resolutions` | when list non-empty | when list non-empty (budget-capped) | `errorMemories` |
-| `## Automation` | when scheduling enabled (remote-only) | never | baked into `DEFAULT_AUTOMATION_SECTION` constant — teaches the AI that all future/recurring/heartbeat-standing behaviour goes through `schedule_task` with one of three triggers (`execute_at`, `cron`, `on_heartbeat`). Heartbeat schedule itself is user-controlled. Gated on `schedulingEnabled` — it references `schedule_task` / `list_tasks` / `cancel_task`, which are absent when scheduling is off |
-| `## Email Accounts` | when list non-empty (email enabled) | never | `emailAccounts` — connected address, unread count, last sync, or last sync error. The section also embeds a multi-sentence "Sending policy" rule instructing the model to draft a message and confirm with the user before invoking `compose_email` or `reply_email`, so the per-account summary is not the only payload |
-| `## Scheduled Tasks` | when list non-empty | never | `pendingTasks` (time/cron only; heartbeat-trigger tasks live in the next section) |
-| `## Heartbeat Additions` | when list non-empty | never | `heartbeatAdditions` — standing `schedule_task(on_heartbeat=true)` entries the AI can see/reference/cancel |
+| `## Automation` | when scheduling enabled | when scheduling enabled and `schedule_task` selected | baked into `DEFAULT_AUTOMATION_SECTION` constant — teaches the AI that all future/recurring/heartbeat-standing behaviour goes through `schedule_task` with one of three triggers (`execute_at`, `cron`, `on_heartbeat`). Heartbeat schedule itself is user-controlled. Gated on `schedulingEnabled` and `schedule_task` in `toolNames` — it references `schedule_task` / `list_tasks` / `cancel_task`, which are absent otherwise |
+| `## Email Accounts` | when list non-empty (email enabled) | when list non-empty and `check_email` selected | `emailAccounts` — connected address, unread count, last sync, or last sync error. The section also embeds a multi-sentence "Sending policy" rule instructing the model to draft a message and confirm with the user before invoking `compose_email` or `reply_email`, so the per-account summary is not the only payload |
+| `## Scheduled Tasks` | when list non-empty | when list non-empty and a scheduling tool selected | `pendingTasks` (time/cron only; heartbeat-trigger tasks live in the next section) |
+| `## Heartbeat Additions` | when list non-empty | when list non-empty and a scheduling tool selected | `heartbeatAdditions` — standing `schedule_task(on_heartbeat=true)` entries the AI can see/reference/cancel |
 | `## Active skill: <name>` | when activated | when activated | `activeSkill` param — non-null only when the user prefixed the current turn's message with `/<skill-id>` matching an installed, enabled skill. Emits the skill's instruction body plus a list of any bundled files (available at `~/skills/<id>/` in the sandbox). Zero bytes on every other turn. See [skills.md](skills.md) |
 | `## Context` | always | always | `runtime` param (local time with offset + IANA zone, UTC, platform, model, provider). Local time leads so the model anchors on the user's wall clock when computing relative times |
-| `## Dynamic UI` | when Dynamic UI is enabled in settings and the model supports tool calls (not in interactive mode) | never | Dynamic UI setting + model tool support. Recommends short callback buttons for obvious choices/yes-no, draft review and next steps, while clarifying that callbacks only relay a choice and external/irreversible actions still need explicit confirmation |
-| `## Interactive UI Mode` | when the conversation is in interactive mode | never | Interactive mode flag (takes precedence over Dynamic UI) |
+| `## Dynamic UI` | when Dynamic UI is enabled in settings and the model supports tool calls (not in interactive mode) | when `mini_app_data` selected and Dynamic UI is enabled | Dynamic UI setting + model tool support. Recommends short callback buttons for obvious choices/yes-no, draft review and next steps, while clarifying that callbacks only relay a choice and external/irreversible actions still need explicit confirmation |
+| `## Interactive UI Mode` | when the conversation is in interactive mode | when `mini_app_data` selected and in interactive mode | Interactive mode flag (takes precedence over Dynamic UI) |
 
 **Memory budget for `CHAT_LOCAL`:** the four memory category sections share a combined char budget (`LOCAL_MEMORY_BUDGET_CHARS`, currently 2000 chars). Entries are appended in order (general → preferences → learnings → errors); the next entry that would push the combined size past the budget is dropped, and all subsequent entries are dropped too. Truncation happens at entry boundaries, never mid-entry. If no entries in a category fit, that category's header is not emitted either.
 
 **Why two variants:**
 
 - `CHAT_REMOTE` — full chat prompt for remote services. No limits.
-- `CHAT_LOCAL` — trimmed chat prompt for on-device LiteRT. Small Gemma models (2-4B params) can't coherently attend to the full remote prompt, so Structured Learning, Automation, Email Accounts, Scheduled Tasks, Heartbeat Additions, and pots-ui sections are dropped, and memory sections are char-capped. The model still gets soul + basic memory guidance + memories (up to the cap) + runtime Context — memories matter because `memory_store` / `memory_forget` / `memory_reinforce` are all in the local tool allowlist, and a memory might have been learned via a remote model in an earlier turn.
+- `CHAT_LOCAL` — trimmed chat prompt for on-device LiteRT. Small Gemma models (2-4B params) can't coherently attend to the full remote prompt, so memory sections are char-capped and, with the default tool selection, Structured Learning, Automation, Email Accounts, Scheduled Tasks, Heartbeat Additions, and pots-ui sections stay out. Every one of those sections is gated on the tool it references, though: when the user's local tool selection hands the model `schedule_task`, `memory_learn`, email tools, or `mini_app_data`, the matching guidance and data dumps are composed in — a section never references a tool the model was not given. The model still gets soul + basic memory guidance + memories (up to the cap) + runtime Context — memories matter because `memory_store` / `memory_forget` / `memory_reinforce` are all in the default local selection, and a memory might have been learned via a remote model in an earlier turn.
 
 ## Ready characters
 
@@ -90,7 +90,7 @@ Interactive UI mode is **not** available on on-device services — the pots-ui c
 | `composeApp/src/commonMain/.../data/HeartbeatPromptBuilder.kt` | Pure heartbeat builder + input data classes |
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | `getActiveSystemPrompt(variant)` wrapper that gathers inputs from `AppSettings` / `MemoryStore` / `TaskStore` and calls the pure builder |
 | `composeApp/src/commonMain/.../data/HeartbeatManager.kt` | `buildHeartbeatPrompt()` wrapper that gathers inputs and calls the pure builder |
-| `composeApp/src/commonMain/.../data/AppSettings.kt` | `DEFAULT_MEMORY_INSTRUCTIONS` (basic block, used by both variants). The advanced `## Structured Learning` block lives in `ChatSystemPromptBuilder.kt` and is remote-only |
+| `composeApp/src/commonMain/.../data/AppSettings.kt` | `DEFAULT_MEMORY_INSTRUCTIONS` (basic block, used by both variants). The advanced `## Structured Learning` block lives in `ChatSystemPromptBuilder.kt` and renders whenever the model is handed `memory_learn` |
 | `composeApp/src/commonMain/.../data/AgentPersonaPresets.kt` | Compact Russian ready-character system instructions and localized labels |
 | `composeApp/src/commonMain/.../splinterlands/SplinterlandsTeamPicker.kt` | `buildLlmPrompt` (separate path, independent contract) |
 | `composeApp/src/commonTest/.../data/ChatSystemPromptBuilderTest.kt` | Focused + golden tests for every chat variant section |

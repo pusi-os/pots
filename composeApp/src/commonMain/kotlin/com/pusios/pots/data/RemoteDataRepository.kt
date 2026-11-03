@@ -198,9 +198,12 @@ class RemoteDataRepository(
 
     /**
      * Returns the tools exposed to the on-device (LiteRT) model. Filtered by name against
-     * [LOCAL_TOOL_ALLOWLIST]. Tools the user has disabled in settings (e.g. shell command,
-     * which is gated behind `isToolEnabled("execute_shell_command")`) won't appear in
-     * `getAvailableTools()` in the first place, so they're naturally excluded.
+     * [LocalToolSelection]: the user's explicit choice wins, and the built-in defaults only
+     * stand in while the choice is unconfigured or no longer matches any known tool (a
+     * renamed tool after an update). An explicit empty choice means "no tools" — that is
+     * the whole point of [LocalToolSelection.configured]. Tools the user has disabled in
+     * settings (e.g. shell command, which is gated behind `isToolEnabled("execute_shell_command")`)
+     * won't appear in `getAvailableTools()` in the first place, so they're naturally excluded.
      */
     private fun getLocalSafeTools(): List<Tool> {
         val available = getAvailableTools()
@@ -209,25 +212,31 @@ class RemoteDataRepository(
         val selection = appSettings.getLocalToolSelection()
 
         val selectedBuiltIn = if (selection.configured) {
-            val filtered = builtInTools.filter { tool -> selection.toolIds.any { id -> id.equals(tool.schema.name, ignoreCase = true) } }
-            if (filtered.isEmpty()) {
-                // Guard against a stale/mismatched selection: keep the built-in defaults
-                // rather than silently handing the model no tools at all.
-                builtInTools.filter { it.schema.name in LOCAL_TOOL_ALLOWLIST }
+            if (selection.toolIds.isEmpty()) {
+                emptyList()
             } else {
-                filtered
+                val filtered = builtInTools.filter { tool -> selection.toolIds.any { id -> id.equals(tool.schema.name, ignoreCase = true) } }
+                if (filtered.isEmpty()) {
+                    // Guard against a stale/mismatched selection (every id unknown after a
+                    // rename): keep the built-in defaults rather than silently handing the
+                    // model no tools at all.
+                    builtInTools.filter { it.schema.name in LOCAL_TOOL_ALLOWLIST }
+                } else {
+                    filtered
+                }
             }
         } else {
             builtInTools.filter { it.schema.name in LOCAL_TOOL_ALLOWLIST }
         }
 
         val selectedMcp = if (selection.configured) {
-            val filtered = mcpTools.filter { it.serverId in selection.mcpServerIds }
-            if (filtered.isEmpty() && mcpTools.isNotEmpty() && selection.mcpServerIds.isEmpty()) {
-                // Unconfigured-looking but flagged configured: keep all enabled servers
-                mcpTools
+            if (selection.mcpServerIds.isEmpty()) {
+                emptyList()
             } else {
-                filtered
+                val filtered = mcpTools.filter { it.serverId in selection.mcpServerIds }
+                // Every selected server is gone (uninstalled/renamed) — fall back to all
+                // enabled servers instead of a silently empty set.
+                filtered.ifEmpty { mcpTools }
             }
         } else {
             mcpTools
@@ -2015,10 +2024,10 @@ class RemoteDataRepository(
         val heartbeatAdditions = tasksSplit.heartbeatAdditions
 
         // Surface connected email accounts so the AI knows they exist in regular chat,
-        // not just during heartbeats. Only the remote variant uses this — email tools
-        // aren't in the local allowlist. Gated on the email toggle: if the user has email
-        // off, the AI shouldn't reference the accounts.
-        val emailAccounts = if (variant == SystemPromptVariant.CHAT_REMOTE && appSettings.isEmailEnabled()) {
+        // not just during heartbeats. Gated on the email toggle: if the user has email
+        // off, the AI shouldn't reference the accounts. Whether the section actually
+        // renders is decided by the prompt builder on the tool set (check_email).
+        val emailAccounts = if (appSettings.isEmailEnabled()) {
             emailStore.getAccounts().map { account ->
                 val state = emailStore.getSyncState(account.id)
                 EmailAccountSummary(
@@ -2066,13 +2075,15 @@ class RemoteDataRepository(
             else -> ChatPromptUiMode.NONE
         }
 
-        // Tool-use guidance is only worth sending when the model is actually given tools.
-        // Mirror the tool list the request will carry: remote uses the full set (when the
-        // model supports tools), local uses the allowlist-filtered set.
-        val hasTools = when (variant) {
-            SystemPromptVariant.CHAT_REMOTE -> !isLimited && getAvailableTools().isNotEmpty()
-            SystemPromptVariant.CHAT_LOCAL -> getLocalSafeTools().isNotEmpty() && localModelDeclaresTools(modelId)
+        // Feature sections in the prompt are gated on the tools the request will
+        // actually carry, so mirror the exact tool set here: remote uses the full set
+        // (when the model supports tools), local uses the user's selection (when the
+        // model can declare tools at all).
+        val toolNames: Set<String> = when (variant) {
+            SystemPromptVariant.CHAT_REMOTE -> if (isLimited) emptySet() else getAvailableTools().mapTo(mutableSetOf()) { it.schema.name }
+            SystemPromptVariant.CHAT_LOCAL -> if (localModelDeclaresTools(modelId)) getLocalSafeTools().mapTo(mutableSetOf()) { it.schema.name } else emptySet()
         }
+        val hasTools = toolNames.isNotEmpty()
 
         val activeSkill = pendingActiveSkillId?.let { skillManager.getSkill(it) }
 
@@ -2080,6 +2091,7 @@ class RemoteDataRepository(
             variant = variant,
             soul = soul,
             hasTools = hasTools,
+            toolNames = toolNames,
             memoryEnabled = memoryEnabled,
             schedulingEnabled = schedulingEnabled,
             memoryInstructions = memoryInstructions,
@@ -2218,6 +2230,8 @@ class RemoteDataRepository(
     }
 
     override fun getScheduledTasks(): List<ScheduledTask> = taskStore.getAllTasks()
+
+    override val scheduledTasksFlow: StateFlow<List<ScheduledTask>> get() = taskStore.tasksFlow
 
     override suspend fun cancelScheduledTask(id: String) {
         taskStore.removeTask(id)

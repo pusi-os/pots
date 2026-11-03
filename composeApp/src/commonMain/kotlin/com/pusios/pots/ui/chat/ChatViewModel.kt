@@ -13,6 +13,7 @@ import com.pusios.pots.data.TaskStore
 import com.pusios.pots.data.TaskTrigger
 import com.pusios.pots.data.UiSubmission
 import com.pusios.pots.data.getAvailableServiceEntries
+import com.pusios.pots.data.miniAppTaskPrefix
 import com.pusios.pots.data.miniapp.MiniAppDraft
 import com.pusios.pots.data.miniapp.MiniAppRepository
 import com.pusios.pots.data.miniapp.MiniAppScreen
@@ -472,7 +473,7 @@ class ChatViewModel(
     private suspend fun syncAutomations(app: com.pusios.pots.data.miniapp.MiniApp) {
         val store = taskStore ?: return
         if (!dataRepository.isSchedulingEnabled()) return
-        val prefix = "Mini-app ${app.id}:"
+        val prefix = miniAppTaskPrefix(app.id)
         store.getAllTasks()
             .filter { it.description.startsWith(prefix) }
             .forEach { store.removeTask(it.id) }
