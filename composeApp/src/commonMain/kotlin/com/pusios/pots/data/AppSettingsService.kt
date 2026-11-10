@@ -130,6 +130,8 @@ fun AppSettings.removeInstanceSettings(instanceId: String) {
     settings.remove("instance_${instanceId}_base_url")
     settings.remove("instance_${instanceId}_use_custom_model")
     settings.remove("instance_${instanceId}_custom_model_id")
+    settings.remove("instance_${instanceId}_media_image_model_id")
+    settings.remove("instance_${instanceId}_media_video_model_id")
 }
 
 fun AppSettings.generateInstanceId(serviceId: String): String {

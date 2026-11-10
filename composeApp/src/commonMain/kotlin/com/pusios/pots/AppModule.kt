@@ -14,6 +14,8 @@ import com.pusios.pots.data.TaskScheduler
 import com.pusios.pots.data.TaskStore
 import com.pusios.pots.data.ToolExecutor
 import com.pusios.pots.data.createConversationPersistence
+import com.pusios.pots.data.getConfiguredServiceInstances
+import com.pusios.pots.data.getInstanceApiKey
 import com.pusios.pots.data.miniapp.MiniAppRepository
 import com.pusios.pots.data.miniapp.MiniAppServer
 import com.pusios.pots.data.miniapp.MiniAppServerController
@@ -189,4 +191,21 @@ val appModule = module {
     viewModel { SplinterlandsViewModel(get<DataRepository>(), get(), get(), get<SplinterlandsApi>()) }
     viewModel { MiniAppServerViewModel(get(), get(), get(), get()) }
     viewModel { ChatViewModel(get<DataRepository>(), get<TaskScheduler>(), localNetworkPermissionController = get(permissionQualifier(AppPermission.LOCAL_NETWORK)), miniAppRepository = get(), taskStore = get()) }
+    single<com.pusios.pots.media.MediaProvider> { com.pusios.pots.media.PlusVibeMediaProvider() }
+    single<com.pusios.pots.media.MediaGenerationRepository> {
+        com.pusios.pots.media.MediaGenerationRepository(get(), kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default))
+    }
+    viewModel {
+        com.pusios.pots.ui.media.MediaStudioViewModel(
+            appSettings = get(),
+            apiKeyProvider = {
+                val s = get<AppSettings>()
+                s.getConfiguredServiceInstances().firstOrNull()?.let { s.getInstanceApiKey(it.instanceId) }.orEmpty()
+            },
+            instanceIdProvider = {
+                get<AppSettings>().getConfiguredServiceInstances().firstOrNull()?.instanceId.orEmpty()
+            },
+            repository = get(),
+        )
+    }
 }

@@ -910,6 +910,7 @@ private fun ChatModeScreen(
     var showMiniAppsSheet by remember { mutableStateOf(false) }
     var showTokenStats by remember { mutableStateOf(false) }
     var isSandboxOpen by rememberSaveable { mutableStateOf(initialSandboxOpen) }
+    var isMediaOpen by rememberSaveable { mutableStateOf(false) }
     // Hoisted here so the draft survives toggling the sandbox/terminal view, which
     // removes QuestionInput from composition and would otherwise drop the text.
     var questionInputText by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -1091,7 +1092,27 @@ private fun ChatModeScreen(
                 )
             }
 
-            if (isSandboxOpen) {
+            if (isMediaOpen) {
+                val isPreview = LocalInspectionMode.current
+                val mediaViewModel = if (!isPreview) koinViewModel<com.pusios.pots.ui.media.MediaStudioViewModel>() else null
+                if (mediaViewModel != null) {
+                    val scope = rememberCoroutineScope()
+                    com.pusios.pots.ui.media.MediaStudioScreenFull(
+                        viewModel = mediaViewModel,
+                        modifier = Modifier.weight(1f),
+                        onAskAgent = { question -> uiState.actions.ask(question) },
+                        onExit = { isMediaOpen = false },
+                        onSpeak = { phrase ->
+                            scope.launch {
+                                try {
+                                    textToSpeech?.sayChunked(phrase)
+                                } catch (_: Exception) {}
+                            }
+                        },
+                        speechEnabled = uiState.isSpeechOutputEnabled,
+                    )
+                }
+            } else if (isSandboxOpen) {
                 val isPreview = LocalInspectionMode.current
                 val sandboxViewModel = if (!isPreview) koinViewModel<SandboxViewModel>() else null
                 val liveState = sandboxViewModel?.state?.collectAsStateWithLifecycle()?.value
@@ -1150,6 +1171,7 @@ private fun ChatModeScreen(
                                     uiState.actions.setIsSpeaking(false, "")
                                     handsFree.toggle()
                                 }.takeIf { handsFree.isSupported && handsFreeStatus == HandsFreeStatus.Idle },
+                                onOpenMedia = { isMediaOpen = true },
                             )
                         } else {
                             val listState = rememberLazyListState()

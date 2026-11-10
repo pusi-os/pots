@@ -615,6 +615,10 @@ private fun ConfiguredServiceCardContent(
                     )
                 }
 
+                if (!entry.service.isOnDevice) {
+                    MediaModelsSettings(instanceId = entry.instanceId, apiKey = entry.apiKey)
+                }
+
                 Spacer(Modifier.height(12.dp))
 
                 // Remove action

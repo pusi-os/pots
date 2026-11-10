@@ -1,6 +1,6 @@
 # Chat & Conversations
 
-**Last verified:** 2026-10-29
+**Last verified:** 2026-11-10
 
 Pots's chat system manages the message history, conversation persistence, file attachments, and speech output. Conversations are service-independent — switching providers does not affect which conversation is loaded or restored. Multiple conversations are persisted and browsable via a history sheet.
 
@@ -134,7 +134,7 @@ The session totals reset when a new chat is started and are restored from the ne
 - **Scroll to bottom**: a small floating action button (down arrow) appears when the user has scrolled up past the latest messages; tapping it animates back to the bottom
 - **Messages**: user (right-aligned, with optional image preview), assistant (Markdown-rendered + action buttons + reply metrics in the footer), tool executing (spinner), loading indicator, error with retry (or free-provider suggestions panel when Free is rate-limited with no services configured). When the fallback chain answered with an alternate service rather than the user's selected one, a small "Answered by …" label is shown under the assistant message naming the service that produced the response
 - **Input**: text field, send/stop button, attachment button, file chip
-- **Empty state**: animated logo + welcome message
+- **Empty state**: animated logo + welcome message; a smaller “Медиа” button under HandsFree opens Media Studio (see [media-studio.md](media-studio.md))
 - **Drag-and-drop**: supported for file attachments
 - **History sheet**: bottom sheet listing saved conversations with title, date, active highlight, and delete
 
@@ -159,5 +159,7 @@ The session totals reset when a new chat is started and are restored from the ne
 | `composeApp/src/commonMain/.../ui/chat/composables/FreeProviderSuggestionsPanel.kt` | Free rate-limit upsell panel with provider chips |
 | `composeApp/src/commonMain/.../data/FreeProviderSuggestions.kt` | Providers offered in the Free rate-limit upsell panel |
 | `composeApp/src/commonMain/.../ui/chat/composables/QuestionInput.kt` | Text input with send/stop button |
+| `composeApp/src/commonMain/.../ui/chat/composables/EmptyState.kt` | Empty chat with HandsFree button and Media entry |
+| `composeApp/src/commonMain/.../ui/media/MediaStudioScreen.kt` | Media Studio surface hosting the canvas, model dock and agent ask |
 | `androidApp/src/main/AndroidManifest.xml` | Share-sheet registration for plain text (`ACTION_SEND`) |
 | `androidApp/src/main/kotlin/.../MainActivity.kt` | Reads shared text from `ACTION_SEND` and hands it to chat |

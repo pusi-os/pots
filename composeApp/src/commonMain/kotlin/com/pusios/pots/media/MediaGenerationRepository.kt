@@ -1,0 +1,150 @@
+package com.pusios.pots.media
+
+import com.pusios.pots.writeAppStorageBytes
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlin.math.min
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
+/**
+ * Async media generation queue. Submits once per user action (idempotency
+ * key), polls politely, and downloads result bytes immediately — providers
+ * keep results only days.
+ *
+ * Polling: 3 s → 5 s → 8 s … capped at 30 s (per PlusVibe docs).
+ * Cancelling the caller only stops polling; the job continues server-side
+ * and can be resumed by polling the same `jobId` on reopen.
+ */
+class MediaGenerationRepository(
+    private val provider: MediaProvider,
+    private val scope: CoroutineScope,
+) {
+    private val _jobs = MutableStateFlow<Map<String, MediaJobState>>(emptyMap())
+    val jobs: StateFlow<Map<String, MediaJobState>> = _jobs.asStateFlow()
+
+    private val active = mutableMapOf<String, Job>()
+
+    /** Catalog cache per api-key fingerprint (key is never stored). */
+    private val catalogCache = mutableMapOf<String, List<MediaModel>>()
+
+    suspend fun models(apiKey: String): List<MediaModel> {
+        val fingerprint = apiKey.hashCode().toString()
+        catalogCache[fingerprint]?.let { return it }
+        val fresh = provider.listModels(apiKey)
+        catalogCache[fingerprint] = fresh
+        return fresh
+    }
+
+    suspend fun refreshModels(apiKey: String): List<MediaModel> {
+        val fresh = provider.listModels(apiKey)
+        catalogCache[apiKey.hashCode().toString()] = fresh
+        return fresh
+    }
+
+    /** Quote-then-submit: tries a real quote first, falls back to direct submit. */
+    suspend fun generate(
+        apiKey: String,
+        request: MediaJobRequest,
+        onUpdate: ((MediaJobState) -> Unit)? = null,
+    ): MediaJobState {
+        val quoted = runCatching { provider.quotePrice(apiKey, request) }.getOrNull()
+        val submit = request.copy(
+            quoteId = quoted?.quoteId ?: request.quoteId,
+            maxPriceRub = request.maxPriceRub ?: quoted?.priceRub,
+            idempotencyKey = request.idempotencyKey ?: newKey(),
+        )
+        val created = provider.submitJob(apiKey, submit)
+        _jobs.update { it + (created.jobId to created) }
+        onUpdate?.invoke(created)
+        startPolling(apiKey, created.jobId, onUpdate)
+        return created
+    }
+
+    fun startPolling(apiKey: String, jobId: String, onUpdate: ((MediaJobState) -> Unit)? = null) {
+        if (active[jobId]?.isActive == true) return
+        active[jobId] = scope.launch {
+            var waitMs = 3000L
+            while (true) {
+                delay(waitMs)
+                val state = try {
+                    provider.pollJob(apiKey, jobId)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Transient network error: keep polling with backoff.
+                    waitMs = min(waitMs * 2, 30_000L)
+                    continue
+                }
+                _jobs.update { it + (state.jobId to state) }
+                onUpdate?.invoke(state)
+                if (state.isTerminal) {
+                    if (state.status == MediaJobStatus.Success && state.localPath == null) {
+                        downloadAndCache(apiKey, state, onUpdate)
+                    }
+                    break
+                }
+                // `submitting` (uncertain) stays non-terminal: poll same id, never resubmit.
+                waitMs = min(waitMs * 2, 30_000L)
+            }
+        }
+    }
+
+    /** Re-poll a known job (e.g. after reopening the studio). */
+    suspend fun resume(apiKey: String, jobId: String, onUpdate: ((MediaJobState) -> Unit)? = null) {
+        val state = provider.pollJob(apiKey, jobId)
+        _jobs.update { it + (state.jobId to state) }
+        onUpdate?.invoke(state)
+        if (!state.isTerminal) {
+            startPolling(apiKey, jobId, onUpdate)
+        } else if (state.status == MediaJobStatus.Success && state.localPath == null) {
+            downloadAndCache(apiKey, state, onUpdate)
+        }
+    }
+
+    fun cancelPolling(jobId: String) {
+        active.remove(jobId)?.cancel()
+    }
+
+    suspend fun downloadAndCache(apiKey: String, state: MediaJobState, onUpdate: ((MediaJobState) -> Unit)? = null) {
+        val first = state.resultUrls.firstOrNull() ?: return
+        val bytes = try {
+            provider.downloadResult(apiKey, first)
+        } catch (e: Exception) {
+            // Keep remote URL; timeout/expired will surface on view.
+            return
+        }
+        val ext = when {
+            first.contains(".mp4") || first.contains(".mov") || first.contains(".webm") -> "mp4"
+            first.contains(".png") -> "png"
+            first.contains(".jpg") || first.contains(".jpeg") -> "jpg"
+            first.contains(".webp") -> "webp"
+            else -> if (state.kind == MediaKind.Video) "mp4" else "png"
+        }
+        val path = "media/jobs/${state.jobId}/0.$ext"
+        writeAppStorageBytes(path, bytes)
+        val cached = state.copy(localPath = path)
+        _jobs.update { it + (state.jobId to cached) }
+        onUpdate?.invoke(cached)
+    }
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun newKey(): String = Uuid.random().toString()
+
+    companion object {
+        /** Job history is modeled as JSON blobs, not a table — no migration involved. */
+        val POLL_START_MS: Long = 3000L
+        val POLL_MAX_MS: Long = 30_000L
+
+        fun backoff(current: Long): Long = min(current * 2, POLL_MAX_MS)
+    }
+}

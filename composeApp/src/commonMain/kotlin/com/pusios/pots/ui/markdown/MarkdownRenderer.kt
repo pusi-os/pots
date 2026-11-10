@@ -145,11 +145,8 @@ private fun HeadingBlock(block: Heading) {
 private fun ParagraphBlock(block: Paragraph) {
     if (block.inlines.size == 1 && block.inlines[0] is Image) {
         val img = block.inlines[0] as Image
-        AsyncImage(
-            model = ImageRequest.Builder(LocalPlatformContext.current).data(img.src).build(),
-            contentDescription = img.alt,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        )
+        val isVideoSrc = img.src.endsWith(".mp4", ignoreCase = true) || img.src.endsWith(".mov", ignoreCase = true) || img.src.endsWith(".webm", ignoreCase = true)
+        com.pusios.pots.ui.media.ChatMediaInline(url = img.src, isVideo = isVideoSrc, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
         return
     }
     InlineContent(

@@ -1,6 +1,6 @@
 # Multi-Service
 
-**Last verified:** 2026-11-01
+**Last verified:** 2026-11-10
 
 The RF build supports the built-in trial presets plus five Russian-accessible gateways: Polza.ai, GPTunnel, AITUNNEL, ProxyAPI and VseGPT. All of them use the **OpenAI-compatible** chat-completions format; the remaining choices are the generic **OpenAI-Compatible API** adapter and **LiteRT on-device** inference. A handful of OpenAI models additionally require OpenAI's **Responses API**; Pots switches to it per model when an OpenAI-compatible base URL points at `api.openai.com`. Users can configure multiple service instances, reorder them, and Pots automatically falls back through the chain on failure.
 
@@ -151,6 +151,10 @@ Selecting a configured entry reorders the configured list so the chosen service 
 
 Image attachments are gated per service and per model. The trial presets are treated as text-only, while RF gateways accept images when the selected model is vision-capable. When the active service or model cannot take images, images are dropped from the request and the file picker stops offering image types, so a text turn still goes through. Unknown models are assumed image-capable. PDFs are advertised only where a service declares native document support (ProxyAPI currently does); the OpenAI-compatible wire path otherwise drops PDF binaries. The on-device Local Model hides file attachment affordances entirely.
 
+## Media models
+
+Each configured instance keeps two extra selections (image and video model) for cloud media generation, stored per instance in the same settings backend as the chat model. The media catalog is public (PlusVibeAPI: `GET /api/media-catalog`), so the Media models section of the service card loads image/video ids with `fromRub`/unit captions even before a key is set; generation itself is charged on the instance key. Default is the first available model per `kind` (`generationAvailable`, not unavailable). See [media-studio.md](media-studio.md) and `docs/knowledge/media-providers/`.
+
 ## Settings UI
 
 Users manage services through the settings screen:
@@ -158,6 +162,7 @@ Users manage services through the settings screen:
 - **Remove** — delete an instance and its stored credentials; deletion is deferred with a snackbar "Undo" option (~4 seconds) before the service is permanently removed
 - **Reorder** — drag to change priority (first = primary, rest = fallbacks)
 - **Configure** — per-instance API key, model selection, base URL (OpenAI-Compatible only; optional custom model id via checkbox)
+- **Media models** — per-instance image/video model pickers loaded from the provider catalog with prices, under the expanded service card
 - **Trial fallback toggle** — controls whether the active trial preset is appended as last resort
 
 ## Key Files
@@ -182,3 +187,7 @@ Users manage services through the settings screen:
 | `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Chat screen, renders ServiceSelector |
 | `composeApp/src/commonMain/.../ui/chat/composables/ServiceSelector.kt` | Compact service toggle dropdown |
 | `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Wires service selection and reordering |
+| `composeApp/src/commonMain/.../media/MediaModels.kt` | Media kinds, catalog items, job states |
+| `composeApp/src/commonMain/.../media/MediaProvider.kt` | Media provider contract (catalog/price/submit/poll/download) |
+| `composeApp/src/commonMain/.../media/PlusVibeMediaProvider.kt` | PlusVibeAPI adapter |
+| `composeApp/src/commonMain/.../ui/settings/MediaModelsSettings.kt` | Per-instance media model pickers with prices |

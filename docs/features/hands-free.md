@@ -1,6 +1,6 @@
 # Hands-Free Voice Mode
 
-**Last verified:** 2026-11-03
+**Last verified:** 2026-11-10
 
 Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it heard, waits for the agent, speaks the answer and listens again. The user never has to touch the screen for the whole round trip.
 

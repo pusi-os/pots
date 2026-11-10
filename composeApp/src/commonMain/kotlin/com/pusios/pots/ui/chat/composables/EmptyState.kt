@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -39,12 +42,27 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 @Composable
-internal fun EmptyState(modifier: Modifier, onStartHandsFree: (() -> Unit)? = null) {
+internal fun EmptyState(
+    modifier: Modifier,
+    onStartHandsFree: (() -> Unit)? = null,
+    onOpenMedia: (() -> Unit)? = null,
+) {
     Column(modifier, verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         PotsikAnchor(kind = PotsikAnchorKind.EMPTY, size = 132.dp)
         if (onStartHandsFree != null) {
             Spacer(Modifier.height(32.dp))
             VoiceButton(onStartHandsFree)
+        }
+        if (onOpenMedia != null) {
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onOpenMedia,
+                modifier = Modifier
+                    .width(140.dp)
+                    .semantics { contentDescription = "Медиа-студия" },
+            ) {
+                Text("Медиа")
+            }
         }
     }
 }

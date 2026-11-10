@@ -4,6 +4,8 @@ import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.EmailStore
 import com.pusios.pots.data.MemoryStore
 import com.pusios.pots.data.TaskStore
+import com.pusios.pots.data.getConfiguredServiceInstances
+import com.pusios.pots.data.getInstanceApiKey
 import com.pusios.pots.data.miniapp.MiniAppRepository
 import com.pusios.pots.mcp.McpServerManager
 import com.pusios.pots.network.tools.Tool
@@ -56,6 +58,48 @@ fun buildAgentToolSet(
     // The character's own tool. Off unless the user asks for it.
     if (appSettings.isToolEnabled(PotsikTool.ID, defaultEnabled = false)) {
         add(PotsikTool.create(potsikStage))
+    }
+
+    // Media generation tools. The primary instance key is resolved lazily;
+    // the public catalog works without a key.
+    if (appSettings.isToolEnabled(MediaTools.ID_LIST_MODELS, defaultEnabled = true)) {
+        add(
+            MediaTools.listModelsTool(apiKey = {
+                val instances = appSettings.getConfiguredServiceInstances()
+                instances.firstOrNull()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
+            }),
+        )
+    }
+    if (appSettings.isToolEnabled(MediaTools.ID_ENHANCE_PROMPT, defaultEnabled = true)) {
+        add(MediaTools.enhancePromptTool())
+    }
+    if (appSettings.isToolEnabled(MediaTools.ID_GENERATE_IMAGE, defaultEnabled = true)) {
+        add(
+            MediaTools.generateImageTool(
+                appSettings = appSettings,
+                apiKey = {
+                    val instances = appSettings.getConfiguredServiceInstances()
+                    instances.firstOrNull()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
+                },
+                instanceId = {
+                    appSettings.getConfiguredServiceInstances().firstOrNull()?.instanceId.orEmpty()
+                },
+            ),
+        )
+    }
+    if (appSettings.isToolEnabled(MediaTools.ID_GENERATE_VIDEO, defaultEnabled = true)) {
+        add(
+            MediaTools.generateVideoTool(
+                appSettings = appSettings,
+                apiKey = {
+                    val instances = appSettings.getConfiguredServiceInstances()
+                    instances.firstOrNull()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
+                },
+                instanceId = {
+                    appSettings.getConfiguredServiceInstances().firstOrNull()?.instanceId.orEmpty()
+                },
+            ),
+        )
     }
 
     platformExtras()

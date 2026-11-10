@@ -254,7 +254,8 @@ object CommonTools {
         EmailTools.emailToolDefinitions +
         SmsTools.smsToolDefinitions +
         NotificationTools.notificationToolDefinitions +
-        listOf(PotsikTool.toolInfo, MiniAppDbTool.toolInfo)
+        listOf(PotsikTool.toolInfo, MiniAppDbTool.toolInfo) +
+        MediaTools.toolInfos()
 
     fun getCommonTools(appSettings: AppSettings): List<Tool> = buildList {
         if (appSettings.isToolEnabled(localTimeTool.schema.name)) {
