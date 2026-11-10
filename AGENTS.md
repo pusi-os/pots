@@ -78,6 +78,14 @@ they are absent, release builds use debug signing. `scripts/publish-apk.sh`
 pins `ANDROID_USER_HOME=$HOME/.android`, deletes stale APKs before building,
 and verifies the APK certificate. Do not bypass that check when publishing.
 
+The GitHub Release workflow points `KEYSTORE_FILE` at the committed
+`androidApp/foss-release.keystore` (alias `pots-foss`, public password) and
+verifies the resulting APK certificate against it. The key and password are
+public on purpose: it is the open distribution signature, so every CI APK
+shares one certificate and updates install cleanly. It is not the Play
+upload key; keep the Play key out of the repository. `scripts/publish-apk.sh`
+(the local dashboard channel) is unaffected and keeps its debug-key check.
+
 ## Branding rules
 
 - **Pusi** is the company; **Pots** is the app; **Потсик** is the character.

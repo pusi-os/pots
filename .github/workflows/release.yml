@@ -34,7 +34,27 @@ jobs:
           sdkmanager "build-tools;36.0.0"
           sdkmanager "build-tools;29.0.3"
       - name: Build APK
+        env:
+          # Sign with the committed FOSS release key so every GitHub APK
+          # shares one signature and updates install over previous builds.
+          # The key and password are public on purpose: this is the open
+          # distribution channel, not the Play upload key.
+          KEYSTORE_FILE: ${{ github.workspace }}/androidApp/foss-release.keystore
+          KEYSTORE_PASSWORD: pots-foss-key
+          KEY_ALIAS: pots-foss
         run: bash ./gradlew :androidApp:assembleFossRelease --stacktrace
+      - name: Verify APK signing certificate
+        env:
+          KEYSTORE_PASSWORD: pots-foss-key
+        run: |
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -1)"
+          APK="androidApp/build/outputs/apk/foss/release/androidApp-foss-release.apk"
+          EXPECTED="$(keytool -list -v -keystore androidApp/foss-release.keystore -storepass "$KEYSTORE_PASSWORD" \
+              | sed -n 's/.*SHA256: //p' | head -1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          ACTUAL="$("$APKSIGNER" verify --print-certs "$APK" \
+              | sed -n 's/.*certificate SHA-256 digest: //p' | head -1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          echo "expected $EXPECTED"; echo "actual   $ACTUAL"
+          test -n "$EXPECTED" -a -n "$ACTUAL" -a "$EXPECTED" = "$ACTUAL"
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -366,11 +386,14 @@ jobs:
           files: Pots-*
 
       - name: Sync winget-pkgs fork
+        # Optional: skipped harmlessly when WINGET_TOKEN is not configured.
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
         run: gh repo sync pusi-os/winget-pkgs --source microsoft/winget-pkgs --branch master --force
 
       - name: Publish to WinGet
+        continue-on-error: true
         uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: pusi-os.Pots
