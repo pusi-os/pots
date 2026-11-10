@@ -45,6 +45,10 @@ jobs:
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     container: archlinux:base-devel
+    env:
+      # Empty until the repo gets an AUR_SSH_KEY secret; the push step below
+      # skips itself instead of failing while the key is absent.
+      AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,6 +90,7 @@ jobs:
           cat .SRCINFO
 
       - name: Push to AUR
+        if: ${{ env.AUR_SSH_KEY != '' }}
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
