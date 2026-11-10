@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -653,6 +653,17 @@
     <span class="md-ellipsis">
       
         Attachments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#media-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Media models
       
     </span>
   </a>
@@ -1567,6 +1578,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#media-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Media models
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#settings-ui" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1606,7 +1628,7 @@
 
 
 <h1 id="multi-service">Multi-Service</h1>
-<p><strong>Last verified:</strong> 2026-11-01</p>
+<p><strong>Last verified:</strong> 2026-11-10</p>
 <p>The RF build supports the built-in trial presets plus five Russian-accessible gateways: Polza.ai, GPTunnel, AITUNNEL, ProxyAPI and VseGPT. All of them use the <strong>OpenAI-compatible</strong> chat-completions format; the remaining choices are the generic <strong>OpenAI-Compatible API</strong> adapter and <strong>LiteRT on-device</strong> inference. A handful of OpenAI models additionally require OpenAI's <strong>Responses API</strong>; Pots switches to it per model when an OpenAI-compatible base URL points at <code>api.openai.com</code>. Users can configure multiple service instances, reorder them, and Pots automatically falls back through the chain on failure.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="service">Service</h3>
@@ -1786,12 +1808,15 @@
 <p>Selecting a configured entry reorders the configured list so the chosen service becomes first (primary). Selecting a trial entry (Flash or Smart) instead flips an "is Free primary" flag and records the chosen Free mode — Free can be promoted to primary independently of the configured fallback order, without rearranging the non-Free chain. The fallback chain picks up the new state automatically. The fallback walker also skips any entry whose context window can't fit the current chat history, so very long conversations may transparently move past services that would otherwise be eligible.</p>
 <h2 id="attachments">Attachments</h2>
 <p>Image attachments are gated per service and per model. The trial presets are treated as text-only, while RF gateways accept images when the selected model is vision-capable. When the active service or model cannot take images, images are dropped from the request and the file picker stops offering image types, so a text turn still goes through. Unknown models are assumed image-capable. PDFs are advertised only where a service declares native document support (ProxyAPI currently does); the OpenAI-compatible wire path otherwise drops PDF binaries. The on-device Local Model hides file attachment affordances entirely.</p>
+<h2 id="media-models">Media models</h2>
+<p>Each configured instance keeps two extra selections (image and video model) for cloud media generation, stored per instance in the same settings backend as the chat model. The media catalog is public (PlusVibeAPI: <code>GET /api/media-catalog</code>), so the Media models section of the service card loads image/video ids with <code>fromRub</code>/unit captions even before a key is set; generation itself is charged on the instance key. Default is the first available model per <code>kind</code> (<code>generationAvailable</code>, not unavailable). See <a href="../media-studio/">media-studio.md</a> and <code>docs/knowledge/media-providers/</code>.</p>
 <h2 id="settings-ui">Settings UI</h2>
 <p>Users manage services through the settings screen:
 - <strong>Add</strong> — pick from the list of available services (can add the same service multiple times); the OpenAI-Compatible API and the on-device Local Model are pinned to the top of the picker, with the five RF gateways sorted alphabetically below them
 - <strong>Remove</strong> — delete an instance and its stored credentials; deletion is deferred with a snackbar "Undo" option (~4 seconds) before the service is permanently removed
 - <strong>Reorder</strong> — drag to change priority (first = primary, rest = fallbacks)
 - <strong>Configure</strong> — per-instance API key, model selection, base URL (OpenAI-Compatible only; optional custom model id via checkbox)
+- <strong>Media models</strong> — per-instance image/video model pickers loaded from the provider catalog with prices, under the expanded service card
 - <strong>Trial fallback toggle</strong> — controls whether the active trial preset is appended as last resort</p>
 <h2 id="key-files">Key Files</h2>
 <table>
@@ -1874,6 +1899,22 @@
 <td><code>composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt</code></td>
 <td>Wires service selection and reordering</td>
 </tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/MediaModels.kt</code></td>
+<td>Media kinds, catalog items, job states</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/MediaProvider.kt</code></td>
+<td>Media provider contract (catalog/price/submit/poll/download)</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/PlusVibeMediaProvider.kt</code></td>
+<td>PlusVibeAPI adapter</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/settings/MediaModelsSettings.kt</code></td>
+<td>Per-instance media model pickers with prices</td>
+</tr>
 </tbody>
 </table>
 
@@ -1930,7 +1971,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

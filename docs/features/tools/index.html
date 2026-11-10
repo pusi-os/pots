@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -2148,7 +2148,7 @@
 
 
 <h1 id="tools">Tools</h1>
-<p><strong>Last verified:</strong> 2026-11-03</p>
+<p><strong>Last verified:</strong> 2026-11-10</p>
 <p>Pots's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="tool">Tool</h3>
@@ -2200,6 +2200,26 @@
 <tr>
 <td><code>fetch_url</code></td>
 <td>Fetch an http(s) URL and return the response body to the agent (GET, POST, HEAD). Blocks loopback, private, link-local and CGNAT addresses (including IPv4-mapped IPv6 and numeric shorthands like <code>2130706433</code>), checked again on every redirect hop (GET/HEAD follow up to 5 redirects; POST never redirects). Hostnames that only resolve to private addresses are not detected. Reads at most 512 KB of the body, which is then subject to the global 20K tool-result truncation. Used for reading pages and acting on links from emails (e.g. RFC 8058 one-click unsubscribe).</td>
+<td>Enabled</td>
+</tr>
+<tr>
+<td><code>generate_image</code></td>
+<td>Start an async image generation with the configured media provider (PlusVibeAPI first). Returns <code>jobId</code> for polling. Uses the image model chosen in Settings → Services → Media. See <a href="../media-studio/">media-studio.md</a></td>
+<td>Enabled</td>
+</tr>
+<tr>
+<td><code>generate_video</code></td>
+<td>Start an async video generation with the configured media provider. Returns <code>jobId</code> for polling. Uses the video model chosen in Settings → Services → Media</td>
+<td>Enabled</td>
+</tr>
+<tr>
+<td><code>list_media_models</code></td>
+<td>List image/video models with prices (<code>fromRub</code>, per-variant <code>priceRub</code>) from the public provider catalog</td>
+<td>Enabled</td>
+</tr>
+<tr>
+<td><code>enhance_prompt</code></td>
+<td>Expand a short prompt into a detailed generation prompt</td>
 <td>Enabled</td>
 </tr>
 </tbody>
@@ -2618,6 +2638,10 @@
 <td><code>fetch_url</code> with private-address and redirect checks</td>
 </tr>
 <tr>
+<td><code>composeApp/src/commonMain/.../tools/MediaTools.kt</code></td>
+<td><code>generate_image</code>, <code>generate_video</code>, <code>list_media_models</code>, <code>enhance_prompt</code></td>
+</tr>
+<tr>
 <td><code>composeApp/src/commonMain/.../tools/SchedulingTools.kt</code></td>
 <td><code>schedule_task</code>, <code>list_tasks</code>, <code>cancel_task</code></td>
 </tr>
@@ -2880,7 +2904,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

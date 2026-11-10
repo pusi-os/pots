@@ -1,0 +1,1562 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Pots - AI Assistant App">
+      
+      
+      
+        <link rel="canonical" href="https://pusi-os.github.io/pots/docs/knowledge/media-providers/plusvibe/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>PlusVibeAPI — медиа-контракт (snapshot) - Pots Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plusvibeapi-snapshot" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Pots Documentation" class="md-header__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pots Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              PlusVibeAPI — медиа-контракт (snapshot)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Pots Documentation" class="md-nav__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pots Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat & Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/hands-free/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hands-Free Voice Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/multi-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/dynamic-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mini-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mini-app-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-app server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/memories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/heartbeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/encryption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encryption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/on-device-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    On-Device Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasoning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/system-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/pots-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pots Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/sms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/potsiki/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/settings-export-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings Export & Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/splinterlands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splinterlands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../desktop-release-smoketest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop Release Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#base-urls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Base URLs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Catalog — список моделей и цен
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#async-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Async generation — основной путь (изображения + видео)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sync-image-shortcut" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync image shortcut (только изображения, без референсов)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#price-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Price quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jobs-poll" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jobs poll
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#result-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Result file
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        opts — часто используемые параметры
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#base64-files-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Свои файлы: base64 / Files API
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stt-tts-pipeline-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        STT / TTS / pipeline (вне скоупа v1, но тот же эндпоинт)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Клонирование голоса (не v1)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#webhook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook (не использовать из приложения)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#families" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Families
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#policy-pots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ограничения и policy для Pots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="plusvibeapi-snapshot">PlusVibeAPI — медиа-контракт (snapshot)</h1>
+<p>Источник правды по ценам — <code>GET https://plusvibeapi.ru/api/media-catalog</code> (публичный, без ключа). Локальный runtime-парсер — <code>composeApp/src/commonMain/kotlin/com/pusios/pots/media/PlusVibeMediaProvider.kt</code>. Документация поставщика: https://plusvibeapi.ru/docs/.</p>
+<h2 id="base-urls">Base URLs</h2>
+<table>
+<thead>
+<tr>
+<th>Роль</th>
+<th>Base</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Основной</td>
+<td><code>https://plusvibeapi.ru</code></td>
+</tr>
+<tr>
+<td>Резерв (chat уже сконфигурирован так)</td>
+<td><code>https://gw.plusvibeapi.ru</code></td>
+</tr>
+</tbody>
+</table>
+<p>Chat-сервис <code>plusvibe</code> / <code>plusvibe-reserve</code> уже существует (<code>Service.PlusVibe</code>, <code>Service.PlusVibeReserve</code>). Медиа использует <strong>тот же API-ключ</strong> (<code>sk-pv-…</code>, <code>Authorization: Bearer</code> или <code>x-api-key</code>). Отдельного медиа-ключа нет.</p>
+<h2 id="endpoints">Endpoints</h2>
+<h3 id="catalog">Catalog — список моделей и цен</h3>
+<p><code>GET /api/media-catalog</code> — публичный, без авторизации. Использовать для витрины, расчётов и выбора модели до регистрации.</p>
+<p>Ответ (<code>pricesAreEstimate</code>, <code>videoDisabled</code>, <code>models[]</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Поле <code>models[]</code></th>
+<th>Тип</th>
+<th>Смысл</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>model</code></td>
+<td>string</td>
+<td>Публичный id для <code>model</code> в <code>POST /api/media/generate</code></td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>string</td>
+<td><code>image</code> | <code>video</code> | <code>audio</code> | <code>music</code> | <code>3d</code></td>
+</tr>
+<tr>
+<td><code>unit</code></td>
+<td>string</td>
+<td>Единица тарификации («за изображение», «за секунду», «за ролик»)</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>string</td>
+<td>Краткое описание</td>
+</tr>
+<tr>
+<td><code>inputTypes</code></td>
+<td>string[]</td>
+<td>Допустимые типы входа</td>
+</tr>
+<tr>
+<td><code>fromRub</code> (legacy <code>params</code>)</td>
+<td>number?</td>
+<td>Минимальная цена «от»; точна при <code>priceStatus=exact</code></td>
+</tr>
+<tr>
+<td><code>priceStatus</code></td>
+<td>string</td>
+<td><code>exact</code> | <code>estimate</code> | <code>unavailable</code></td>
+</tr>
+<tr>
+<td><code>priceUnavailable</code></td>
+<td>bool</td>
+<td>true — маршрут нельзя вызвать (503)</td>
+</tr>
+<tr>
+<td><code>variants[]</code></td>
+<td>object[]</td>
+<td>Маршруты <code>addressAs</code> (<code>gpt-image-2:network</code>, <code>flux-2:flow</code>) с <code>priceRub</code>, <code>priceStatus</code>, <code>priceUnavailable</code></td>
+</tr>
+<tr>
+<td><code>params[]</code> / <code>axes[]</code> / <code>inputSchema</code></td>
+<td>object</td>
+<td>Схема <code>opts</code> для валидации клиента</td>
+</tr>
+<tr>
+<td><code>generationAvailable</code> / <code>displayOnly</code></td>
+<td>bool</td>
+<td>Служебные флаги; <code>displayOnly</code> — справочная модель без dispatch</td>
+</tr>
+</tbody>
+</table>
+<p>Таблица цен для реселлеров: <code>GET /api/media/price-table?model=&lt;id&gt;</code> (публично): <code>opts</code>, <code>price</code>, <code>unitPrice</code>, <code>priceScope</code> (<code>job_total</code> | <code>unit_rate</code>), <code>jobTotalStatus</code>, <code>requiredInputs</code>. При <code>priceScope=unit_rate</code> поле <code>price=null</code>, тариф в <code>unitPrice</code>.</p>
+<p>Точная котировка только через <code>POST /api/media/price</code> с реальным входом (особенно при <code>jobTotalStatus=metered</code> / <code>input_dependent</code>).</p>
+<h3 id="async-generation">Async generation — основной путь (изображения + видео)</h3>
+<p><code>POST /api/media/generate</code> → <code>202 { ok:true, jobId, status:"processing" }</code>.
+<code>GET /api/media/jobs/{id}</code> → опрос до <code>success</code> | <code>fail</code> (<code>submitting</code> — нетерминальный, <code>media_submission_uncertain</code>, не создавать дубль).</p>
+<p>Тело создания (strict-контракт, top-level только):</p>
+<div class="highlight"><pre><span></span><code>model (обяз, публичный id или base:alias)
+prompt (обяз. если требует операция модели; для STT/аватара — пустая строка)
+opts — внутри параметры модели (aspect_ratio, duration, resolution, image_url, …)
+strict: bool — 422 strict_validation_failed до расчёта цены
+quote_id — mq_… из /api/media/price (опционально; job запускается только по этой цене)
+max_price_rub — потолок ₽; выше → 422 media_max_price_exceeded
+webhook_url — публичный https для подписанного уведомления (не использовать из мобильного клиента)
+</code></pre></div>
+<p>Заголовки: <code>Authorization: Bearer sk-pv-…</code>, опционально <code>Idempotency-Key</code> (1–255 ASCII, 24 ч; повтор с тем же ключом+телом → тот же jobId; другое тело → 422; одновременная отправка → 409 + <code>Retry-After: 5</code>), <code>x-pv-cost: 1</code> — стоимость в final usage-событии.</p>
+<p>Ответы создания: <code>202</code> принята; <code>400</code> невалидный JSON/тело; <code>401</code> ключ; <code>402</code> нет средств (admission); <code>422</code> неизвестная модель / невалидные opts / <code>ok:false</code> от facade / <code>media_max_price_exceeded</code>; <code>502</code> <code>media_submit_failed</code> (upstream недоступен, повтор с backoff); <code>503</code> <code>priceUnavailable</code> / routing guard / <code>VIDEO_DISABLED</code> (чениить модель или позже). Списание только при <code>success</code>, ровно по котировке если она была.</p>
+<h3 id="sync-image-shortcut">Sync image shortcut (только изображения, без референсов)</h3>
+<p><code>POST /v1/images/generations</code> — OpenAI Images API, синхронная до 300 с (клиентский таймаут ≥ 300 с). Тело: <code>model</code>, <code>prompt</code>, <code>n=1</code> только, <code>size</code> как пропорция (<code>1024x1024</code>→1:1, <code>1792x1024</code>→16:9, <code>1024x1792</code>→9:16, <code>1536x1024</code>→3:2, <code>1024x1536</code>→2:3; нет пропорции → 400 с перечнем), <code>quality</code> (только если есть в каталоге), <code>response_format: url|b64_json</code> (по умолчанию <code>url</code>, до 20 МБ). Неизвестные поля (<code>background</code>, <code>style</code>, <code>output_format</code>, …) → 400 по имени. Модели, которым нужно исходное изображение, здесь не работают — использовать async путь. Ответ <code>{ created, data:[{url}] }</code> + <code>x-pv-cost-rub</code>, <code>x-pv-media-job-id</code>. <code>504 cause=image_generation_timeout</code> — задача живёт, забирать по <code>GET /api/media/jobs/{id}</code>; история: <code>GET /v1/images/generations?limit=</code> (до 100). <code>410 media_result_expired</code> через 5 дней.</p>
+<p><code>POST /v1/images/edits</code> — multipart <code>image</code> / <code>image[]</code> или JSON <code>images:[{image_url}]</code>, тот же ответ/цена/ожидание. <code>mask</code> → 400 <code>unsupported_parameter</code>, модель без приёма исходника → <code>model_cannot_edit</code>. <code>POST /v1/images/edits</code> синхронно есть; видео синхронно нет (<code>/v1/video/generations</code>, <code>/v1/videos</code> → 410 <code>media_endpoint_retired</code> до авторизации).</p>
+<h3 id="price-quote">Price quote</h3>
+<p><code>POST /api/media/price</code> — то же тело, что <code>generate</code>; ответ <code>{ ok:true, priceRub, quoteId:"mq_…", expiresAt }</code>. Передавать тот же <code>quote_id</code> + <code>max_price_rub ≥ quote</code> в <code>generate</code>. Невалидный ceiling → 400 <code>invalid_max_price_rub</code>; quote выше ceiling → 422; недостаток средств под ceiling → 402 <code>media_max_price_unfunded</code>. Цены на сайте — ориентировочные; точная сумма в <code>x-pv-cost-rub</code> каждого принятого ответа.</p>
+<h3 id="jobs-poll">Jobs poll</h3>
+<p><code>GET /api/media/jobs/{id}</code>:</p>
+<div class="highlight"><pre><span></span><code>status: submitting | processing | success | fail
+resultUrls: string[] — подписанные /api/media/file/{id}/{idx}?sig=… (без ключа) или https://plusvibeapi.ru/media/r/…
+resultText: string — для STT (resultUrls пуст)
+priceRub: number — итог списания (0 при fail)
+resultsExpireAt: ISO — 5 дней после completion; потом 410 media_result_expired
+errorCode / failMsg / failure{ code, advice, definitive, charged }
+stage: generating | completed | failed | submission_unknown
+</code></pre></div>
+<p>Рекомендуемый polling: 3–5 с с экспоненциальной задержкой до 30 с. При <code>submission_outcome_unknown</code> (<code>stage: submission_unknown</code>, <code>errorCode: media_submission_uncertain</code>, <code>failure.advice: reconcile_first</code>) — опрашивать тот же jobId, не создавать дубль; за ~10–15 мин закрывается как <code>fail</code> (<code>media_submission_not_started</code>, без списания) — создавать новую задачу. <code>fail</code> с <code>definitive:true, advice:retry_later</code> — можно новую задачу после backoff; <code>fix_input</code> — чинить вход; <code>choose_other_route</code> — другую модель.</p>
+<h3 id="result-file">Result file</h3>
+<p><code>GET /api/media/file/{id}/{idx}</code> — подписанный прокси (HMAC <code>sig</code> в query). Открывается без ключа (<code>&lt;img&gt;</code>/<code>&lt;video&gt;</code>). <code>download=1</code> — как вложение (<code>.glb</code> для 3D). Поддерживает Range (перемотка). Провайдер скрыт, upstream-адрес клиент не видит. Результат живёт 5 дней; постоянный адрес <code>https://plusvibeapi.ru/media/r/…</code> после копирования в хранилище поставщика.</p>
+<h2 id="opts">opts — часто используемые параметры</h2>
+<table>
+<thead>
+<tr>
+<th>Параметр</th>
+<th>Тип</th>
+<th>Смысл</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aspect_ratio</code></td>
+<td>string</td>
+<td>1:1, 16:9, 9:16, 4:3, 3:4</td>
+</tr>
+<tr>
+<td><code>duration</code></td>
+<td>string/number</td>
+<td>Длительность видео, сек (5, 10, 15)</td>
+</tr>
+<tr>
+<td><code>resolution</code></td>
+<td>string</td>
+<td>480p, 720p, 1080p, 4K</td>
+</tr>
+<tr>
+<td><code>image_url</code> / <code>first_frame_url</code> / <code>last_frame_url</code> / <code>reference_image</code></td>
+<td>string URL</td>
+<td>Публичные <code>https://</code> адреса, скачивает провайдер</td>
+</tr>
+<tr>
+<td><code>negative_prompt</code></td>
+<td>string</td>
+<td>Что исключить (qwen-image, wan-2-7)</td>
+</tr>
+<tr>
+<td><code>guidance</code> / <code>seed</code> / <code>stability</code></td>
+<td>number</td>
+<td>Guidance scale / seed / стабильность 0–1</td>
+</tr>
+<tr>
+<td><code>camera</code></td>
+<td>string</td>
+<td>Движение камеры (<code>pan left</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Неизвестный параметр игнорируется (в <code>strict</code> — 422). Машиночитаемый контракт: <code>GET /api/model-capabilities</code> / <code>GET /api/model-capabilities/{model}</code> и <code>GET /v1/model-capabilities/{model}</code> (<code>operations[].requestJsonSchema</code>).</p>
+<h2 id="base64-files-api">Свои файлы: base64 / Files API</h2>
+<p>Поля с URL принимают только публичные <code>https://</code>; <code>data:…;base64</code> в таком поле → 400. Свой файл — в парное <code>*_base64</code> поле (<code>image_base64</code>, <code>mask_base64</code>, <code>input_base64[]</code> до 16 файлов, <code>audio_base64</code>, <code>video_base64</code>); значение — полная строка <code>data:&lt;mime&gt;;base64,…</code>. Альтернатива — id своего файла из <code>POST /v1/files</code> (<code>image_file_id</code>, <code>audio_file_id</code>, <code>video_file_id</code>, <code>mask_file_id</code>, <code>first_frame_file_id</code>/<code>last_frame_file_id</code>, <code>input_file_ids[]</code>, <code>reference_*_file_ids[]</code>). Какие id-поля принимает модель — в её <code>requestJsonSchema</code>.</p>
+<h2 id="stt-tts-pipeline-v1">STT / TTS / pipeline (вне скоупа v1, но тот же эндпоинт)</h2>
+<ul>
+<li>STT: <code>model</code> = STT-модель (<code>whisper-large-v3-turbo</code> 0,02 ₽/мин, <code>nemotron-asr-multilingual</code>, <code>whisper-large-v3</code> 0,06 ₽/мин, <code>universal-2</code> 0,35 ₽/мин, <code>speech-to-text</code> 1 ₽/мин), <code>prompt:""</code>, <code>opts.audio_url</code> (или <code>audio_base64</code>), файл ≤ 25 МБ, <code>mp3/wav/m4a/flac/ogg/webm</code>. Готовый текст — <code>resultText</code>; итог по фактической длине.</li>
+<li>Pipeline фото → озвучка → говорящий аватар: <code>elevenlabs-v4-tts</code> (1–5000 символов; <code>voice</code> Rachel/Aria/Roger/Sarah/Laura/Charlie/George/Callum/River/Liam/Charlotte/Alice/Matilda/Will/Jessica/Eric/Chris/Brian/Daniel/Lily/Bill или <code>voice_id</code>; <code>language_code</code> auto/ru/en/…; <code>output_format</code> mp3/mp3_hq/opus) → <code>kling-ai-avatar</code> (<code>tier</code> std 720p/pro 1080p, <code>image_url</code>+<code>audio_url</code> обяз., до 5 мин) или <code>omnihuman-v2</code> (аудио 4 с–5 мин). Сначала <code>POST /api/media/price</code>, затем <code>generate</code> с тем же <code>quote_id</code>.</li>
+</ul>
+<h2 id="v1">Клонирование голоса (не v1)</h2>
+<p><code>POST /api/media/voices</code> (<code>name</code>, <code>consent:true</code>, <code>engine</code>, <code>audio_url|audio_base64</code> или <code>samples[]</code>, только <code>elevenlabs</code>), <code>GET /api/media/voices</code>, <code>POST /api/media/voices/{id}/samples</code>, <code>DELETE /api/media/voices/{id}</code>. Одна запись ≤ 10 МБ (wav/mp3, до 60 с), ≤ 25 записей, сумма ≤ 300 с / ≤ 50 МБ, тело ≤ 70 953 644 B, ≤ 20 добавлений/сутки. Ошибки: 422 <code>voice_sample_too_large</code>/<code>invalid</code>/<code>samples_limit</code>/<code>samples_too_large</code>, 404 <code>voice_not_found</code>, 409 <code>voice_samples_unsupported</code>/<code>slots_full</code>, 502 <code>voice_samples_failed</code>, 429 <code>voice_samples_rate_limited</code>.</p>
+<h2 id="webhook">Webhook (не использовать из приложения)</h2>
+<p><code>PATCH /api/webhooks</code> — только сессия кабинета (cookie), принимает <code>mediaWebhookUrl</code>/<code>balanceWebhookUrl</code> (публичный HTTPS, SSRF-защита). Доставка <code>POST</code> на <code>mediaWebhookUrl</code> при терминальном статусе: <code>{ jobId, status, model, kind, resultUrls, failMsg, createdAt }</code>, подпись Standard Webhooks (<code>v1</code>, HMAC-SHA256 от <code>id.timestamp.тело</code>), до 5 попыток (1/2/4/8 мин), дедупликация обязательна по <code>jobId+status</code>. ПлюсVibe — держатель log: <code>GET /api/webhooks</code>, <code>POST /api/media/price</code>/<code>generate</code> с <code>webhook_url</code> подписываются секретом ключа (<code>secret</code> из <code>GET /api/media/webhook-secret</code>). Мобильный клиент не принимает вебхуки — только опрос.</p>
+<h2 id="families">Families</h2>
+<p>Изображения (51), видео (82), аудио/TTS (41), музыка (11), 3D (7) — 192 модели на дату снапшота. Поиск по семействам: Seedance (<code>seedance-2.0</code>, <code>seedance-1</code>, <code>seedance-2-0-mini</code>), Wan (<code>wan-2-7</code>, <code>wan-2-6</code>, <code>wan-2-2</code>, <code>wan-animate</code>, <code>wan-speech-to-video</code>, <code>wan-2-7-image</code>), Hailuo (<code>hailuo-2-3</code>), Suno (<code>suno</code>), TTS (<code>tts</code>), 3D (<code>hunyuan3d</code>, <code>tripo</code>, <code>meshy</code>, <code>rodin</code>, <code>trellis</code>).</p>
+<h2 id="policy-pots">Ограничения и policy для Pots</h2>
+<ul>
+<li>Ссылки результата живут 5 дней → копировать байты в приложение/галерею сразу.</li>
+<li><code>n=1</code> только на sync-пути изображений; несколько картинок — несколько задач.</li>
+<li>Таймаут sync-пути 300 с — async путь предпочтителен в приложении (polling + отмена).</li>
+<li>Оплата в рублях, данные в РФ (152-ФЗ).</li>
+<li><code>nano-banana-pro</code> — актуальный id (не <code>gemini-3-pro-image</code>, он принимается только в <code>model</code> запроса async-пути как алиас).</li>
+</ul>
+<h2 id="sources">Sources</h2>
+<ul>
+<li>https://plusvibeapi.ru/docs/api-reference</li>
+<li>https://plusvibeapi.ru/docs/images-generations</li>
+<li>https://plusvibeapi.ru/docs/video-generations</li>
+<li>https://plusvibeapi.ru/docs/media-generation</li>
+<li>https://plusvibeapi.ru/docs/media-pipeline</li>
+<li>https://plusvibeapi.ru/docs/media-models</li>
+<li>https://plusvibeapi.ru/docs/media-webhooks</li>
+<li><code>GET https://plusvibeapi.ru/api/media-catalog</code> (live)</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
