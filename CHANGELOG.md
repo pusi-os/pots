@@ -40,14 +40,17 @@
 - Make shared Потсик appearance math compile on Web/Wasm
 - Keep Android document and attachment pickers safe in Compose previews and screenshot tests
 
-## Unreleased
+## v3.11.3 — 2026-11-10
 
 ### Features
-- Turn Interactive UI into a mini-app studio: save the screens and data as an app, version it, export/import it, and keep a toolbar of pinned apps in chat
-- Give mini-apps persistent SQLite-backed collections, local `store_put` / `store_delete` / `navigate` actions and a `records` component
-- Add the `mini_app_data` tool so the agent can design collections, seed records, declare automations and record capabilities
-- Run saved apps full-screen with their data, screen tabs and automations
-- Show Потсик in the Interactive UI working tile with the same random working playlist as chat
+- Media Studio: кнопка «Медиа» под HandsFree, канвас с drag/scale/rotate и всплывающим меню под точкой тапа, параметры из каталога, «✨ Улучшить промпт», импорт/экспорт в галерею, TTS «генерация готова»
+- PlusVibeAPI как провайдер изображения и видео (`/api/media-catalog`, `/api/media/price`, `/api/media/generate`, опрос jobs, результат на 5 дней); интерфейс `MediaProvider` для следующих провайдеров
+- Выбор image/video-моделей с ценами в Settings → Services → Media (тот же ключ, что для чата)
+- Агент-инструменты `generate_image`, `generate_video`, `list_media_models`, `enhance_prompt`; встроенный медиа-рендер в чате с лайтбоксом, zoom, видеоплеером (seek/pause) и кнопкой «В канвас»
+- Локальная LLM-вики провайдеров: `docs/knowledge/media-providers/`; спека `docs/features/media-studio.md`
+
+### Fixes
+- Fix `String.format` в видеоплеере для iOS/wasm (замена на платформо-независимый формат времени)
 
 ### Fixes
 - Make speech output and hands-free agree: starting hands-free turns speech on, the toggle works in both modes, and the loop can listen silently
