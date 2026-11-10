@@ -52,8 +52,6 @@
 ### Fixes
 - Android APK на GitHub теперь подписываются единым публичным FOSS-ключом (`androidApp/foss-release.keystore`, алиас `pots-foss`): все сборки из релизов имеют одну подпись, и обновления ставятся без переустановки. При переходе со сборки, подписанной другим ключом (например, из локального дашборда), нужно один раз удалить приложение
 - Fix `String.format` в видеоплеере для iOS/wasm (замена на платформо-независимый формат времени)
-
-### Fixes
 - Make speech output and hands-free agree: starting hands-free turns speech on, the toggle works in both modes, and the loop can listen silently
 - Stop a regular spoken reply before hands-free opens the microphone
 
