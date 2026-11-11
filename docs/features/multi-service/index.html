@@ -1628,8 +1628,8 @@
 
 
 <h1 id="multi-service">Multi-Service</h1>
-<p><strong>Last verified:</strong> 2026-11-10</p>
-<p>The RF build supports the built-in trial presets plus five Russian-accessible gateways: Polza.ai, GPTunnel, AITUNNEL, ProxyAPI and VseGPT. All of them use the <strong>OpenAI-compatible</strong> chat-completions format; the remaining choices are the generic <strong>OpenAI-Compatible API</strong> adapter and <strong>LiteRT on-device</strong> inference. A handful of OpenAI models additionally require OpenAI's <strong>Responses API</strong>; Pots switches to it per model when an OpenAI-compatible base URL points at <code>api.openai.com</code>. Users can configure multiple service instances, reorder them, and Pots automatically falls back through the chain on failure.</p>
+<p><strong>Last verified:</strong> 2026-11-11</p>
+<p>The RF build supports the built-in Trial Flash preset plus five Russian-accessible gateways: Polza.ai, GPTunnel, AITUNNEL, ProxyAPI and VseGPT. All of them use the <strong>OpenAI-compatible</strong> chat-completions format; the remaining choices are the generic <strong>OpenAI-Compatible API</strong> adapter and <strong>LiteRT on-device</strong> inference. A handful of OpenAI models additionally require OpenAI's <strong>Responses API</strong>; Pots switches to it per model when an OpenAI-compatible base URL points at <code>api.openai.com</code>. Users can configure multiple service instances, reorder them, and Pots automatically falls back through the chain on failure.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="service">Service</h3>
 <p>A supported LLM provider. Each service is defined by:</p>
@@ -1652,17 +1652,9 @@
 <li>The sole service when no other services are configured</li>
 <li>A last-resort fallback when "Use as fallback" is enabled (default)</li>
 </ul>
-<p>There are two trial presets, both selectable from chat and from Pulse:</p>
-<ul>
-<li><strong>Trial Flash</strong> talks to OpenCode's free endpoint and serves the <code>big-pickle</code> model. It sends the OpenCode session headers and the public client key.</li>
-<li><strong>Trial Smart</strong> talks to the self-hosted Pots endpoint and serves the <code>pots4free</code> model.</li>
-</ul>
-<p>The endpoints and model ids are compile-time constants; the API key it uses is <strong>not</strong> part of the repository. It is read from the <code>pots.free.apiKey</code> property of the git-ignored <code>local.properties</code> file and baked into the binary at build time, so:</p>
-<ul>
-<li>A build made from a checkout without that property ships without a bundled key. The free tier then only works once the user enters a key of their own, which is always allowed</li>
-<li>A key entered in the settings takes precedence over the bundled one</li>
-<li>Rotating the key is a matter of changing <code>local.properties</code> and rebuilding — no code change, no commit</li>
-</ul>
+<p>The trial preset, selectable from chat and from Pulse, is <strong>Trial Flash</strong>: it talks to OpenCode's free endpoint and serves the <code>big-pickle</code> model. It sends the OpenCode session headers and the public client key.</p>
+<p>Trial Smart (the self-hosted <code>pots4free</code> endpoint) has been removed. Installs that still had it selected fall back to Trial Flash.</p>
+<p>The OpenCode endpoint and model id are compile-time constants. No personal key is part of the repository.</p>
 <p>When a trial preset is the only path and the user hits its rate or quota limit, chat shows a signup panel for the five RF gateways so they can open an API-key page and continue with a personal account. See <a href="../chat/">chat.md</a>.</p>
 <h2 id="fallback-chain">Fallback Chain</h2>
 <ol>
@@ -1714,12 +1706,6 @@
 <td>OpenAI-compatible</td>
 </tr>
 <tr>
-<td>Trial Smart (Pots free)</td>
-<td><code>free</code></td>
-<td>No (bundled key when built with one)</td>
-<td>OpenAI-compatible</td>
-</tr>
-<tr>
 <td>Polza.ai</td>
 <td><code>polza</code></td>
 <td>Yes</td>
@@ -1736,12 +1722,6 @@
 <td><code>aitunnel</code></td>
 <td>Yes</td>
 <td>OpenAI-compatible</td>
-</tr>
-<tr>
-<td>Prosvetim</td>
-<td><code>prosvetim</code></td>
-<td>Yes</td>
-<td>OpenAI-compatible (same endpoint family as Trial Smart, own key, model list from the account)</td>
 </tr>
 <tr>
 <td>PlusVibeAPI</td>
@@ -1801,9 +1781,9 @@
 <p>The card representing the currently selected model is highlighted with a filled accent background so users can identify their current choice at a glance when reopening the picker.</p>
 <p>The modal includes sort chips (Date, Score, Ctx) below the search field. Tapping a chip switches which field is active; all sorts are descending (highest or most recent first), with no ascending option. Default sort is by score. When the current service list includes any free-tier model, a <strong>Free</strong> filter chip also appears: selected, it shows only free-tier models while the active sort still applies; if the filtered list is empty, a short empty message is shown. The Free chip is hidden for services with no free-tier catalog entries.</p>
 <p>Context window and release date come from two sources, merged by the mapping layer: a bundled curated catalog of well-known models, and whatever the provider's own models endpoint returns (e.g. OpenAI-compat <code>context_window</code> and <code>created</code>, Anthropic <code>created_at</code>). The curated catalog wins; provider-supplied values are used only as a fallback when the catalog has no entry for that model. The catalog is hand-maintained to correct inconsistencies in what providers report. Models not present in the catalog still render — they just use whatever the API provided, and any unknown fields are hidden.</p>
-<p>The old free-tier provider catalog was removed with its providers; a copy is kept in <code>docs/backups/FreeTierModels.kt.pre-rf-backup.txt</code>. The two trial presets do not depend on it.</p>
+<p>The old free-tier provider catalog was removed with its providers; a copy is kept in <code>docs/backups/FreeTierModels.kt.pre-rf-backup.txt</code>. The Trial Flash preset does not depend on it.</p>
 <h2 id="chat-screen-service-toggle">Chat Screen Service Toggle</h2>
-<p>The chat screen service toggle lists two distinct trial entries — <strong>Trial Flash</strong> and <strong>Trial Smart</strong> — followed by every configured non-Free service (including on-device and models that do not support tools). When this list contains more than one entry, a circular service icon button appears to the right of the chat input, next to the send/stop button. Because the two trial modes alone already count as two entries, the toggle can appear even when no non-Free services are configured. The icon represents the current primary service (each service has its own simplified vector icon). Tapping it opens a dropdown listing those services with their icons, names, and model IDs; the current primary is highlighted with a primary container background. The dropdown is height-capped to the screen and becomes scrollable when the list is long enough to overflow, so every entry stays reachable.</p>
+<p>The chat screen service toggle lists the Trial Flash entry followed by every configured service (including on-device and models that do not support tools). When this list contains more than one entry, a circular service icon button appears to the right of the chat input, next to the send/stop button. The toggle appears when there is more than one entry, so it can show up with only the Trial Flash entry and one configured service. The icon represents the current primary service (each service has its own simplified vector icon). Tapping it opens a dropdown listing those services with their icons, names, and model IDs; the current primary is highlighted with a primary container background. The dropdown is height-capped to the screen and becomes scrollable when the list is long enough to overflow, so every entry stays reachable.</p>
 <p>In <strong>Interactive UI mode</strong>, the same control is filtered to services whose selected model supports tool use (agentic flows), and on-device services are excluded so the user cannot switch to a model that cannot produce pots-ui.</p>
 <p>Selecting a configured entry reorders the configured list so the chosen service becomes first (primary). Selecting a trial entry (Flash or Smart) instead flips an "is Free primary" flag and records the chosen Free mode — Free can be promoted to primary independently of the configured fallback order, without rearranging the non-Free chain. The fallback chain picks up the new state automatically. The fallback walker also skips any entry whose context window can't fit the current chat history, so very long conversations may transparently move past services that would otherwise be eligible.</p>
 <h2 id="attachments">Attachments</h2>
