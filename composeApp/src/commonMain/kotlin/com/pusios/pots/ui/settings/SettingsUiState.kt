@@ -217,6 +217,10 @@ data class SettingsModel(
     val arenaScore: Int? = null,
     /** Prompt price per million tokens, or null when unknown. */
     val pricePerMillion: Double? = null,
+    /** Output price per million tokens, or null when unknown. */
+    val outputPricePerMillion: Double? = null,
+    /** Cached input price per million tokens, or null when unknown. */
+    val cachePricePerMillion: Double? = null,
     /**
      * True when this model is on the provider's free tier according to the
      * curated [com.pusios.pots.data.FreeTierModels] catalog

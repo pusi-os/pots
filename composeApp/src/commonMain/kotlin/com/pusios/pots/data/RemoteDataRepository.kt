@@ -482,11 +482,9 @@ class RemoteDataRepository(
             else -> {
                 if (service.modelsUrl != null) {
                     fetchModelsForInstance(service, instanceId) { creds, selectedModelId ->
-                        mapOpenAICompatibleModels(
-                            requests.getOpenAICompatibleModels(service, creds).getOrThrow().data,
-                            service,
-                            selectedModelId,
-                        )
+                        val models = requests.getOpenAICompatibleModels(service, creds).getOrThrow().data
+                        val pricing = if (service == Service.LlmRouter) requests.getLlmRouterPricing().getOrNull()?.data else null
+                        mapOpenAICompatibleModels(models, service, selectedModelId, pricing)
                     }
                 } else if (service.defaultModels.isNotEmpty()) {
                     val selectedModelId = appSettings.getInstanceModelId(instanceId)

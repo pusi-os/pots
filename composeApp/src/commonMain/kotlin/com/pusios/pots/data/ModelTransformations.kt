@@ -2,6 +2,7 @@ package com.pusios.pots.data
 
 import com.pusios.pots.network.dtos.anthropic.AnthropicModelsResponseDto
 import com.pusios.pots.network.dtos.gemini.GeminiModelsResponseDto
+import com.pusios.pots.network.dtos.llmrouter.LlmRouterPricingResponseDto
 import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleModelResponseDto
 import com.pusios.pots.toIsoDate
 import com.pusios.pots.ui.settings.SettingsModel
@@ -104,6 +105,8 @@ private fun buildSettingsModel(
     apiContextWindow: Long? = null,
     apiReleaseDate: String? = null,
     apiPricePerMillion: Double? = null,
+    apiOutputPricePerMillion: Double? = null,
+    apiCachePricePerMillion: Double? = null,
 ): SettingsModel {
     val curated = ModelCatalog.lookup(id)
     return SettingsModel(
@@ -116,6 +119,8 @@ private fun buildSettingsModel(
         parameterCount = curated?.parameterCount,
         arenaScore = curated?.arenaScore,
         pricePerMillion = apiPricePerMillion,
+        outputPricePerMillion = apiOutputPricePerMillion,
+        cachePricePerMillion = apiCachePricePerMillion,
     )
 }
 
@@ -123,7 +128,9 @@ internal fun mapOpenAICompatibleModels(
     models: List<OpenAICompatibleModelResponseDto.Model>,
     service: Service,
     selectedModelId: String,
+    pricing: List<LlmRouterPricingResponseDto.Entry>? = null,
 ): List<SettingsModel> {
+    val pricesById = pricing?.associateBy { it.id }.orEmpty()
     val activeFiltered = if (service.filterActiveStrictly) {
         models.filter { it.isActive == true }
     } else {
@@ -144,7 +151,9 @@ internal fun mapOpenAICompatibleModels(
             apiDisplayName = it.name,
             apiContextWindow = it.context_window ?: it.context_length,
             apiReleaseDate = it.created?.toIsoDate(),
-            apiPricePerMillion = it.pricePerMillion(),
+            apiPricePerMillion = it.pricePerMillion() ?: pricesById[it.id]?.perMillion("input"),
+            apiOutputPricePerMillion = pricesById[it.id]?.perMillion("output"),
+            apiCachePricePerMillion = pricesById[it.id]?.perMillion("cache_read"),
         )
     }
     return if (service.sortModelsById) {
@@ -187,6 +196,8 @@ internal fun ensureSelectedModelPresent(
         ) + providerModels.map { it.copy(isSelected = false) }
     }
 }
+
+private fun LlmRouterPricingResponseDto.Entry.perMillion(op: String): Double? = prices.firstOrNull { it.op == op && it.unit == "1m_tokens" }?.usd
 
 internal fun OpenAICompatibleModelResponseDto.Model.pricePerMillion(): Double? {
     val pricing = top_provider?.pricing ?: pricing ?: return null

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -51,11 +52,16 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.ic_arrow_drop_down
+import pots.composeapp.generated.resources.ic_price_cache
+import pots.composeapp.generated.resources.ic_price_input
+import pots.composeapp.generated.resources.ic_price_output
 import pots.composeapp.generated.resources.model_filter_free
 import pots.composeapp.generated.resources.model_free_badge
 import pots.composeapp.generated.resources.model_free_empty
@@ -323,8 +329,42 @@ private fun ModelCard(model: SettingsModel, isSelected: Boolean, onClick: () -> 
                     color = secondaryColor,
                 )
             }
+            if (model.pricePerMillion != null || model.outputPricePerMillion != null || model.cachePricePerMillion != null) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PriceChip(Res.drawable.ic_price_input, model.pricePerMillion, secondaryColor)
+                    Spacer(Modifier.width(10.dp))
+                    PriceChip(Res.drawable.ic_price_output, model.outputPricePerMillion, secondaryColor)
+                    Spacer(Modifier.width(10.dp))
+                    PriceChip(Res.drawable.ic_price_cache, model.cachePricePerMillion, secondaryColor)
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun PriceChip(icon: DrawableResource, pricePerMillion: Double?, tint: Color) {
+    if (pricePerMillion == null) return
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(2.dp))
+        Text(
+            text = formatPricePerMillion(pricePerMillion),
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+        )
+    }
+}
+
+private fun formatPricePerMillion(price: Double): String {
+    val text = if (price >= 1) "%.2f".format(price) else "%.3f".format(price)
+    return text.trimEnd('0').trimEnd('.')
 }
 
 private fun arenaScoreColor(score: Int): Color = when {

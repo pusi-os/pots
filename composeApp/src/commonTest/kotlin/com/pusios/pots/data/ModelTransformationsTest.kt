@@ -2,6 +2,7 @@ package com.pusios.pots.data
 
 import com.pusios.pots.network.dtos.anthropic.AnthropicModelsResponseDto
 import com.pusios.pots.network.dtos.gemini.GeminiModelsResponseDto
+import com.pusios.pots.network.dtos.llmrouter.LlmRouterPricingResponseDto
 import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleModelResponseDto
 import com.pusios.pots.ui.settings.SettingsModel
 import kotlin.test.Test
@@ -15,6 +16,34 @@ class ModelTransformationsTest {
     // --- Anthropic ---
 
     // --- OpenAI-Compatible ---
+
+    @Test
+    fun `mapOpenAICompatibleModels attaches LLM Router per-million prices by model id`() {
+        val models = listOf(
+            OpenAICompatibleModelResponseDto.Model(id = "gpt-6-luna"),
+            OpenAICompatibleModelResponseDto.Model(id = "no-price-model"),
+        )
+        val pricing = listOf(
+            LlmRouterPricingResponseDto.Entry(
+                id = "gpt-6-luna",
+                modality = "text",
+                prices = listOf(
+                    LlmRouterPricingResponseDto.Price(op = "input", unit = "1m_tokens", usd = 0.04),
+                    LlmRouterPricingResponseDto.Price(op = "output", unit = "1m_tokens", usd = 0.2),
+                    LlmRouterPricingResponseDto.Price(op = "cache_read", unit = "1m_tokens", usd = 0.01),
+                ),
+            ),
+        )
+        val result = mapOpenAICompatibleModels(models, Service.LlmRouter, selectedModelId = "", pricing = pricing)
+        val priced = result.first { it.id == "gpt-6-luna" }
+        assertEquals(0.04, priced.pricePerMillion)
+        assertEquals(0.2, priced.outputPricePerMillion)
+        assertEquals(0.01, priced.cachePricePerMillion)
+        val unpriced = result.first { it.id == "no-price-model" }
+        assertNull(unpriced.pricePerMillion)
+        assertNull(unpriced.outputPricePerMillion)
+        assertNull(unpriced.cachePricePerMillion)
+    }
 
     @Test
     fun `mapOpenAICompatibleModels non-strict active filtering keeps true and null`() {

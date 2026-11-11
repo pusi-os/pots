@@ -18,6 +18,7 @@ import com.pusios.pots.network.dtos.gemini.GeminiChatResponseDto
 import com.pusios.pots.network.dtos.gemini.GeminiModelsResponseDto
 import com.pusios.pots.network.dtos.gemini.GeminiTool
 import com.pusios.pots.network.dtos.gemini.PropertySchema
+import com.pusios.pots.network.dtos.llmrouter.LlmRouterPricingResponseDto
 import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleChatRequestDto
 import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleChatResponseDto
 import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleModelResponseDto
@@ -300,6 +301,15 @@ class Requests {
             }
         } else {
             handleOpenAICompatibleError(service, credentials, response)
+        }
+    }
+
+    suspend fun getLlmRouterPricing(): Result<LlmRouterPricingResponseDto> = openAICompatibleResult {
+        val response: HttpResponse = defaultClient.get("https://llm-router.org/v1/pricing")
+        if (response.status.isSuccess()) {
+            Result.success(response.body())
+        } else {
+            Result.failure(OpenAICompatibleGenericException("LLM Router pricing unavailable: ${response.status}"))
         }
     }
 
