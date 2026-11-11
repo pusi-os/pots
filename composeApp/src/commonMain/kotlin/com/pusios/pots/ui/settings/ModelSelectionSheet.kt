@@ -363,8 +363,11 @@ private fun PriceChip(icon: DrawableResource, pricePerMillion: Double?, tint: Co
 }
 
 private fun formatPricePerMillion(price: Double): String {
-    val text = if (price >= 1) "%.2f".format(price) else "%.3f".format(price)
-    return text.trimEnd('0').trimEnd('.')
+    val factor = if (price >= 1) 100L else 1000L
+    val scaled = (price * factor + 0.5).toLong()
+    val whole = scaled / factor
+    val fraction = (scaled % factor).toString().padStart(factor.toString().length - 1, '0')
+    return "$whole.$fraction".trimEnd('0').trimEnd('.')
 }
 
 private fun arenaScoreColor(score: Int): Color = when {

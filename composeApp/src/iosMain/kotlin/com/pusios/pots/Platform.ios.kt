@@ -288,3 +288,34 @@ actual fun moveAppStorageFolder(fromRelativePath: String, toRelativePath: String
 } catch (_: Throwable) {
     false
 }
+
+@OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+actual suspend fun compressImageToJpeg(bytes: ByteArray, maxDim: Int, quality: Int): ByteArray? = try {
+    val nsData = bytes.usePinned { pinned -> NSData.dataWithBytes(pinned.addressOf(0), bytes.size.toULong()) }
+    val image = platform.UIKit.UIImage(data = nsData)
+    val width = image.size.useContents { width }
+    val height = image.size.useContents { height }
+    val scale = minOf(1.0, maxDim.toDouble() / maxOf(width, height))
+    val newWidth = width * scale
+    val newHeight = height * scale
+    val newSize = kotlinx.cinterop.cValue<platform.CoreGraphics.CGSize> {
+        this.width = newWidth
+        this.height = newHeight
+    }
+    platform.UIKit.UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+    image.drawInRect(
+        kotlinx.cinterop.cValue<platform.CoreGraphics.CGRect> {
+            origin.x = 0.0
+            origin.y = 0.0
+            size.width = newWidth
+            size.height = newHeight
+        },
+    )
+    val resized = platform.UIKit.UIGraphicsGetImageFromCurrentImageContext()
+    platform.UIKit.UIGraphicsEndImageContext()
+    platform.UIKit.UIImageJPEGRepresentation(resized ?: image, quality / 100.0)?.toByteArray()
+} catch (_: Exception) {
+    null
+}
+
+actual val isImageCompressionSupported: Boolean = true

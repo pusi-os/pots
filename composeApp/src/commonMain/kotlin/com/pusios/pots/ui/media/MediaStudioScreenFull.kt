@@ -41,6 +41,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.pusios.pots.isImageCompressionSupported
 import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.MediaParamDef
@@ -90,11 +91,21 @@ fun MediaStudioScreenFull(
     LaunchedEffect(error) {
         val studioError = error ?: return@LaunchedEffect
         viewModel.dismissError()
+        val compressIndex = studioError.oversizedReferenceIndex?.takeIf { isImageCompressionSupported }
         val result = snackbarHostState.showSnackbar(
             message = studioError.message,
-            actionLabel = if (studioError.isKeyProblem) "Настройки" else null,
+            actionLabel = when {
+                compressIndex != null -> "Сжать"
+                studioError.isKeyProblem -> "Настройки"
+                else -> null
+            },
         )
-        if (result == SnackbarResult.ActionPerformed) onOpenSettings()
+        if (result != SnackbarResult.ActionPerformed) return@LaunchedEffect
+        if (compressIndex != null) {
+            viewModel.compressReference(compressIndex)
+        } else if (studioError.isKeyProblem) {
+            onOpenSettings()
+        }
     }
 
     var prompt by remember { mutableStateOf("") }

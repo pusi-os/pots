@@ -364,9 +364,6 @@ class PlusVibeMediaProvider(
     }
 
     companion object {
-        /** Inline base64 references are capped at 8 MB; larger files are rejected with a clear error. */
-        const val MAX_INLINE_REFERENCE_BYTES: Long = 8L * 1024 * 1024
-
         private val IMAGE_REFERENCE_KEYS = setOf(
             "image_url", "image_base64", "image_file_id", "image_urls", "input_urls", "input_base64",
             "reference_image", "reference_image_urls", "reference_image_base64", "reference_image_file_id",

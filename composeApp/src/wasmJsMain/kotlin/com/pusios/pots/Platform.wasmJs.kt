@@ -181,3 +181,7 @@ actual fun moveAppStorageFolder(fromRelativePath: String, toRelativePath: String
 } catch (_: Exception) {
     false
 }
+
+actual suspend fun compressImageToJpeg(bytes: ByteArray, maxDim: Int, quality: Int): ByteArray? = null
+
+actual val isImageCompressionSupported: Boolean = false

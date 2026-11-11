@@ -457,3 +457,18 @@ actual fun moveAppStorageFolder(fromRelativePath: String, toRelativePath: String
 } catch (_: Exception) {
     false
 }
+
+actual suspend fun compressImageToJpeg(bytes: ByteArray, maxDim: Int, quality: Int): ByteArray? = try {
+    val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    val scale = minOf(1f, maxDim.toFloat() / maxOf(bitmap.width, bitmap.height))
+    val scaled = if (scale < 1f) bitmap.scale((bitmap.width * scale).toInt().coerceAtLeast(1), (bitmap.height * scale).toInt().coerceAtLeast(1)) else bitmap
+    val out = java.io.ByteArrayOutputStream()
+    scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
+    if (scaled !== bitmap) scaled.recycle()
+    bitmap.recycle()
+    out.toByteArray()
+} catch (_: Exception) {
+    null
+}
+
+actual val isImageCompressionSupported: Boolean = true

@@ -316,3 +316,31 @@ actual fun moveAppStorageFolder(fromRelativePath: String, toRelativePath: String
 } catch (_: Exception) {
     false
 }
+
+actual suspend fun compressImageToJpeg(bytes: ByteArray, maxDim: Int, quality: Int): ByteArray? = try {
+    val image = javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(bytes)) ?: return null
+    val scale = minOf(1.0, maxDim.toDouble() / maxOf(image.width, image.height))
+    val width = (image.width * scale).toInt().coerceAtLeast(1)
+    val height = (image.height * scale).toInt().coerceAtLeast(1)
+    val rgb = java.awt.image.BufferedImage(width, height, java.awt.image.BufferedImage.TYPE_INT_RGB)
+    val g2d = rgb.createGraphics()
+    g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+    g2d.drawImage(image, 0, 0, width, height, null)
+    g2d.dispose()
+    val writer = javax.imageio.ImageIO.getImageWritersByFormatName("jpg").next()
+    val param = writer.defaultWriteParam.apply {
+        compressionMode = javax.imageio.ImageWriteParam.MODE_EXPLICIT
+        compressionQuality = quality / 100f
+    }
+    val out = java.io.ByteArrayOutputStream()
+    javax.imageio.stream.MemoryCacheImageOutputStream(out).use { stream ->
+        writer.output = stream
+        writer.write(null, javax.imageio.IIOImage(rgb, null, null), param)
+    }
+    writer.dispose()
+    out.toByteArray()
+} catch (_: Exception) {
+    null
+}
+
+actual val isImageCompressionSupported: Boolean = true

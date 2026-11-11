@@ -96,6 +96,15 @@ expect val isSplinterlandsSupported: Boolean
 
 expect suspend fun compressImageBytes(bytes: ByteArray, mimeType: String): ByteArray
 
+/**
+ * Re-encodes [bytes] as JPEG with the longest side capped at [maxDim] and the given [quality].
+ * Returns null when the platform has no decoder or the input is not a readable image.
+ */
+expect suspend fun compressImageToJpeg(bytes: ByteArray, maxDim: Int, quality: Int): ByteArray?
+
+/** False where [compressImageToJpeg] cannot decode images, so the UI hides the compress action. */
+expect val isImageCompressionSupported: Boolean
+
 expect fun openUrl(url: String): Boolean
 
 @androidx.compose.runtime.Composable

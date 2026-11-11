@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.data.AppSettings
+import com.pusios.pots.media.MAX_INLINE_REFERENCE_BYTES
 import com.pusios.pots.media.MediaException
 import com.pusios.pots.media.MediaGenerationRepository
 import com.pusios.pots.media.MediaJobRequest
@@ -14,6 +15,7 @@ import com.pusios.pots.media.MediaLog
 import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.PlusVibeMediaProvider
+import com.pusios.pots.media.compressReferenceToLimit
 import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
 import com.pusios.pots.media.setInstanceMediaImageModelId
@@ -21,20 +23,28 @@ import com.pusios.pots.media.setInstanceMediaVideoModelId
 import com.pusios.pots.media.userMessageRu
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.saveFileToDevice
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-/** Error shown in the studio snackbar; [isKeyProblem] offers a settings shortcut. */
+/**
+ * Error shown in the studio snackbar. [isKeyProblem] offers a settings shortcut;
+ * [oversizedReferenceIndex] offers compressing that reference in place.
+ */
 @Immutable
 data class MediaStudioError(
     val message: String,
     val isKeyProblem: Boolean = false,
+    val oversizedReferenceIndex: Int? = null,
 )
+
+private data class PendingGeneration(val prompt: String, val opts: Map<String, String>, val kind: MediaKind)
 
 @OptIn(ExperimentalUuidApi::class)
 class MediaStudioViewModel(
@@ -55,6 +65,8 @@ class MediaStudioViewModel(
 
     private val _jobs = MutableStateFlow<Map<String, MediaJobState>>(emptyMap())
     val jobs: StateFlow<Map<String, MediaJobState>> = _jobs.asStateFlow()
+
+    private var pendingGeneration: PendingGeneration? = null
 
     private val _error = MutableStateFlow<MediaStudioError?>(null)
     val error: StateFlow<MediaStudioError?> = _error.asStateFlow()
@@ -139,14 +151,57 @@ class MediaStudioViewModel(
             return
         }
         val references = _references.value
+        pendingGeneration = PendingGeneration(prompt, opts, kind)
         MediaLog.i("Generate: kind=$kind model=${model.id} opts=${opts.keys} refs=${references.size}")
         viewModelScope.launch {
+            val oversized = withContext(Dispatchers.Default) { oversizedReferenceIndex(references) }
+            if (oversized != null) {
+                MediaLog.w("Reference ${oversized + 1} exceeds $MAX_INLINE_REFERENCE_BYTES bytes")
+                _error.value = MediaStudioError(
+                    "Референс ${oversized + 1} больше 8 МБ — сожми его, чтобы отправить",
+                    oversizedReferenceIndex = oversized,
+                )
+                return@launch
+            }
             runCatching {
                 repository.generate(
                     key,
                     MediaJobRequest(model = model.id, prompt = prompt, opts = opts, references = references),
                 ) { _jobs.update { m -> m + (it.jobId to it) } }
             }.onFailure { showError("Генерация не запустилась", it) }
+        }
+    }
+
+    private fun oversizedReferenceIndex(references: List<MediaReference>): Int? = references.indexOfFirst { ref ->
+        val path = ref.localPath
+        ref.url == null && ref.base64DataUri == null && !ref.isVideo && path != null &&
+            (readAppStorageBytes(path)?.size?.toLong() ?: 0L) > MAX_INLINE_REFERENCE_BYTES
+    }.takeIf { it >= 0 }
+
+    /**
+     * Re-encodes the reference at [index] under the size limit, stores it as a new JPEG,
+     * and repeats the last generation so the user does not have to retype the prompt.
+     */
+    fun compressReference(index: Int) {
+        val path = _references.value.getOrNull(index)?.localPath ?: return
+        viewModelScope.launch {
+            val source = withContext(Dispatchers.Default) { readAppStorageBytes(path) }
+            val compressed = source?.let { withContext(Dispatchers.Default) { compressReferenceToLimit(it) } }
+            if (source == null || compressed == null) {
+                MediaLog.w("Reference ${index + 1} compression failed")
+                _error.value = MediaStudioError("Не удалось сжать референс до 8 МБ — выбери файл поменьше")
+                return@launch
+            }
+            val newPath = "media/refs/${Uuid.random()}.jpg"
+            if (!com.pusios.pots.writeAppStorageBytes(newPath, compressed)) {
+                _error.value = MediaStudioError("Не удалось сохранить сжатый референс")
+                return@launch
+            }
+            _references.update { list ->
+                list.mapIndexed { i, ref -> if (i == index) ref.copy(localPath = newPath) else ref }
+            }
+            MediaLog.i("Reference ${index + 1} compressed: ${source.size} -> ${compressed.size} bytes")
+            pendingGeneration?.let { generate(it.prompt, it.opts, it.kind) }
         }
     }
 
