@@ -21,6 +21,7 @@ import pots.composeapp.generated.resources.ic_service_gptunnel
 import pots.composeapp.generated.resources.ic_service_groqcloud
 import pots.composeapp.generated.resources.ic_service_huggingface
 import pots.composeapp.generated.resources.ic_service_litert
+import pots.composeapp.generated.resources.ic_service_llm_router
 import pots.composeapp.generated.resources.ic_service_longcat
 import pots.composeapp.generated.resources.ic_service_minimax
 import pots.composeapp.generated.resources.ic_service_mistral
@@ -278,6 +279,20 @@ sealed class Service(
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
 
+    data object LlmRouter : Service(
+        id = "llm-router",
+        displayName = "LLM Router",
+        icon = Res.drawable.ic_service_llm_router,
+        requiresApiKey = true,
+        defaultModel = null,
+        settingsKeyPrefix = "llm-router",
+        chatUrl = "https://llm-router.org/v1/chat/completions",
+        modelsUrl = "https://llm-router.org/v1/models",
+        apiKeyUrl = "https://llm-router.org?ref=kxknsvt9",
+        apiKeyUrlDisplay = "llm-router.org",
+        reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
+    )
+
     data object OpenAICompatible : Service(
         id = "openai-compatible",
         displayName = "OpenAI-Compatible API",
@@ -313,6 +328,7 @@ sealed class Service(
             Prosvetim,
             PlusVibe,
             PlusVibeReserve,
+            LlmRouter,
             OpenAICompatible,
             LiteRT,
         )

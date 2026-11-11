@@ -19,6 +19,7 @@ class ServiceCatalogTest {
                 "prosvetim",
                 "plusvibe",
                 "plusvibe-reserve",
+                "llm-router",
                 "openai-compatible",
                 "litert",
             ),
@@ -53,6 +54,7 @@ class ServiceCatalogTest {
         assertEquals(ApiKeyAuthStyle.BEARER, Service.Prosvetim.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.PlusVibe.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.PlusVibeReserve.apiKeyAuthStyle)
+        assertEquals(ApiKeyAuthStyle.BEARER, Service.LlmRouter.apiKeyAuthStyle)
     }
 
     @Test
@@ -65,7 +67,7 @@ class ServiceCatalogTest {
 
     @Test
     fun `added gateways have chat models and key pages`() {
-        for (service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim, Service.PlusVibe, Service.PlusVibeReserve)) {
+        for (service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter)) {
             assertFalse(service.isFreeTier, service.id)
             assertTrue(service.requiresApiKey, service.id)
             assertTrue(service.chatUrl.startsWith("https://"), service.id)
