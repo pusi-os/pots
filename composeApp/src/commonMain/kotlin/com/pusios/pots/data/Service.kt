@@ -35,7 +35,6 @@ import pots.composeapp.generated.resources.ic_service_openrouter
 import pots.composeapp.generated.resources.ic_service_perplexity
 import pots.composeapp.generated.resources.ic_service_plusvibe
 import pots.composeapp.generated.resources.ic_service_polza
-import pots.composeapp.generated.resources.ic_service_prosvetim
 import pots.composeapp.generated.resources.ic_service_publicai
 import pots.composeapp.generated.resources.ic_service_requesty
 import pots.composeapp.generated.resources.ic_service_together
@@ -232,25 +231,6 @@ sealed class Service(
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
 
-    /**
-     * Prosvetim: the same OpenAI-compatible endpoint family as the Trial Smart
-     * free tier (`omni.prosvetim.ru`), but with the user's own API key so the
-     * model list comes from their account instead of the single `pots4free`.
-     */
-    data object Prosvetim : Service(
-        id = "prosvetim",
-        displayName = "Prosvetim",
-        icon = Res.drawable.ic_service_prosvetim,
-        requiresApiKey = true,
-        defaultModel = null,
-        settingsKeyPrefix = "prosvetim",
-        chatUrl = "https://omni.prosvetim.ru/v1/chat/completions",
-        modelsUrl = "https://omni.prosvetim.ru/v1/models",
-        apiKeyUrl = "https://prosvetim.ru",
-        apiKeyUrlDisplay = "prosvetim.ru",
-        reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
-    )
-
     data object PlusVibe : Service(
         id = "plusvibe",
         displayName = "PlusVibeAPI",
@@ -325,7 +305,6 @@ sealed class Service(
             Polza,
             Gptunnel,
             AiTunnel,
-            Prosvetim,
             PlusVibe,
             PlusVibeReserve,
             LlmRouter,

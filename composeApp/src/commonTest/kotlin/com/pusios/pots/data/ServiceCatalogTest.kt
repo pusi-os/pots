@@ -16,7 +16,6 @@ class ServiceCatalogTest {
                 "polza",
                 "gptunnel",
                 "aitunnel",
-                "prosvetim",
                 "plusvibe",
                 "plusvibe-reserve",
                 "llm-router",
@@ -51,7 +50,6 @@ class ServiceCatalogTest {
         assertEquals(ApiKeyAuthStyle.RAW, Service.Gptunnel.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.Polza.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.AiTunnel.apiKeyAuthStyle)
-        assertEquals(ApiKeyAuthStyle.BEARER, Service.Prosvetim.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.PlusVibe.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.PlusVibeReserve.apiKeyAuthStyle)
         assertEquals(ApiKeyAuthStyle.BEARER, Service.LlmRouter.apiKeyAuthStyle)
@@ -67,7 +65,7 @@ class ServiceCatalogTest {
 
     @Test
     fun `added gateways have chat models and key pages`() {
-        for (service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter)) {
+        for (service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter)) {
             assertFalse(service.isFreeTier, service.id)
             assertTrue(service.requiresApiKey, service.id)
             assertTrue(service.chatUrl.startsWith("https://"), service.id)

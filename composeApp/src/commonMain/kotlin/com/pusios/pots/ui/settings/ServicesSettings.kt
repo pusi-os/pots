@@ -693,14 +693,13 @@ private fun ServiceSettings(
 
     Spacer(Modifier.height(8.dp))
 
-    val isReferralProvider = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter)
+    val isReferralProvider = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter)
     if (isReferralProvider) {
         val uriHandler = LocalUriHandler.current
         val instruction = when (service) {
             Service.Polza -> "Polza.ai → Вход/Регистрация → API-Ключи → Создать и скопировать ключ → Вставить здесь"
             Service.Gptunnel -> "GPTunnel → Вход/Регистрация → Профиль → API-Ключи → Создать и скопировать ключ → Вставить здесь"
             Service.AiTunnel -> "AITUNNEL → Вход/Регистрация → Ключи API → Создать и скопировать ключ → Вставить здесь"
-            Service.Prosvetim -> "Prosvetim → Личный кабинет → API-Ключи → Создать и скопировать ключ → Вставить здесь"
             Service.PlusVibe, Service.PlusVibeReserve -> "PlusVibeAPI → Личный кабинет → API-Ключи → Создать и скопировать ключ → Вставить здесь"
             Service.LlmRouter -> "LLM Router → Регистрация → API-ключ → Создать и скопировать ключ → Вставить здесь"
             else -> ""
@@ -744,7 +743,7 @@ private fun ServiceSettings(
     Spacer(Modifier.height(16.dp))
 
     if (connectionStatus == ConnectionStatus.Connected || models.isNotEmpty()) {
-        ModelSelection(selectedModel, models, onSelectModel, showExtendedSorts = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.Prosvetim, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter))
+        ModelSelection(selectedModel, models, onSelectModel, showExtendedSorts = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter))
     }
 }
 
