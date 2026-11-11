@@ -1,6 +1,6 @@
 # Tools
 
-**Last verified:** 2026-11-10
+**Last verified:** 2026-11-11
 
 Pots's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -38,7 +38,7 @@ An argument explicitly sent as JSON `null` is treated as not provided, so the to
 | `open_url` | Open a URL, link, or local file on the device | Enabled |
 | `potsik` | Control Потсик, the character on the chat screen: list his animations, play one, move him, resize him. Off by default. See [potsiki.md](potsiki.md) | Disabled |
 | `fetch_url` | Fetch an http(s) URL and return the response body to the agent (GET, POST, HEAD). Blocks loopback, private, link-local and CGNAT addresses (including IPv4-mapped IPv6 and numeric shorthands like `2130706433`), checked again on every redirect hop (GET/HEAD follow up to 5 redirects; POST never redirects). Hostnames that only resolve to private addresses are not detected. Reads at most 512 KB of the body, which is then subject to the global 20K tool-result truncation. Used for reading pages and acting on links from emails (e.g. RFC 8058 one-click unsubscribe). | Enabled |
-| `generate_image` | Start an async image generation with the configured media provider (PlusVibeAPI first). Returns `jobId` for polling. Uses the image model chosen in Settings → Services → Media. See [media-studio.md](media-studio.md) | Enabled |
+| `generate_image` | Start an async image generation with the configured media provider (PlusVibeAPI first). Returns `jobId` for polling. Uses the image model chosen in Settings → Services → Media. Pass `reference_image` (`"attachment"` for the photo the user attached in this chat, a public `https://` URL, or an app-storage path) to edit an existing image; a reference-capable model is picked automatically. See [media-studio.md](media-studio.md) | Enabled |
 | `generate_video` | Start an async video generation with the configured media provider. Returns `jobId` for polling. Uses the video model chosen in Settings → Services → Media | Enabled |
 | `list_media_models` | List image/video models with prices (`fromRub`, per-variant `priceRub`) from the public provider catalog | Enabled |
 | `enhance_prompt` | Expand a short prompt into a detailed generation prompt | Enabled |
