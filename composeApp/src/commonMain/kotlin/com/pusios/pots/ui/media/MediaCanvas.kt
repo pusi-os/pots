@@ -216,7 +216,7 @@ private fun CanvasElementView(
             MediaVideoPlayer(url = url ?: local ?: "", autoplay = false, fullControls = true, modifier = Modifier.fillMaxSize())
         } else {
             AsyncImage(
-                model = url ?: local,
+                model = rememberImageModel(url ?: local),
                 contentDescription = "Изображение на канвасе",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,

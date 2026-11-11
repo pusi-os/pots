@@ -25,8 +25,9 @@ import com.pusios.pots.network.tools.ToolSchema
  *
  * `generate_image` accepts a `reference_image` for edit / image-to-image:
  * the literal `attachment` (the photo the user attached to the current chat
- * message), a public `https://` URL, or an app-storage path. When the chosen
- * model cannot take a reference, the first catalog model that can is used.
+ * message), a public `https://` URL, or an app-storage path. The model the user
+ * selected is always kept; if it cannot take a reference the call fails with a
+ * clear error instead of switching models.
  */
 object MediaTools {
 
@@ -124,38 +125,23 @@ object MediaTools {
             }
             val modelArg = (args["model"] as? String).orEmpty()
             val savedModel = modelArg.ifBlank { appSettings.getInstanceMediaImageModelId(instanceId()) }
-            val model = if (reference != null) {
-                // The chosen model must accept a source image; otherwise pick one that does.
-                val catalog = runCatching { provider.listModels(key) }.getOrNull().orEmpty()
-                val chosen = catalog.firstOrNull { it.id == savedModel }
-                when {
-                    chosen?.acceptsImageReference == true -> chosen.id
-
-                    else -> {
-                        val editing = catalog.firstOrNull { it.kind == MediaKind.Image && it.acceptsImageReference }
-                        if (editing != null) {
-                            MediaLog.i("generate_image: switched to reference-capable model ${editing.id} (was '${savedModel.ifBlank { "none" }}')")
-                            editing.id
-                        } else if (chosen != null) {
-                            chosen.id
-                        } else if (savedModel.isNotBlank()) {
-                            savedModel
-                        } else {
-                            return mapOf(
-                                "success" to false,
-                                "error" to "No image model selected. Set one in Settings -> Services -> Media, or pass model.",
-                            )
-                        }
-                    }
-                }
-            } else {
-                savedModel
-            }
+            val model = savedModel
             if (model.isBlank()) {
                 return mapOf(
                     "success" to false,
                     "error" to "No image model selected. Set one in Settings -> Services -> Media, or pass model.",
                 )
+            }
+            if (reference != null) {
+                val catalog = runCatching { provider.listModels(key) }.getOrNull().orEmpty()
+                val chosen = catalog.firstOrNull { it.id == model }
+                if (chosen != null && !chosen.acceptsImageReference) {
+                    MediaLog.w("generate_image: model $model does not accept a reference image")
+                    return mapOf(
+                        "success" to false,
+                        "error" to "Model $model does not accept a reference image. Ask the user to pick a reference-capable model in the Media studio, or omit reference_image.",
+                    )
+                }
             }
             val opts = mutableMapOf<String, String>()
             (args["aspect_ratio"] as? String)?.let { opts["aspect_ratio"] = it }

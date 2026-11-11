@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
@@ -31,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +71,7 @@ internal fun MediaDock(
     paramDefs: List<MediaParamDef>,
     paramValues: Map<String, String>,
     onParamSelect: (String, String) -> Unit,
+    onEnhancePrompt: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -77,38 +81,47 @@ internal fun MediaDock(
         tonalElevation = 8.dp,
         shadowElevation = 6.dp,
     ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            DockIconButton(
-                icon = if (speechEnabled) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
-                contentDescription = if (speechEnabled) "Озвучка включена" else "Озвучка выключена",
-                active = speechEnabled,
-                onClick = onToggleSpeech,
-            )
-            Spacer(Modifier.width(4.dp))
-            OutlinedTextField(
-                value = prompt,
-                onValueChange = onPromptChange,
-                modifier = Modifier.weight(1f).semantics { contentDescription = "Промпт генерации" },
-                placeholder = { Text(if (isVideoMode) "Опиши видео…" else "Опиши изображение…") },
-                singleLine = false,
-                minLines = 1,
-                maxLines = 3,
-                shape = RoundedCornerShape(16.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Surface(
-                onClick = onCreate,
-                modifier = Modifier.size(52.dp).handCursor().semantics { contentDescription = "Создать" },
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Filled.AutoAwesome,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp),
-                    )
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DockIconButton(
+                    icon = if (speechEnabled) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                    contentDescription = if (speechEnabled) "Озвучка включена" else "Озвучка выключена",
+                    active = speechEnabled,
+                    onClick = onToggleSpeech,
+                )
+                Spacer(Modifier.width(4.dp))
+                OutlinedTextField(
+                    value = prompt,
+                    onValueChange = onPromptChange,
+                    modifier = Modifier.weight(1f).semantics { contentDescription = "Промпт генерации" },
+                    placeholder = { Text(if (isVideoMode) "Опиши видео…" else "Опиши изображение…") },
+                    singleLine = false,
+                    minLines = 1,
+                    maxLines = 3,
+                    shape = RoundedCornerShape(16.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Surface(
+                    onClick = onCreate,
+                    modifier = Modifier.size(52.dp).handCursor().semantics { contentDescription = "Создать" },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(start = 40.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onEnhancePrompt, modifier = Modifier.handCursor()) {
+                    Icon(Icons.Filled.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Улучшить промпт", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
@@ -178,7 +191,7 @@ internal fun ReferenceStrip(
         references.forEachIndexed { index, reference ->
             Box(Modifier.size(44.dp)) {
                 AsyncImage(
-                    model = reference.url ?: reference.localPath ?: reference.base64DataUri,
+                    model = rememberImageModel(reference.url ?: reference.localPath ?: reference.base64DataUri),
                     contentDescription = "Референс ${index + 1}",
                     modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
                     contentScale = ContentScale.Crop,

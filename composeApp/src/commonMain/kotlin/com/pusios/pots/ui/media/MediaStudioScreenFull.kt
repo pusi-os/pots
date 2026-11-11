@@ -199,6 +199,9 @@ fun MediaStudioScreenFull(
                     paramDefs = paramDefs,
                     paramValues = params,
                     onParamSelect = { key, value -> params = params + (key to value) },
+                    onEnhancePrompt = {
+                        viewModel.enhancePrompt(prompt) { prompt = it }
+                    },
                 )
             }
         },
@@ -268,6 +271,7 @@ fun MediaStudioScreenFull(
     if (showModelSheet) {
         MediaModelSheet(
             models = models,
+            kind = if (isVideoMode) MediaKind.Video else MediaKind.Image,
             selectedImageModelId = selectedImageModelId,
             selectedVideoModelId = selectedVideoModelId,
             onSelectImage = {
@@ -317,7 +321,7 @@ fun MediaLightbox(url: String, isVideo: Boolean, onDismiss: () -> Unit, onSave: 
                 },
             ) {
                 AsyncImage(
-                    model = url,
+                    model = rememberImageModel(url),
                     contentDescription = "Изображение (зум)",
                     modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale),
                     contentScale = ContentScale.Fit,

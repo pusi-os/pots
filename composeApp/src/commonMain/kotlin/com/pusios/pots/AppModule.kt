@@ -207,6 +207,7 @@ val appModule = module {
                 get<AppSettings>().resolveMediaInstance()?.instanceId.orEmpty()
             },
             repository = get(),
+            enhancer = { text -> get<DataRepository>().askSilently(text) },
         )
     }
 }

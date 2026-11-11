@@ -37,6 +37,7 @@ import com.pusios.pots.ui.handCursor
 @Composable
 internal fun MediaModelSheet(
     models: List<MediaModel>,
+    kind: MediaKind,
     selectedImageModelId: String,
     selectedVideoModelId: String,
     onSelectImage: (String) -> Unit,
@@ -48,7 +49,7 @@ internal fun MediaModelSheet(
             val imageModels = models.filter { it.kind == MediaKind.Image }
             val videoModels = models.filter { it.kind == MediaKind.Video }
 
-            if (imageModels.isNotEmpty()) {
+            if (kind == MediaKind.Image && imageModels.isNotEmpty()) {
                 Text("Изображения", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.height(8.dp))
                 imageModels.forEach { model ->
@@ -64,8 +65,7 @@ internal fun MediaModelSheet(
                 }
             }
 
-            if (videoModels.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
+            if (kind == MediaKind.Video && videoModels.isNotEmpty()) {
                 Text("Видео", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.height(8.dp))
                 videoModels.forEach { model ->
@@ -81,7 +81,7 @@ internal fun MediaModelSheet(
                 }
             }
 
-            if (models.isEmpty()) {
+            if (models.none { it.kind == kind }) {
                 Text(
                     "Каталог пуст — обнови его в настройках сервисов или проверь сеть",
                     style = MaterialTheme.typography.bodyMedium,

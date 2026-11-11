@@ -15,6 +15,7 @@ import com.pusios.pots.media.MediaLog
 import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.PlusVibeMediaProvider
+import com.pusios.pots.media.PromptEnhancer
 import com.pusios.pots.media.compressReferenceToLimit
 import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
@@ -52,6 +53,7 @@ class MediaStudioViewModel(
     private val apiKeyProvider: () -> String,
     private val instanceIdProvider: () -> String,
     private val repository: MediaGenerationRepository,
+    private val enhancer: suspend (String) -> String,
 ) : ViewModel() {
 
     private val _elements = MutableStateFlow<List<CanvasElement>>(emptyList())
@@ -129,6 +131,19 @@ class MediaStudioViewModel(
 
     fun generateVideo(prompt: String, opts: Map<String, String> = emptyMap()) {
         generate(prompt, opts, MediaKind.Video)
+    }
+
+    /** Rewrites [prompt] with the active chat model and hands the result back. */
+    fun enhancePrompt(prompt: String, onResult: (String) -> Unit) {
+        if (prompt.isBlank()) return
+        viewModelScope.launch {
+            runCatching { enhancer(PromptEnhancer.buildPrompt(prompt)) }
+                .onSuccess { result ->
+                    PromptEnhancer.clean(result).takeIf { it.isNotBlank() }?.let(onResult)
+                        ?: showError("Не удалось улучшить промпт", IllegalStateException("empty answer"))
+                }
+                .onFailure { showError("Не удалось улучшить промпт", it) }
+        }
     }
 
     private fun generate(prompt: String, opts: Map<String, String>, kind: MediaKind) {
