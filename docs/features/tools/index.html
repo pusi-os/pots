@@ -2148,7 +2148,7 @@
 
 
 <h1 id="tools">Tools</h1>
-<p><strong>Last verified:</strong> 2026-11-10</p>
+<p><strong>Last verified:</strong> 2026-11-11</p>
 <p>Pots's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="tool">Tool</h3>
@@ -2204,7 +2204,7 @@
 </tr>
 <tr>
 <td><code>generate_image</code></td>
-<td>Start an async image generation with the configured media provider (PlusVibeAPI first). Returns <code>jobId</code> for polling. Uses the image model chosen in Settings → Services → Media. See <a href="../media-studio/">media-studio.md</a></td>
+<td>Start an async image generation with the configured media provider (PlusVibeAPI first). Returns <code>jobId</code> for polling. Uses the image model chosen in Settings → Services → Media. Pass <code>reference_image</code> (<code>"attachment"</code> for the photo the user attached in this chat, a public <code>https://</code> URL, or an app-storage path) to edit an existing image; a reference-capable model is picked automatically. See <a href="../media-studio/">media-studio.md</a></td>
 <td>Enabled</td>
 </tr>
 <tr>

@@ -1,0 +1,1741 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Pots - AI Assistant App">
+      
+      
+      
+        <link rel="canonical" href="https://pusi-os.github.io/pots/docs/plans/2026-11-11-media-studio-ux-rework/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Media Studio: UX/UI rework, references, diagnostics — 2026-11-11 - Pots Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#media-studio-uxui-rework-references-diagnostics-2026-11-11" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Pots Documentation" class="md-header__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pots Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Media Studio: UX/UI rework, references, diagnostics — 2026-11-11
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Pots Documentation" class="md-nav__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pots Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat & Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/hands-free/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hands-Free Voice Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/multi-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/dynamic-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/mini-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/mini-app-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-app server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/memories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/heartbeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/encryption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encryption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/on-device-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    On-Device Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasoning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/system-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/pots-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pots Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/sms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/potsiki/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/settings-export-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings Export & Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/splinterlands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splinterlands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../desktop-release-smoketest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop Release Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Запрос пользователя (5 пунктов)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Диагностика (уже выполнена)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Диагностика (уже выполнена)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Логи телефона
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Отказ агента с фото
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Дефекты UI (найдены чтением кода)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#-1-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Дизайн-спека (пункты 1 и 5)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Дизайн-спека (пункты 1 и 5)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Верхняя панель студии (иконки слева направо)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Нижняя панель (над системным краем)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Канвас
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Выбор моделей
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Параметры генерации
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ошибки
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Фазы
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Фазы">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#p0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P0 — корректность (до любых перерисовок)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p1-2-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1 — референсы (пункты 2 и 3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p2-1-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P2 — редизайн (пункты 1 и 5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P3 — проверка (обязательно для «готово»)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#definition-of-done" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Definition of done
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Замечания визуальной проверки
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="media-studio-uxui-rework-references-diagnostics-2026-11-11">Media Studio: UX/UI rework, references, diagnostics — 2026-11-11</h1>
+<p>Статус: <strong>план готов к исполнению</strong>. Сессия переключается на модель со зрением;
+начинать с фазы P0 по порядку. Все пути — от корня <code>apps/pots</code>.</p>
+<p>Телефон для проверки: Nothing Phone A142 (Pacman), Android 16 (SDK 36), arm64-v8a.
+Беспроводной adb сопряжён: <code>adb connect 192.168.1.210:44055</code>. На телефоне уже
+стоит <code>com.pusios.pots</code> 3.11.3 (200), подписанный FOSS-ключом, в профиле
+пользователя 0. Ставить новые сборки можно поверх (подпись одна).</p>
+<h2 id="5">Запрос пользователя (5 пунктов)</h2>
+<ol>
+<li>Изучить и улучшить UX/UI раздела медиа; исправить цвета текста и выбора моделей.</li>
+<li>Проверить логи на телефоне: не создаётся изображение «с нуля»; агент отказывается
+   улучшать фото пользователя и делать его «возле фонтана в Дубае».</li>
+<li>Добавить референс для генерации изображения.</li>
+<li>Убрать второе поле ввода внизу (которое отправляет в чат, а не на генерацию),
+   когда включён режим медиа.</li>
+<li>Полнофункциональный современный канвас в трендовом дизайне; все кнопки
+   (сверху: Чат, Медиа, Импорт, Модели; снизу: озвучка, спросить агента) —
+   небольшие стилизованные векторные кнопки <strong>без текста</strong>, компактно и гармонично.</li>
+</ol>
+<h2 id="_1">Диагностика (уже выполнена)</h2>
+<h3 id="_2">Логи телефона</h3>
+<p>Приложение в release-сборке <strong>не пишет ничего</strong> по медиа-операциям
+(<code>grep</code> по logcat: только системные теги; в медиа-слое нет ни одного
+<code>println</code>/логгера — проверено). Буфер не содержит следов генераций.
+Вывод: без добавления логирования причину «не создаётся» дистанционно не
+подтвердить; P0 добавляет логирование и видимые ошибки.</p>
+<p>Гипотезы отказа «с нуля» (по убыванию вероятности):</p>
+<ol>
+<li><strong>Ключ</strong>: <code>AppModule.kt:201-207</code> и <code>AgentToolSet.kt:67-105</code> берут
+   <code>getConfiguredServiceInstances().firstOrNull()</code>. После переустановки
+   (данные стёрты) первый инстанс может быть без ключа → <code>401</code> → тихая
+   красная строка, которую легко не заметить.</li>
+<li><strong>Модель не выбрана</strong> → сообщение «Выбери модель… в настройках сервисов»
+   мелким красным текстом (легко пропустить).</li>
+<li><code>Параметры</code> чипов берутся из <code>models.firstOrNull()</code>
+   (<code>MediaStudioScreenFull.kt:321</code>), а не из выбранной модели — неизвестные
+   opts провайдер молча игнорирует; в <code>strict</code> был бы 422.</li>
+<li>Кнопка «Создать» при пустом промпте молча делает <code>return</code> — без подсказки.</li>
+</ol>
+<h3 id="_3">Отказ агента с фото</h3>
+<p>Это <strong>отсутствие функциональности</strong>, а не сбой:</p>
+<ul>
+<li><code>generate_image</code> принимает только <code>image_url</code> — публичный <code>https</code>
+  (<code>MediaTools.kt:93</code>). Фото из чата — локальный файл, агенту нечего передать.</li>
+<li><code>list_media_models</code> не отдаёт <code>acceptsImageReference</code> — агент не может
+  выбрать модель, умеющую редактировать по фото.</li>
+<li>Студийный пайп референсов шлёт несуществующий ключ <code>input_urls</code>
+  (<code>MediaStudioViewModel.kt:99</code>) — неизвестные параметры игнорируются,
+  референс молча выбрасывается. Для локальных файлов контракт требует
+  <code>*_base64</code> (<code>data:&lt;mime&gt;;base64,…</code>) или Files API (см.
+  <code>docs/knowledge/media-providers/plusvibe.md</code>, раздел «Свои файлы»).</li>
+</ul>
+<h3 id="ui">Дефекты UI (найдены чтением кода)</h3>
+<table>
+<thead>
+<tr>
+<th>Где</th>
+<th>Дефект</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ChatScreen.kt:1456</code></td>
+<td><code>if (!isSandboxOpen) { QuestionInput(...) }</code> — чат-инпут виден и в медиа-режиме (пункт 4)</td>
+</tr>
+<tr>
+<td><code>ChatScreen.kt:1174</code></td>
+<td>Вход в медиа только из <code>EmptyState</code> — при непустом чате студии не добраться</td>
+</tr>
+<tr>
+<td><code>MediaStudioScreenFull.kt:120-127</code></td>
+<td>Верх — текстовые <code>TextButton</code> «Чат/Импорт/Модели»</td>
+</tr>
+<tr>
+<td><code>MediaStudioScreenFull.kt:258-265</code></td>
+<td>Список моделей: нет подсветки выбора, серый текст цены, высота 96.dp без оформления</td>
+</tr>
+<tr>
+<td><code>MediaStudioScreenFull.kt:267-296</code></td>
+<td>Низ: текстовые кнопки, дубль-роль «Спросить агента», текстовый индикатор озвучки</td>
+</tr>
+<tr>
+<td><code>MediaStudioScreenFull.kt:207-230</code></td>
+<td>Контекстное меню: <code>menuOffset</code> не учитывает <code>canvasOffset</code> — при панораме меню уезжает</td>
+</tr>
+<tr>
+<td><code>MediaStudioScreenFull.kt:246</code></td>
+<td>«Сохранить набор» — заглушка <code>saveFileToDevice(ByteArray(0)…)</code></td>
+</tr>
+<tr>
+<td><code>MediaStudioScreenFull.kt:321</code></td>
+<td><code>ParamChips</code> берёт параметры первой модели, не выбранной</td>
+</tr>
+<tr>
+<td><code>MediaStudioScreen.kt</code> (288 строк)</td>
+<td>Мёртвый код — нигде не используется</td>
+</tr>
+<tr>
+<td><code>MediaModelsSettings.kt:104-116</code></td>
+<td>Выбранная строка на <code>primaryContainer</code>, но текст <code>onSurface</code> — нужен <code>onPrimaryContainer</code>; цена без цвета</td>
+</tr>
+<tr>
+<td><code>docs/features/media-studio.md:56-59</code></td>
+<td>Key Files ссылается на несуществующие <code>MediaCanvas.kt</code>, <code>MediaContextMenu.kt</code>, <code>MediaDock.kt</code>; поведение референсов описано, но не реализовано</td>
+</tr>
+</tbody>
+</table>
+<h2 id="-1-5">Дизайн-спека (пункты 1 и 5)</h2>
+<p>Общий стиль: тёмный «холст» с точечной сеткой, стеклянные панели
+(<code>surface</code> с альфой + <code>tonalElevation</code>), скругления 12-16.dp, акцент —
+<code>primary</code>. Все действия — иконки без подписей (доступность:
+<code>contentDescription</code> на русском). <code>material-icons-extended</code> уже в
+зависимостях (<code>composeApp/build.gradle.kts:96</code>); есть и свои
+<code>composeResources/drawable/ic_*.xml</code>. Базовый компонент —
+<code>SmallIconButton</code> (<code>ui/chat/composables/SmallIconButton.kt</code>), 36.dp круг.</p>
+<h3 id="_4">Верхняя панель студии (иконки слева направо)</h3>
+<table>
+<thead>
+<tr>
+<th>Действие</th>
+<th>Иконка</th>
+<th>Куда ведёт</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Чат (выход)</td>
+<td><code>Icons.AutoMirrored.Filled.Chat</code></td>
+<td><code>onExit</code></td>
+</tr>
+<tr>
+<td>Медиа (домой студии)</td>
+<td><code>Icons.Filled.AutoAwesome</code></td>
+<td>сброс/центр канваса</td>
+</tr>
+<tr>
+<td>Импорт</td>
+<td><code>Icons.Filled.AddPhotoAlternate</code></td>
+<td>file picker (есть)</td>
+</tr>
+<tr>
+<td>Модели</td>
+<td><code>Icons.Filled.Tune</code></td>
+<td>bottom-sheet выбора модели</td>
+</tr>
+</tbody>
+</table>
+<p>Панель — компактный <code>Row</code> из <code>SmallIconButton</code> в стеклянной капсуле,
+прижата к верху канваса (оверлей), не занимает отдельную строку.</p>
+<h3 id="_5">Нижняя панель (над системным краем)</h3>
+<table>
+<thead>
+<tr>
+<th>Действие</th>
+<th>Иконка</th>
+<th>Примечание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Озвучка вкл/выкл</td>
+<td><code>VolumeUp</code>/<code>VolumeOff</code></td>
+<td>переключатель, состояние из <code>speechEnabled</code></td>
+</tr>
+<tr>
+<td>Голосовой ввод</td>
+<td><code>Mic</code></td>
+<td>HandsFree-распознаватель, где доступен</td>
+</tr>
+<tr>
+<td>Спросить агента</td>
+<td><code>Icons.AutoMirrored.Filled.Send</code></td>
+<td>шлёт промпт через <code>onAskAgent</code></td>
+</tr>
+<tr>
+<td>Режим (изображение/видео)</td>
+<td><code>Image</code>/<code>Movie</code></td>
+<td>сегмент-переключатель</td>
+</tr>
+<tr>
+<td><strong>Создать</strong></td>
+<td>крупная круглая <code>primary</code>-кнопка <code>Sparkles</code>/<code>ArrowForward</code></td>
+<td>единственный текстовый акцент не нужен</td>
+</tr>
+</tbody>
+</table>
+<p>Поле промпта — одно, в нижней панели, <code>maxLines=3</code>. Второго поля нет.</p>
+<h3 id="_6">Канвас</h3>
+<ul>
+<li>Фон: <code>surface</code> → тонкая точечная сетка (рисуется в <code>Canvas</code>, шаг 24.dp,
+  точки <code>onSurfaceVariant</code> с альфой ~0.15), пан/зум как сейчас.</li>
+<li>Элементы: скругление 12.dp, тень (2-6.dp), у выбранного — рамка <code>primary</code>
+  2.dp + угловые маркеры (drag для resize — на десктопе; на тач — пинч
+  через <code>transformable</code>, уже есть).</li>
+<li>Прогресс генерации: на месте будущего элемента — карточка-скелетон
+  (шиммер + имя модели + таймер), не одинокий спиннер по центру.</li>
+<li>Контекстное меню: скруглённая стеклянная <code>Surface</code> под точкой тапа,
+  строки «иконка + подпись», координаты = <code>element + canvasOffset</code>
+  (исправить баг). Действия: Вперёд/Назад (<code>FlipToFront</code>/<code>FlipToBack</code>),
+  Дублировать (<code>ContentCopy</code>), Референс (<code>Link</code>/<code>Bookmark</code>), В галерею
+  (<code>SaveAlt</code>), Удалить (<code>Delete</code>, красный), Закрыть.</li>
+<li>Пустое состояние: крупная иконка + 2 строки подсказки + стрелка на
+  нижнюю панель.</li>
+</ul>
+<h3 id="_7">Выбор моделей</h3>
+<ul>
+<li>Не <code>LazyColumn 96.dp</code>, а bottom-sheet (<code>ModalBottomSheet</code>): секции
+  «Изображения»/«Видео», строка = имя + цена-бейдж (<code>secondaryContainer</code>)</li>
+<li>отметка выбора; выбранная строка: фон <code>primaryContainer</code>, текст
+  <code>onPrimaryContainer</code> (исправление цвета), справа <code>Check</code>.</li>
+<li>В студии текущая модель показана чипом рядом с кнопкой «Создать»
+  (тап — тот же sheet).</li>
+<li><code>MediaModelsSettings.kt</code>: те же цвета (<code>onPrimaryContainer</code>), бейджи цен.</li>
+</ul>
+<h3 id="_8">Параметры генерации</h3>
+<p><code>FilterChip</code> с <code>selected</code> (сейчас <code>AssistChip</code> без подсветки), параметры
+брать у <strong>выбранной</strong> модели; неизвестные ключи не отправлять.</p>
+<h3 id="_9">Ошибки</h3>
+<p>Не красная строка, а <code>Snackbar</code> + иконка; текст на русском, с действием
+(«Повторить», «Открыть настройки»), если причина — ключ/модель. Ошибка
+полностью логируется (см. логирование).</p>
+<h2 id="_10">Фазы</h2>
+<h3 id="p0">P0 — корректность (до любых перерисовок)</h3>
+<ol>
+<li><strong>Логирование медиа-слоя.</strong> Минимальный <code>expect</code>-механизм: в
+   <code>commonMain</code> объект <code>MediaLog { fun d/i/e(tag, msg, throwable?) }</code>,
+   <code>actual</code> через <code>android.util.Log</code> (androidMain), <code>println</code> с тегом
+   (остальные). Точки: загрузка каталога (число моделей), каждая подача
+   (модель, размер тела, наличие референсов), каждый ответ опроса
+   (статус, цена), каждая ошибка (полный стек). Файлы: новый
+   <code>media/MediaLog.kt</code> + <code>expect/actual</code> по образцу <code>Platform.*</code>;
+   вызовы в <code>PlusVibeMediaProvider</code>, <code>MediaGenerationRepository</code>,
+   <code>MediaStudioViewModel</code>, <code>MediaTools</code>.</li>
+<li><strong>Видимые ошибки.</strong> <code>MediaStudioViewModel.error</code> → <code>Snackbar</code> в студии
+   (хост: <code>MediaStudioScreenFull</code> получает <code>SnackbarHostState</code>), тексты
+   на русском из <code>MediaException</code> (<code>mapError</code> уже маппит коды).
+   Для <code>InvalidKey</code> — действие «Открыть настройки сервисов».</li>
+<li><strong>Убрать второе поле ввода.</strong> <code>ChatScreen.kt:1456</code>:
+   <code>if (!isSandboxOpen)</code> → <code>if (!isSandboxOpen &amp;&amp; !isMediaOpen)</code>.</li>
+<li><strong>Надёжность «с нуля».</strong> В <code>generateImage/generateVideo</code>: если модель
+   в настройках пуста — автоматически брать первую доступную из каталога
+   и сохранять (сейчас только фолбэк в памяти); пустой промпт —
+   подсветить поле и подсказку, не тихий <code>return</code>. В <code>AppModule</code>/
+   <code>AgentToolSet</code> для ключа брать <strong>активный инстанс чата</strong>, а не
+   <code>firstOrNull()</code> (проверить, как его отдаёт <code>AppSettings</code>/<code>ChatViewModel</code>,
+   например выбранный сервис в <code>uiState</code>).</li>
+<li><strong>Баги канваса.</strong> <code>menuOffset</code> += <code>canvasOffset</code>; убрать заглушку
+   «Сохранить набор» (или реализовать: сериализовать список референсов в
+   JSON и сохранить); <code>ParamChips</code> — параметры выбранной модели.</li>
+<li>Удалить мёртвый <code>MediaStudioScreen.kt</code>; починить <code>docs/features/media-studio.md</code>
+   (Key Files, поведение референсов, пункт про вход в студию).</li>
+</ol>
+<h3 id="p1-2-3">P1 — референсы (пункты 2 и 3)</h3>
+<ol>
+<li><strong>Модель данных.</strong> <code>MediaModels.kt</code>: <code>data class MediaReference(val url:
+   String? = null, val base64DataUri: String? = null, val localPath:
+   String? = null, val isVideo: Boolean = false)</code>; поле
+   <code>references: List&lt;MediaReference&gt;</code> в <code>MediaJobRequest</code>.</li>
+<li><strong>Провайдер.</strong> <code>PlusVibeMediaProvider.buildGenerateBody</code>: для каждой
+   ссылки подобрать ключ по каталожным <code>params</code> выбранной модели
+   (пересечение с <code>IMAGE_REFERENCE_KEYS</code>/<code>VIDEO_REFERENCE_KEYS</code>):
+   <code>image_url</code>/<code>reference_image_urls</code> для публичных https, парные
+   <code>*_base64</code> (полный <code>data:&lt;mime&gt;;base64,…</code>) для локальных байтов.
+   Если модель не принимает вход — ошибка
+   <code>MediaException.BadRequest("Модель … не принимает референс")</code> до отправки.
+   Размер: локальный файл &gt; 8 МБ — сначала <code>POST /v1/files</code> (дописать в
+   провайдер) и использовать <code>*_file_id</code> (контракт в <code>plusvibe.md</code>).</li>
+<li><strong>Студия.</strong> Полоска референсов над нижней панелью: миниатюры 40.dp с
+   крестиком удаления; источники — (а) «Как референс» из меню элемента
+   (уже есть, направить в новый тип), (б) кнопка «+» в полоске —
+   файловый пикер (тот же <code>rememberFilePickerLauncher</code>), (в) перетаскивание
+   элемента. При генерации <code>ViewModel</code> кладёт набор в
+   <code>MediaJobRequest.references</code> (удалить <code>input_urls</code>).</li>
+<li><strong>Инструменты агента.</strong> <code>MediaTools.generateImageTool</code>:</li>
+<li>параметр <code>reference_image</code> (путь вложения/канваса или публичный
+     https); локальный путь → читать байты (<code>readAppStorageBytes</code>/
+     <code>PlatformFile</code>) → base64 data-URI;</li>
+<li>авто-выбор модели с <code>acceptsImageReference</code>, если передан референс,
+     а выбранная модель его не принимает (брать из каталога);</li>
+<li><code>list_media_models</code>: добавить <code>acceptsImageReference</code>,
+     <code>acceptsVideoReference</code> в выдачу.</li>
+<li><strong>Системный промпт агента</strong>: в медиа-раздел добавить, что агент умеет
+   генерировать/редактировать изображения и видео по приложенному фото
+   через <code>generate_image(reference_image=…)</code>, и должен использовать
+   вложение пользователя, когда просят «улучшить фото», «сделать меня
+   где-то». (Раздел про инструменты в <code>docs/features/system-prompts.md</code>
+   и соответствующий рантайм-файл — найти по <code>tools.md</code>/<code>AgentToolSet</code>.)</li>
+</ol>
+<h3 id="p2-1-5">P2 — редизайн (пункты 1 и 5)</h3>
+<p>Разбить <code>MediaStudioScreenFull.kt</code> на компоненты (по образцу из
+<code>docs/features/media-studio.md</code>, теперь настоящие):</p>
+<ul>
+<li><code>ui/media/MediaStudioTopBar.kt</code> — 4 иконки-оверлея.</li>
+<li><code>ui/media/MediaCanvas.kt</code> — сетка, элементы, выбор, шиммер-прогресс.</li>
+<li><code>ui/media/MediaContextMenu.kt</code> — стеклянное меню под точкой тапа.</li>
+<li><code>ui/media/MediaDock.kt</code> — промпт-поле, режим, референсы, «Создать»,
+  иконки озвучки/голоса/агента, чип текущей модели.</li>
+<li><code>ui/media/MediaModelSheet.kt</code> — bottom-sheet выбора модели (общий для
+  студии; в настройках — тот же <code>ModelPicker</code> с исправленными цветами).</li>
+<li><code>ChatScreen.kt</code> — иконка медиа в <code>TopBar</code> (<code>ui/chat/composables/TopBar.kt</code>),
+  чтобы студия открывалась и при непустой истории; кнопку в <code>EmptyState</code>
+  оставить.</li>
+</ul>
+<p>Проверить контраст всех текстов на тёмном/светлом фоне (сетка, цены,
+подсказки) — в том числе для светлой темы приложения.</p>
+<h3 id="p3">P3 — проверка (обязательно для «готово»)</h3>
+<ol>
+<li><code>./gradlew spotlessApply</code> → <code>:screenshotTests:updateScreenshots</code> →
+   <code>:composeApp:desktopTest</code> (CI-порядок; если скриншоты студии входят в
+   goldens — обновить осознанно).</li>
+<li><strong>Визуально (модель со зрением):</strong> запустить <code>./gradlew :composeApp:run</code>,
+   снять и разобрать кадры: пустой канвас; sheet моделей (выбор, цены,
+   цвета); полоска референсов; контекстное меню; лайтбокс; ошибка без
+   ключа; нижняя панель (иконки без текста); канвас с несколькими
+   элементами. Сверить с дизайн-спекой выше; список расхождений — в этот
+   файл разделом «Замечания визуальной проверки».</li>
+<li>Сборка и телефон: <code>./gradlew :androidApp:assembleFossRelease</code>
+   (KEYSTORE_* из <code>androidApp/foss-release.keystore</code>, см. <code>AGENTS.md</code>),
+   затем <code>adb -s 192.168.1.210:44055 install -r &lt;apk&gt;</code>. На телефоне
+   проверить: генерация «с нуля» (видна ошибка или результат), референс —
+   «улучшить моё фото и сделать меня возле фонтана в Дубае» (сценарий
+   пользователя), выбор модели с ценой, отсутствие второго поля ввода,
+   иконки без текста. Логи после теста:
+   <code>adb shell logcat -d --pid=$(adb shell pidof com.pusios.pots) | grep -i Media</code>.</li>
+<li>Синхронизировать <code>docs/features/media-studio.md</code> (поведение +
+   <code>Last verified</code>), при изменении инструментов — <code>docs/features/tools.md</code>;
+   запись в <code>CHANGELOG.md</code> (Unreleased).</li>
+</ol>
+<h2 id="definition-of-done">Definition of done</h2>
+<ul>
+<li>Изображение «с нуля» создаётся и с ключом, и с внятной ошибкой без него;
+  каждая ошибка видна и залогирована.</li>
+<li>Фото-референс работает: студия (полоска) и агент (вложение чата),
+  сценарий «я возле фонтана в Дубае» даёт изображение.</li>
+<li>В медиа-режиме одно поле ввода.</li>
+<li>Студия соответствует дизайн-спеке: иконки без текста, канвас с сеткой/
+  рамками/шиммером, sheet моделей с корректными цветами выбора.</li>
+<li>Вход в студию доступен при непустом чате.</li>
+<li>Тесты/формат/скриншоты зелёные; сборка ставится на телефон поверх
+  текущей (одна подпись).</li>
+</ul>
+<h2 id="_11">Замечания визуальной проверки</h2>
+<p>(заполняет модель со зрением на фазе P3)</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
