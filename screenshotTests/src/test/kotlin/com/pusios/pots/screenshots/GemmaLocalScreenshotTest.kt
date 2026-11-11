@@ -100,7 +100,6 @@ class GemmaLocalScreenshotTest {
         paparazzi.snap(DarkColorScheme) {
             AddServiceSheetPreview(
                 services = Service.all
-                    .filter { it != Service.Free }
                     .sortedWith(
                         compareBy<Service> {
                             when {
