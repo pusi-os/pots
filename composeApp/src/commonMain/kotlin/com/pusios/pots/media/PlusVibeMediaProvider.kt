@@ -1,6 +1,7 @@
 package com.pusios.pots.media
 
 import com.pusios.pots.httpClient
+import com.pusios.pots.readAppStorageBytes
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -11,6 +12,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -19,6 +21,8 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -36,15 +40,22 @@ class PlusVibeMediaProvider(
 
     private val json = JsonTolerant
 
+    /** Catalog cache for reference mapping: which opts keys each model accepts. */
+    private val modelsById = mutableMapOf<String, MediaModel>()
+
     override suspend fun listModels(apiKey: String): List<MediaModel> {
         val body = client.get("$baseUrl/api/media-catalog") { authed(apiKey) }.bodyAsText()
         val root = json.parseToJsonElement(body).jsonObject
         val models = root["models"]?.jsonArray ?: return emptyList()
-        return models.mapNotNull { parseModel(it as? JsonObject ?: return@mapNotNull null) }
+        val parsed = models.mapNotNull { parseModel(it as? JsonObject ?: return@mapNotNull null) }
             .filter { it.id.isNotBlank() && it.generationAvailable && !it.priceUnavailable }
+        parsed.forEach { modelsById[it.id] = it }
+        MediaLog.i("Catalog loaded: ${parsed.size} usable models (${parsed.count { it.kind == MediaKind.Image }} image, ${parsed.count { it.kind == MediaKind.Video }} video)")
+        return parsed
     }
 
     override suspend fun quotePrice(apiKey: String, request: MediaJobRequest): MediaPriceQuote {
+        MediaLog.d("Quote request: model=${request.model} refs=${request.references.size}")
         val body = client.post("$baseUrl/api/media/price") {
             authed(apiKey)
             contentType(ContentType.Application.Json)
@@ -54,14 +65,17 @@ class PlusVibeMediaProvider(
         val price = root["priceRub"]?.jsonPrimitive?.doubleOrNull
             ?: root["price"]?.jsonPrimitive?.doubleOrNull
             ?: 0.0
-        return MediaPriceQuote(
+        val quote = MediaPriceQuote(
             priceRub = price,
             quoteId = root["quoteId"]?.jsonPrimitive?.contentOrNull,
             expiresAt = root["expiresAt"]?.jsonPrimitive?.contentOrNull,
         )
+        MediaLog.d("Quote result: model=${request.model} priceRub=${quote.priceRub} quoteId=${quote.quoteId ?: "-"}")
+        return quote
     }
 
     override suspend fun submitJob(apiKey: String, request: MediaJobRequest): MediaJobState {
+        MediaLog.i("Submit: model=${request.model} opts=${request.opts.keys} refs=${request.references.size} keyPresent=${apiKey.isNotBlank()}")
         val response = client.post("$baseUrl/api/media/generate") {
             authed(apiKey)
             contentType(ContentType.Application.Json)
@@ -73,8 +87,10 @@ class PlusVibeMediaProvider(
             val root = json.parseToJsonElement(body).jsonObject
             val jobId = root["jobId"]?.jsonPrimitive?.contentOrNull
             if (jobId.isNullOrBlank()) throw MediaException.Unknown("Empty jobId from provider")
+            MediaLog.i("Submitted: jobId=$jobId model=${request.model}")
             return MediaJobState(jobId = jobId, status = MediaJobStatus.Processing, model = request.model)
         }
+        MediaLog.e("Submit failed: HTTP ${response.status.value} body=${body.take(500)}")
         throw mapError(response.status.value, body)
     }
 
@@ -82,7 +98,10 @@ class PlusVibeMediaProvider(
         val response = client.get("$baseUrl/api/media/jobs/$jobId") { authed(apiKey) }
         val body = response.bodyAsText()
         if (response.status.value == 404) throw MediaException.ModelNotFound("Job not found")
-        if (response.status.value !in 200..299) throw mapError(response.status.value, body)
+        if (response.status.value !in 200..299) {
+            MediaLog.e("Poll failed: jobId=$jobId HTTP ${response.status.value} body=${body.take(500)}")
+            throw mapError(response.status.value, body)
+        }
         val root = json.parseToJsonElement(body).jsonObject
         val statusRaw = root["status"]?.jsonPrimitive?.contentOrNull.orEmpty().lowercase()
         val status = when (statusRaw) {
@@ -105,12 +124,18 @@ class PlusVibeMediaProvider(
             advice = root["retryGuidance"]?.jsonPrimitive?.contentOrNull
                 ?: failure?.get("advice")?.jsonPrimitive?.contentOrNull,
             definitive = failure?.get("definitive")?.jsonPrimitive?.booleanOrNull ?: (status == MediaJobStatus.Fail),
-        )
+        ).also {
+            if (it.status != MediaJobStatus.Processing || it.progress != null) {
+                MediaLog.d("Poll: jobId=$jobId status=${it.status} priceRub=${it.priceRub} urls=${it.resultUrls.size} fail=${it.failMsg ?: "-"}")
+            }
+        }
     }
 
     override suspend fun downloadResult(apiKey: String, url: String): ByteArray {
         // Signed file URLs need no key; public https uploads also ignore it.
-        return client.get(url).body<ByteArray>()
+        val bytes = client.get(url).body<ByteArray>()
+        MediaLog.i("Downloaded result: ${bytes.size} bytes from ${url.take(80)}")
+        return bytes
     }
 
     private fun io.ktor.client.request.HttpRequestBuilder.authed(apiKey: String) {
@@ -118,16 +143,124 @@ class PlusVibeMediaProvider(
     }
 
     private fun buildGenerateBody(request: MediaJobRequest): JsonObject {
-        val opts = JsonObject(
-            request.opts.entries.associate { (k, v) -> k to JsonPrimitive(v) },
-        )
-        val map = mutableMapOf<String, kotlinx.serialization.json.JsonElement>()
+        val optsMap = mutableMapOf<String, JsonElement>()
+        request.opts.forEach { (k, v) -> optsMap[k] = JsonPrimitive(v) }
+        appendReferences(optsMap, request)
+        val map = mutableMapOf<String, JsonElement>()
         map["model"] = JsonPrimitive(request.model)
         map["prompt"] = JsonPrimitive(request.prompt)
-        map["opts"] = opts
+        map["opts"] = JsonObject(optsMap)
         request.quoteId?.let { map["quote_id"] = JsonPrimitive(it) }
         request.maxPriceRub?.let { map["max_price_rub"] = JsonPrimitive(it) }
         return JsonObject(map)
+    }
+
+    /**
+     * Maps user references onto the model's own opts keys (URL fields accept
+     * only public https; local bytes go to the paired `*_base64` field as a
+     * full `data:<mime>;base64,…` string — see `docs/knowledge/media-providers/plusvibe.md`).
+     */
+    private fun appendReferences(opts: MutableMap<String, JsonElement>, request: MediaJobRequest) {
+        if (request.references.isEmpty()) return
+        val modelInfo = modelsById[request.model]
+        request.references.forEach { ref ->
+            if (ref.isVideo) {
+                appendVideoReference(opts, ref, modelInfo)
+            } else {
+                appendImageReference(opts, ref, modelInfo)
+            }
+        }
+    }
+
+    private fun appendImageReference(opts: MutableMap<String, JsonElement>, ref: MediaReference, modelInfo: MediaModel?) {
+        if (modelInfo != null && !modelInfo.acceptsImageReference) {
+            throw MediaException.BadRequest("Модель ${modelInfo.id} не принимает референс-изображение")
+        }
+        val paramKeys = modelInfo?.params?.map { it.key }?.toSet().orEmpty()
+        val url = normalizeReferenceUrl(ref)
+        if (url != null) {
+            val singleKey = listOf("image_url", "reference_image", "first_frame_url").firstOrNull { it in paramKeys }
+            val pluralKey = listOf("image_urls", "reference_image_urls", "input_urls").firstOrNull { it in paramKeys }
+            when {
+                singleKey != null -> opts[singleKey] = JsonPrimitive(url)
+
+                pluralKey != null -> opts.appendToArray(pluralKey, url)
+
+                else -> {
+                    MediaLog.w("Model ${modelInfo?.id ?: "?"}: no image-url key in params, falling back to image_url")
+                    opts["image_url"] = JsonPrimitive(url)
+                }
+            }
+            return
+        }
+        val dataUri = resolveDataUri(ref)
+            ?: throw MediaException.BadRequest("Референс недоступен: файл не найден или не читается")
+        val singleKey = listOf("image_base64", "reference_image_base64", "first_frame_base64").firstOrNull { it in paramKeys }
+        val pluralKey = listOf("input_base64").firstOrNull { it in paramKeys }
+        when {
+            singleKey != null -> opts[singleKey] = JsonPrimitive(dataUri)
+
+            pluralKey != null -> opts.appendToArray(pluralKey, dataUri)
+
+            else -> {
+                MediaLog.w("Model ${modelInfo?.id ?: "?"}: no image-base64 key in params, falling back to image_base64")
+                opts["image_base64"] = JsonPrimitive(dataUri)
+            }
+        }
+    }
+
+    private fun appendVideoReference(opts: MutableMap<String, JsonElement>, ref: MediaReference, modelInfo: MediaModel?) {
+        if (modelInfo != null && !modelInfo.acceptsVideoReference) {
+            throw MediaException.BadRequest("Модель ${modelInfo.id} не принимает референс-видео")
+        }
+        val paramKeys = modelInfo?.params?.map { it.key }?.toSet().orEmpty()
+        val url = normalizeReferenceUrl(ref)
+        if (url != null) {
+            val singleKey = listOf("video_url").firstOrNull { it in paramKeys }
+            val pluralKey = listOf("reference_video_urls").firstOrNull { it in paramKeys }
+            when {
+                singleKey != null -> opts[singleKey] = JsonPrimitive(url)
+                pluralKey != null -> opts.appendToArray(pluralKey, url)
+                else -> opts["video_url"] = JsonPrimitive(url)
+            }
+            return
+        }
+        val dataUri = resolveDataUri(ref)
+            ?: throw MediaException.BadRequest("Референс недоступен: файл не найден или не читается")
+        opts["video_base64"] = JsonPrimitive(dataUri)
+    }
+
+    /** Public https stays a URL; `data:` and anything else goes through the base64 path. */
+    private fun normalizeReferenceUrl(ref: MediaReference): String? {
+        val url = ref.url ?: return null
+        return if (url.startsWith("https://")) url else null
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun resolveDataUri(ref: MediaReference): String? {
+        ref.base64DataUri?.let { return it }
+        if (ref.url.orEmpty().startsWith("data:")) return ref.url
+        val path = ref.localPath ?: return null
+        val bytes = readAppStorageBytes(path) ?: return null
+        if (bytes.size > MAX_INLINE_REFERENCE_BYTES) {
+            throw MediaException.BadRequest(
+                "Файл референса больше ${MAX_INLINE_REFERENCE_BYTES / 1024 / 1024} МБ — сожми его перед отправкой",
+            )
+        }
+        val mime = when {
+            path.endsWith(".png", ignoreCase = true) -> "image/png"
+            path.endsWith(".jpg", ignoreCase = true) || path.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+            path.endsWith(".webp", ignoreCase = true) -> "image/webp"
+            path.endsWith(".mp4", ignoreCase = true) -> "video/mp4"
+            path.endsWith(".mov", ignoreCase = true) -> "video/quicktime"
+            else -> "application/octet-stream"
+        }
+        return "data:$mime;base64," + Base64.encode(bytes)
+    }
+
+    private fun MutableMap<String, JsonElement>.appendToArray(key: String, value: String) {
+        val existing = this[key] as? JsonArray
+        this[key] = JsonArray(existing?.plus(JsonPrimitive(value)) ?: listOf(JsonPrimitive(value)))
     }
 
     private fun parseModel(obj: JsonObject): MediaModel? {
@@ -231,6 +364,9 @@ class PlusVibeMediaProvider(
     }
 
     companion object {
+        /** Inline base64 references are capped at 8 MB; larger files are rejected with a clear error. */
+        const val MAX_INLINE_REFERENCE_BYTES: Long = 8L * 1024 * 1024
+
         private val IMAGE_REFERENCE_KEYS = setOf(
             "image_url", "image_base64", "image_file_id", "image_urls", "input_urls", "input_base64",
             "reference_image", "reference_image_urls", "reference_image_base64", "reference_image_file_id",

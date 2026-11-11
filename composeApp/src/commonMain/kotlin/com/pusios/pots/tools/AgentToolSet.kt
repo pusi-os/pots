@@ -1,6 +1,7 @@
 package com.pusios.pots.tools
 
 import com.pusios.pots.data.AppSettings
+import com.pusios.pots.data.Attachment
 import com.pusios.pots.data.EmailStore
 import com.pusios.pots.data.MemoryStore
 import com.pusios.pots.data.TaskStore
@@ -8,6 +9,7 @@ import com.pusios.pots.data.getConfiguredServiceInstances
 import com.pusios.pots.data.getInstanceApiKey
 import com.pusios.pots.data.miniapp.MiniAppRepository
 import com.pusios.pots.mcp.McpServerManager
+import com.pusios.pots.media.resolveMediaInstance
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.ui.potsik.PotsikStage
 
@@ -31,6 +33,9 @@ fun buildAgentToolSet(
     // The app editor's data store. Injected so the tool and the runner share
     // one SQLite store; null in environments without it.
     miniAppRepository: MiniAppRepository? = null,
+    // Image attachments of the current chat: media tools use the last photo
+    // when the agent passes reference_image="attachment".
+    attachmentProvider: () -> List<Attachment> = { emptyList() },
     platformExtras: MutableList<Tool>.() -> Unit = {},
 ): List<Tool> = buildList {
     addAll(CommonTools.getCommonTools(appSettings))
@@ -60,13 +65,12 @@ fun buildAgentToolSet(
         add(PotsikTool.create(potsikStage))
     }
 
-    // Media generation tools. The primary instance key is resolved lazily;
-    // the public catalog works without a key.
+    // Media generation tools. The billing instance is resolved lazily —
+    // the first service with an API key; the public catalog works without a key.
     if (appSettings.isToolEnabled(MediaTools.ID_LIST_MODELS, defaultEnabled = true)) {
         add(
             MediaTools.listModelsTool(apiKey = {
-                val instances = appSettings.getConfiguredServiceInstances()
-                instances.firstOrNull()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
+                appSettings.resolveMediaInstance()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
             }),
         )
     }
@@ -78,12 +82,12 @@ fun buildAgentToolSet(
             MediaTools.generateImageTool(
                 appSettings = appSettings,
                 apiKey = {
-                    val instances = appSettings.getConfiguredServiceInstances()
-                    instances.firstOrNull()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
+                    appSettings.resolveMediaInstance()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
                 },
                 instanceId = {
-                    appSettings.getConfiguredServiceInstances().firstOrNull()?.instanceId.orEmpty()
+                    appSettings.resolveMediaInstance()?.instanceId.orEmpty()
                 },
+                attachmentProvider = attachmentProvider,
             ),
         )
     }
@@ -92,11 +96,10 @@ fun buildAgentToolSet(
             MediaTools.generateVideoTool(
                 appSettings = appSettings,
                 apiKey = {
-                    val instances = appSettings.getConfiguredServiceInstances()
-                    instances.firstOrNull()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
+                    appSettings.resolveMediaInstance()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
                 },
                 instanceId = {
-                    appSettings.getConfiguredServiceInstances().firstOrNull()?.instanceId.orEmpty()
+                    appSettings.resolveMediaInstance()?.instanceId.orEmpty()
                 },
             ),
         )

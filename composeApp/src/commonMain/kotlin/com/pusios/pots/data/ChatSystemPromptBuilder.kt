@@ -144,6 +144,24 @@ internal const val DEFAULT_STRUCTURED_LEARNING_SECTION =
         "Use memory_reinforce when a stored learning produced a good outcome."
 
 /**
+ * Media generation guidance. Rendered whenever the request actually carries
+ * `generate_image` or `generate_video`. Teaches the agent that attached photos
+ * reach the generation tools via `reference_image="attachment"` — the historical
+ * failure mode was the agent refusing photo edits because it saw no way to pass
+ * the attachment along.
+ */
+internal const val DEFAULT_MEDIA_SECTION =
+    "## Media Generation\n" +
+        "You can generate and edit images and videos with the `generate_image` and `generate_video` tools; " +
+        "`list_media_models` shows available models with prices and which ones accept a reference image or video.\n" +
+        "When the user attaches a photo and asks to work with it — improve it, enhance it, change the background, " +
+        "or place them somewhere (\"make me at the fountain in Dubai\") — call `generate_image` with " +
+        "`reference_image=\"attachment\"` plus a prompt describing the desired result. The tool automatically picks " +
+        "a model that accepts a source image. Never refuse such a request because of the photo: the attachment is " +
+        "delivered to the tool for you, you do not need to pass the image bytes yourself.\n" +
+        "Mention generation prices only when the user asks about cost."
+
+/**
  * Teaches the model how the two automation mechanisms differ. Composed into a prompt
  * whenever the request actually carries `schedule_task` — remote requests always do
  * while scheduling is enabled; the on-device model does when the local tool selection
@@ -250,6 +268,10 @@ internal fun buildChatSystemPrompt(
     // when scheduling is enabled (those tools are absent otherwise). Email Accounts is
     // independent of scheduling; the data dumps only render when non-empty.
     val seesSchedulingTools = "schedule_task" in toolNames || "list_tasks" in toolNames || "cancel_task" in toolNames
+    if ("generate_image" in toolNames || "generate_video" in toolNames) {
+        if (isNotEmpty()) append("\n\n")
+        append(DEFAULT_MEDIA_SECTION)
+    }
     if (schedulingEnabled && "schedule_task" in toolNames) {
         if (isNotEmpty()) append("\n\n")
         append(DEFAULT_AUTOMATION_SECTION)

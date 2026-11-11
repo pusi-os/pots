@@ -27,6 +27,7 @@ import com.pusios.pots.email.EmailPoller
 import com.pusios.pots.inference.createLocalInferenceEngine
 import com.pusios.pots.inference.createVectorizationManager
 import com.pusios.pots.mcp.McpServerManager
+import com.pusios.pots.media.resolveMediaInstance
 import com.pusios.pots.network.Requests
 import com.pusios.pots.notifications.NotificationReader
 import com.pusios.pots.skills.SkillManager
@@ -200,10 +201,10 @@ val appModule = module {
             appSettings = get(),
             apiKeyProvider = {
                 val s = get<AppSettings>()
-                s.getConfiguredServiceInstances().firstOrNull()?.let { s.getInstanceApiKey(it.instanceId) }.orEmpty()
+                s.resolveMediaInstance()?.let { s.getInstanceApiKey(it.instanceId) }.orEmpty()
             },
             instanceIdProvider = {
-                get<AppSettings>().getConfiguredServiceInstances().firstOrNull()?.instanceId.orEmpty()
+                get<AppSettings>().resolveMediaInstance()?.instanceId.orEmpty()
             },
             repository = get(),
         )

@@ -153,6 +153,7 @@ actual fun getAvailableTools(): List<Tool> {
     val mcpServerManager: McpServerManager by inject(McpServerManager::class.java)
     val potsikStage: PotsikStage by inject(PotsikStage::class.java)
     val miniAppRepository: MiniAppRepository by inject(MiniAppRepository::class.java)
+    val dataRepository: com.pusios.pots.data.DataRepository by inject(com.pusios.pots.data.DataRepository::class.java)
 
     return buildAgentToolSet(
         appSettings = appSettings,
@@ -162,6 +163,12 @@ actual fun getAvailableTools(): List<Tool> {
         potsikStage = potsikStage,
         emailStore = emailStore,
         miniAppRepository = miniAppRepository,
+        attachmentProvider = {
+            // The last user message's attachments in the active chat.
+            dataRepository.chatHistory.value
+                .lastOrNull { it.role == com.pusios.pots.ui.chat.History.Role.USER && it.attachments.isNotEmpty() }
+                ?.attachments.orEmpty()
+        },
     ) {
         // manage_process rides the shell switch — it only inspects processes that tool started.
         if (appSettings.isToolEnabled(ShellCommandTool.schema.name, defaultEnabled = false)) {

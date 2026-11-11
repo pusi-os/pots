@@ -39,7 +39,10 @@ class MediaGenerationRepository(
 
     suspend fun models(apiKey: String): List<MediaModel> {
         val fingerprint = apiKey.hashCode().toString()
-        catalogCache[fingerprint]?.let { return it }
+        catalogCache[fingerprint]?.let {
+            MediaLog.d("Catalog cache hit: ${it.size} models")
+            return it
+        }
         val fresh = provider.listModels(apiKey)
         catalogCache[fingerprint] = fresh
         return fresh
@@ -57,7 +60,9 @@ class MediaGenerationRepository(
         request: MediaJobRequest,
         onUpdate: ((MediaJobState) -> Unit)? = null,
     ): MediaJobState {
-        val quoted = runCatching { provider.quotePrice(apiKey, request) }.getOrNull()
+        val quoted = runCatching { provider.quotePrice(apiKey, request) }
+            .onFailure { MediaLog.w("Quote failed (will submit without quote): ${it.message}") }
+            .getOrNull()
         val submit = request.copy(
             quoteId = quoted?.quoteId ?: request.quoteId,
             maxPriceRub = request.maxPriceRub ?: quoted?.priceRub,
@@ -72,6 +77,7 @@ class MediaGenerationRepository(
 
     fun startPolling(apiKey: String, jobId: String, onUpdate: ((MediaJobState) -> Unit)? = null) {
         if (active[jobId]?.isActive == true) return
+        MediaLog.d("Polling started: jobId=$jobId")
         active[jobId] = scope.launch {
             var waitMs = 3000L
             while (true) {
@@ -80,14 +86,16 @@ class MediaGenerationRepository(
                     provider.pollJob(apiKey, jobId)
                 } catch (e: CancellationException) {
                     throw e
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     // Transient network error: keep polling with backoff.
+                    MediaLog.w("Poll transient error (retry in ${waitMs * 2} ms): jobId=$jobId ${e.message}")
                     waitMs = min(waitMs * 2, 30_000L)
                     continue
                 }
                 _jobs.update { it + (state.jobId to state) }
                 onUpdate?.invoke(state)
                 if (state.isTerminal) {
+                    MediaLog.i("Job terminal: jobId=$jobId status=${state.status} priceRub=${state.priceRub} fail=${state.failMsg ?: "-"}")
                     if (state.status == MediaJobStatus.Success && state.localPath == null) {
                         downloadAndCache(apiKey, state, onUpdate)
                     }
@@ -121,6 +129,7 @@ class MediaGenerationRepository(
             provider.downloadResult(apiKey, first)
         } catch (e: Exception) {
             // Keep remote URL; timeout/expired will surface on view.
+            MediaLog.w("Result download failed (keeping remote URL): jobId=${state.jobId} ${e.message}")
             return
         }
         val ext = when {
@@ -132,6 +141,7 @@ class MediaGenerationRepository(
         }
         val path = "media/jobs/${state.jobId}/0.$ext"
         writeAppStorageBytes(path, bytes)
+        MediaLog.i("Result cached: jobId=${state.jobId} path=$path (${bytes.size} bytes)")
         val cached = state.copy(localPath = path)
         _jobs.update { it + (state.jobId to cached) }
         onUpdate?.invoke(cached)

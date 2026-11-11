@@ -1,9 +1,12 @@
 package com.pusios.pots.tools
 
 import com.pusios.pots.data.AppSettings
+import com.pusios.pots.data.Attachment
 import com.pusios.pots.media.MediaJobRequest
 import com.pusios.pots.media.MediaKind
+import com.pusios.pots.media.MediaLog
 import com.pusios.pots.media.MediaProvider
+import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.PlusVibeMediaProvider
 import com.pusios.pots.media.PromptEnhancer
 import com.pusios.pots.media.getInstanceMediaImageModelId
@@ -19,6 +22,11 @@ import com.pusios.pots.network.tools.ToolSchema
  *
  * The tools take an optional `model` override; when omitted they use the
  * per-instance image/video model chosen in Settings → Services → Media.
+ *
+ * `generate_image` accepts a `reference_image` for edit / image-to-image:
+ * the literal `attachment` (the photo the user attached to the current chat
+ * message), a public `https://` URL, or an app-storage path. When the chosen
+ * model cannot take a reference, the first catalog model that can is used.
  */
 object MediaTools {
 
@@ -49,7 +57,7 @@ object MediaTools {
         ToolInfo(
             id = ID_GENERATE_IMAGE,
             name = "Generate image",
-            description = "Generate an image with the configured media provider",
+            description = "Generate or edit an image with the configured media provider",
             isEnabled = true,
             userToggleable = true,
         ),
@@ -81,24 +89,67 @@ object MediaTools {
         apiKey: () -> String,
         instanceId: () -> String,
         provider: MediaProvider = PlusVibeMediaProvider(),
+        attachmentProvider: () -> List<Attachment> = { emptyList() },
     ): Tool = object : Tool {
         override val schema = ToolSchema(
             name = ID_GENERATE_IMAGE,
-            description = "Generate an image. Returns jobId, resultUrls and cost in RUB. " +
-                "Use list_media_models if you need a model id.",
+            description = "Generate an image, or edit one using a reference. Returns jobId, resultUrls and cost in RUB. " +
+                "reference_image accepts: \"attachment\" (the photo the user attached to the chat message), " +
+                "a public https URL, or an app-storage path. Use list_media_models if you need a model id.",
             parameters = mapOf(
                 "prompt" to ParameterSchema("string", "What the image should show", true),
                 "model" to ParameterSchema("string", "Image model id (optional, uses Settings default)", false),
                 "aspect_ratio" to ParameterSchema("string", "1:1, 16:9, 9:16, 4:3, 3:4 (optional)", false),
-                "image_url" to ParameterSchema("string", "Public https reference image URL (optional)", false),
+                "reference_image" to ParameterSchema(
+                    "string",
+                    "Source image to edit: \"attachment\", public https URL, or app-storage path (optional)",
+                    false,
+                ),
             ),
         )
 
         override suspend fun execute(args: Map<String, Any>): Any {
             val prompt = (args["prompt"] as? String).orEmpty()
             if (prompt.isBlank()) return mapOf("success" to false, "error" to "prompt is required")
-            val model = (args["model"] as? String).orEmpty().ifBlank {
-                appSettings.getInstanceMediaImageModelId(instanceId())
+            val key = apiKey()
+            val referenceArg = (args["reference_image"] as? String)?.trim().orEmpty()
+            val reference = when {
+                referenceArg.isEmpty() -> null
+
+                else -> resolveReference(referenceArg, attachmentProvider)
+                    ?: return mapOf(
+                        "success" to false,
+                        "error" to "reference_image is not available. Use \"attachment\" for the user's photo, a public https URL, or an app-storage path.",
+                    )
+            }
+            val modelArg = (args["model"] as? String).orEmpty()
+            val savedModel = modelArg.ifBlank { appSettings.getInstanceMediaImageModelId(instanceId()) }
+            val model = if (reference != null) {
+                // The chosen model must accept a source image; otherwise pick one that does.
+                val catalog = runCatching { provider.listModels(key) }.getOrNull().orEmpty()
+                val chosen = catalog.firstOrNull { it.id == savedModel }
+                when {
+                    chosen?.acceptsImageReference == true -> chosen.id
+
+                    else -> {
+                        val editing = catalog.firstOrNull { it.kind == MediaKind.Image && it.acceptsImageReference }
+                        if (editing != null) {
+                            MediaLog.i("generate_image: switched to reference-capable model ${editing.id} (was '${savedModel.ifBlank { "none" }}')")
+                            editing.id
+                        } else if (chosen != null) {
+                            chosen.id
+                        } else if (savedModel.isNotBlank()) {
+                            savedModel
+                        } else {
+                            return mapOf(
+                                "success" to false,
+                                "error" to "No image model selected. Set one in Settings -> Services -> Media, or pass model.",
+                            )
+                        }
+                    }
+                }
+            } else {
+                savedModel
             }
             if (model.isBlank()) {
                 return mapOf(
@@ -106,17 +157,25 @@ object MediaTools {
                     "error" to "No image model selected. Set one in Settings -> Services -> Media, or pass model.",
                 )
             }
-            val key = apiKey()
             val opts = mutableMapOf<String, String>()
             (args["aspect_ratio"] as? String)?.let { opts["aspect_ratio"] = it }
-            (args["image_url"] as? String)?.let { opts["image_url"] = it }
+            MediaLog.i("generate_image: model=$model ref=${reference != null} promptLen=${prompt.length}")
             val state = pollUntilDone(
                 apiKey = key,
-                request = MediaJobRequest(model = model, prompt = prompt, opts = opts, idempotencyKey = PlusVibeMediaProvider.newIdempotencyKey()),
+                request = MediaJobRequest(
+                    model = model,
+                    prompt = prompt,
+                    opts = opts,
+                    references = listOfNotNull(reference),
+                    idempotencyKey = PlusVibeMediaProvider.newIdempotencyKey(),
+                ),
                 provider = provider,
                 maxWaits = 60,
             )
             val urls = state.resultUrls
+            if (state.status != com.pusios.pots.media.MediaJobStatus.Success) {
+                MediaLog.w("generate_image finished non-success: status=${state.status} fail=${state.failMsg}")
+            }
             return mapOf(
                 "success" to true,
                 "jobId" to state.jobId,
@@ -124,10 +183,25 @@ object MediaTools {
                 "model" to model,
                 "costRub" to state.priceRub,
                 "resultUrls" to urls,
+                "failMsg" to (state.failMsg ?: ""),
                 "markdown" to urls.firstOrNull()?.let { "![Сгенерированное изображение]($it)" }.orEmpty(),
                 "hint" to "Results expire after 5 days; save them locally.",
             )
         }
+    }
+
+    /** Turns the `reference_image` argument into a provider-ready reference. */
+    private fun resolveReference(raw: String, attachmentProvider: () -> List<Attachment>): MediaReference? = when {
+        raw.equals("attachment", ignoreCase = true) || raw.equals("вложение", ignoreCase = true) -> {
+            val image = attachmentProvider().lastOrNull { it.mimeType.startsWith("image/") && it.data.isNotBlank() }
+            image?.let { MediaReference(base64DataUri = "data:${it.mimeType};base64,${it.data}") }
+        }
+
+        raw.startsWith("https://") -> MediaReference(url = raw)
+
+        raw.startsWith("data:") -> MediaReference(base64DataUri = raw)
+
+        else -> MediaReference(localPath = raw)
     }
 
     fun generateVideoTool(
@@ -165,6 +239,7 @@ object MediaTools {
             (args["duration"] as? String)?.let { opts["duration"] = it }
             (args["resolution"] as? String)?.let { opts["resolution"] = it }
             (args["image_url"] as? String)?.let { opts["image_url"] = it }
+            MediaLog.i("generate_video: model=$model opts=${opts.keys} promptLen=${prompt.length}")
             val state = pollUntilDone(
                 apiKey = key,
                 request = MediaJobRequest(model = model, prompt = prompt, opts = opts, idempotencyKey = PlusVibeMediaProvider.newIdempotencyKey()),
@@ -179,6 +254,7 @@ object MediaTools {
                 "model" to model,
                 "costRub" to state.priceRub,
                 "resultUrls" to urls,
+                "failMsg" to (state.failMsg ?: ""),
                 "markdown" to urls.firstOrNull()?.let { "![Сгенерированное видео]($it)" }.orEmpty(),
                 "hint" to "Results expire after 5 days; save them locally.",
             )
@@ -210,6 +286,8 @@ object MediaTools {
                     "fromRub" to (it.fromRub ?: -1.0),
                     "priceStatus" to (it.priceStatus ?: ""),
                     "note" to (it.note ?: ""),
+                    "acceptsImageReference" to it.acceptsImageReference,
+                    "acceptsVideoReference" to it.acceptsVideoReference,
                 )
             }
         }

@@ -78,6 +78,21 @@ data class MediaPriceQuote(
     val expiresAt: String? = null,
 )
 
+/**
+ * One user-supplied reference asset for image/video generation.
+ * Exactly one of [url] / [base64DataUri] / [localPath] is set:
+ * - [url] — public `https://` address the provider downloads itself;
+ * - [base64DataUri] — full `data:<mime>;base64,…` string (URL fields reject `data:`);
+ * - [localPath] — app-storage path; resolved to a data URI by the provider.
+ */
+@Immutable
+data class MediaReference(
+    val url: String? = null,
+    val base64DataUri: String? = null,
+    val localPath: String? = null,
+    val isVideo: Boolean = false,
+)
+
 @Immutable
 data class MediaJobRequest(
     val model: String,
@@ -87,6 +102,8 @@ data class MediaJobRequest(
     val maxPriceRub: Double? = null,
     /** Idempotency key; provider replays the same job for 24 h. */
     val idempotencyKey: String? = null,
+    /** Source assets (edit / image-to-image / first frame). Mapped into `opts` per model. */
+    val references: List<MediaReference> = emptyList(),
 )
 
 enum class MediaJobStatus {
