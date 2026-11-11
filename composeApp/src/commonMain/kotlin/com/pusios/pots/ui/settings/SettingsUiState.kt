@@ -8,6 +8,7 @@ import com.pusios.pots.data.EmailSyncState
 import com.pusios.pots.data.HeartbeatLogEntry
 import com.pusios.pots.data.LocalToolSelection
 import com.pusios.pots.data.MemoryEntry
+import com.pusios.pots.data.ProviderBalance
 import com.pusios.pots.data.ScheduledTask
 import com.pusios.pots.data.Service
 import com.pusios.pots.data.ServiceEntry
@@ -41,6 +42,8 @@ data class ConfiguredServiceEntry(
     /** OpenAI-Compatible only: when true, [customModelId] is used for chat instead of [selectedModel]. */
     val useCustomModel: Boolean = false,
     val customModelId: String = "",
+    /** Prepaid account balance, shown in the card header when the provider exposes one. */
+    val balance: ProviderBalance? = null,
 )
 
 enum class ConnectionStatus {

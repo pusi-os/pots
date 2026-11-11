@@ -33,6 +33,7 @@ import com.pusios.pots.network.OpenAICompatibleConnectionException
 import com.pusios.pots.network.OpenAICompatibleInvalidApiKeyException
 import com.pusios.pots.network.OpenAICompatibleQuotaExhaustedException
 import com.pusios.pots.network.OpenAICompatibleRateLimitExceededException
+import com.pusios.pots.network.ProviderBalanceClient
 import com.pusios.pots.network.dtos.SponsorsResponseDto
 import com.pusios.pots.skills.parseGitHubSkillUrl
 import com.pusios.pots.tools.AppPermission
@@ -77,6 +78,7 @@ class SettingsViewModel(
     private val taskScheduler: TaskScheduler,
     private val backgroundDispatcher: CoroutineContext = getBackgroundDispatcher(),
     private val localNetworkPermissionController: PermissionController = PermissionController(AppPermission.LOCAL_NETWORK),
+    private val balanceClient: ProviderBalanceClient = ProviderBalanceClient(),
 ) : ViewModel() {
 
     private var connectionCheckJobs: MutableMap<String, Job> = mutableMapOf()
@@ -458,6 +460,18 @@ class SettingsViewModel(
         _state.update { it.copy(expandedServiceId = instanceId) }
         if (instanceId != null) {
             refreshInstanceModels(instanceId)
+        }
+    }
+
+    private suspend fun refreshInstanceBalance(instanceId: String, service: Service) {
+        val apiKey = dataRepository.getInstanceApiKey(instanceId)
+        val balance = balanceClient.fetch(service, apiKey)
+        _state.update { state ->
+            state.copy(
+                configuredServices = state.configuredServices.map { e ->
+                    if (e.instanceId == instanceId) e.copy(balance = balance) else e
+                }.toImmutableList(),
+            )
         }
     }
 
@@ -1429,6 +1443,7 @@ class SettingsViewModel(
                     updateConnectionStatus(instanceId, ConnectionStatus.Connected)
                 }
                 refreshInstanceModels(instanceId)
+                refreshInstanceBalance(instanceId, service)
             } catch (e: Exception) {
                 val status = when (e) {
                     is OpenAICompatibleInvalidApiKeyException, is GeminiInvalidApiKeyException, is AnthropicInvalidApiKeyException ->

@@ -68,6 +68,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.pusios.pots.data.ProviderBalance
 import com.pusios.pots.data.Service
 import com.pusios.pots.formatFileSize
 import com.pusios.pots.inference.DevicePerformance
@@ -432,6 +433,19 @@ internal fun ServicesContent(uiState: SettingsUiState, actions: SettingsActions)
     }
 }
 
+private fun formatProviderBalance(balance: ProviderBalance): String {
+    val symbol = when (balance.currency.uppercase()) {
+        "RUB" -> "₽"
+        "USD" -> "$"
+        "EUR" -> "€"
+        else -> balance.currency
+    }
+    val cents = kotlin.math.round(balance.amount * 100).toLong()
+    val whole = cents / 100
+    val fraction = kotlin.math.abs(cents % 100).toString().padStart(2, '0')
+    return "$whole.$fraction $symbol"
+}
+
 @Composable
 private fun ConfiguredServiceCardContent(
     entry: ConfiguredServiceEntry,
@@ -534,6 +548,16 @@ private fun ConfiguredServiceCardContent(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                }
+
+                entry.balance?.let { balance ->
+                    Text(
+                        text = formatProviderBalance(balance),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                    Spacer(Modifier.width(8.dp))
                 }
 
                 // Expand/collapse chevron
