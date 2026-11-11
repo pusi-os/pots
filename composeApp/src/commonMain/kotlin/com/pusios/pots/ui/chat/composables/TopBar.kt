@@ -43,6 +43,7 @@ import pots.composeapp.generated.resources.ic_add
 import pots.composeapp.generated.resources.ic_handsfree
 import pots.composeapp.generated.resources.ic_handsfree_active
 import pots.composeapp.generated.resources.ic_history
+import pots.composeapp.generated.resources.ic_image
 import pots.composeapp.generated.resources.ic_miniapp_library
 import pots.composeapp.generated.resources.ic_settings
 import pots.composeapp.generated.resources.ic_stop
@@ -77,6 +78,7 @@ internal fun TopBar(
     onToggleMiniApps: (() -> Unit)? = null,
     profilesOpen: Boolean = false,
     onToggleProfiles: (() -> Unit)? = null,
+    onOpenMedia: (() -> Unit)? = null,
 ) {
     if (navigationTabBar != null) {
         Box(
@@ -103,6 +105,9 @@ internal fun TopBar(
                 }
                 if (onToggleMiniApps != null) {
                     MiniAppsButton(open = miniAppsOpen, onClick = onToggleMiniApps)
+                }
+                if (onOpenMedia != null) {
+                    MediaStudioButton(onClick = onOpenMedia)
                 }
             }
         }
@@ -135,7 +140,21 @@ internal fun TopBar(
             if (onToggleMiniApps != null) {
                 MiniAppsButton(open = miniAppsOpen, onClick = onToggleMiniApps)
             }
+            if (onOpenMedia != null) {
+                MediaStudioButton(onClick = onOpenMedia)
+            }
         }
+    }
+}
+
+@Composable
+private fun MediaStudioButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.handCursor()) {
+        Icon(
+            imageVector = vectorResource(Res.drawable.ic_image),
+            contentDescription = "Медиа-студия",
+            tint = MaterialTheme.colorScheme.onBackground,
+        )
     }
 }
 

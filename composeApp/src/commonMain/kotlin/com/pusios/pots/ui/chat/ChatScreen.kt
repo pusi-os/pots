@@ -1060,6 +1060,7 @@ private fun ChatModeScreen(
                     onToggleMiniApps = { showMiniAppsToolbar = !showMiniAppsToolbar },
                     profilesOpen = showAgentProfilesToolbar,
                     onToggleProfiles = { showAgentProfilesToolbar = !showAgentProfilesToolbar },
+                    onOpenMedia = { isMediaOpen = true },
                 )
             }
 
@@ -1102,6 +1103,8 @@ private fun ChatModeScreen(
                         modifier = Modifier.weight(1f),
                         onAskAgent = { question -> uiState.actions.ask(question) },
                         onExit = { isMediaOpen = false },
+                        onOpenSettings = onNavigateToSettings,
+                        onToggleSpeech = uiState.actions.toggleSpeechOutput,
                         onSpeak = { phrase ->
                             scope.launch {
                                 try {
@@ -1453,7 +1456,8 @@ private fun ChatModeScreen(
                 }
             }
 
-            if (!isSandboxOpen) {
+            // The media studio has its own single prompt field; the chat input stays hidden.
+            if (!isSandboxOpen && !isMediaOpen) {
                 QuestionInput(
                     files = uiState.files,
                     addFile = uiState.actions.addFile,

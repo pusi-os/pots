@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -103,16 +104,23 @@ private fun ModelPicker(title: String, models: List<MediaModel>, selectedId: Str
         val selected = model.id == selectedId
         Surface(
             color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
                 .clickable { onSelect(model.id) },
         ) {
             Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(model.id, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    model.id,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                )
                 val price = model.fromRub?.let { "от $it ₽" } ?: ""
                 val unit = model.unit.orEmpty()
                 Text(
                     (price + if (price.isNotEmpty() && unit.isNotEmpty()) " · $unit" else unit),
                     style = MaterialTheme.typography.labelSmall,
+                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
