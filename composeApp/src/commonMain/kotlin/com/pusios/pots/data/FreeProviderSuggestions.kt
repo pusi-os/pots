@@ -2,7 +2,7 @@ package com.pusios.pots.data
 
 /**
  * Providers with meaningful free-tier usage that we recommend when the
- * built-in Free FAST/EXPERT path is rate-limited and the user has no
+ * built-in Trial Flash path is rate-limited and the user has no
  * configured services yet.
  */
 data class FreeProviderSuggestion(

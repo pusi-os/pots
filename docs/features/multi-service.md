@@ -1,8 +1,8 @@
 # Multi-Service
 
-**Last verified:** 2026-11-10
+**Last verified:** 2026-11-11
 
-The RF build supports the built-in trial presets plus five Russian-accessible gateways: Polza.ai, GPTunnel, AITUNNEL, ProxyAPI and VseGPT. All of them use the **OpenAI-compatible** chat-completions format; the remaining choices are the generic **OpenAI-Compatible API** adapter and **LiteRT on-device** inference. A handful of OpenAI models additionally require OpenAI's **Responses API**; Pots switches to it per model when an OpenAI-compatible base URL points at `api.openai.com`. Users can configure multiple service instances, reorder them, and Pots automatically falls back through the chain on failure.
+The RF build supports the built-in Trial Flash preset plus five Russian-accessible gateways: Polza.ai, GPTunnel, AITUNNEL, ProxyAPI and VseGPT. All of them use the **OpenAI-compatible** chat-completions format; the remaining choices are the generic **OpenAI-Compatible API** adapter and **LiteRT on-device** inference. A handful of OpenAI models additionally require OpenAI's **Responses API**; Pots switches to it per model when an OpenAI-compatible base URL points at `api.openai.com`. Users can configure multiple service instances, reorder them, and Pots automatically falls back through the chain on failure.
 
 ## Concepts
 
@@ -30,16 +30,11 @@ A built-in service that requires no API key. Free is never shown in the service 
 - The sole service when no other services are configured
 - A last-resort fallback when "Use as fallback" is enabled (default)
 
-There are two trial presets, both selectable from chat and from Pulse:
+The trial preset, selectable from chat and from Pulse, is **Trial Flash**: it talks to OpenCode's free endpoint and serves the `big-pickle` model. It sends the OpenCode session headers and the public client key.
 
-- **Trial Flash** talks to OpenCode's free endpoint and serves the `big-pickle` model. It sends the OpenCode session headers and the public client key.
-- **Trial Smart** talks to the self-hosted Pots endpoint and serves the `pots4free` model.
+Trial Smart (the self-hosted `pots4free` endpoint) has been removed. Installs that still had it selected fall back to Trial Flash.
 
-The endpoints and model ids are compile-time constants; the API key it uses is **not** part of the repository. It is read from the `pots.free.apiKey` property of the git-ignored `local.properties` file and baked into the binary at build time, so:
-
-- A build made from a checkout without that property ships without a bundled key. The free tier then only works once the user enters a key of their own, which is always allowed
-- A key entered in the settings takes precedence over the bundled one
-- Rotating the key is a matter of changing `local.properties` and rebuilding — no code change, no commit
+The OpenCode endpoint and model id are compile-time constants. No personal key is part of the repository.
 
 When a trial preset is the only path and the user hits its rate or quota limit, chat shows a signup panel for the five RF gateways so they can open an API-key page and continue with a personal account. See [chat.md](chat.md).
 
@@ -92,11 +87,9 @@ The id is Pots's own random conversation identifier; nothing about the user or t
 | Service | `id` | Requires API Key | API Type |
 |---|---|---|---|
 | Trial Flash (OpenCode free) | `opencode-free` | No | OpenAI-compatible |
-| Trial Smart (Pots free) | `free` | No (bundled key when built with one) | OpenAI-compatible |
 | Polza.ai | `polza` | Yes | OpenAI-compatible |
 | GPTunnel | `gptunnel` | Yes | OpenAI-compatible (raw `Authorization` key) |
 | AITUNNEL | `aitunnel` | Yes | OpenAI-compatible |
-| Prosvetim | `prosvetim` | Yes | OpenAI-compatible (same endpoint family as Trial Smart, own key, model list from the account) |
 | PlusVibeAPI | `plusvibe` | Yes | OpenAI-compatible (primary endpoint) |
 | PlusVibeAPI (резерв) | `plusvibe-reserve` | Yes | OpenAI-compatible (reserve endpoint) |
 | ProxyAPI | `proxyapi` | Yes | OpenAI-compatible |
@@ -137,11 +130,11 @@ The modal includes sort chips (Date, Score, Ctx) below the search field. Tapping
 
 Context window and release date come from two sources, merged by the mapping layer: a bundled curated catalog of well-known models, and whatever the provider's own models endpoint returns (e.g. OpenAI-compat `context_window` and `created`, Anthropic `created_at`). The curated catalog wins; provider-supplied values are used only as a fallback when the catalog has no entry for that model. The catalog is hand-maintained to correct inconsistencies in what providers report. Models not present in the catalog still render — they just use whatever the API provided, and any unknown fields are hidden.
 
-The old free-tier provider catalog was removed with its providers; a copy is kept in `docs/backups/FreeTierModels.kt.pre-rf-backup.txt`. The two trial presets do not depend on it.
+The old free-tier provider catalog was removed with its providers; a copy is kept in `docs/backups/FreeTierModels.kt.pre-rf-backup.txt`. The Trial Flash preset does not depend on it.
 
 ## Chat Screen Service Toggle
 
-The chat screen service toggle lists two distinct trial entries — **Trial Flash** and **Trial Smart** — followed by every configured non-Free service (including on-device and models that do not support tools). When this list contains more than one entry, a circular service icon button appears to the right of the chat input, next to the send/stop button. Because the two trial modes alone already count as two entries, the toggle can appear even when no non-Free services are configured. The icon represents the current primary service (each service has its own simplified vector icon). Tapping it opens a dropdown listing those services with their icons, names, and model IDs; the current primary is highlighted with a primary container background. The dropdown is height-capped to the screen and becomes scrollable when the list is long enough to overflow, so every entry stays reachable.
+The chat screen service toggle lists the Trial Flash entry followed by every configured service (including on-device and models that do not support tools). When this list contains more than one entry, a circular service icon button appears to the right of the chat input, next to the send/stop button. The toggle appears when there is more than one entry, so it can show up with only the Trial Flash entry and one configured service. The icon represents the current primary service (each service has its own simplified vector icon). Tapping it opens a dropdown listing those services with their icons, names, and model IDs; the current primary is highlighted with a primary container background. The dropdown is height-capped to the screen and becomes scrollable when the list is long enough to overflow, so every entry stays reachable.
 
 In **Interactive UI mode**, the same control is filtered to services whose selected model supports tool use (agentic flows), and on-device services are excluded so the user cannot switch to a model that cannot produce pots-ui.
 

@@ -57,14 +57,14 @@ fun AppSettings.migrateConfiguredServicesIfNeeded() {
     val existingServiceIds = existing.map { it.serviceId }.toSet()
     val instances = existing.toMutableList()
 
-    val currentServiceId = settings.getString(KEY_CURRENT_SERVICE_ID, Service.Free.id)
+    val currentServiceId = settings.getString(KEY_CURRENT_SERVICE_ID, Service.OpenCodeFree.id)
     val currentService = Service.fromId(currentServiceId)
-    if (currentService != Service.Free && currentService.id !in existingServiceIds) {
+    if (currentService != Service.OpenCodeFree && currentService.id !in existingServiceIds) {
         instances.add(ServiceInstance(instanceId = currentService.id, serviceId = currentService.id))
     }
 
     for (service in Service.all) {
-        if (service == Service.Free) continue
+        if (service == Service.OpenCodeFree) continue
         if (service.id in existingServiceIds) continue
         if (instances.any { it.serviceId == service.id }) continue
         val apiKey = getApiKey(service)
@@ -91,7 +91,6 @@ fun AppSettings.migrateInstanceSettingsIfNeeded() {
     val instances = getConfiguredServiceInstances()
     for (instance in instances) {
         val service = Service.fromId(instance.serviceId)
-        if (service == Service.Free) continue
         val legacyApiKey = getApiKey(service)
         if (legacyApiKey.isNotBlank() && getInstanceApiKey(instance.instanceId).isBlank()) {
             setInstanceApiKey(instance.instanceId, legacyApiKey)

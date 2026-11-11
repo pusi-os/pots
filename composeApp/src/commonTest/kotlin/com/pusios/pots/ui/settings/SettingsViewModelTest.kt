@@ -152,8 +152,6 @@ class SettingsViewModelTest {
 
         viewModel.state.test {
             val state = awaitItem()
-            // Should not contain Free
-            assertTrue(state.availableServicesToAdd.none { it == Service.Free })
             // Should contain all other services including already-configured ones (multi-instance)
             assertTrue(state.availableServicesToAdd.contains(Service.Polza))
             assertTrue(state.availableServicesToAdd.contains(Service.Gptunnel))

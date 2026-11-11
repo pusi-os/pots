@@ -147,7 +147,7 @@ class ChatViewModelTest {
 
     @Test
     fun `initial state reflects isUsingSharedKey from repository`() = runTest {
-        fakeRepository.setCurrentService(Service.Free)
+        fakeRepository.setCurrentService(Service.OpenCodeFree)
         val viewModel = createViewModel()
 
         viewModel.state.test {

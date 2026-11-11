@@ -29,7 +29,7 @@ fun AppSettings.exportToJson(
         if (configuredJson.isNotBlank()) {
             map["configured_services"] = Json.parseToJsonElement(configuredJson)
         }
-        map["current_service_id"] = JsonPrimitive(settings.getString(KEY_CURRENT_SERVICE_ID, Service.Free.id))
+        map["current_service_id"] = JsonPrimitive(settings.getString(KEY_CURRENT_SERVICE_ID, Service.OpenCodeFree.id))
         map["free_fallback_enabled"] = JsonPrimitive(isFreeFallbackEnabled())
 
         val instances = getConfiguredServiceInstances()
@@ -182,7 +182,7 @@ fun AppSettings.importFromJson(
     if (ImportSection.SERVICES in sections) {
         try {
             settings.putString(KEY_CONFIGURED_SERVICES, json["configured_services"]?.toString() ?: "")
-            settings.putString(KEY_CURRENT_SERVICE_ID, json["current_service_id"]?.jsonPrimitive?.content ?: Service.Free.id)
+            settings.putString(KEY_CURRENT_SERVICE_ID, json["current_service_id"]?.jsonPrimitive?.content ?: Service.OpenCodeFree.id)
             settings.putBoolean(KEY_FREE_FALLBACK_ENABLED, json["free_fallback_enabled"]?.jsonPrimitive?.content?.toBoolean() ?: true)
         } catch (_: Exception) {
             errors++
@@ -217,7 +217,7 @@ fun AppSettings.importFromJson(
         }
     } else if (replace) {
         settings.putString(KEY_CONFIGURED_SERVICES, "")
-        settings.putString(KEY_CURRENT_SERVICE_ID, Service.Free.id)
+        settings.putString(KEY_CURRENT_SERVICE_ID, Service.OpenCodeFree.id)
         settings.putBoolean(KEY_FREE_FALLBACK_ENABLED, true)
         oldInstances.forEach { removeInstanceSettings(it.instanceId) }
     }

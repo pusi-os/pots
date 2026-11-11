@@ -293,8 +293,6 @@ class RemoteDataRepository(
         apiKey = appSettings.getInstanceApiKey(instanceId).ifEmpty { service.defaultApiKey },
         modelId = modelIdOverride?.takeIf { it.isNotBlank() } ?: when (service) {
             // Each free preset pins its own model, independent of per-instance settings.
-            Service.Free -> FREE_TIER_MODEL_ID
-
             Service.OpenCodeFree -> OPENCODE_FREE_MODEL_ID
 
             else -> appSettings.getInstanceEffectiveModelId(instanceId).ifEmpty { appSettings.getSelectedModelId(service) }
@@ -456,14 +454,14 @@ class RemoteDataRepository(
         }
         val creds = instanceCredentials(instanceId, service)
         when (service) {
-            Service.Free, Service.OpenCodeFree -> { /* Built-in free plans are always valid. */ }
+            Service.OpenCodeFree -> { /* Built-in free plans are always valid. */ }
             else -> fetchInstanceModels(service, instanceId)
         }
     }
 
     private suspend fun fetchInstanceModels(service: Service, instanceId: String) {
         when (service) {
-            Service.Free, Service.OpenCodeFree -> { /* The preset defines its only model. */ }
+            Service.OpenCodeFree -> { /* The preset defines its only model. */ }
 
             Service.LiteRT -> {
                 val engine = localInferenceEngine ?: return

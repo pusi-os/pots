@@ -1396,10 +1396,6 @@ class SettingsViewModel(
     }
 
     private fun checkConnection(instanceId: String, service: Service) {
-        if (service == Service.Free) {
-            updateConnectionStatus(instanceId, ConnectionStatus.Connected)
-            return
-        }
         if (service.isOnDevice) {
             validateConnectionWithStatus(instanceId, service)
             return

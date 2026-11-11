@@ -12,7 +12,6 @@ class ServiceCatalogTest {
         assertEquals(
             listOf(
                 "opencode-free",
-                "free",
                 "polza",
                 "gptunnel",
                 "aitunnel",
@@ -30,8 +29,6 @@ class ServiceCatalogTest {
     fun `free presets pin the expected services and models`() {
         assertEquals(OPENCODE_FREE_MODEL_ID, FreeMode.FAST.modelId)
         assertEquals(Service.OpenCodeFree, FreeMode.FAST.service)
-        assertEquals(FREE_TIER_MODEL_ID, FreeMode.EXPERT.modelId)
-        assertEquals(Service.Free, FreeMode.EXPERT.service)
         assertTrue(FreeMode.entries.all { it.service.isFreeTier })
     }
 

@@ -45,7 +45,7 @@ import kotlinx.coroutines.flow.update
 
 class FakeDataRepository : DataRepository {
 
-    private var currentService: Service = Service.Free
+    private var currentService: Service = Service.OpenCodeFree
 
     override val chatHistory: MutableStateFlow<List<History>> = MutableStateFlow(emptyList())
     override val agentProfiles: MutableStateFlow<List<AgentProfile>> = MutableStateFlow(listOf(AgentProfile(id = "default", name = "Потсик")))
@@ -243,7 +243,7 @@ class FakeDataRepository : DataRepository {
 
     override fun currentService(): Service = currentService
 
-    override fun isUsingSharedKey(): Boolean = currentService == Service.Free
+    override fun isUsingSharedKey(): Boolean = currentService.isFreeTier
     override fun supportedFileExtensions(): List<String> = if (fileAttachmentSupported) listOf("txt", "pdf", "png") else emptyList()
 
     var fileAttachmentSupported = true

@@ -14,7 +14,6 @@ import pots.composeapp.generated.resources.ic_service_cerebras
 import pots.composeapp.generated.resources.ic_service_deepinfra
 import pots.composeapp.generated.resources.ic_service_deepseek
 import pots.composeapp.generated.resources.ic_service_fireworksai
-import pots.composeapp.generated.resources.ic_service_free_expert
 import pots.composeapp.generated.resources.ic_service_free_fast
 import pots.composeapp.generated.resources.ic_service_gemini
 import pots.composeapp.generated.resources.ic_service_gptunnel
@@ -41,19 +40,7 @@ import pots.composeapp.generated.resources.ic_service_together
 import pots.composeapp.generated.resources.ic_service_venice
 import pots.composeapp.generated.resources.ic_service_xai
 import pots.composeapp.generated.resources.ic_service_zai
-import pots.composeapp.generated.resources.service_free_expert
 import pots.composeapp.generated.resources.service_free_fast
-
-/**
- * Chat endpoint of the hosted free tier.
- *
- * The endpoint speaks the OpenAI chat-completions protocol, so the regular OpenAI-compatible
- * request path is used unchanged.
- */
-const val FREE_TIER_CHAT_URL = "https://omni.prosvetim.ru/v1/chat/completions"
-
-/** Model served by the hosted free tier. */
-const val FREE_TIER_MODEL_ID = "pots4free"
 
 /** OpenCode Zen's free model used by the Trial Flash preset. */
 const val OPENCODE_FREE_MODEL_ID = "big-pickle"
@@ -69,7 +56,6 @@ enum class FreeMode(
     val displayName: String,
 ) {
     FAST(OPENCODE_FREE_MODEL_ID, Res.string.service_free_fast, Res.drawable.ic_service_free_fast, Service.OpenCodeFree, "Trial Flash"),
-    EXPERT(FREE_TIER_MODEL_ID, Res.string.service_free_expert, Res.drawable.ic_service_free_expert, Service.Free, "Trial Smart"),
     ;
 
     val instanceId: String get() = "free-$modelId"
@@ -147,24 +133,6 @@ sealed class Service(
      */
     val defaultApiKey: String = "",
 ) {
-    data object Free : Service(
-        id = "free",
-        displayName = "Pots Free",
-        icon = Res.drawable.ic_service_free_fast,
-        requiresApiKey = false,
-        // The hosted free tier accepts a key but does not demand one: the build ships a
-        // default, and the user can replace it with their own in the settings.
-        supportsOptionalApiKey = true,
-        defaultModel = FREE_TIER_MODEL_ID,
-        settingsKeyPrefix = "",
-        chatUrl = FREE_TIER_CHAT_URL,
-        modelsUrl = null,
-        defaultApiKey = BuildSecrets.FREE_TIER_API_KEY,
-        // The free tier serves text-only models, so images can't be promised on this path.
-        supportsImages = false,
-        isFreeTier = true,
-    )
-
     /**
      * OpenCode Zen's free tier. The official client authenticates its free models with the
      * literal key `public` and identifies itself with the `x-opencode-*` harness headers.
@@ -301,7 +269,6 @@ sealed class Service(
         /** Providers offered in the RF build. */
         val all: List<Service> get() = listOf(
             OpenCodeFree,
-            Free,
             Polza,
             Gptunnel,
             AiTunnel,
