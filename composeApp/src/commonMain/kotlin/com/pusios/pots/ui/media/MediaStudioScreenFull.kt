@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.pusios.pots.isImageCompressionSupported
 import com.pusios.pots.media.MediaKind
-import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.MediaParamDef
 import com.pusios.pots.media.MediaReference
 import com.pusios.pots.readAppStorageBytes
@@ -61,7 +60,6 @@ import kotlin.math.roundToInt
 fun MediaStudioScreenFull(
     viewModel: MediaStudioViewModel,
     modifier: Modifier = Modifier,
-    onAskAgent: (String) -> Unit = {},
     onExit: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onSpeak: (String) -> Unit = {},
@@ -74,6 +72,7 @@ fun MediaStudioScreenFull(
     val jobs by viewModel.jobs.collectAsState()
     val references by viewModel.references.collectAsState()
     val error by viewModel.error.collectAsState()
+    val isStarting by viewModel.isStarting.collectAsState()
     val justFinished by viewModel.justFinished.collectAsState()
     val selectedImageModelId by viewModel.selectedImageModelId.collectAsState()
     val selectedVideoModelId by viewModel.selectedVideoModelId.collectAsState()
@@ -88,9 +87,9 @@ fun MediaStudioScreenFull(
     }
 
     // Errors surface as snackbars; a key problem offers a shortcut to settings.
+    // The error is cleared only after the snackbar is dismissed, so showing it does not cancel it.
     LaunchedEffect(error) {
         val studioError = error ?: return@LaunchedEffect
-        viewModel.dismissError()
         val compressIndex = studioError.oversizedReferenceIndex?.takeIf { isImageCompressionSupported }
         val result = snackbarHostState.showSnackbar(
             message = studioError.message,
@@ -100,6 +99,7 @@ fun MediaStudioScreenFull(
                 else -> null
             },
         )
+        viewModel.dismissError()
         if (result != SnackbarResult.ActionPerformed) return@LaunchedEffect
         if (compressIndex != null) {
             viewModel.compressReference(compressIndex)
@@ -176,17 +176,12 @@ fun MediaStudioScreenFull(
                     prompt = prompt,
                     onPromptChange = { prompt = it },
                     isVideoMode = isVideoMode,
-                    onToggleMode = { isVideoMode = !isVideoMode },
                     references = references,
                     onRemoveReference = viewModel::removeReference,
                     onAddReference = { referencePicker.launch() },
-                    currentModelLabel = modelChipLabel,
-                    onOpenModels = { showModelSheet = true },
                     speechEnabled = speechEnabled,
                     onToggleSpeech = onToggleSpeech,
-                    onAskAgent = {
-                        if (prompt.isNotBlank()) onAskAgent(prompt)
-                    },
+                    isBusy = isStarting || pending.isNotEmpty(),
                     onCreate = {
                         if (prompt.isBlank()) {
                             scope.launch { snackbarHostState.showSnackbar("Опиши, что нужно сгенерировать") }
@@ -243,6 +238,9 @@ fun MediaStudioScreenFull(
                 },
                 onImport = { importPicker.launch() },
                 onOpenModels = { showModelSheet = true },
+                isVideoMode = isVideoMode,
+                onToggleMode = { isVideoMode = !isVideoMode },
+                currentModelLabel = modelChipLabel,
             )
 
             // The menu follows the canvas pan so it stays under its element.

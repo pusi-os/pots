@@ -17,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
@@ -26,6 +25,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,23 +50,21 @@ import com.pusios.pots.media.MediaReference
 import com.pusios.pots.ui.handCursor
 
 /**
- * The studio dock: reference strip, single prompt field, round create button
- * and an icon row (speech toggle, ask agent, image/video mode, current model).
+ * The studio dock: reference strip, single prompt field with the round create
+ * button on its right (a progress indicator while a generation runs), the
+ * enhance action under the field, and the speech toggle.
  */
 @Composable
 internal fun MediaDock(
     prompt: String,
     onPromptChange: (String) -> Unit,
     isVideoMode: Boolean,
-    onToggleMode: () -> Unit,
     references: List<MediaReference>,
     onRemoveReference: (Int) -> Unit,
     onAddReference: () -> Unit,
-    currentModelLabel: String?,
-    onOpenModels: () -> Unit,
     speechEnabled: Boolean,
     onToggleSpeech: () -> Unit,
-    onAskAgent: () -> Unit,
+    isBusy: Boolean,
     onCreate: () -> Unit,
     paramDefs: List<MediaParamDef>,
     paramValues: Map<String, String>,
@@ -103,17 +101,26 @@ internal fun MediaDock(
                 Spacer(Modifier.width(8.dp))
                 Surface(
                     onClick = onCreate,
+                    enabled = !isBusy,
                     modifier = Modifier.size(52.dp).handCursor().semantics { contentDescription = "Создать" },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primary,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Filled.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(24.dp),
-                        )
+                        if (isBusy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -127,36 +134,8 @@ internal fun MediaDock(
         }
     }
 
-    Spacer(Modifier.height(6.dp))
-
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        DockIconButton(
-            icon = Icons.AutoMirrored.Filled.Send,
-            contentDescription = "Спросить агента",
-            onClick = onAskAgent,
-        )
-        Spacer(Modifier.width(4.dp))
-        ModeSegment(isVideoMode = isVideoMode, onToggle = onToggleMode)
-        Spacer(Modifier.width(8.dp))
-        currentModelLabel?.let { label ->
-            Surface(
-                onClick = onOpenModels,
-                modifier = Modifier.handCursor(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-            ) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    maxLines = 1,
-                )
-            }
-        }
-    }
-
     if (paramDefs.isNotEmpty()) {
+        Spacer(Modifier.height(6.dp))
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -223,8 +202,9 @@ internal fun ReferenceStrip(
     }
 }
 
+/** Image/video switch; shared by the studio top bar. */
 @Composable
-private fun ModeSegment(isVideoMode: Boolean, onToggle: () -> Unit) {
+internal fun ModeSegment(isVideoMode: Boolean, onToggle: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),

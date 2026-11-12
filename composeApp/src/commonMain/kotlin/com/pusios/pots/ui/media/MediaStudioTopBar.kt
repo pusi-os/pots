@@ -1,8 +1,12 @@
 package com.pusios.pots.ui.media
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -13,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,8 +26,9 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.ui.handCursor
 
 /**
- * The studio's top overlay: four compact icon buttons in one glass capsule —
- * back to chat, recenter canvas, import a file, pick a model. No text labels.
+ * The studio's top overlay: a glass capsule with four compact icon buttons
+ * (back to chat, recenter canvas, import a file, pick a model), and a second
+ * row beneath it with the image/video switch and the current model.
  */
 @Composable
 internal fun MediaStudioTopBar(
@@ -31,22 +37,49 @@ internal fun MediaStudioTopBar(
     onRecenter: () -> Unit,
     onImport: () -> Unit,
     onOpenModels: () -> Unit,
+    isVideoMode: Boolean,
+    onToggleMode: () -> Unit,
+    currentModelLabel: String?,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-        tonalElevation = 6.dp,
-        shadowElevation = 4.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+            tonalElevation = 6.dp,
+            shadowElevation = 4.dp,
         ) {
-            TopBarIconButton(Icons.AutoMirrored.Filled.Chat, "Вернуться в чат", onExit)
-            TopBarIconButton(Icons.Filled.AutoAwesome, "Медиа-канвас: в центр", onRecenter)
-            TopBarIconButton(Icons.Filled.AddPhotoAlternate, "Импортировать файл", onImport)
-            TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)
+            Row(
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TopBarIconButton(Icons.AutoMirrored.Filled.Chat, "Вернуться в чат", onExit)
+                TopBarIconButton(Icons.Filled.AutoAwesome, "Медиа-канвас: в центр", onRecenter)
+                TopBarIconButton(Icons.Filled.AddPhotoAlternate, "Импортировать файл", onImport)
+                TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)
+            }
+        }
+
+        Spacer(Modifier.size(6.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            ModeSegment(isVideoMode = isVideoMode, onToggle = onToggleMode)
+            currentModelLabel?.let { label ->
+                Spacer(Modifier.width(8.dp))
+                Surface(
+                    onClick = onOpenModels,
+                    modifier = Modifier.handCursor(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        maxLines = 1,
+                    )
+                }
+            }
         }
     }
 }

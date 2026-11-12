@@ -73,6 +73,10 @@ class MediaStudioViewModel(
     private val _error = MutableStateFlow<MediaStudioError?>(null)
     val error: StateFlow<MediaStudioError?> = _error.asStateFlow()
 
+    /** True from the tap until the job is submitted (or refused), before it shows up in [jobs]. */
+    private val _isStarting = MutableStateFlow(false)
+    val isStarting: StateFlow<Boolean> = _isStarting.asStateFlow()
+
     /** References merged into the next generation (mapped onto model opts by the provider). */
     private val _references = MutableStateFlow<List<MediaReference>>(emptyList())
     val references: StateFlow<List<MediaReference>> = _references.asStateFlow()
@@ -147,6 +151,7 @@ class MediaStudioViewModel(
     }
 
     private fun generate(prompt: String, opts: Map<String, String>, kind: MediaKind) {
+        if (isGenerationBusy()) return
         val key = apiKeyProvider()
         if (key.isBlank()) {
             _error.value = MediaStudioError(
@@ -168,24 +173,42 @@ class MediaStudioViewModel(
         val references = _references.value
         pendingGeneration = PendingGeneration(prompt, opts, kind)
         MediaLog.i("Generate: kind=$kind model=${model.id} opts=${opts.keys} refs=${references.size}")
+        _isStarting.value = true
         viewModelScope.launch {
-            val oversized = withContext(Dispatchers.Default) { oversizedReferenceIndex(references) }
-            if (oversized != null) {
-                MediaLog.w("Reference ${oversized + 1} exceeds $MAX_INLINE_REFERENCE_BYTES bytes")
-                _error.value = MediaStudioError(
-                    "Референс ${oversized + 1} больше 8 МБ — сожми его, чтобы отправить",
-                    oversizedReferenceIndex = oversized,
-                )
-                return@launch
+            try {
+                submitGeneration(key, model.id, prompt, opts, references)
+            } finally {
+                _isStarting.value = false
             }
-            runCatching {
-                repository.generate(
-                    key,
-                    MediaJobRequest(model = model.id, prompt = prompt, opts = opts, references = references),
-                ) { _jobs.update { m -> m + (it.jobId to it) } }
-            }.onFailure { showError("Генерация не запустилась", it) }
         }
     }
+
+    private suspend fun submitGeneration(
+        key: String,
+        modelId: String,
+        prompt: String,
+        opts: Map<String, String>,
+        references: List<MediaReference>,
+    ) {
+        val oversized = withContext(Dispatchers.Default) { oversizedReferenceIndex(references) }
+        if (oversized != null) {
+            MediaLog.w("Reference ${oversized + 1} exceeds $MAX_INLINE_REFERENCE_BYTES bytes")
+            _error.value = MediaStudioError(
+                "Референс ${oversized + 1} больше 8 МБ — сожми его, чтобы отправить",
+                oversizedReferenceIndex = oversized,
+            )
+            return
+        }
+        runCatching {
+            repository.generate(
+                key,
+                MediaJobRequest(model = modelId, prompt = prompt, opts = opts, references = references),
+            ) { _jobs.update { m -> m + (it.jobId to it) } }
+        }.onFailure { showError("Генерация не запустилась", it) }
+    }
+
+    /** True while a submit is in flight or a job is still running; the create button stays locked meanwhile. */
+    fun isGenerationBusy(): Boolean = _isStarting.value || _jobs.value.values.any { !it.isTerminal }
 
     private fun oversizedReferenceIndex(references: List<MediaReference>): Int? = references.indexOfFirst { ref ->
         val path = ref.localPath

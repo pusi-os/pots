@@ -1101,7 +1101,6 @@ private fun ChatModeScreen(
                     com.pusios.pots.ui.media.MediaStudioScreenFull(
                         viewModel = mediaViewModel,
                         modifier = Modifier.weight(1f),
-                        onAskAgent = { question -> uiState.actions.ask(question) },
                         onExit = { isMediaOpen = false },
                         onOpenSettings = onNavigateToSettings,
                         onToggleSpeech = uiState.actions.toggleSpeechOutput,
