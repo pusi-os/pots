@@ -89,6 +89,8 @@ errorCode / failMsg / failure{ code, advice, definitive, charged }
 stage: generating | completed | failed | submission_unknown
 ```
 
+Идемпотентность и двойные списания (Pots, 2026-11-12): каждый повтор создания обязан переиспользовать тот же `Idempotency-Key` и то же тело (тот же `quote_id`/`max_price_rub`). Новый ключ на каждый повтор — причина двойных списаний. При таймауте создания задача может уже существовать: не отправлять заново, а опрашивать тот же `jobId` (статус `submitting`, `failure.advice: reconcile_first`). В приложении `localId` (UUID) первого запроса служит ключом; задача, которая уже списана или завершилась, при «повторить» получает новый ключ.
+
 Рекомендуемый polling: 3–5 с с экспоненциальной задержкой до 30 с. При `submission_outcome_unknown` (`stage: submission_unknown`, `errorCode: media_submission_uncertain`, `failure.advice: reconcile_first`) — опрашивать тот же jobId, не создавать дубль; за ~10–15 мин закрывается как `fail` (`media_submission_not_started`, без списания) — создавать новую задачу. `fail` с `definitive:true, advice:retry_later` — можно новую задачу после backoff; `fix_input` — чинить вход; `choose_other_route` — другую модель.
 
 ### Result file
@@ -106,6 +108,7 @@ stage: generating | completed | failed | submission_unknown
 | `negative_prompt` | string | Что исключить (qwen-image, wan-2-7) |
 | `guidance` / `seed` / `stability` | number | Guidance scale / seed / стабильность 0–1 |
 | `camera` | string | Движение камеры (`pan left`) |
+| `mode` | string | `text-to-image` \| `image-to-image`. У `gpt-image-2` и `gpt-image-2-6` есть в схеме. Pots отправляет `image-to-image`, когда прикреплены референсы и модель объявляет `mode`. Проверка на живом API ещё не выполнена (требует платного запроса) |
 
 Неизвестный параметр игнорируется (в `strict` — 422). Машиночитаемый контракт: `GET /api/model-capabilities` / `GET /api/model-capabilities/{model}` и `GET /v1/model-capabilities/{model}` (`operations[].requestJsonSchema`).
 
@@ -136,6 +139,7 @@ stage: generating | completed | failed | submission_unknown
 * `n=1` только на sync-пути изображений; несколько картинок — несколько задач.
 * Таймаут sync-пути 300 с — async путь предпочтителен в приложении (polling + отмена).
 * Оплата в рублях, данные в РФ (152-ФЗ).
+* Тестовая модель для проверок с референсами — `gpt-image-2` (0,45 ₽, принимает текст и изображение). Самая дешёвая картинка — `recraft` (0,31 ₽), но без приёма изображения, для референсов не подходит.
 * `nano-banana-pro` — актуальный id (не `gemini-3-pro-image`, он принимается только в `model` запроса async-пути как алиас).
 
 ## Sources

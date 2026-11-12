@@ -1,3 +1,4 @@
 # Media provider log
 
 - **2026-11-10** — bundle created; PlusVibeAPI contract snapshot from official docs (`/docs/api-reference`, `/docs/images-generations`, `/docs/video-generations`, `/docs/media-generation`, `/docs/media-pipeline`, `/docs/media-models`, `/docs/media-webhooks`) + live `/api/media-catalog` shape. Runtime adapter lands in Phase 1 of the media-studio plan.
+- **2026-11-12** — Pots fixes: `PlusVibeMediaProvider` now sends the body as a string (a bare `JsonObject` failed without `ContentNegotiation`), uses `HttpTimeout` (180 s request/socket, 30 s connect), reuses the same `Idempotency-Key` and quote on retries, and sends `mode = image-to-image` with references. Contract notes (reconcile on `submitting`, `mode`, cheap test model `gpt-image-2`) added to `plusvibe.md`. The `mode` value is not yet verified against the live API.
