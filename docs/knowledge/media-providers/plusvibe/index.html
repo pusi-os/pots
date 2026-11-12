@@ -1415,6 +1415,7 @@ resultsExpireAt: ISO — 5 дней после completion; потом 410 media_
 errorCode / failMsg / failure{ code, advice, definitive, charged }
 stage: generating | completed | failed | submission_unknown
 </code></pre></div>
+<p>Идемпотентность и двойные списания (Pots, 2026-11-12): каждый повтор создания обязан переиспользовать тот же <code>Idempotency-Key</code> и то же тело (тот же <code>quote_id</code>/<code>max_price_rub</code>). Новый ключ на каждый повтор — причина двойных списаний. При таймауте создания задача может уже существовать: не отправлять заново, а опрашивать тот же <code>jobId</code> (статус <code>submitting</code>, <code>failure.advice: reconcile_first</code>). В приложении <code>localId</code> (UUID) первого запроса служит ключом; задача, которая уже списана или завершилась, при «повторить» получает новый ключ.</p>
 <p>Рекомендуемый polling: 3–5 с с экспоненциальной задержкой до 30 с. При <code>submission_outcome_unknown</code> (<code>stage: submission_unknown</code>, <code>errorCode: media_submission_uncertain</code>, <code>failure.advice: reconcile_first</code>) — опрашивать тот же jobId, не создавать дубль; за ~10–15 мин закрывается как <code>fail</code> (<code>media_submission_not_started</code>, без списания) — создавать новую задачу. <code>fail</code> с <code>definitive:true, advice:retry_later</code> — можно новую задачу после backoff; <code>fix_input</code> — чинить вход; <code>choose_other_route</code> — другую модель.</p>
 <h3 id="result-file">Result file</h3>
 <p><code>GET /api/media/file/{id}/{idx}</code> — подписанный прокси (HMAC <code>sig</code> в query). Открывается без ключа (<code>&lt;img&gt;</code>/<code>&lt;video&gt;</code>). <code>download=1</code> — как вложение (<code>.glb</code> для 3D). Поддерживает Range (перемотка). Провайдер скрыт, upstream-адрес клиент не видит. Результат живёт 5 дней; постоянный адрес <code>https://plusvibeapi.ru/media/r/…</code> после копирования в хранилище поставщика.</p>
@@ -1463,6 +1464,11 @@ stage: generating | completed | failed | submission_unknown
 <td>string</td>
 <td>Движение камеры (<code>pan left</code>)</td>
 </tr>
+<tr>
+<td><code>mode</code></td>
+<td>string</td>
+<td><code>text-to-image</code> | <code>image-to-image</code>. У <code>gpt-image-2</code> и <code>gpt-image-2-6</code> есть в схеме. Pots отправляет <code>image-to-image</code>, когда прикреплены референсы и модель объявляет <code>mode</code>. Проверка на живом API ещё не выполнена (требует платного запроса)</td>
+</tr>
 </tbody>
 </table>
 <p>Неизвестный параметр игнорируется (в <code>strict</code> — 422). Машиночитаемый контракт: <code>GET /api/model-capabilities</code> / <code>GET /api/model-capabilities/{model}</code> и <code>GET /v1/model-capabilities/{model}</code> (<code>operations[].requestJsonSchema</code>).</p>
@@ -1485,6 +1491,7 @@ stage: generating | completed | failed | submission_unknown
 <li><code>n=1</code> только на sync-пути изображений; несколько картинок — несколько задач.</li>
 <li>Таймаут sync-пути 300 с — async путь предпочтителен в приложении (polling + отмена).</li>
 <li>Оплата в рублях, данные в РФ (152-ФЗ).</li>
+<li>Тестовая модель для проверок с референсами — <code>gpt-image-2</code> (0,45 ₽, принимает текст и изображение). Самая дешёвая картинка — <code>recraft</code> (0,31 ₽), но без приёма изображения, для референсов не подходит.</li>
 <li><code>nano-banana-pro</code> — актуальный id (не <code>gemini-3-pro-image</code>, он принимается только в <code>model</code> запроса async-пути как алиас).</li>
 </ul>
 <h2 id="sources">Sources</h2>

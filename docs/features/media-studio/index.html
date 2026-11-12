@@ -1139,6 +1139,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#generation-journal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generation journal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#canvas-element" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1150,10 +1161,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#context-menu" class="md-nav__link">
+  <a href="#canvas-element-toolbar" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Context menu
+        Canvas element toolbar
       
     </span>
   </a>
@@ -1227,29 +1238,51 @@
 
 
 <h1 id="media-studio">Media Studio</h1>
-<p><strong>Last verified:</strong> 2026-11-11</p>
-<p>Media Studio is the in-app creative surface for generating and editing images and video with the currently active cloud media provider (PlusVibeAPI first). It opens from the chat top bar (media icon) and takes over the chat area. While it is open, the chat input is hidden: the studio has its own single prompt field in the dock. Speech output, if on, announces “генерация готова” in Russian when a job finishes.</p>
+<p><strong>Last verified:</strong> 2026-11-12</p>
+<p>Media Studio is the in-app creative surface for generating and editing images and video with the currently active cloud media provider (PlusVibeAPI first). The main chat top bar switches to it: the media icon opens the studio, and while the studio is open the same slot shows a chat icon that returns to chat. The studio takes over the chat area. While it is open, the chat input is hidden: the studio has its own single prompt field in the dock. Speech output, if on, announces “генерация готова” in Russian when a job finishes.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="media-provider">Media provider</h3>
 <p>A cloud service exposing a model catalog with prices, an async generation queue, and signed result URLs. The provider adapter owns its HTTP contract (catalog, price quote, submit, poll, download). Pots ships PlusVibeAPI first; the adapter interface accepts further providers without changing the studio, the settings UI, or the agent tools.</p>
 <h3 id="media-instance">Media instance</h3>
 <p>The service instance that bills generation. It is the first configured instance that has an API key; if none has a key, the first configured instance is used and the studio reports the missing key with a shortcut to settings.</p>
 <h3 id="media-job">Media job</h3>
-<p>One async generation task. The client submits the model id, prompt, options and references, receives a <code>jobId</code>, polls the provider until a terminal status (<code>success</code> / <code>fail</code>), and downloads the result bytes immediately. Providers keep results only a few days (PlusVibe: 5 days). Paid generation is charged once on <code>success</code>; <code>fail</code> is free. A stuck (<code>submitting</code>) job is polled, never duplicated. Each submit carries an idempotency key.</p>
+<p>One async generation task. The client submits the model id, prompt, options and references, receives a <code>jobId</code>, polls the provider until a terminal status (<code>success</code> / <code>fail</code>), and downloads the result bytes immediately. Providers keep results only a few days (PlusVibe: 5 days). Paid generation is charged once on <code>success</code>; <code>fail</code> is free.</p>
+<p>Each job has a local <code>localId</code> (UUID) that is also the <code>Idempotency-Key</code> of its first submit. The journal persists every job to <code>media/history.json</code> in app storage. On restart:</p>
+<ul>
+<li>an entry still in <code>Sending</code> without a <code>jobId</code> becomes <code>Failed</code>;</li>
+<li>an entry with a <code>jobId</code> is resumed by polling the same job. If the provider no longer knows the job, the entry becomes <code>Failed</code> with “Провайдер не знает эту задачу”.</li>
+</ul>
+<p>A submit that timed out is never resent with a new key. The client reconciles it by polling the same <code>jobId</code>. A failed submit with no <code>jobId</code> is retried with the same key, the saved <code>quoteId</code> and <code>maxPriceRub</code>, so the body matches.</p>
+<h3 id="generation-journal">Generation journal</h3>
+<p>A top-bar button (with a badge for active jobs) opens a sheet listing every generation, newest first, with the local time. From it the user can:</p>
+<ul>
+<li>open an entry in the lightbox or place it on the canvas;</li>
+<li>save a finished result to the phone gallery;</li>
+<li>regenerate an entry (a finished or charged job gets a new key);</li>
+<li>remove an entry from the list. Removing an entry does not cancel the provider job, and the user is warned.</li>
+</ul>
+<p>Queued and running entries show a progress bar, the model, the provider and the price. Errors are shown in Russian.</p>
 <h3 id="canvas-element">Canvas element</h3>
-<p>A placed image or video on the studio canvas. Elements can be dragged, rotated and scaled, stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation. A tap selects an element and shows quick chips (rotate, scale, fullscreen). The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).</p>
-<h3 id="context-menu">Context menu</h3>
-<p>Tapping an element opens a small glass menu anchored under that element. It follows the canvas when the canvas is panned, so it stays attached to its element. The menu closes on outside tap or on an action.</p>
+<p>A placed image or video on the studio canvas. Each element is scaled, rotated and moved independently, with its own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation. A tap selects an element and shows its toolbar. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).</p>
+<h3 id="canvas-element-toolbar">Canvas element toolbar</h3>
+<p>The toolbar appears over the selected element in two icon rows. The first row holds the quick transform actions. The second row holds the former context-menu actions as vector icons: bring forward, send back, duplicate, use as reference, save to gallery and delete. The old text menu was removed, so the toolbar never overlaps another menu.</p>
 <h3 id="references">References</h3>
-<p>The dock shows a strip of reference thumbnails for the next generation. References come from three places: the file picker in the strip, the “Как референс” action on a canvas element, or the agent. A reference is either a public <code>https://</code> URL, which the provider downloads itself, or app-storage bytes, which are sent inline as <code>data:&lt;mime&gt;;base64,…</code>. Inline bytes are capped at 8 MB; larger files are refused with a Russian message asking the user to compress them. Each model receives references on the opts keys it declares (for example <code>image_url</code>, <code>image_base64</code>, or their plural array forms). Models that do not accept an image reference refuse the request before submit.</p>
+<p>The dock shows a strip of reference thumbnails for the next generation. References come from three places: the file picker in the strip, the “Как референс” action on a canvas element, or the agent. A reference is either a public <code>https://</code> URL, which the provider downloads itself, or app-storage bytes, which are sent inline as <code>data:&lt;mime&gt;;base64,…</code> in the matching <code>*_base64</code> field. Inline bytes are capped at 8 MB; larger files are refused with a Russian message asking the user to compress them, and the journal entry is removed so that a compressed retry does not create a duplicate. Models that do not accept an image reference refuse the request before submit.</p>
+<p>When references are attached and the model declares a <code>mode</code> parameter, the request sends <code>mode = "image-to-image"</code>. Without references the mode is left at the model's default.</p>
 <h3 id="agent-photo-edits">Agent photo edits</h3>
-<p>When the user attaches a photo in chat and asks the agent to improve it or place the person somewhere, the agent calls <code>generate_image</code> with <code>reference_image="attachment"</code>. The tool takes the last image attached to a user message in the active chat. If the chosen model cannot take a reference, the tool switches to the first catalog model that can, and logs the switch.</p>
+<p>When the user attaches a photo in chat and asks the agent to improve it or place the person somewhere, the agent calls <code>generate_image</code> with <code>reference_image="attachment"</code>. The tool takes the last image attached to a user message in the active chat. The tool does not switch models. If the selected model cannot take a reference, the tool returns a clear error that names the model, so the user can pick a suitable one.</p>
 <h2 id="behaviour">Behaviour</h2>
 <ul>
 <li>Async generation with provider-recommended polling (PlusVibe: 3 s, doubling to 30 s), no duplicate submit on <code>submitting</code>, and transient poll errors retried with backoff.</li>
+<li>HTTP timeouts for the provider client: connect 30 s, request and socket 180 s. The default OkHttp timeout is too short for generation submits.</li>
 <li>Result URLs are downloaded to bytes immediately and cached under the app storage; the canvas keeps the remote URL as a fallback until the download completes.</li>
-<li>Dock: one prompt field, a round create button, a reference strip, a speech toggle, an “ask agent” icon (sends the typed prompt to the chat agent), an image/video mode switch, the current model chip (opens the model sheet), and parameter chips for aspect ratio, duration and resolution when the model declares them.</li>
-<li>Model sheet: image and video models from the provider catalog, each with a price badge. The selected row uses the theme’s container colors, so its text stays readable. When no model is saved, the first catalog model of the mode is picked and persisted.</li>
+<li>Top bar (main chat bar, shown in both modes): the media icon opens the studio; in the studio the same slot shows a chat icon that returns to chat.</li>
+<li>Studio top capsule: recenter canvas, import a file, pick a model, and the generation journal. The sparkle icon recenters the canvas. It is not prompt enhancement.</li>
+<li>Studio second row: the image/video switch, the current model chip (opens the model sheet), and, in image mode, the aspect-ratio chip. The chip opens a sheet with a rectangle preview for each ratio and its name.</li>
+<li>Dock: one prompt field, the prompt-enhance button (small, icon only, left of the send button), a round create button with a progress indicator while a job runs, a reference strip, and the duration and resolution chips when the model declares them. Aspect ratio is not in the dock.</li>
+<li>Prompt enhance shows progress while it runs, blocks repeat presses until the first request finishes, and uses the active chat model.</li>
+<li>Generation lock: while a submit is starting or any journal entry is active, the create button is disabled.</li>
+<li>Model sheet: image and video models from the provider catalog, each with a price badge. The selected row uses the theme’s container colors, so its text stays readable. When no model is saved, the first catalog model of the mode is picked and persisted. The selected model is never changed by the app during generation.</li>
 <li>Errors appear as a snackbar with a Russian message. A missing key offers a “Настройки” action.</li>
 <li>Every catalog load, quote, submit, poll, download and reference mapping is logged under the <code>PotsMedia</code> tag (logcat on Android, stdout on desktop).</li>
 <li>Chat history and canvas stay independent: generating in the studio does not write into the conversation.</li>
@@ -1273,11 +1306,15 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/PlusVibeMediaProvider.kt</code></td>
-<td>PlusVibeAPI adapter; maps references onto model opts keys</td>
+<td>PlusVibeAPI adapter; body building, <code>mode</code> injection, reference mapping, <code>HttpTimeout</code></td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/MediaGenerationRepository.kt</code></td>
-<td>Async queue, polling with backoff, dedup, download-and-cache</td>
+<td>Async queue, submit reconcile, polling with backoff, dedup, quote reuse, download-and-cache, resume</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/MediaHistory.kt</code></td>
+<td>Journal model and <code>MediaHistoryStore</code> (<code>media/history.json</code>)</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/MediaSettings.kt</code></td>
@@ -1289,7 +1326,7 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/PromptEnhancer.kt</code></td>
-<td>Prompt cleanup used by the <code>enhance_prompt</code> tool</td>
+<td>Prompt cleanup used by the <code>enhance_prompt</code> tool and the enhance button</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../tools/MediaTools.kt</code></td>
@@ -1301,19 +1338,23 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaStudioTopBar.kt</code></td>
-<td>Top capsule of icon buttons (chat, recenter, import, models)</td>
+<td>Studio top capsule (recenter, import, models, journal) and second row (mode, model, ratio)</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaCanvas.kt</code></td>
-<td>Dotted canvas, draggable elements, selection chips, skeletons, empty state</td>
-</tr>
-<tr>
-<td><code>composeApp/src/commonMain/.../ui/media/MediaContextMenu.kt</code></td>
-<td>Floating menu under the selected element</td>
+<td>Dotted canvas, independent element gestures, two-row element toolbar, skeletons, empty state</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaDock.kt</code></td>
-<td>Prompt field, reference strip, mode and model controls, parameter chips</td>
+<td>Prompt field, enhance and create buttons, reference strip, parameter chips</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/media/MediaHistorySheet.kt</code></td>
+<td>Generation journal sheet: open, save to gallery, regenerate, remove</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/media/MediaAspectRatioSheet.kt</code></td>
+<td>Aspect-ratio sheet with rectangle previews</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaModelSheet.kt</code></td>
@@ -1321,7 +1362,7 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaStudioViewModel.kt</code></td>
-<td>Studio state: jobs, elements, references, model selection, typed errors</td>
+<td>Studio state: jobs, elements, references, model selection, generation lock, typed errors</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/settings/MediaModelsSettings.kt</code></td>
@@ -1329,7 +1370,11 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt</code></td>
-<td>Media icon that opens the studio</td>
+<td>Main top bar: media icon opens the studio, chat icon returns from it</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/chat/ChatScreen.kt</code></td>
+<td><code>isMediaOpen</code> state and the top bar wiring</td>
 </tr>
 <tr>
 <td><code>docs/knowledge/media-providers/</code></td>
