@@ -1060,7 +1060,8 @@ private fun ChatModeScreen(
                     onToggleMiniApps = { showMiniAppsToolbar = !showMiniAppsToolbar },
                     profilesOpen = showAgentProfilesToolbar,
                     onToggleProfiles = { showAgentProfilesToolbar = !showAgentProfilesToolbar },
-                    onOpenMedia = { isMediaOpen = true },
+                    mediaOpen = isMediaOpen,
+                    onToggleMedia = { isMediaOpen = !isMediaOpen },
                 )
             }
 
@@ -1101,7 +1102,6 @@ private fun ChatModeScreen(
                     com.pusios.pots.ui.media.MediaStudioScreenFull(
                         viewModel = mediaViewModel,
                         modifier = Modifier.weight(1f),
-                        onExit = { isMediaOpen = false },
                         onOpenSettings = onNavigateToSettings,
                         onSpeak = { phrase ->
                             scope.launch {

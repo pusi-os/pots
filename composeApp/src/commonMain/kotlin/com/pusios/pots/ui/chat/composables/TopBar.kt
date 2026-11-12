@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Dns
@@ -78,7 +79,8 @@ internal fun TopBar(
     onToggleMiniApps: (() -> Unit)? = null,
     profilesOpen: Boolean = false,
     onToggleProfiles: (() -> Unit)? = null,
-    onOpenMedia: (() -> Unit)? = null,
+    mediaOpen: Boolean = false,
+    onToggleMedia: (() -> Unit)? = null,
 ) {
     if (navigationTabBar != null) {
         Box(
@@ -106,8 +108,8 @@ internal fun TopBar(
                 if (onToggleMiniApps != null) {
                     MiniAppsButton(open = miniAppsOpen, onClick = onToggleMiniApps)
                 }
-                if (onOpenMedia != null) {
-                    MediaStudioButton(onClick = onOpenMedia)
+                if (onToggleMedia != null) {
+                    MediaStudioButton(open = mediaOpen, onClick = onToggleMedia)
                 }
             }
         }
@@ -140,21 +142,29 @@ internal fun TopBar(
             if (onToggleMiniApps != null) {
                 MiniAppsButton(open = miniAppsOpen, onClick = onToggleMiniApps)
             }
-            if (onOpenMedia != null) {
-                MediaStudioButton(onClick = onOpenMedia)
+            if (onToggleMedia != null) {
+                MediaStudioButton(open = mediaOpen, onClick = onToggleMedia)
             }
         }
     }
 }
 
 @Composable
-private fun MediaStudioButton(onClick: () -> Unit) {
+private fun MediaStudioButton(open: Boolean, onClick: () -> Unit) {
     IconButton(onClick = onClick, modifier = Modifier.handCursor()) {
-        Icon(
-            imageVector = vectorResource(Res.drawable.ic_image),
-            contentDescription = "Медиа-студия",
-            tint = MaterialTheme.colorScheme.onBackground,
-        )
+        if (open) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Chat,
+                contentDescription = "Вернуться в чат",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        } else {
+            Icon(
+                imageVector = vectorResource(Res.drawable.ic_image),
+                contentDescription = "Медиа-студия",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
     }
 }
 

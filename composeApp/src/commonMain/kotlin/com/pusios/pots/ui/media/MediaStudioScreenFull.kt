@@ -57,7 +57,6 @@ import kotlinx.coroutines.launch
 fun MediaStudioScreenFull(
     viewModel: MediaStudioViewModel,
     modifier: Modifier = Modifier,
-    onExit: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onSpeak: (String) -> Unit = {},
     speechEnabled: Boolean = false,
@@ -113,6 +112,7 @@ fun MediaStudioScreenFull(
     var params by remember { mutableStateOf(mapOf<String, String>()) }
     var showModelSheet by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var showAspectRatio by remember { mutableStateOf(false) }
     var lightboxUrl by remember { mutableStateOf<String?>(null) }
     var lightboxIsVideo by remember { mutableStateOf(false) }
 
@@ -124,8 +124,16 @@ fun MediaStudioScreenFull(
     val currentModel = currentModels.firstOrNull { it.id == currentModelId } ?: currentModels.firstOrNull()
     val paramDefs: List<MediaParamDef> = currentModel
         ?.params
-        ?.filter { it.key in listOf("aspect_ratio", "duration", "resolution") && it.options.isNotEmpty() }
+        ?.filter { it.key in listOf("duration", "resolution") && it.options.isNotEmpty() }
+        ?.filter { it.key != "aspect_ratio" }
         .orEmpty()
+    val aspectRatioDef: MediaParamDef? = if (isVideoMode) {
+        null
+    } else {
+        currentModel
+            ?.params
+            ?.firstOrNull { it.key == "aspect_ratio" && it.options.isNotEmpty() }
+    }
     val modelChipLabel = when {
         currentModel != null -> currentModel.id
         models.isEmpty() -> "Каталог пуст"
@@ -225,7 +233,6 @@ fun MediaStudioScreenFull(
 
             MediaStudioTopBar(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp),
-                onExit = onExit,
                 onRecenter = {
                     canvasScale = 1f
                     canvasOffset = Offset.Zero
@@ -237,8 +244,19 @@ fun MediaStudioScreenFull(
                 isVideoMode = isVideoMode,
                 onToggleMode = { isVideoMode = !isVideoMode },
                 currentModelLabel = modelChipLabel,
+                aspectRatioLabel = if (isVideoMode) null else aspectRatioDef?.let { def -> params[def.key] ?: def.defaultValue },
+                onOpenAspectRatio = { showAspectRatio = true },
             )
         }
+    }
+
+    if (showAspectRatio && aspectRatioDef != null) {
+        MediaAspectRatioSheet(
+            options = aspectRatioDef.options,
+            selected = params[aspectRatioDef.key] ?: aspectRatioDef.defaultValue.orEmpty(),
+            onSelect = { params = params + (aspectRatioDef.key to it) },
+            onDismiss = { showAspectRatio = false },
+        )
     }
 
     if (showModelSheet) {

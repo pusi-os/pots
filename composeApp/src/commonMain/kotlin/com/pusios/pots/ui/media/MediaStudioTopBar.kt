@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.History
@@ -29,19 +28,20 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.ui.handCursor
 
 /**
- * The studio's top overlay: a glass capsule with five compact icon buttons
- * (back to chat, recenter canvas, import a file, pick a model, generation journal),
+ * The studio's top overlay: a glass capsule with four compact icon buttons
+ * (recenter canvas, import a file, pick a model, generation journal),
  * and a second row beneath it with the image/video switch and the current model.
  */
 @Composable
 internal fun MediaStudioTopBar(
     modifier: Modifier = Modifier,
-    onExit: () -> Unit,
     onRecenter: () -> Unit,
     onImport: () -> Unit,
     onOpenModels: () -> Unit,
     onOpenHistory: () -> Unit,
     historyBadge: Int,
+    aspectRatioLabel: String?,
+    onOpenAspectRatio: () -> Unit,
     isVideoMode: Boolean,
     onToggleMode: () -> Unit,
     currentModelLabel: String?,
@@ -57,7 +57,6 @@ internal fun MediaStudioTopBar(
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TopBarIconButton(Icons.AutoMirrored.Filled.Chat, "Вернуться в чат", onExit)
                 TopBarIconButton(Icons.Filled.AutoAwesome, "Медиа-канвас: в центр", onRecenter)
                 TopBarIconButton(Icons.Filled.AddPhotoAlternate, "Импортировать файл", onImport)
                 TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)
@@ -81,6 +80,23 @@ internal fun MediaStudioTopBar(
                         label,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        maxLines = 1,
+                    )
+                }
+            }
+            aspectRatioLabel?.let { ratio ->
+                Spacer(Modifier.width(6.dp))
+                Surface(
+                    onClick = onOpenAspectRatio,
+                    modifier = Modifier.handCursor(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                ) {
+                    Text(
+                        ratio,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         maxLines = 1,
                     )
