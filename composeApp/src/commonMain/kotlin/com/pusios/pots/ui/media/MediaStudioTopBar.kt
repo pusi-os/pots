@@ -30,7 +30,8 @@ import com.pusios.pots.ui.handCursor
 /**
  * The studio's top overlay: a glass capsule with four compact icon buttons
  * (recenter canvas, import a file, pick a model, generation journal),
- * and a second row beneath it with the image/video switch and the current model.
+ * and a second row beneath it with the image/video switch, the current model,
+ * the aspect ratio (images) and the generation parameters such as resolution.
  */
 @Composable
 internal fun MediaStudioTopBar(
@@ -42,6 +43,8 @@ internal fun MediaStudioTopBar(
     historyBadge: Int,
     aspectRatioLabel: String?,
     onOpenAspectRatio: () -> Unit,
+    paramChips: List<ParamChip>,
+    onOpenParam: (String) -> Unit,
     isVideoMode: Boolean,
     onToggleMode: () -> Unit,
     currentModelLabel: String?,
@@ -70,39 +73,45 @@ internal fun MediaStudioTopBar(
             ModeSegment(isVideoMode = isVideoMode, onToggle = onToggleMode)
             currentModelLabel?.let { label ->
                 Spacer(Modifier.width(8.dp))
-                Surface(
-                    onClick = onOpenModels,
-                    modifier = Modifier.handCursor(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                ) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        maxLines = 1,
-                    )
-                }
+                TopBarChip(label, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, onOpenModels)
             }
             aspectRatioLabel?.let { ratio ->
                 Spacer(Modifier.width(6.dp))
-                Surface(
-                    onClick = onOpenAspectRatio,
-                    modifier = Modifier.handCursor(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                ) {
-                    Text(
-                        ratio,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        maxLines = 1,
-                    )
+                TopBarChip(ratio, MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer, onOpenAspectRatio)
+            }
+            paramChips.forEach { chip ->
+                Spacer(Modifier.width(6.dp))
+                TopBarChip(chip.label, MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer) {
+                    onOpenParam(chip.key)
                 }
             }
         }
+    }
+}
+
+/** A parameter shown as a toolbar chip; [label] is the current value, e.g. `2K`. */
+internal data class ParamChip(val key: String, val label: String)
+
+@Composable
+private fun TopBarChip(
+    text: String,
+    containerColor: androidx.compose.ui.graphics.Color,
+    contentColor: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.handCursor(),
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor,
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            maxLines = 1,
+        )
     }
 }
 

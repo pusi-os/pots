@@ -113,6 +113,7 @@ fun MediaStudioScreenFull(
     var showModelSheet by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     var showAspectRatio by remember { mutableStateOf(false) }
+    var openParam by remember { mutableStateOf<String?>(null) }
     var lightboxUrl by remember { mutableStateOf<String?>(null) }
     var lightboxIsVideo by remember { mutableStateOf(false) }
 
@@ -122,10 +123,9 @@ fun MediaStudioScreenFull(
     val currentModels = if (isVideoMode) videoModels else imageModels
     val currentModelId = if (isVideoMode) selectedVideoModelId else selectedImageModelId
     val currentModel = currentModels.firstOrNull { it.id == currentModelId } ?: currentModels.firstOrNull()
-    val paramDefs: List<MediaParamDef> = currentModel
+    val toolbarParamDefs: List<MediaParamDef> = currentModel
         ?.params
-        ?.filter { it.key in listOf("duration", "resolution") && it.options.isNotEmpty() }
-        ?.filter { it.key != "aspect_ratio" }
+        ?.filter { it.key in listOf("resolution", "duration") && it.options.isNotEmpty() }
         .orEmpty()
     val aspectRatioDef: MediaParamDef? = if (isVideoMode) {
         null
@@ -193,9 +193,6 @@ fun MediaStudioScreenFull(
                             viewModel.generateImage(prompt, params)
                         }
                     },
-                    paramDefs = paramDefs,
-                    paramValues = params,
-                    onParamSelect = { key, value -> params = params + (key to value) },
                     onEnhancePrompt = {
                         viewModel.enhancePrompt(prompt) { prompt = it }
                     },
@@ -246,8 +243,20 @@ fun MediaStudioScreenFull(
                 currentModelLabel = modelChipLabel,
                 aspectRatioLabel = if (isVideoMode) null else aspectRatioDef?.let { def -> params[def.key] ?: def.defaultValue },
                 onOpenAspectRatio = { showAspectRatio = true },
+                paramChips = toolbarParamDefs.map { def -> ParamChip(def.key, params[def.key] ?: def.defaultValue.orEmpty()) },
+                onOpenParam = { key -> openParam = key },
             )
         }
+    }
+
+    toolbarParamDefs.firstOrNull { it.key == openParam }?.let { def ->
+        MediaParamSheet(
+            title = def.label,
+            options = def.options,
+            selected = params[def.key] ?: def.defaultValue.orEmpty(),
+            onSelect = { params = params + (def.key to it) },
+            onDismiss = { openParam = null },
+        )
     }
 
     if (showAspectRatio && aspectRatioDef != null) {

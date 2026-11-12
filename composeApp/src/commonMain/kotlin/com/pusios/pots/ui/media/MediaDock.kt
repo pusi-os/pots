@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +41,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.pusios.pots.media.MediaParamDef
 import com.pusios.pots.media.MediaReference
 import com.pusios.pots.ui.handCursor
 
@@ -59,9 +57,6 @@ internal fun MediaDock(
     isBusy: Boolean,
     isEnhancing: Boolean,
     onCreate: () -> Unit,
-    paramDefs: List<MediaParamDef>,
-    paramValues: Map<String, String>,
-    onParamSelect: (String, String) -> Unit,
     onEnhancePrompt: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -133,25 +128,6 @@ internal fun MediaDock(
                             )
                         }
                     }
-                }
-            }
-        }
-    }
-
-    if (paramDefs.isNotEmpty()) {
-        Spacer(Modifier.height(6.dp))
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            paramDefs.forEach { def ->
-                val selected = paramValues[def.key] ?: def.defaultValue
-                def.options.take(6).forEach { opt ->
-                    FilterChip(
-                        selected = opt.value == selected,
-                        onClick = { onParamSelect(def.key, opt.value) },
-                        label = { Text("${def.label}: ${opt.label}", style = MaterialTheme.typography.labelSmall) },
-                    )
                 }
             }
         }
