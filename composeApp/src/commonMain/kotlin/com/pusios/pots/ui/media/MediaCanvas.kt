@@ -9,7 +9,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
@@ -201,13 +201,11 @@ private fun CanvasElementView(
                 },
             )
             .pointerInput(element.id) {
-                detectDragGestures(
-                    onDragEnd = {},
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        onMove(element.id, dragAmount.x, dragAmount.y)
-                    },
-                )
+                detectTransformGestures { _, pan, zoom, rotation ->
+                    onMove(element.id, pan.x, pan.y)
+                    if (zoom != 1f) onScale(element.id, zoom)
+                    if (rotation != 0f) onRotate(element.id, rotation)
+                }
             }
             .semantics { contentDescription = if (element.isVideo) "Видео-элемент" else "Изображение" }
             .clickable(role = Role.Button, onClick = onSelect),
