@@ -59,7 +59,7 @@ class PlusVibeMediaProvider(
         val body = client.post("$baseUrl/api/media/price") {
             authed(apiKey)
             contentType(ContentType.Application.Json)
-            setBody(buildGenerateBody(request))
+            setBody(buildGenerateBody(request).toString())
         }.bodyAsText()
         val root = json.parseToJsonElement(body).jsonObject
         val price = root["priceRub"]?.jsonPrimitive?.doubleOrNull
@@ -80,7 +80,7 @@ class PlusVibeMediaProvider(
             authed(apiKey)
             contentType(ContentType.Application.Json)
             request.idempotencyKey?.takeIf { it.isNotBlank() }?.let { header("Idempotency-Key", it) }
-            setBody(buildGenerateBody(request))
+            setBody(buildGenerateBody(request).toString())
         }
         val body = response.bodyAsText()
         if (response.status.value == 202) {

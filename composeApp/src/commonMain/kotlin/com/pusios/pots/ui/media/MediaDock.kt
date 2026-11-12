@@ -33,7 +33,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,7 +97,23 @@ internal fun MediaDock(
                     maxLines = 3,
                     shape = RoundedCornerShape(16.dp),
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
+                Surface(
+                    onClick = onEnhancePrompt,
+                    modifier = Modifier.size(32.dp).handCursor().semantics { contentDescription = "Улучшить промпт" },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Filled.AutoFixHigh,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
                 Surface(
                     onClick = onCreate,
                     enabled = !isBusy,
@@ -122,13 +137,6 @@ internal fun MediaDock(
                             )
                         }
                     }
-                }
-            }
-            Row(Modifier.fillMaxWidth().padding(start = 40.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onEnhancePrompt, modifier = Modifier.handCursor()) {
-                    Icon(Icons.Filled.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Улучшить промпт", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
