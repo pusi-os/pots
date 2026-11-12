@@ -196,6 +196,16 @@ val appModule = module {
     single<com.pusios.pots.media.MediaGenerationRepository> {
         com.pusios.pots.media.MediaGenerationRepository(get(), kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default))
     }
+    single<com.pusios.pots.media.MediaHistoryStore> {
+        com.pusios.pots.media.MediaHistoryStore(
+            repository = get(),
+            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
+            apiKeyProvider = {
+                val s = get<AppSettings>()
+                s.resolveMediaInstance()?.let { s.getInstanceApiKey(it.instanceId) }.orEmpty()
+            },
+        )
+    }
     viewModel {
         com.pusios.pots.ui.media.MediaStudioViewModel(
             appSettings = get(),
@@ -207,6 +217,7 @@ val appModule = module {
                 get<AppSettings>().resolveMediaInstance()?.instanceId.orEmpty()
             },
             repository = get(),
+            history = get(),
             enhancer = { text -> get<DataRepository>().askSilently(text) },
         )
     }

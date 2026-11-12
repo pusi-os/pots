@@ -23,8 +23,6 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -49,21 +47,17 @@ import com.pusios.pots.media.MediaReference
 import com.pusios.pots.ui.handCursor
 
 /**
- * The studio dock: reference strip, single prompt field with the round create
- * button on its right (a progress indicator while a generation runs), the
- * enhance action under the field, and the speech toggle.
+ * The studio dock: a single prompt field with the enhance and round create
+ * buttons on its right. The enhance button shows a progress indicator while the
+ * prompt is being rewritten; the create button shows one while a generation runs.
  */
 @Composable
 internal fun MediaDock(
     prompt: String,
     onPromptChange: (String) -> Unit,
     isVideoMode: Boolean,
-    references: List<MediaReference>,
-    onRemoveReference: (Int) -> Unit,
-    onAddReference: () -> Unit,
-    speechEnabled: Boolean,
-    onToggleSpeech: () -> Unit,
     isBusy: Boolean,
+    isEnhancing: Boolean,
     onCreate: () -> Unit,
     paramDefs: List<MediaParamDef>,
     paramValues: Map<String, String>,
@@ -80,13 +74,6 @@ internal fun MediaDock(
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                DockIconButton(
-                    icon = if (speechEnabled) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
-                    contentDescription = if (speechEnabled) "Озвучка включена" else "Озвучка выключена",
-                    active = speechEnabled,
-                    onClick = onToggleSpeech,
-                )
-                Spacer(Modifier.width(4.dp))
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = onPromptChange,
@@ -100,17 +87,26 @@ internal fun MediaDock(
                 Spacer(Modifier.width(6.dp))
                 Surface(
                     onClick = onEnhancePrompt,
+                    enabled = !isEnhancing,
                     modifier = Modifier.size(32.dp).handCursor().semantics { contentDescription = "Улучшить промпт" },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Filled.AutoFixHigh,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(16.dp),
-                        )
+                        if (isEnhancing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.AutoFixHigh,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.width(6.dp))
@@ -237,18 +233,6 @@ private fun ModeSegmentButton(icon: ImageVector, contentDescription: String, act
             contentDescription = contentDescription,
             tint = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(7.dp).size(18.dp),
-        )
-    }
-}
-
-@Composable
-private fun DockIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit, active: Boolean = false) {
-    IconButton(onClick = onClick, modifier = Modifier.size(36.dp).handCursor()) {
-        Icon(
-            icon,
-            contentDescription = contentDescription,
-            tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
         )
     }
 }

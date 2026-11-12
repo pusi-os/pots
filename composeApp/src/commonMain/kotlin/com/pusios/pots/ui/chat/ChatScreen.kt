@@ -1103,7 +1103,6 @@ private fun ChatModeScreen(
                         modifier = Modifier.weight(1f),
                         onExit = { isMediaOpen = false },
                         onOpenSettings = onNavigateToSettings,
-                        onToggleSpeech = uiState.actions.toggleSpeechOutput,
                         onSpeak = { phrase ->
                             scope.launch {
                                 try {

@@ -22,16 +22,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.RotateLeft
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FlipToBack
+import androidx.compose.material.icons.filled.FlipToFront
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.RotateLeft
-import androidx.compose.material.icons.filled.RotateRight
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,7 +51,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
@@ -56,6 +63,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.pusios.pots.media.MediaJobState
+import com.pusios.pots.ui.handCursor
 import kotlin.math.roundToInt
 
 /** Element footprint on the canvas (dp); also the menu anchor height. */
@@ -79,6 +87,8 @@ internal fun MediaCanvas(
     onMove: (String, Float, Float) -> Unit,
     onRotate: (String, Float) -> Unit,
     onScale: (String, Float) -> Unit,
+    onAction: (String, CanvasAction) -> Unit,
+    onExportToGallery: (String) -> Unit,
     onOpenLightbox: (CanvasElement) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -108,6 +118,8 @@ internal fun MediaCanvas(
                 onMove = onMove,
                 onRotate = onRotate,
                 onScale = onScale,
+                onAction = onAction,
+                onExportToGallery = onExportToGallery,
                 onOpenLightbox = onOpenLightbox,
             )
         }
@@ -177,6 +189,8 @@ private fun CanvasElementView(
     onMove: (String, Float, Float) -> Unit,
     onRotate: (String, Float) -> Unit,
     onScale: (String, Float) -> Unit,
+    onAction: (String, CanvasAction) -> Unit,
+    onExportToGallery: (String) -> Unit,
     onOpenLightbox: (CanvasElement) -> Unit,
 ) {
     val url = element.url
@@ -228,12 +242,24 @@ private fun CanvasElementView(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
                 tonalElevation = 4.dp,
             ) {
-                Row(Modifier.padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ElementChip(Icons.Filled.RotateLeft, "Повернуть влево") { onRotate(element.id, -15f) }
-                    ElementChip(Icons.Filled.RotateRight, "Повернуть вправо") { onRotate(element.id, 15f) }
-                    ElementChip(Icons.Filled.Remove, "Уменьшить") { onScale(element.id, 0.85f) }
-                    ElementChip(Icons.Filled.Add, "Увеличить") { onScale(element.id, 1.2f) }
-                    ElementChip(Icons.Filled.Fullscreen, "Открыть на весь экран") { onOpenLightbox(element) }
+                Column(Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ElementChip(Icons.AutoMirrored.Filled.RotateLeft, "Повернуть влево") { onRotate(element.id, -15f) }
+                        ElementChip(Icons.AutoMirrored.Filled.RotateRight, "Повернуть вправо") { onRotate(element.id, 15f) }
+                        ElementChip(Icons.Filled.Remove, "Уменьшить") { onScale(element.id, 0.85f) }
+                        ElementChip(Icons.Filled.Add, "Увеличить") { onScale(element.id, 1.2f) }
+                        ElementChip(Icons.Filled.Fullscreen, "Открыть на весь экран") { onOpenLightbox(element) }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }
+                        ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
+                        ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(element.id, CanvasAction.Duplicate) }
+                        ElementChip(Icons.Filled.Link, "Использовать как референс") { onAction(element.id, CanvasAction.UseAsReference) }
+                        ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(element.id) }
+                        ElementChip(Icons.Filled.Delete, "Удалить", tint = MaterialTheme.colorScheme.error) {
+                            onAction(element.id, CanvasAction.Delete)
+                        }
+                    }
                 }
             }
         }
@@ -241,9 +267,14 @@ private fun CanvasElementView(
 }
 
 @Composable
-private fun ElementChip(icon: androidx.compose.ui.graphics.vector.ImageVector, contentDescription: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(30.dp)) {
-        Icon(icon, contentDescription = contentDescription, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
+private fun ElementChip(
+    icon: ImageVector,
+    contentDescription: String,
+    tint: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick, modifier = Modifier.size(34.dp).handCursor()) {
+        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(18.dp))
     }
 }
 

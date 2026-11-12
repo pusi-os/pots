@@ -2464,8 +2464,9 @@ class RemoteDataRepository(
     }
 
     override suspend fun askSilently(question: String): String {
-        val service = currentService()
-        val firstInstance = getConfiguredServiceInstances().firstOrNull() ?: return ""
+        val target = getOrderedFallbackEntries().firstOrNull() ?: return ""
+        val service = target.service
+        val instanceId = target.instanceId
         val messages = listOf(History(role = History.Role.USER, content = question))
 
         if (service.isOnDevice) {
@@ -2473,11 +2474,11 @@ class RemoteDataRepository(
             // visible chatHistory for a "silent" call. LOCAL variant of the system
             // prompt so small on-device models get the right section set.
             val localPrompt = getActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL)
-            return askWithLocalEngine(messages, localPrompt, firstInstance.instanceId, MutableStateFlow(messages)).content
+            return askWithLocalEngine(messages, localPrompt, instanceId, MutableStateFlow(messages)).content
         }
 
         val systemPrompt = getActiveSystemPrompt()
-        val creds = instanceCredentials(firstInstance.instanceId, service)
+        val creds = instanceCredentials(instanceId, service)
 
         return plainChat(service, creds, messages, systemPrompt, retry = false).content
     }

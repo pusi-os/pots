@@ -58,13 +58,21 @@ class MediaGenerationRepository(
     suspend fun generate(
         apiKey: String,
         request: MediaJobRequest,
+        onQuote: ((MediaPriceQuote) -> Unit)? = null,
         onUpdate: ((MediaJobState) -> Unit)? = null,
     ): MediaJobState {
-        val quoted = runCatching { provider.quotePrice(apiKey, request) }
-            .onFailure { MediaLog.w("Quote failed (will submit without quote): ${it.message}") }
-            .getOrNull()
+        // A repeat of a failed submit already carries its quote: keep it, so the body
+        // stays identical to the one behind the idempotency key.
+        val quoted = if (request.quoteId != null) {
+            null
+        } else {
+            runCatching { provider.quotePrice(apiKey, request) }
+                .onFailure { MediaLog.w("Quote failed (will submit without quote): ${it.message}") }
+                .getOrNull()
+        }
+        quoted?.let { onQuote?.invoke(it) }
         val submit = request.copy(
-            quoteId = quoted?.quoteId ?: request.quoteId,
+            quoteId = request.quoteId ?: quoted?.quoteId,
             maxPriceRub = request.maxPriceRub ?: quoted?.priceRub,
             idempotencyKey = request.idempotencyKey ?: newKey(),
         )
@@ -122,6 +130,8 @@ class MediaGenerationRepository(
     fun cancelPolling(jobId: String) {
         active.remove(jobId)?.cancel()
     }
+
+    suspend fun download(apiKey: String, url: String): ByteArray = provider.downloadResult(apiKey, url)
 
     suspend fun downloadAndCache(apiKey: String, state: MediaJobState, onUpdate: ((MediaJobState) -> Unit)? = null) {
         val first = state.resultUrls.firstOrNull() ?: return

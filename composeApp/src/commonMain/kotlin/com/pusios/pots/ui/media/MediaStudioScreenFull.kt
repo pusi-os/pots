@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -38,7 +37,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.pusios.pots.isImageCompressionSupported
@@ -54,7 +52,6 @@ import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 @Composable
 fun MediaStudioScreenFull(
@@ -63,7 +60,6 @@ fun MediaStudioScreenFull(
     onExit: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onSpeak: (String) -> Unit = {},
-    onToggleSpeech: () -> Unit = {},
     speechEnabled: Boolean = false,
 ) {
     val elements by viewModel.elements.collectAsState()
@@ -73,9 +69,11 @@ fun MediaStudioScreenFull(
     val references by viewModel.references.collectAsState()
     val error by viewModel.error.collectAsState()
     val isStarting by viewModel.isStarting.collectAsState()
+    val isEnhancing by viewModel.isEnhancing.collectAsState()
     val justFinished by viewModel.justFinished.collectAsState()
     val selectedImageModelId by viewModel.selectedImageModelId.collectAsState()
     val selectedVideoModelId by viewModel.selectedVideoModelId.collectAsState()
+    val historyEntries by viewModel.historyEntries.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -112,9 +110,9 @@ fun MediaStudioScreenFull(
     var isVideoMode by remember { mutableStateOf(false) }
     var canvasScale by remember { mutableFloatStateOf(1f) }
     var canvasOffset by remember { mutableStateOf(Offset.Zero) }
-    var menuFor by remember { mutableStateOf<String?>(null) }
     var params by remember { mutableStateOf(mapOf<String, String>()) }
     var showModelSheet by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
     var lightboxUrl by remember { mutableStateOf<String?>(null) }
     var lightboxIsVideo by remember { mutableStateOf(false) }
 
@@ -176,12 +174,8 @@ fun MediaStudioScreenFull(
                     prompt = prompt,
                     onPromptChange = { prompt = it },
                     isVideoMode = isVideoMode,
-                    references = references,
-                    onRemoveReference = viewModel::removeReference,
-                    onAddReference = { referencePicker.launch() },
-                    speechEnabled = speechEnabled,
-                    onToggleSpeech = onToggleSpeech,
                     isBusy = isStarting || pending.isNotEmpty(),
+                    isEnhancing = isEnhancing,
                     onCreate = {
                         if (prompt.isBlank()) {
                             scope.launch { snackbarHostState.showSnackbar("Опиши, что нужно сгенерировать") }
@@ -214,15 +208,15 @@ fun MediaStudioScreenFull(
                 },
                 onTapBackground = {
                     viewModel.select(null)
-                    menuFor = null
                 },
                 onSelect = { id ->
                     viewModel.select(id)
-                    menuFor = id
                 },
                 onMove = viewModel::move,
                 onRotate = viewModel::rotate,
                 onScale = viewModel::scale,
+                onAction = viewModel::applyAction,
+                onExportToGallery = viewModel::exportToGallery,
                 onOpenLightbox = { element ->
                     lightboxIsVideo = element.isVideo
                     lightboxUrl = element.url ?: element.localPath
@@ -238,31 +232,12 @@ fun MediaStudioScreenFull(
                 },
                 onImport = { importPicker.launch() },
                 onOpenModels = { showModelSheet = true },
+                onOpenHistory = { showHistory = true },
+                historyBadge = historyEntries.count { it.isActive },
                 isVideoMode = isVideoMode,
                 onToggleMode = { isVideoMode = !isVideoMode },
                 currentModelLabel = modelChipLabel,
             )
-
-            // The menu follows the canvas pan so it stays under its element.
-            menuFor?.let { id ->
-                val element = elements.firstOrNull { it.id == id }
-                if (element != null) {
-                    MediaContextMenu(
-                        modifier = Modifier.offset {
-                            IntOffset(
-                                (element.x + canvasOffset.x).roundToInt().coerceAtLeast(8),
-                                (element.y + canvasOffset.y + CANVAS_ELEMENT_SIZE_DP * element.scale * canvasScale)
-                                    .roundToInt().coerceAtLeast(8),
-                            )
-                        },
-                        onAction = { viewModel.applyAction(id, it) },
-                        onExportToGallery = { viewModel.exportToGallery(id) },
-                        onDismiss = { menuFor = null },
-                    )
-                } else {
-                    menuFor = null
-                }
-            }
         }
     }
 
@@ -281,6 +256,23 @@ fun MediaStudioScreenFull(
                 params = emptyMap()
             },
             onDismiss = { showModelSheet = false },
+        )
+    }
+
+    if (showHistory) {
+        MediaHistorySheet(
+            entries = historyEntries,
+            onDismiss = { showHistory = false },
+            onOpen = { entry ->
+                val source = entry.localPath ?: entry.resultUrl ?: return@MediaHistorySheet
+                lightboxIsVideo = entry.isVideo
+                lightboxUrl = source
+            },
+            onSave = viewModel::saveToGallery,
+            onRepeat = viewModel::repeat,
+            onPlaceOnCanvas = viewModel::placeOnCanvas,
+            onDelete = viewModel::deleteFromHistory,
+            onClearFinished = viewModel::clearFinishedHistory,
         )
     }
 

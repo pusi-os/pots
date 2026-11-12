@@ -7,6 +7,9 @@ import com.pusios.pots.data.AppSettings
 import com.pusios.pots.media.MAX_INLINE_REFERENCE_BYTES
 import com.pusios.pots.media.MediaException
 import com.pusios.pots.media.MediaGenerationRepository
+import com.pusios.pots.media.MediaHistoryEntry
+import com.pusios.pots.media.MediaHistoryStatus
+import com.pusios.pots.media.MediaHistoryStore
 import com.pusios.pots.media.MediaJobRequest
 import com.pusios.pots.media.MediaJobState
 import com.pusios.pots.media.MediaJobStatus
@@ -21,6 +24,7 @@ import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
 import com.pusios.pots.media.setInstanceMediaImageModelId
 import com.pusios.pots.media.setInstanceMediaVideoModelId
+import com.pusios.pots.media.toHistoryReference
 import com.pusios.pots.media.userMessageRu
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.saveFileToDevice
@@ -53,8 +57,12 @@ class MediaStudioViewModel(
     private val apiKeyProvider: () -> String,
     private val instanceIdProvider: () -> String,
     private val repository: MediaGenerationRepository,
+    private val history: MediaHistoryStore,
     private val enhancer: suspend (String) -> String,
 ) : ViewModel() {
+
+    /** Journal of generations, newest first. Survives app restarts. */
+    val historyEntries: StateFlow<List<MediaHistoryEntry>> = history.entries
 
     private val _elements = MutableStateFlow<List<CanvasElement>>(emptyList())
     val elements: StateFlow<List<CanvasElement>> = _elements.asStateFlow()
@@ -77,6 +85,10 @@ class MediaStudioViewModel(
     private val _isStarting = MutableStateFlow(false)
     val isStarting: StateFlow<Boolean> = _isStarting.asStateFlow()
 
+    /** True while the prompt is being rewritten by the active chat model. */
+    private val _isEnhancing = MutableStateFlow(false)
+    val isEnhancing: StateFlow<Boolean> = _isEnhancing.asStateFlow()
+
     /** References merged into the next generation (mapped onto model opts by the provider). */
     private val _references = MutableStateFlow<List<MediaReference>>(emptyList())
     val references: StateFlow<List<MediaReference>> = _references.asStateFlow()
@@ -97,6 +109,7 @@ class MediaStudioViewModel(
     }
 
     init {
+        history.start()
         viewModelScope.launch {
             repository.jobs.collect { map ->
                 _jobs.value = map
@@ -137,16 +150,21 @@ class MediaStudioViewModel(
         generate(prompt, opts, MediaKind.Video)
     }
 
-    /** Rewrites [prompt] with the active chat model and hands the result back. */
+    /** Rewrites [prompt] with the active chat model and hands the result back. Ignored while one is running. */
     fun enhancePrompt(prompt: String, onResult: (String) -> Unit) {
-        if (prompt.isBlank()) return
+        if (prompt.isBlank() || _isEnhancing.value) return
+        _isEnhancing.value = true
         viewModelScope.launch {
-            runCatching { enhancer(PromptEnhancer.buildPrompt(prompt)) }
-                .onSuccess { result ->
-                    PromptEnhancer.clean(result).takeIf { it.isNotBlank() }?.let(onResult)
-                        ?: showError("Не удалось улучшить промпт", IllegalStateException("empty answer"))
-                }
-                .onFailure { showError("Не удалось улучшить промпт", it) }
+            try {
+                runCatching { enhancer(PromptEnhancer.buildPrompt(prompt)) }
+                    .onSuccess { result ->
+                        PromptEnhancer.clean(result).takeIf { it.isNotBlank() }?.let(onResult)
+                            ?: showError("Не удалось улучшить промпт", IllegalStateException("empty answer"))
+                    }
+                    .onFailure { showError("Не удалось улучшить промпт", it) }
+            } finally {
+                _isEnhancing.value = false
+            }
         }
     }
 
@@ -173,10 +191,21 @@ class MediaStudioViewModel(
         val references = _references.value
         pendingGeneration = PendingGeneration(prompt, opts, kind)
         MediaLog.i("Generate: kind=$kind model=${model.id} opts=${opts.keys} refs=${references.size}")
+        val entry = MediaHistoryEntry(
+            localId = Uuid.random().toString(),
+            createdAtMs = kotlin.time.Clock.System.now().toEpochMilliseconds(),
+            isVideo = kind == MediaKind.Video,
+            model = model.id,
+            prompt = prompt,
+            opts = opts,
+            references = references.mapNotNull { it.toHistoryReference() },
+            droppedReferences = references.count { it.toHistoryReference() == null },
+        )
+        history.upsert(entry)
         _isStarting.value = true
         viewModelScope.launch {
             try {
-                submitGeneration(key, model.id, prompt, opts, references)
+                submitGeneration(key, entry.localId, model.id, prompt, opts, references)
             } finally {
                 _isStarting.value = false
             }
@@ -185,14 +214,17 @@ class MediaStudioViewModel(
 
     private suspend fun submitGeneration(
         key: String,
+        localId: String,
         modelId: String,
         prompt: String,
         opts: Map<String, String>,
         references: List<MediaReference>,
+        savedQuoteId: String? = null,
     ) {
         val oversized = withContext(Dispatchers.Default) { oversizedReferenceIndex(references) }
         if (oversized != null) {
             MediaLog.w("Reference ${oversized + 1} exceeds $MAX_INLINE_REFERENCE_BYTES bytes")
+            history.remove(localId)
             _error.value = MediaStudioError(
                 "Референс ${oversized + 1} больше 8 МБ — сожми его, чтобы отправить",
                 oversizedReferenceIndex = oversized,
@@ -202,13 +234,113 @@ class MediaStudioViewModel(
         runCatching {
             repository.generate(
                 key,
-                MediaJobRequest(model = modelId, prompt = prompt, opts = opts, references = references),
-            ) { _jobs.update { m -> m + (it.jobId to it) } }
-        }.onFailure { showError("Генерация не запустилась", it) }
+                MediaJobRequest(
+                    model = modelId,
+                    prompt = prompt,
+                    opts = opts,
+                    references = references,
+                    quoteId = savedQuoteId,
+                    idempotencyKey = localId,
+                ),
+                onQuote = { quote ->
+                    history.modify(localId) {
+                        it.copy(estimateRub = quote.priceRub, quoteId = quote.quoteId, maxPriceRub = quote.priceRub)
+                    }
+                },
+            ) { state ->
+                _jobs.update { m -> m + (state.jobId to state) }
+                history.modify(localId) { it.copy(jobId = state.jobId) }
+            }
+        }.onSuccess { state ->
+            history.modify(localId) { it.copy(jobId = state.jobId, status = MediaHistoryStatus.Processing) }
+        }.onFailure { error ->
+            history.modify(localId) { it.copy(status = MediaHistoryStatus.Failed, failMsg = journalFailureText(error)) }
+            showError("Генерация не запустилась", error)
+        }
+    }
+
+    private fun journalFailureText(error: Throwable): String = when (error) {
+        is MediaException -> error.userMessageRu()
+        else -> "Не удалось отправить запрос. Повтори — ключ защищает от двойного списания."
+    }
+
+    /**
+     * Repeats an entry with its original references and prompt. A failed submit keeps its
+     * idempotency key, so the provider cannot charge twice; a finished job gets a new key.
+     */
+    fun repeat(localId: String) {
+        val source = history.entries.value.firstOrNull { it.localId == localId } ?: return
+        if (!source.canRepeat || isGenerationBusy()) return
+        val key = apiKeyProvider()
+        if (key.isBlank()) {
+            _error.value = MediaStudioError("Нет API-ключа сервиса — добавь его в настройках сервисов", isKeyProblem = true)
+            return
+        }
+        val reuseKey = source.canRetrySubmit
+        val newEntry = source.copy(
+            quoteId = if (reuseKey) source.quoteId else null,
+            maxPriceRub = if (reuseKey) source.maxPriceRub else null,
+            localId = if (reuseKey) source.localId else Uuid.random().toString(),
+            createdAtMs = kotlin.time.Clock.System.now().toEpochMilliseconds(),
+            status = MediaHistoryStatus.Sending,
+            jobId = null,
+            priceRub = null,
+            resultUrl = null,
+            localPath = null,
+            failMsg = null,
+            progress = null,
+        )
+        if (reuseKey) history.modify(source.localId) { newEntry } else history.upsert(newEntry)
+        val references = source.references.map { MediaReference(url = it.url, localPath = it.localPath, isVideo = it.isVideo) }
+        _isStarting.value = true
+        viewModelScope.launch {
+            try {
+                submitGeneration(key, newEntry.localId, source.model, source.prompt, source.opts, references, newEntry.quoteId)
+            } finally {
+                _isStarting.value = false
+            }
+        }
+    }
+
+    /** Saves a finished journal entry to the device gallery. */
+    fun saveToGallery(localId: String) {
+        val entry = history.entries.value.firstOrNull { it.localId == localId } ?: return
+        viewModelScope.launch {
+            val bytes = entry.localPath?.let { withContext(Dispatchers.Default) { readAppStorageBytes(it) } }
+                ?: entry.resultUrl?.let { runCatching { repository.download(apiKeyProvider(), it) }.getOrNull() }
+            if (bytes == null) {
+                _error.value = MediaStudioError("Файл ещё не скачан — попробуй через минуту")
+                return@launch
+            }
+            saveFileToDevice(bytes, "pots-${entry.localId.take(8)}", if (entry.isVideo) "mp4" else "png")
+        }
+    }
+
+    /** Removes the entry from the journal. The job itself is not cancelled, and any canvas copy stays. */
+    fun deleteFromHistory(localId: String) {
+        history.remove(localId)
+    }
+
+    fun clearFinishedHistory() {
+        history.clearFinished()
+    }
+
+    /** Adds a finished journal result to the canvas. */
+    fun placeOnCanvas(localId: String) {
+        val entry = history.entries.value.firstOrNull { it.localId == localId } ?: return
+        if (entry.status != MediaHistoryStatus.Success) return
+        val state = MediaJobState(
+            jobId = entry.jobId ?: return,
+            status = MediaJobStatus.Success,
+            kind = if (entry.isVideo) MediaKind.Video else MediaKind.Image,
+            resultUrls = listOfNotNull(entry.resultUrl),
+            localPath = entry.localPath,
+        )
+        if (_elements.value.none { it.jobId == state.jobId }) addElement(state)
     }
 
     /** True while a submit is in flight or a job is still running; the create button stays locked meanwhile. */
-    fun isGenerationBusy(): Boolean = _isStarting.value || _jobs.value.values.any { !it.isTerminal }
+    fun isGenerationBusy(): Boolean = _isStarting.value || _jobs.value.values.any { !it.isTerminal } || history.entries.value.any { it.isActive }
 
     private fun oversizedReferenceIndex(references: List<MediaReference>): Int? = references.indexOfFirst { ref ->
         val path = ref.localPath

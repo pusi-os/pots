@@ -1,6 +1,7 @@
 package com.pusios.pots.ui.media
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,7 +13,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -26,9 +29,9 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.ui.handCursor
 
 /**
- * The studio's top overlay: a glass capsule with four compact icon buttons
- * (back to chat, recenter canvas, import a file, pick a model), and a second
- * row beneath it with the image/video switch and the current model.
+ * The studio's top overlay: a glass capsule with five compact icon buttons
+ * (back to chat, recenter canvas, import a file, pick a model, generation journal),
+ * and a second row beneath it with the image/video switch and the current model.
  */
 @Composable
 internal fun MediaStudioTopBar(
@@ -37,6 +40,8 @@ internal fun MediaStudioTopBar(
     onRecenter: () -> Unit,
     onImport: () -> Unit,
     onOpenModels: () -> Unit,
+    onOpenHistory: () -> Unit,
+    historyBadge: Int,
     isVideoMode: Boolean,
     onToggleMode: () -> Unit,
     currentModelLabel: String?,
@@ -56,6 +61,7 @@ internal fun MediaStudioTopBar(
                 TopBarIconButton(Icons.Filled.AutoAwesome, "Медиа-канвас: в центр", onRecenter)
                 TopBarIconButton(Icons.Filled.AddPhotoAlternate, "Импортировать файл", onImport)
                 TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)
+                TopBarIconButton(Icons.Filled.History, "Журнал генераций", onOpenHistory, badge = historyBadge)
             }
         }
 
@@ -85,16 +91,32 @@ internal fun MediaStudioTopBar(
 }
 
 @Composable
-private fun TopBarIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(36.dp).handCursor(),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(20.dp),
-        )
+private fun TopBarIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    badge: Int = 0,
+) {
+    Box(modifier = Modifier.size(36.dp)) {
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier.size(36.dp).handCursor(),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        if (badge > 0) {
+            Badge(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp),
+            ) {
+                Text(if (badge > 9) "9+" else badge.toString())
+            }
+        }
     }
 }

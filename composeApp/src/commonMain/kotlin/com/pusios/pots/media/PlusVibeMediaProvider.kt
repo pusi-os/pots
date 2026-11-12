@@ -3,6 +3,7 @@ package com.pusios.pots.media
 import com.pusios.pots.httpClient
 import com.pusios.pots.readAppStorageBytes
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -36,7 +37,13 @@ class PlusVibeMediaProvider(
     private val baseUrl: String = "https://plusvibeapi.ru",
 ) : MediaProvider {
 
-    private val client = httpClient()
+    private val client = httpClient {
+        install(HttpTimeout) {
+            requestTimeoutMillis = 180_000
+            socketTimeoutMillis = 180_000
+            connectTimeoutMillis = 30_000
+        }
+    }
 
     private val json = JsonTolerant
 
@@ -146,6 +153,10 @@ class PlusVibeMediaProvider(
         val optsMap = mutableMapOf<String, JsonElement>()
         request.opts.forEach { (k, v) -> optsMap[k] = JsonPrimitive(v) }
         appendReferences(optsMap, request)
+        val modeKey = modelsById[request.model]?.params?.firstOrNull { it.key == "mode" }
+        if (modeKey != null && request.references.isNotEmpty() && "mode" !in request.opts) {
+            optsMap["mode"] = JsonPrimitive("image-to-image")
+        }
         val map = mutableMapOf<String, JsonElement>()
         map["model"] = JsonPrimitive(request.model)
         map["prompt"] = JsonPrimitive(request.prompt)
