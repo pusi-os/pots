@@ -114,3 +114,13 @@ upload key; keep the Play key out of the repository. `scripts/publish-apk.sh`
   `/update-*` command, never the runtime file alone.
 - `README.md` is the public Russian entry point. Keep it accurate when
   features, platforms, commands, or links change.
+
+## Kanban workflow (POTS team)
+
+- Docs-only commits (только `docs/**`, `*.md`, комментарии в коде, конфиги без
+  изменения поведения) закрываются исполнителем напрямую через
+  `kanban_complete` — **без** `kanban_request_review` и отдельного ревью
+  (решение владельца 2026-11-13). В summary — перечень файлов и суть правки.
+- Коммиты с кодом — только через `kanban_request_review(reviewer='linus')`.
+- Если в задаче смешаны код и доки — сдача по кодовому пути (ревью на всё).
+- Пуш в `origin` после закрытия делает тимлид, исполнитель не пушит.
