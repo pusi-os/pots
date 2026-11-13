@@ -22,8 +22,13 @@ and Web (wasmJs).
   server. See `docs/features/mini-apps.md` and
   `docs/features/mini-app-server.md`. "Backend" means declared data
   collections, records, and chat-driven automations, not a compiled server.
-- **ESP32 companion** is planned but **not implemented**. Do not claim
-  otherwise.
+- **ESP32 companion** is implemented for Android: BLE peripheral role in
+  `composeApp/src/androidMain/kotlin/com/pusios/pots/companion/` (`CompanionController.kt`
+  with `startPairing()`/`advertisePairing()`, `cophone/` protocol, ~2800 lines), with
+  settings UI in `commonMain/.../ui/settings/CompanionSettingsSection.kt`. Firmware side
+  is the separate repo `potsi-os/pusicharm` (local: `firmwares/PotsCharm`,
+  `src/cophone_ble.cpp`). Wiki: `~/wiki/projects/pots-cluster.md`.
+  (This line previously claimed "not implemented" — that was stale as of 2026-11-13.)
 
 ## Commands (JDK 21, `./gradlew`)
 
