@@ -1,0 +1,1984 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Pots - AI Assistant App">
+      
+      
+      
+        <link rel="canonical" href="https://pusi-os.github.io/pots/docs/design/media-expansion/pots-audio-gen-research/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Pots audio gen research - Pots Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#-plusvibe-pots" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Pots Documentation" class="md-header__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pots Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Pots audio gen research
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Pots Documentation" class="md-nav__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pots Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat & Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/hands-free/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hands-Free Voice Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/multi-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/dynamic-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mini-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mini-app-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-app server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/memories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/heartbeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/encryption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encryption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/on-device-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    On-Device Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasoning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/system-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/pots-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pots Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/sms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/potsiki/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/settings-export-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings Export & Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/splinterlands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splinterlands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../desktop-release-smoketest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop Release Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-2026-11-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Состояние каталога на 2026-11-13
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Классификация: генеративные против аналитических
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Генеративные модели — полный список (28)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Генеративные модели — полный список (28)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-tts-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 TTS — голос (19)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-sfx-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 SFX — эффекты (4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Музыка — текст→трек (5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-v1-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 Не в v1-шите (но генеративные по природе)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-ui-kodi-t_f1891f4c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Рекомендации для UI (для @kodi, задача t_f1891f4c)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Рекомендации для UI (для @kodi, задача t_f1891f4c)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Состав шита аудио-режима
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Чипы дока: какие параметры выносить
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Отображение цены с единицей
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Расхождения и ловушки каталога
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-stt-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. STT-модели для субтитров (12)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-ux-joni-t_f1891f4ct_e9b7ed2f" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Лучшие практики UX аудиоредакторов (для @joni, задачи t_f1891f4c/t_e9b7ed2f)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-plusvibemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Контракт: памятка для реализации (из plusvibe.md)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Источники
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<hr />
+<p>title: Аудио-генерация в медиа-студии Pots — модели PlusVibe (исследование)
+created: 2026-11-13
+updated: 2026-11-13
+type: doc
+tags: [project, ai, api, pots, media-studio]
+sources:
+  - https://plusvibeapi.ru/api/media-catalog
+  - /run/media/al/ARCHIVE/code/pusi/apps/pots/docs/knowledge/media-providers/plusvibe.md
+confidence: high
+status: active
+related: [[projects/pots-app]], [[projects/pots-media-expansion-plan]], [[design/pots-audio-catalog-dump]]</p>
+<hr />
+<h1 id="-plusvibe-pots">Аудио-модели PlusVibe для медиа-студии Pots</h1>
+<p>Исследование для задач <code>t_647099fc</code> (это) → <code>t_f1891f4c</code> (генерация аудио, @kodi) → <code>t_e9b7ed2f</code> (аудиоплеер/редактор, @kodi). План цепочки: [[projects/pots-media-expansion-plan]]. Приложение: [[projects/pots-app]].</p>
+<blockquote>
+<p><strong>Источники.</strong> Свежий дамп каталога: [[design/pots-audio-catalog-dump]] (<code>GET https://plusvibeapi.ru/api/media-catalog</code>, публичный, без ключа, снят <strong>2026-11-13 15:0x MSK</strong>, HTTP 200, 1 214 115 байт). Контракт провайдера: <code>docs/knowledge/media-providers/plusvibe.md</code> в репозитории (okf_version 0.2, last_verified 2026-11-10). В репозиторий ничего не писалось.</p>
+</blockquote>
+<h2 id="1-2026-11-13">1. Состояние каталога на 2026-11-13</h2>
+<table>
+<thead>
+<tr>
+<th>Показатель</th>
+<th>Значение</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Всего моделей в каталоге</td>
+<td><strong>208</strong> (image 56, video 88, audio 46, music 11, 3d 7)</td>
+</tr>
+<tr>
+<td>Аудио+музыка (<code>kind=audio\|music</code>)</td>
+<td><strong>57</strong> — совпадает с ожиданием задачи</td>
+</tr>
+<tr>
+<td><code>pricesAreEstimate</code> (top-level)</td>
+<td><code>true</code> — но у каждой модели свой <code>priceStatus</code>: <strong>55 exact</strong>, 2 estimate</td>
+</tr>
+<tr>
+<td><code>pricesArePlaceholder</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>videoDisabled</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>priceUnit</code> по 57 моделям</td>
+<td><code>request</code> ×22, <code>1000_characters</code> ×19, <code>minute</code> ×13, <code>second</code> ×3</td>
+</tr>
+</tbody>
+</table>
+<p><code>priceStatus=estimate</code> только у двух: <code>gemini-tts</code> («списывается по кредитам провайдера, не больше этой цены») и <code>suno-lyrics</code> («нет опубликованного тарифа, показана базовая цена»).</p>
+<blockquote>
+<p><strong>Верификация 2026-11-13 15:23 MSK (@pifiya):</strong> повторный <code>GET /api/media-catalog</code> (HTTP 200) — <strong>0 расхождений</strong> с дампом: те же 208/57 моделей, ни одной добавленной/удалённой, ни одного изменения <code>fromRub</code>/<code>unit</code>/<code>priceStatus</code>/<code>params</code>. Спот-чек ключевых моделей (<code>gpt-4o-mini-tts</code> 0.07, <code>suno</code> 6.29, <code>elevenlabs-sound-effects-v2</code> 1.36, <code>acestep-v15-xl-sft</code> 0.1403, <code>whisper-large-v3-turbo</code> 0.02, <code>gemini-tts</code> 10.29 estimate) совпал. Поле <code>class</code> присутствует на всех 57 моделях дампа (распределение = <code>classCounts</code>). Дамп актуален и пригоден как единственный источник для шита.</p>
+</blockquote>
+<h2 id="2">2. Классификация: генеративные против аналитических</h2>
+<p>Правило из задачи: <strong>аналитические в тулбар генерации не идут</strong>. Критерий — поле <code>task</code> каталога + <code>inputTypes</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Класс</th>
+<th>Кол-во</th>
+<th>Модели</th>
+<th>В шите генерации?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Генеративные</strong> (текст→аудио)</td>
+<td><strong>28</strong></td>
+<td>19 TTS + 4 SFX + 5 музыка</td>
+<td>✅ да</td>
+</tr>
+<tr>
+<td><strong>Аналитические</strong> (аудио→текст: STT/диаризация)</td>
+<td><strong>12</strong></td>
+<td>все <code>task=asr</code></td>
+<td>❌ нет; отдельный поток «субтитры» (§5)</td>
+</tr>
+<tr>
+<td>Музыкальные трансформации (аудио-вход)</td>
+<td>6</td>
+<td><code>suno-add-instrumental</code>, <code>suno-add-vocals</code>, <code>suno-cover-audio</code>, <code>suno-cover-generate</code>, <code>suno-extend-audio</code>, <code>suno-mashup</code></td>
+<td>❌ в v1 (нужен загруженный трек)</td>
+</tr>
+<tr>
+<td>Трансформации/утилиты (аудио-вход)</td>
+<td>9</td>
+<td><code>elevenlabs-audio-isolation</code> (изоляция), <code>elevenlabs-dubbing</code>, <code>elevenlabs-voice-changer</code>, <code>forced-alignment</code>, <code>suno-stem</code> (стемы), <code>suno-midi</code>, <code>suno-persona</code>, <code>suno-timestamped-lyrics</code>, <code>suno-wav</code></td>
+<td>❌ в v1</td>
+</tr>
+<tr>
+<td>Текстовые помощники (выход не аудио)</td>
+<td>2</td>
+<td><code>suno-lyrics</code> (текст песни), <code>suno-style-boost</code> (развёртка стиля)</td>
+<td>❌ (вспомогательные)</td>
+</tr>
+</tbody>
+</table>
+<p>Итого 28 + 12 + 6 + 9 + 2 = <strong>57</strong> ✓. Каждая модель в дампе помечена полем <code>class</code> (<code>tts</code>/<code>sfx</code>/<code>music</code>/<code>music-transform</code>/<code>stt</code>/<code>transform</code>/<code>utility</code>) — @kodi может фильтровать прямо по нему.</p>
+<h2 id="3-28">3. Генеративные модели — полный список (28)</h2>
+<p>Цены «от» (<code>fromRub</code>) точные (<code>priceStatus=exact</code>), кроме отмеченных. Полный <code>note</code>, все <code>axes</code>, <code>inputSchema</code>, <code>variants</code> и <code>tiers</code> — в дампе [[design/pots-audio-catalog-dump]] по каждой модели; ниже — выжимка для UI.</p>
+<h3 id="31-tts-19">3.1 TTS — голос (19)</h3>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>unit</th>
+<th>от ₽</th>
+<th>цена</th>
+<th>вход</th>
+<th>Параметры для UI (<code>axes</code>)</th>
+<th>Примечания</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gpt-4o-mini-tts</code></td>
+<td>за 1000 символов</td>
+<td><strong>0.07</strong></td>
+<td>exact</td>
+<td>text</td>
+<td>voice (13, def <code>alloy</code>), instructions, response_format (6, def mp3), speed</td>
+<td>Самый дешёвый TTS с русским; до 4096 симв./запрос; совместим с OpenAI <code>/v1/audio/speech</code></td>
+</tr>
+<tr>
+<td><code>mimo-v2-5-tts</code></td>
+<td>за 1000 символов</td>
+<td><strong>0.01</strong></td>
+<td>exact</td>
+<td>text</td>
+<td>voice, instruct, output_format (3, def wav)</td>
+<td>Xiaomi MiMo через Dune; цена зависит от длины</td>
+</tr>
+<tr>
+<td><code>mimo-v2-5-tts-voiceclone</code></td>
+<td>за 1000 символов</td>
+<td>0.01</td>
+<td>exact</td>
+<td>text</td>
+<td>voice, instruct</td>
+<td>Нужен voice ID своего образца</td>
+</tr>
+<tr>
+<td><code>mimo-v2-5-tts-voicedesign</code></td>
+<td>за 1000 символов</td>
+<td>0.01</td>
+<td>exact</td>
+<td>text</td>
+<td>voice</td>
+<td>Тембр описывается текстом</td>
+</tr>
+<tr>
+<td><code>chatterbox-turbo</code></td>
+<td>за 1000 символов</td>
+<td><strong>0.13</strong></td>
+<td>exact</td>
+<td>text</td>
+<td>prompt (req)</td>
+<td>Resemble AI через Dune</td>
+</tr>
+<tr>
+<td><code>gemini-3.8-flash-tts-lite</code></td>
+<td>за 1000 символов</td>
+<td><strong>1.7</strong></td>
+<td>exact</td>
+<td>text</td>
+<td>gemini_voice (30, def Kore), style_instructions</td>
+<td>Облегчённый Gemini 3.8; маршруты: базовый 1.7 / flow 3.78</td>
+</tr>
+<tr>
+<td><code>grok-tts</code></td>
+<td>за 1000 символов</td>
+<td><strong>2.04</strong></td>
+<td>exact</td>
+<td>text</td>
+<td>voice (28, def eve), language (21, def auto)</td>
+<td>xAI; до <strong>15000</strong> симв./запрос — рекорд</td>
+</tr>
+<tr>
+<td><code>qwen3-tts</code></td>
+<td>за 1000 символов</td>
+<td><strong>2.71</strong></td>
+<td>exact</td>
+<td>text</td>
+<td>voice (9, def Vivian), language (11, def auto), instruct, response_format (4, def mp3)</td>
+<td>10 языков вкл. русский; до 4000 симв.; маршруты: базовый 2.71 / flow 12.19</td>
+</tr>
+<tr>
+<td><code>voice-clone-tts</code></td>
+<td>за 1000 символов</td>
+<td>2.71</td>
+<td>exact</td>
+<td>text</td>
+<td>voice_id (req), engine (10, def qwen3), language (11), instruct, stability, similarity_boost, emotion (8), speed, pitch, volume, response_format (5), …</td>
+<td>Озвучка <strong>клонированным голосом</strong> (<code>POST /api/media/voices</code> → <code>voice_id</code>); до 4000 симв.; отдаёт тайминги слов (субтитры JSON)</td>
+</tr>
+<tr>
+<td><code>chatterbox-tts</code></td>
+<td>за 1000 символов</td>
+<td>3</td>
+<td>exact</td>
+<td>text</td>
+<td>voice (23), exaggeration, temperature, seed</td>
+<td>23 языка; <strong>лимит 300 симв./запрос</strong>; маршруты 3 / 4</td>
+</tr>
+<tr>
+<td><code>kokoro-tts</code></td>
+<td>за 1000 символов</td>
+<td>3</td>
+<td>exact</td>
+<td>text</td>
+<td>voice (20, def af_heart), speed</td>
+<td><strong>Только английский</strong></td>
+</tr>
+<tr>
+<td><code>inworld-realtime-tts-1-5-mini</code></td>
+<td>за 1000 символов</td>
+<td>3.51</td>
+<td>exact</td>
+<td>text</td>
+<td>voice, speaking_rate</td>
+<td>Быстрый, вкл. русский</td>
+</tr>
+<tr>
+<td><code>gemini-3.8-flash-tts</code></td>
+<td>за 1000 символов</td>
+<td>3.78</td>
+<td>exact</td>
+<td>text</td>
+<td>engine (flash/lite), gemini_voice (30), style_instructions</td>
+<td>tiers: flash 5.66 / lite 3.78</td>
+</tr>
+<tr>
+<td><code>inworld-realtime-tts-1-5-max</code></td>
+<td>за 1000 символов</td>
+<td>7.03</td>
+<td>exact</td>
+<td>text</td>
+<td>voice, speaking_rate, return_timestamps (toggle)</td>
+<td>Макс. качество + тайминги слов</td>
+</tr>
+<tr>
+<td><code>tts</code> (агрегатор)</td>
+<td>за озвучку</td>
+<td>7</td>
+<td>exact</td>
+<td>text</td>
+<td><strong>engine</strong> (6: turbo 7.54 / multilingual 11.31 / minimax-turbo 8 / minimax-hd 13 / qwen3 12 / gemini-flash 7), voice/minimax_voice (17)/qwen3_voice (9)/gemini_voice (30), language_code, speed, style, timestamps, voice_id</td>
+<td>MiniMax+Qwen+Gemini+ElevenLabs одним id; цена зависит от <code>engine</code> (tiers)</td>
+</tr>
+<tr>
+<td><code>elevenlabs-v4-tts</code></td>
+<td>за 1000 символов</td>
+<td>10.84</td>
+<td>exact</td>
+<td>text</td>
+<td>engine (v4/turbo), voice (21, def Rachel), voice_id, language_code (14, def auto), stability, similarity_boost, apply_text_normalization (3), output_format (3), seed</td>
+<td>Премиум: теги эмоций <code>[whispering]</code>, <code>[excited]</code>; до 5000 симв.; движок Turbo вдвое дешевле</td>
+</tr>
+<tr>
+<td><code>gemini-tts</code></td>
+<td>за 1000 символов</td>
+<td>10.29</td>
+<td><strong>estimate</strong></td>
+<td>text</td>
+<td>engine (flash), gemini_voice (30), accent (8), style (6), pace (4), audio_profile, scene, temperature</td>
+<td>Диалоговый (speakers + dialogue_turns); алиас <code>gemini-3.1-flash-tts</code>; списание ≤ указанной цены</td>
+</tr>
+<tr>
+<td><code>elevenlabs-dialogue</code></td>
+<td>за 1000 символов</td>
+<td>12.62</td>
+<td>exact</td>
+<td>text</td>
+<td>stability; реплики — массив <code>dialogue[]</code> (текст+голос на реплику)</td>
+<td>Многоголосый диалог</td>
+</tr>
+<tr>
+<td><code>suno-speech</code></td>
+<td>за озвучку</td>
+<td>10.82</td>
+<td>exact</td>
+<td>text</td>
+<td>mode (simple/advanced), script, tone, backgroundMusic (toggle), vocalGender (3), variety (5)</td>
+<td>Озвучка сценария с фоновой музыкой; <strong>не</strong> TTS с фикс. голосом; возвращает 2 аудиофрагмента</td>
+</tr>
+</tbody>
+</table>
+<h3 id="32-sfx-4">3.2 SFX — эффекты (4)</h3>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>unit</th>
+<th>от ₽</th>
+<th>цена</th>
+<th>вход</th>
+<th>Параметры для UI</th>
+<th>Примечания</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>elevenlabs-sound-effects-v2</code></td>
+<td>за файл</td>
+<td><strong>1.36</strong></td>
+<td>exact</td>
+<td>text</td>
+<td>duration (23 опции 0.5–22 с, def 5), prompt_influence (def 0.3), loop (toggle), output_format (2)</td>
+<td>Описание до 450 симв. (лучше en); бесшовная петля; цена зависит от длительности</td>
+</tr>
+<tr>
+<td><code>mirelo-sfx-2</code></td>
+<td>за файл</td>
+<td>6.77</td>
+<td>exact</td>
+<td>text</td>
+<td>duration (11 опций 1–60 с, def 5), negative_prompt, output_format (2), seed</td>
+<td>Описание до 2000 симв.; ⚠️ в <code>note</code> провайдера тарификация «за секунду звука» при <code>unit=за файл</code> → см. §4.4</td>
+</tr>
+<tr>
+<td><code>mirelo-sfx-2-video</code></td>
+<td>за секунду</td>
+<td>1.354</td>
+<td>exact</td>
+<td><strong>text, video</strong></td>
+<td>video_url (req), preserve_speech (toggle, def true), negative_prompt, output_format, seed</td>
+<td>Озвучка ролика: синхронные звуки на всю длину видео (до 60 с)</td>
+</tr>
+<tr>
+<td><code>suno-sfx</code></td>
+<td>за файл</td>
+<td>15.71</td>
+<td>exact</td>
+<td>text</td>
+<td>version (3, def v6), sound_loop (toggle), sound_tempo, sound_key (25, def Any)</td>
+<td>Дорогой, но с петлёй/тональностью/темпом</td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-5">3.3 Музыка — текст→трек (5)</h3>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>unit</th>
+<th>от ₽</th>
+<th>цена</th>
+<th>вход</th>
+<th>Параметры для UI</th>
+<th>Примечания</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>suno</code></td>
+<td>за трек</td>
+<td><strong>6.29</strong></td>
+<td>exact</td>
+<td>text</td>
+<td>version (3, def v6), instrumental (toggle), style, title, negativeTags, vocalGender (3), styleWeight, weirdnessConstraint, audioWeight, personaId, personaModel (3), duration</td>
+<td>Самая популярная; маршруты: <strong><code>suno:white</code> 6.29</strong> / <code>suno</code> 10.82 / <code>suno:amber</code> unavailable; tiers по <code>personaModel</code> (без персоны 6.29, с персоной 10.82)</td>
+</tr>
+<tr>
+<td><code>suno-replace-section</code></td>
+<td>за трек</td>
+<td>4.51</td>
+<td>exact</td>
+<td>text</td>
+<td>source_task_id (req), source_track, source_audio_id, infill_start_s (req), infill_end_s (req), full_lyrics, tags, title</td>
+<td>Замена фрагмента <strong>ранее сгенерированного</strong> трека — в v1-шит только при наличии истории Suno-задач</td>
+</tr>
+<tr>
+<td><code>lyria-3-5</code></td>
+<td>за трек</td>
+<td>8.13</td>
+<td>exact</td>
+<td>text</td>
+<td>lyrics, title, bpm, seed</td>
+<td>Google Lyria 3.5; маршруты: <strong>white 8.13</strong> / flow 13.54</td>
+</tr>
+<tr>
+<td><code>acestep-v15-xl-sft</code></td>
+<td>за секунду</td>
+<td>0.1403</td>
+<td>exact</td>
+<td>text</td>
+<td>lyrics, duration (def 30, диапазон 30–500 с), instrumental (toggle), language_code</td>
+<td>Дешёвые длинные треки: 30 с ≈ 4.2 ₽, 500 с ≈ 70 ₽</td>
+</tr>
+<tr>
+<td><code>elevenlabs-music</code></td>
+<td>за трек</td>
+<td>40.62</td>
+<td>exact</td>
+<td>text</td>
+<td>duration (5 опций, 10 с–3 мин, def 30), force_instrumental (toggle), output_format (2), seed</td>
+<td>Премиум-музыка по описанию жанра/настроения/инструментов</td>
+</tr>
+</tbody>
+</table>
+<h3 id="34-v1-">3.4 Не в v1-шите (но генеративные по природе)</h3>
+<ul>
+<li><strong>Музыка с аудио-входом (6):</strong> <code>suno-mashup</code> (2 URL), <code>suno-add-instrumental</code>, <code>suno-add-vocals</code>, <code>suno-cover-audio</code>, <code>suno-extend-audio</code> (все по 10.82 ₽/трек, нужен <code>upload_url</code>), <code>suno-cover-generate</code> (7.54, нужен <code>source_task_id</code>).</li>
+<li><strong>Трансформации аудио (9):</strong> <code>elevenlabs-dubbing</code> (4.97 ₽/с, до 30 мин, 90+ языков), <code>elevenlabs-voice-changer</code> (21 ₽/1000 символов ≈ 1 мин исходника, нужен клонированный голос), <code>elevenlabs-audio-isolation</code> (21.12 ₽/мин), <code>forced-alignment</code> (14.08 ₽/1000 символов текста, <strong>отдаёт готовый SRT</strong> — см. §5), <code>suno-stem</code> (12.57), <code>suno-timestamped-lyrics</code> (0.45), <code>suno-wav</code> (0.2–0.36), <code>suno-midi</code> (0.25), <code>suno-persona</code> (0.25).</li>
+</ul>
+<h2 id="4-ui-kodi-t_f1891f4c">4. Рекомендации для UI (для @kodi, задача <code>t_f1891f4c</code>)</h2>
+<h3 id="41-">4.1 Состав шита аудио-режима</h3>
+<p>Три группы с заголовками; внутри — сортировка по цене «от»:</p>
+<ol>
+<li><strong>Голос (TTS)</strong> — показывать: все 19 <code>class=tts</code>, кроме трёх, требующих предварительного клонирования голоса (<code>voice-clone-tts</code>, <code>mimo-v2-5-tts-voiceclone</code>, <code>elevenlabs-voice-changer</code>) — их выносить в отдельный пункт «Мой голос» (нужен <code>voice_id</code> из <code>POST /api/media/voices</code>; контракт §«Клонирование голоса»).</li>
+<li>Дефолт: <strong><code>gpt-4o-mini-tts</code></strong> (0.07 ₽/1000 симв., русский, instructions, 4096 симв.).</li>
+<li>Бюджет: <code>mimo-v2-5-tts</code> (0.01), <code>chatterbox-turbo</code> (0.13) — с пометкой «качество не проверено».</li>
+<li>Золотая середина: <code>gemini-3.8-flash-tts-lite</code> (1.7, 30 голосов, русский авто), <code>grok-tts</code> (2.04, до 15000 симв. — для длинных текстов), <code>qwen3-tts</code> (2.71, явный выбор языка).</li>
+<li>Премиум: <code>elevenlabs-v4-tts</code> (10.84, теги эмоций) и <code>tts</code>-агрегатор (6 движков в одной модели).</li>
+<li><code>kokoro-tts</code> помечать «только английский»; <code>chatterbox-tts</code> — «до 300 симв./запрос».</li>
+<li><strong>Музыка</strong> — показывать: <code>suno</code> (маршрут <code>suno:white</code> 6.29 ₽/трек — дефолт), <code>lyria-3-5</code> (white 8.13), <code>acestep-v15-xl-sft</code> (0.1403 ₽/с — для длинных треков), <code>elevenlabs-music</code> (40.62 — премиум). <code>suno-replace-section</code> не показывать, пока нет истории Suno-задач. Музыка с аудио-входом (кавер/мэшап/продолжение) — фаза 2 вместе с загрузкой аудио.</li>
+<li><strong>Эффекты (SFX)</strong> — показывать: <code>elevenlabs-sound-effects-v2</code> (дефолт, от 1.36 ₽, петли), <code>mirelo-sfx-2</code> (длинные эффекты до 60 с), <code>suno-sfx</code> (с тональностью/темпом). <code>mirelo-sfx-2-video</code> — только если рядом есть видео-элемент (нужен <code>video_url</code>).</li>
+</ol>
+<p><strong>Не показывать в шите никогда:</strong> 12 STT (§5), <code>suno-stem</code>, <code>elevenlabs-audio-isolation</code>, <code>suno-midi</code>, <code>suno-persona</code>, <code>suno-wav</code>, <code>suno-timestamped-lyrics</code>, <code>forced-alignment</code>, <code>suno-lyrics</code>, <code>suno-style-boost</code> (аналитика/утилиты/помощники).</p>
+<h3 id="42">4.2 Чипы дока: какие параметры выносить</h3>
+<p>Правило: рендерить <code>axes[]</code> модели из дампа универсально (в КМП уже парсится <code>MediaKind.Audio/Music</code> — [[projects/pots-media-expansion-plan]]).</p>
+<table>
+<thead>
+<tr>
+<th>Тип axis</th>
+<th>Контрол</th>
+<th>Куда</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>select</code> с ≤ 6 опциями</td>
+<td>чип-строка</td>
+<td>док</td>
+</tr>
+<tr>
+<td><code>select</code> с &gt; 6 опциями (голоса 9–30)</td>
+<td>чип с дропдауном/шитом выбора</td>
+<td>док (значение)</td>
+</tr>
+<tr>
+<td><code>toggle</code> (<code>instrumental</code>, <code>loop</code>, <code>backgroundMusic</code>)</td>
+<td>чип-переключатель</td>
+<td>док</td>
+</tr>
+<tr>
+<td><code>text</code> короткий (<code>bpm</code>, <code>speed</code>, <code>duration</code>)</td>
+<td>инлайн-поле</td>
+<td>док</td>
+</tr>
+<tr>
+<td><code>text</code> длинный (<code>lyrics</code>, <code>style</code>, <code>instructions</code>, <code>negative_prompt</code>, <code>script</code>)</td>
+<td>многострочное поле</td>
+<td>раскрытие шита</td>
+</tr>
+<tr>
+<td>обязательные (<code>required</code>)</td>
+<td>сверху, с <code>*</code></td>
+<td>док</td>
+</tr>
+<tr>
+<td>технические (<code>seed</code>, <code>sample_rate</code>, <code>bitrate</code>, <code>channel</code>, <code>output_format</code>/<code>response_format</code>, <code>similarity_boost</code>, <code>stability</code>)</td>
+<td>скрыть в «Ещё»</td>
+<td>раскрытие</td>
+</tr>
+</tbody>
+</table>
+<p>Обязательные чипы для любой аудио-модели: <strong>цена + единица</strong> (бейдж) и <strong>промпт</strong> (все генеративные требуют <code>prompt</code>, кроме <code>suno-speech</code> с <code>script</code> и моделей с <code>lyrics</code>). Характерные наборы:</p>
+<ul>
+<li>TTS: <code>voice</code> + <code>language</code> (def <code>auto</code>) + скорость (<code>speed</code>/<code>speaking_rate</code>); текст озвучки — основное поле ввода.</li>
+<li>Музыка: <code>duration</code> + <code>instrumental</code> + <code>lyrics</code>/<code>style</code> (раскрытие) + <code>bpm</code> (Lyria) + <code>version</code> (Suno).</li>
+<li>SFX: <code>duration</code> + <code>loop</code> + описание; <code>sound_key</code>/<code>sound_tempo</code> у <code>suno-sfx</code> — в «Ещё».</li>
+</ul>
+<h3 id="43">4.3 Отображение цены с единицей</h3>
+<ul>
+<li>Строку <code>unit</code> из каталога показывать <strong>как есть</strong> — она уже на русском: «за 1000 символов», «за трек», «за секунду», «за файл», «за озвучку», «за минуту».</li>
+<li>Формат бейджа: <code>от {fromRub} ₽ {unit}</code> → «от 0,07 ₽ за 1000 символов». Десятичный разделитель — запятая (локаль ru).</li>
+<li><code>priceStatus=estimate</code> → префикс «≈» и тултип из <code>priceWarning</code>/<code>estimateReason</code> (<code>gemini-tts</code>: «спишется не больше этой цены»; <code>suno-lyrics</code>: «нет опубликованного тарифа»).</li>
+<li><strong>Metered-модели</strong> (<code>priceUnit=1000_characters</code>/<code>second</code>, факт зависит от входа): перед отправкой показывать предварительную цену через <code>POST /api/media/price</code> (контракт §Price quote) и передавать <code>quote_id</code> + <code>max_price_rub</code> в <code>generate</code>. Для TTS можно считать локально: <code>ceil(символы/1000) × fromRub</code> как нижняя оценка.</li>
+<li><strong><code>tiers</code></strong> (цена зависит от выбора в <code>opts</code>): поле непустое у <strong>18</strong> моделей дампа, из них в шите — <strong>7</strong> (поправлено 2026-11-13 по вердикту @linus, сверено с дампом):</li>
+<li>переменные (пересчёт бейджа при смене чипа): <code>tts</code> (6 тиров по <code>engine</code>: 7–13 ₽), <code>gemini-3.8-flash-tts</code> (2 по <code>engine</code>: flash 5.66 / lite 3.78), <code>suno</code> (3 по <code>personaModel</code>: пусто 6.29 / значение 10.82), <code>gemini-3.8-flash-tts-lite</code> (30 по <code>gemini_voice</code> — все 1.7, цена не меняется);</li>
+<li>плоские (один тир с пустым <code>when:{}</code> — фикс-цена в <code>tiers[0].priceRub</code>, пересчёт не нужен): <code>elevenlabs-dialogue</code> (12.62), <code>suno-speech</code> (10.82), <code>suno-replace-section</code> (4.51).
+  Правило рендера: матчить значение чипа о <code>when</code> в <code>tiers[]</code>; нет совпадения/выбора → <code>fromRub</code> с «от». Остальные 11 моделей с <code>tiers</code> — вне шита (мэшапы/стемы/утилиты).</li>
+<li><strong><code>variants</code></strong> (маршруты): показывать минимальную (это уже <code>fromRub</code>); смену маршрута (<code>:white</code>/<code>:flow</code>) в v1 не выносить.</li>
+<li>Идемпотентность: повтор запроса — с тем же <code>Idempotency-Key</code> и тем же телом (<code>quote_id</code>/<code>max_price_rub</code>), иначе двойное списание (контракт §Jobs poll, правило от 2026-11-12).</li>
+</ul>
+<h3 id="44">4.4 Расхождения и ловушки каталога</h3>
+<ul>
+<li><strong><code>mirelo-sfx-2</code></strong>: <code>unit=«за файл»</code>, <code>priceUnit=request</code>, но в <code>note</code> провайдера — «Цена за секунду звука». Перед генерацией обязательна котировка <code>POST /api/media/price</code>; в UI показывать <code>от 6,77 ₽ за файл</code> с пометкой «уточняется по длительности».</li>
+<li><strong><code>speech-to-text</code></strong>: в снапшоте контракта (2026-11-10) — 1 ₽/мин; в свежем каталоге <code>fromRub=0.65</code> (маршрут <code>:elevenlabs</code>; <code>:flow</code> = 1 ₽). Каталог — источник правды, контракт обновить при следующем проходе.</li>
+<li><strong><code>suno-cover-generate</code></strong>, <strong><code>suno-midi</code></strong>, <strong><code>suno-persona</code></strong>: цены назначены владельцем PlusVibe (Pixel публиковал их по 0 кредитов) — помечены в <code>note</code>, поведение может измениться.</li>
+<li><code>gemini-tts</code> имеет алиас <code>gemini-3.1-flash-tts</code> (принимается в <code>model</code>).</li>
+<li><code>videoDisabled=false</code>, но для <code>mirelo-sfx-2-video</code> нужен реальный <code>video_url</code>.</li>
+</ul>
+<h2 id="5-stt-12">5. STT-модели для субтитров (12)</h2>
+<p>Все: <code>kind=audio</code>, <code>task=asr</code>, вход <strong><code>opts.audio_url</code></strong> (публичный HTTPS) <strong>или <code>opts.audio_file_id</code></strong> (<code>anyOf</code> в <code>requiredInputs</code>; по контракту также парное поле <code>audio_base64</code>), <code>prompt:""</code>, файл ≤ 25 МБ, форматы <code>mp3/wav/m4a/flac/ogg/webm</code> (контракт §STT). Выход: <strong><code>resultText</code></strong> (<code>resultUrls</code> пуст) — контракт §Jobs poll. У всех <code>minimumChargeRub=0.01</code> (минимальное списание 1 копейка).</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>₽/мин (от)</th>
+<th>Диаризация</th>
+<th>Языки/опции</th>
+<th>Примечание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>qwen3-asr-0.6b</code></td>
+<td><strong>0.02</strong></td>
+<td>–</td>
+<td>30 языков вкл. русский; <code>language_code</code>; <strong>таймкоды фраз</strong>; multipart audio</td>
+<td>Лучший бюджет для субтитров</td>
+</tr>
+<tr>
+<td><code>whisper-large-v3-turbo</code></td>
+<td><strong>0.02</strong></td>
+<td>–</td>
+<td><code>language_code</code>; тарификация посекундно по измеренной длительности</td>
+<td>Быстрый Whisper</td>
+</tr>
+<tr>
+<td><code>nemotron-asr-multilingual</code></td>
+<td>0.02</td>
+<td>–</td>
+<td><code>language_code</code>; посекундно</td>
+<td>NVIDIA, стриминговый</td>
+</tr>
+<tr>
+<td><code>whisper-large-v3</code></td>
+<td>0.06</td>
+<td>–</td>
+<td><code>language_code</code></td>
+<td>Точнее turbo, втрое дороже</td>
+</tr>
+<tr>
+<td><code>qwen3-asr-1.7b</code></td>
+<td>0.06</td>
+<td>–</td>
+<td><code>language_code</code>; <strong>распознавание + перевод</strong></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nemotron-3-diarization</code></td>
+<td>0.08</td>
+<td>✅ отрезки говорящих</td>
+<td><code>language_code</code></td>
+<td>Дешёвая диаризация</td>
+</tr>
+<tr>
+<td><code>universal-2</code></td>
+<td>0.35</td>
+<td>✅ <code>speaker_labels</code> (toggle)</td>
+<td><strong>русский</strong> (<code>language_code=ru</code>/авто), <code>keyterms_prompt</code></td>
+<td>Русский фокус; посекундно</td>
+</tr>
+<tr>
+<td><code>voxtral-small-24b-2507</code></td>
+<td>0.42</td>
+<td>–</td>
+<td><code>language_code</code>; multipart</td>
+<td>Mistral</td>
+</tr>
+<tr>
+<td><code>gpt-4o-mini-transcribe</code></td>
+<td>0.49</td>
+<td>–</td>
+<td><code>language_code</code></td>
+<td>Списанию по токенам, не выше границы на карточке</td>
+</tr>
+<tr>
+<td><code>speech-to-text</code></td>
+<td>0.65 (<code>:elevenlabs</code>; <code>:flow</code> 1.0)</td>
+<td>✅ <code>diarize</code> (toggle, def true)</td>
+<td><code>language_code</code>, <code>tag_audio_events</code>, <code>keyterms</code></td>
+<td>Scribe v2; длительность измеряется и озвучивается до списания</td>
+</tr>
+<tr>
+<td><code>gpt-4o-transcribe</code></td>
+<td>0.68</td>
+<td>–</td>
+<td><code>language_code</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>gpt-4o-transcribe-diarize</code></td>
+<td>3.59</td>
+<td>✅ говорящие A, B… + таймкоды фраз</td>
+<td><code>language_code</code>; <code>response_format=diarized_json/verbose_json</code></td>
+<td>Премиум-диаризация</td>
+</tr>
+</tbody>
+</table>
+<p>Рекомендации для потока «субтитры»: дефолт <strong><code>whisper-large-v3-turbo</code></strong> (0.02 ₽/мин, мультиязычный); для русского со спикерами — <code>universal-2</code> (0.35) или <code>gpt-4o-transcribe-diarize</code> (3.59); бюджет с таймкодами фраз — <code>qwen3-asr-0.6b</code> (0.02). Вход из приложения: свой файл грузить через <code>POST /v1/files</code> → <code>audio_file_id</code> (публичного HTTPS у локального файла нет; контракт §«Свои файлы»).</p>
+<p>Бонус для точных субтитров: <code>forced-alignment</code> (utility, не в шите) — по аудио + готовому тексту возвращает тайминги каждого слова и <strong>готовый SRT-файл</strong> (14.08 ₽/1000 символов текста). Также <code>voice-clone-tts</code> и <code>inworld-realtime-tts-1-5-max</code> отдают тайминги слов вместе с озвучкой — субтитры к собственной генерации бесплатно.</p>
+<h2 id="6-ux-joni-t_f1891f4ct_e9b7ed2f">6. Лучшие практики UX аудиоредакторов (для @joni, задачи <code>t_f1891f4c</code>/<code>t_e9b7ed2f</code>)</h2>
+<ol>
+<li><strong>Волна только когда форма полезна.</strong> Волнограмма оправдана, если по ней делают действия: найти тишину между репликами, отрезать ложный старт; иначе достаточно прогресс-бара. Тест: «может ли пользователь действовать по форме?» — https://mobileappdesign.io/blog/audio-player-ui</li>
+<li><strong>Неразрушающая обрезка за ручки на краях клипа.</strong> Верхние ручки — trim (обрезанное не удаляется, край можно оттянуть назад), нижние «часики» — растяжение/скорость; трим из выделения — обратной операцией. — https://www.audacityteam.org/manual/clips/trim-and-stretch/ и https://www.audacityteam.org/manual/clips/</li>
+<li><strong>Скорость: клип-стрейч с бейджем процента + предпрослушивание без изменения файла.</strong> Изменение скорости с сохранением высоты — отдельно (для речи — «optimize for voice», чтобы не было «бурундука»); Play-at-Speed (0.01×–3×) для предпросмотра; повторный рендер стрейча теряет качество. — https://support.audacityteam.org/basics/audacity-editing, https://support.audacityteam.org/au3/audio-editing/speeding-up-and-slowing-down-audio</li>
+<li><strong>Прогрессивная перемотка и транспорт.</strong> Грубая перемотка по всему треку → точная с аудио-предпрослушкой → snap к маркерам; транспортные кнопки по индустриальным иконкам и J/K/L. — https://graceguo.io/project/notetracks</li>
+<li><strong>Фейды — отдельные длительности с явным нулём.</strong> Fade In/Out — собственные значения (0 = выключено, никаких скрытых дефолтов), привязка к границе клипа после обрезки, предпрослушивание у изменённой границы, а не с начала проекта. — https://screensdesign.com/articles/mobile-audio-fade-ducking-controls-ux</li>
+<li><strong>Оригинал всегда под рукой.</strong> Обработанный результат сравнивается с оригиналом (A/B); состояние «включено» отдельно от сохранённого значения слайдера; при отключении показывать, что слышно: оригинал, байпас или ранее обработанная версия. — https://screensdesign.com/articles/mobile-audio-noise-reduction-ux</li>
+<li><strong>Мобильная планка плеера.</strong> Тач-цель скраббера ≥ 44 pt независимо от толщины линии, время с обоих концов, мини-плеер + полный экран, скорость/таймер на основной поверхности (а не в меню); для голосового контента сильнее работает пара «плейбек + транскрипт», где тап по строке перематывает. — https://mobileappdesign.io/blog/audio-player-ui, https://medium.com/anchor/rethinking-audio-editing-on-mobile-684d754c6460</li>
+</ol>
+<p>Смежные артефакты дизайна: <code>/home/al/wiki/design/pots-media-icons/</code> (иконки) и <code>/home/al/wiki/design/pots-media-ux-spec.md</code> (спек) — от @joni, задача <code>t_5b9da93f</code>.</p>
+<h2 id="7-plusvibemd">7. Контракт: памятка для реализации (из <code>plusvibe.md</code>)</h2>
+<ul>
+<li>Тот же поток, что фото/видео: <code>POST /api/media/generate</code> → 202 <code>jobId</code> → polling <code>GET /api/media/jobs/{id}</code> (3–5 с, экспоненциально до 30 с; <code>submitting</code> — нетерминальный, дубль не создавать) → <code>success</code> с <code>resultUrls[]</code> (для STT — <code>resultText</code>).</li>
+<li>Тело: <code>model</code>, <code>prompt</code> (для STT — пустая строка), <code>opts{...}</code> (параметры модели), <code>strict</code>, опционально <code>quote_id</code> + <code>max_price_rub</code>. Неизвестный параметр игнорируется, при <code>strict</code> — 422.</li>
+<li>Ссылки результата живут <strong>5 дней</strong> → скачивать байты сразу (задача <code>t_f1891f4c</code> это уже требует).</li>
+<li>Файлы пользователя: только публичный HTTPS в <code>*_url</code> полях; локальные файлы — через <code>POST /v1/files</code> (<code>audio_file_id</code>) или <code>audio_base64</code> (<code>data:&lt;mime&gt;;base64,…</code>).</li>
+<li>Платные запросы к провайдеру в задачах разработки запрещены ([[projects/pots-media-expansion-plan]]) — всё выше проверено по публичному каталогу и доку, без генераций.</li>
+</ul>
+<h2 id="_1">Источники</h2>
+<ul>
+<li><code>GET https://plusvibeapi.ru/api/media-catalog</code> — снят 2026-11-13 (дамп: [[design/pots-audio-catalog-dump]])</li>
+<li><code>/run/media/al/ARCHIVE/code/pusi/apps/pots/docs/knowledge/media-providers/plusvibe.md</code> (okf 0.2, 2026-11-10)</li>
+<li>https://plusvibeapi.ru/docs/media-models, https://plusvibeapi.ru/docs/media-generation</li>
+<li>UX: https://mobileappdesign.io/blog/audio-player-ui · https://www.audacityteam.org/manual/clips/trim-and-stretch/ · https://support.audacityteam.org/basics/audacity-editing · https://support.audacityteam.org/au3/audio-editing/speeding-up-and-slowing-down-audio · https://graceguo.io/project/notetracks · https://screensdesign.com/articles/mobile-audio-fade-ducking-controls-ux · https://screensdesign.com/articles/mobile-audio-noise-reduction-ux · https://medium.com/anchor/rethinking-audio-editing-on-mobile-684d754c6460</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

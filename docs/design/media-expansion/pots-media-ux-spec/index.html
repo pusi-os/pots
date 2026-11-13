@@ -1,0 +1,1757 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Pots - AI Assistant App">
+      
+      
+      
+        <link rel="canonical" href="https://pusi-os.github.io/pots/docs/design/media-expansion/pots-media-ux-spec/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>POTS Медиа-студия — UX/UI-спек расширения (аудио, рисование, монтаж) - Pots Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#pots-uxui-" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Pots Documentation" class="md-header__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pots Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              POTS Медиа-студия — UX/UI-спек расширения (аудио, рисование, монтаж)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Pots Documentation" class="md-nav__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pots Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat & Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/hands-free/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hands-Free Voice Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/multi-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/dynamic-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mini-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mini-app-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-app server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/memories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/heartbeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/encryption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encryption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/on-device-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    On-Device Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasoning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/system-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/pots-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pots Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/sms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/potsiki/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/settings-export-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings Export & Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/splinterlands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splinterlands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../desktop-release-smoketest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop Release Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. Принципы и отправные точки
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Третья кнопка «Аудио» в тулбаре режимов
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Чипы параметров аудио (вместо разрешения/соотношения сторон)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Аудио-элемент на канвасе (плеер)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Редактор аудио
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Рисование карандашом на изображении
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Операции редактирования изображений/видео на канвасе
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Таймлайн — сборка видео из элементов канваса
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Состояния ошибок
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Набор иконок
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Субтитры — «в момент произношения»
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Аудио-реактивный клип одной кнопкой (без ЛЛМ)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Проекты медиа-студии: сохранение, импорт, экспорт
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Что исследовано (источники решений)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="pots-uxui-">POTS Медиа-студия — UX/UI-спек расширения (аудио, рисование, монтаж)</h1>
+<p>Автор: @joni · 2026-11-13 · Статус: к реализации; v2 по REWORK @linus: добавлены субтитры §10, клип §11, проекты §12 (карточка <code>t_5b9da93f</code>, доска <code>pots</code>)
+Комплект: иконки <code>/home/al/wiki/design/pots-media-icons/</code> (24×24 SVG, <code>fill="currentColor"</code>, стиль Material Filled — как текущие <code>Icons.Filled.*</code> в коде).
+Справка по аудио-моделям: <code>/home/al/wiki/design/pots-audio-gen-research.md</code> (@pifiya, снята с живого каталога <code>GET https://plusvibeapi.ru/api/media-catalog</code> 2026-11-13: 208 моделей, <code>audio</code> — 46, <code>music</code> — 11; генеративных в шит — 28). Эта спека задаёт UX; числа, состав шита и оси параметров — по справке @pifiya и дампу каталога.</p>
+<hr />
+<h2 id="0">0. Принципы и отправные точки</h2>
+<p>Текущий стиль (не менять, только наследовать):</p>
+<ul>
+<li>Стеклянные капсулы: <code>Surface(alpha ≈ 0.9, tonalElevation)</code>, скругления 22/20/16/14/12/11 <code>.dp</code>.</li>
+<li>Чипы тулбара: <code>RoundedCornerShape(12.dp)</code>, <code>labelMedium</code>, паддинг <code>10.dp × 6.dp</code>, фон <code>tertiaryContainer</code>.</li>
+<li>Сегмент режимов: капсула <code>14.dp</code>, кнопки со скруглением <code>11.dp</code>, иконка <code>18.dp</code> в паддинге <code>7.dp</code>; активная — <code>primaryContainer</code>, неактивная — прозрачная, <code>onSurfaceVariant</code>.</li>
+<li>Элемент канваса: 232 <code>.dp</code> (<code>CANVAS_ELEMENT_SIZE_DP</code>), скругление <code>12.dp</code>, выделение — кольцо <code>2.dp primary</code>; панель операций — капсула у нижнего края.</li>
+<li>Интерактив: <code>handCursor()</code> на всём кликабельном; <code>contentDescription</code> на русском у каждой иконки.</li>
+</ul>
+<p>Правила дизайна:</p>
+<ol>
+<li>Дизайн — как вещь работает: каждая операция видна только тогда, когда нужен её объект (контекстные панели — паттерн CapCut).</li>
+<li>Простота: одна главная дорожка таймлайна + аудиодорожка в v1; мультитрек — позже.</li>
+<li>Ничего не терять: промпт, параметры и референсы не очищаются ни при смене режима, ни при ошибке.</li>
+<li>Среда — десктоп (Omarchy/Hyprland): ховер-состояния, клавиатура, точность мыши; тач-жесты остаются вторичными (приложение KMP).</li>
+<li>Все подписи — на русском.</li>
+</ol>
+<hr />
+<h2 id="1">1. Третья кнопка «Аудио» в тулбаре режимов</h2>
+<ul>
+<li><code>ModeSegment</code> становится трёхкнопочным: <strong>Изображение</strong> (<code>Icons.Filled.Image</code>), <strong>Видео</strong> (<code>Icons.Filled.Movie</code>), <strong>Аудио</strong> (<code>mode-audio.svg</code> — музыкальная нота, без подписи).</li>
+<li>Геометрия новой кнопки — ровно как у существующих: иконка <code>18.dp</code>, паддинг <code>7.dp</code>, активная = <code>primaryContainer</code>/<code>onPrimaryContainer</code>, неактивная = прозрачная/<code>onSurfaceVariant</code>. Третья кнопка не меняет ширину капсулы — только добавляет сегмент.</li>
+<li><code>contentDescription = "Режим аудио"</code>.</li>
+<li>Состояние <code>isVideoMode: Boolean</code> заменить на <code>enum MediaMode { IMAGE, VIDEO, AUDIO }</code>; переключение — клик по неактивному сегменту (как сейчас).</li>
+<li>При переключении меняется: набор чипов (§2), плейсхолдер дока — <strong>«Опиши звук или речь…»</strong> (для музыки — «Опиши трек: жанр, настроение…»), фильтр шита моделей (<code>kind=audio|music</code>), поведение канваса (§3).</li>
+<li>Черновик промпта хранить отдельно на каждый режим: переключение режимов текст не стирает.</li>
+</ul>
+<h2 id="2">2. Чипы параметров аудио (вместо разрешения/соотношения сторон)</h2>
+<p>В режиме аудио чипы разрешения и соотношения сторон скрываются; вместо них — чипы, построенные из осей модели каталога (<code>axes</code>), универсально по модели (правила рендера осей сверены со справкой @pifiya §4.2):</p>
+<ul>
+<li>Порядок приоритета на тулбаре: <code>duration</code> → <code>voice</code> → <code>response_format</code>/<code>output_format</code> → <code>language</code> → прочие <code>select</code>-оси. Максимум <strong>4 чипа</strong> в ряду, остальные — в шите параметров (паттерн <code>MediaParamSheet</code>).</li>
+<li><code>select</code> с ≤ 6 опциями — чип-строка; <code>select</code> с большим списком (голоса 9–30) — чип с текущим значением, открывающий шит выбора. <code>toggle</code> — чип-переключатель (активный = <code>primaryContainer</code>). Короткие <code>text</code> (<code>bpm</code>, <code>speed</code>) — инлайн-поле в шите; длинные (<code>lyrics</code>, <code>style</code>, <code>instructions</code>, <code>script</code>) — многострочное поле в раскрытии шита.</li>
+<li>Технические оси (<code>seed</code>, <code>sample_rate</code>, <code>bitrate</code>, <code>channel</code>, <code>stability</code>, <code>similarity_boost</code>) — только в «Ещё», на тулбар никогда.</li>
+<li>Вид чипа — существующий <code>TopBarChip</code>; текст чипа = короткое значение: «30 с», «Rachel», «MP3», «RU». Полный лейбл оси — в шите. Обязательные оси (<code>required</code>) — первыми.</li>
+<li>Ось <code>duration</code> показывать только если она есть у модели: у TTS цена считается за символы, и чип длительности был бы фикцией.</li>
+</ul>
+<p>Цена и отправка:</p>
+<ul>
+<li>Бейдж цены в шите: <code>от {цена} ₽ {единица}</code> — строка <code>unit</code> каталога как есть («за 1000 символов», «за трек», «за секунду», «за файл», «за озвучку»); десятичный разделитель — запятая (локаль ru). У <code>priceStatus=estimate</code> — префикс «≈» и подсказка из <code>priceWarning</code>.</li>
+<li>Перед отправкой — котировка <code>POST /api/media/price</code>; кнопка дока показывает итог: <strong>«Создать · ≈ 12 ₽»</strong>. Для тарифицируемых по входу моделей (<code>за 1000 символов</code> / <code>за секунду</code>) в <code>generate</code> уходят <code>quote_id</code> + <code>max_price_rub</code>. Если цена не изменилась при повторе — не переспрашивать.</li>
+<li>Если у модели есть <code>tiers</code> (цена зависит от выбранных чипов) — бейдж пересчитывается при смене чипа; нет совпадения → «от» по <code>fromRub</code>.</li>
+</ul>
+<p>Шит моделей аудио (состав и дефолты — по справке @pifiya §4.1):</p>
+<ul>
+<li>Три группы с заголовками, внутри — сортировка по цене «от»: <strong>Голос</strong> (19 TTS), <strong>Музыка</strong> (5), <strong>Эффекты</strong> (4). Отдельный пункт «Мой голос» — модели с клонированным голосом (<code>voice_id</code> через <code>POST /api/media/voices</code>).</li>
+<li>Дефолты: голос — <code>gpt-4o-mini-tts</code>; музыка — <code>suno</code> (маршрут <code>suno:white</code>); эффекты — <code>elevenlabs-sound-effects-v2</code>.</li>
+<li>Никогда не показывать в шите генерации: STT/аналитику (вход <code>audio_url</code>), музыкальные трансформации с аудио-входом и утилиты — итого 29 моделей вне v1.</li>
+<li>Пометки на карточках: «только английский» (<code>kokoro-tts</code>), «до 300 символов за запрос» (<code>chatterbox-tts</code>), «уточняется по длительности» (<code>mirelo-sfx-2</code>).</li>
+</ul>
+<h2 id="3-">3. Аудио-элемент на канвасе (плеер)</h2>
+<ul>
+<li>Карточка того же размера 232 <code>.dp</code>, фон <code>surfaceVariant</code>, скругление <code>12.dp</code>, выделение — то же кольцо <code>2.dp primary</code>. Сетка канваса остаётся однородной.</li>
+<li>Наполнение карточки: волновая дорожка по всей ширине (пики <code>onSurfaceVariant</code> 40 %, проигранная часть — <code>primary</code>), по центру круглая кнопка воспроизведения <code>52.dp</code> <code>primaryContainer</code> (форма кнопки «Создать» в доке), снизу время <code>0:12 / 0:30</code> (<code>labelSmall</code>, как в видеоплеере).</li>
+<li>Воспроизведение — внутри приложения (без системного плеера): <code>expect/actual</code> по образцу <code>PlatformVideoView</code> (десктоп — media3/JavaSound, Android — MediaPlayer).</li>
+<li>Управление:</li>
+<li><strong>Перемотка:</strong> клик/драг по волне = переход к позиции; тонкий <code>Slider</code> под волной — всегда при выделении. Тач-цель скраббера ≥ 44 <code>.dp</code> независимо от толщины линии (важно для KMP-тача на десктопе/планшете).</li>
+<li><strong>±10 с:</strong> кнопки <code>rewind.svg</code> / <code>forward.svg</code> в панели выделенного элемента.</li>
+<li><strong>Скорость:</strong> пресеты <code>0.5× / 0.75× / 1× / 1.25× / 1.5× / 2×</code> чипами (активный — <code>primaryContainer</code>); в карточке — только в панели выделения, полный набор — в редакторе.</li>
+<li><strong>Громкость:</strong> иконка <code>volume.svg</code> + горизонтальный <code>Slider</code> 0–100 %; клик по иконке = mute (иконка приглушается до 40 % альфы).</li>
+<li>Панель выделенного аудио-элемента (те же <code>ElementChip</code>): воспроизведение/пауза, «Редактировать» (§4), «Прикрепить к видео» (§6.4), «В таймлайн» (§7), <code>SaveAlt</code> «Сохранить в галерею», <code>Delete</code>. Операция «Использовать как референс» для аудио не показывается.</li>
+<li>Скелетон генерации аудио = существующий <code>GenerationSkeleton</code> (без изменений).</li>
+</ul>
+<h2 id="4">4. Редактор аудио</h2>
+<p>Вход: чип «Редактировать» в панели выделенного аудио-элемента. Полноэкранный шит (по образцу лайтбокса): шапка (название, длительность), волна на всю ширину, управление снизу.</p>
+<ul>
+<li><strong>Волна:</strong> зум (Ctrl+колесо / пинч), плейхед, линейка времени (шаг 5/10 с в зависимости от зума). Выделение = драг по волне; у выделения ручки по краям (как трим-хэндлы клипов в CapCut). Волна показывается потому, что по ней действуют (ищут тишину, режут ложный старт); для чистого воспроизведения без правок достаточно прогресс-бара.</li>
+<li><strong>Обрезка:</strong> «Обрезать до выделения» (<code>trim.svg</code>) — остаётся только выделенный диапазон; отдельно «Обрезать начало/конец до плейхеда». Обрезка неразрушающая: обрезаются края клипа за ручки, скрытое можно оттянуть назад; все правки — в стек отмены (без ограничений в рамках сессии, паттерн настольных аудиоредакторов).</li>
+<li><strong>Разрезать:</strong> плейхед + «Разрезать» = два независимых клипа (паттерн CapCut Split).</li>
+<li><strong>Скорость:</strong> слайдер 0.25–4.0 + пресеты 0.5/1/1.5/2; тумблер <strong>«Сохранять тон»</strong> (вкл. по умолчанию — для речи, чтобы не было «бурундука»). Изменение скорости — предпрослушивание без переписывания файла; в файл рендерится только при экспорте.</li>
+<li><strong>Склейка 2+ треков:</strong> кнопка «Добавить трек» (<code>+</code>) — выбор из аудио-элементов канваса, журнала или файла. Треки — вертикальный список строк со своей волной, тримом и громкостью; порядок = перетаскивание; склейка = последовательное соединение сверху вниз (без микширования — микс выйдет в следующих версиях). Кнопка «Предпросмотр склейки» проигрывает результат.</li>
+<li><strong>Сравнение с оригиналом:</strong> в шапке редактора переключатель «Оригинал / Результат» (A/B) — обработанное всегда слышно рядом с исходным.</li>
+<li><strong>Экспорт:</strong> «Экспорт» → чипы формата (MP3 / WAV), затем «Сохранить в галерею» и/или «Добавить на канвас как новый элемент». Рендер локальный, с <code>LinearProgressIndicator</code>. Фейды (вход/выход) — не в v1; когда появятся, у каждого своя длительность с явным нулём («0 = выключено»), без скрытых дефолтов.</li>
+<li>Закрытие с несохранёнными правками — подтверждение: «Сохранить изменения?» → «Сохранить» / «Не сохранять» / «Отмена».</li>
+</ul>
+<h2 id="5">5. Рисование карандашом на изображении</h2>
+<p>Вход: чип «Карандаш» (<code>brush.svg</code>) в панели выделенного изображения.</p>
+<ul>
+<li>Полноэкранный режим: изображение на весь экран; внизу — стеклянная капсула инструментов (как верхняя капсула тулбара):</li>
+<li><strong>Кисть:</strong> в v1 одна кисть с тремя пресетами толщины (тонкая 2, средняя 6, толстая 14 <code>.px</code>) — иконка <code>line-weight.svg</code>.</li>
+<li><strong>Цвет:</strong> 8 свотчей (чёрный, белый, красный, оранжевый, жёлтый, зелёный, синий, фиолетовый) + индикатор текущего. Кастомный цветовой круг — не в v1.</li>
+<li><strong>Толщина:</strong> слайдер 1–32 <code>.px</code> с круглым превью на ползунке.</li>
+<li><strong>Отмена:</strong> <code>undo.svg</code> — отмена по штрихам (стек); «Очистить всё» — с подтверждением.</li>
+<li><strong>Отмена режима:</strong> крестик — сбрасывает штрихи (подтверждение, если штрихи есть).</li>
+<li><strong>Применение:</strong> <code>apply.svg</code> — штрихи запекаются в <strong>копию</strong>; оригинал генерации не трогается; копия появляется на канвасе рядом и связана с исходной задачей (недеструктивный паттерн).</li>
+<li>Штрихи хранятся векторно (путь, цвет, толщина) и рисуются <code>Canvas</code> поверх изображения со сглаживанием (квадратичные кривые по точкам).</li>
+<li>Десктоп: ЛКМ — рисовать, <code>Ctrl+Z</code> — отмена; тач/стилус поддерживаются тем же жестом.</li>
+</ul>
+<h2 id="6">6. Операции редактирования изображений/видео на канвасе</h2>
+<p>Каждая операция открывается полноэкранно с предпросмотром и парой «Применить» / «Отмена». Исходник никогда не перезаписывается: результат — новый элемент, связанный с исходной задачей.</p>
+<ul>
+<li><strong>Обрезка</strong> (<code>crop.svg</code>): рамка с ручками, сетка третей; чипы соотношения: Свободно · 1:1 · 4:3 · 3:4 · 16:9 · 9:16. Для видео — та же рамка (кадрирование кадра, не времени; время режется в таймлайне §7).</li>
+<li><strong>Размер</strong> (<code>resize.svg</code>): существующие жесты масштаба + шит: поля «Ширина/Высота» в <code>.px</code>, тумблер «Сохранять пропорции» (вкл. по умолчанию), пресеты 512 / 1024 / 2K. Определяет разрешение экспорта элемента.</li>
+<li><strong>Наложение</strong> (<code>overlay.svg</code>): перетащи элемент B на элемент A → чип «Наложить»: B становится дочерним слоем A — позиция и масштаб считаются от рамки A, двигается вместе с A; <code>zIndex</code> внутри родителя; «Открепить» возвращает самостоятельность. В панели наложения — слайдер прозрачности 0–100 % (по умолчанию 100 %).</li>
+<li><strong>Аудиодорожка на видео</strong> (<code>audio-track.svg</code>): чип «Музыка» в панели выделенного видео → выбор: аудио-элементы канваса, журнал (<code>kind=audio|music</code>), импорт файла. Прикреплённая дорожка отображается волновой полосой <code>24.dp</code> под элементом; доступны громкость, «Заменить», «Убрать». Дорожка следует за клипом при сборке в таймлайн (§7).</li>
+</ul>
+<h2 id="7">7. Таймлайн — сборка видео из элементов канваса</h2>
+<p>Вход: пятая кнопка верхней капсулы тулбара — <code>timeline.svg</code>, подпись-подсказка «Собрать видео». Открывает нижний ящик: сверху предпросмотр текущего кадра, снизу лента (компоновка CapCut: <strong>плейхед зафиксирован по центру, лента прокручивается под ним</strong> — так удобнее и мышью, и пальцем).</p>
+<ul>
+<li><strong>Добавление:</strong> чип «В таймлайн» (<code>add-clip.svg</code>) в панели выделения любого элемента; плюс <code>+</code> в конце ленты — выбор из канваса/журнала (паттерн CapCut/VN).</li>
+<li><strong>Клипы:</strong> изображение = стоп-кадр с чипом длительности (по умолчанию 3 с; меняется перетаскиванием правого края); видео = полоса миниатюр с реальной длительностью; аудио = волновая полоса в нижней дорожке.</li>
+<li><strong>Дорожки в v1:</strong> одна главная видеодорожка + одна аудиодорожка. Мультитрек — будущая версия (простота прежде всего).</li>
+<li><strong>Операции на ленте:</strong> перестановка перетаскиванием; трим за края (у видео — покадровый при зуме); удаление; клик по стыку клипов = слот перехода: «Нет» (жёсткая склейка, по умолчанию — правильный дефолт) или «Затемнение» 0.3/0.5 с. Больше переходов не нужно: частые эффекты удешевляют монтаж.</li>
+<li><strong>Плейхед:</strong> скраббинг = перетаскивание ленты; зум масштаба времени — Ctrl+колесо (десктоп) / пинч (тач); предпросмотр всегда синхронен с плейхедом.</li>
+<li><strong>Аудиодорожка:</strong> треки выкладываются последовательно, двигаются перетаскиванием; громкость — слайдер на выбранном треке. Автоподгонка не нужна — точность даёт зум.</li>
+<li><strong>Экспорт:</strong> «Экспорт видео» → шит: разрешение 720/1080, fps 24/30, ориентировочный размер; рендер с <code>LinearProgressIndicator</code> и кнопкой «Свернуть» (работа со студией продолжается, в верхней капсуле появляется бейдж «Сборка видео…», клик — вернуться к прогрессу). Результат — новый видео-элемент на канвасе + запись в журнале.</li>
+<li><strong>Связь:</strong> субтитры к ролику — §10; проект таймлайна сохраняется автоматически — §12.</li>
+</ul>
+<h2 id="8">8. Состояния ошибок</h2>
+<p>Единый паттерн для любой неудачи (генерация, скачивание, экспорт, импорт). Состав (по канону AI error states):</p>
+<ol>
+<li><strong>Суть</strong> — что случилось, одним человеческим предложением; без кодов и трассировок.</li>
+<li><strong>Причина</strong> — категория: сеть / провайдер / лимиты / фильтр контента / параметры / файл.</li>
+<li><strong>Спасение</strong> — 1–3 кнопки: основная «Повторить», вторая — целевое действие, третья — «Скрыть/Отмена».</li>
+<li><strong>Сохранённый ввод</strong> — промпт, параметры и референсы никогда не очищаются ошибкой.</li>
+</ol>
+<p>Размещение:</p>
+<ul>
+<li>На канвасе вместо скелетона — карточка ошибки: фон <code>errorContainer</code>, иконка <code>error.svg</code>, заголовок + текст + кнопки.</li>
+<li>В журнале неудачная запись получает бейдж ошибки и кнопку «Повторить».</li>
+<li>Мелкие сбои (галерея, буфер обмена) — <code>Snackbar</code> с действием, без карточек.</li>
+</ul>
+<p>Типовые сбои (заголовок → текст → действия):</p>
+<table>
+<thead>
+<tr>
+<th>Ситуация</th>
+<th>Заголовок</th>
+<th>Текст</th>
+<th>Действия</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Сеть</td>
+<td>Нет связи</td>
+<td>Не удалось связаться с сервером генерации. Проверьте интернет и повторите.</td>
+<td>Повторить · Скрыть</td>
+</tr>
+<tr>
+<td>Таймаут</td>
+<td>Сервис не ответил</td>
+<td>Сервер не ответил вовремя. Обычно помогает повтор через минуту.</td>
+<td>Повторить · Другая модель</td>
+</tr>
+<tr>
+<td>Очередь провайдера</td>
+<td>Сервис перегружен</td>
+<td>Очередь провайдера переполнена, генерация не началась.</td>
+<td>Повторить позже · Другая модель</td>
+</tr>
+<tr>
+<td>Баланс</td>
+<td>Недостаточно средств</td>
+<td>Для этой генерации не хватает {цена ₽}.</td>
+<td>Пополнить · Модель дешевле</td>
+</tr>
+<tr>
+<td>Фильтр контента</td>
+<td>Запрос отклонён</td>
+<td>Фильтр безопасности отклонил запрос или исходное изображение. Измените описание и повторите.</td>
+<td>Изменить промпт (фокус в док)</td>
+</tr>
+<tr>
+<td>Параметры</td>
+<td>Параметры не подходят</td>
+<td>Выбранное сочетание параметров недоступно для этой модели.</td>
+<td>Сбросить параметры</td>
+</tr>
+<tr>
+<td>Скачивание</td>
+<td>Файл не скачался</td>
+<td>Результат не удалось сохранить локально. Ссылка живёт 5 дней — попробуйте ещё раз.</td>
+<td>Повторить скачивание</td>
+</tr>
+<tr>
+<td>Экспорт аудио</td>
+<td>Не удалось собрать аудио</td>
+<td>Файл не сохранился. Проверьте свободное место и повторите.</td>
+<td>Повторить экспорт</td>
+</tr>
+<tr>
+<td>Рендер видео</td>
+<td>Не удалось собрать видео</td>
+<td>Рендер остановлен: {причина}. Проект таймлайна сохранён.</td>
+<td>Повторить · Уменьшить разрешение</td>
+</tr>
+<tr>
+<td>Формат файла</td>
+<td>Формат не поддерживается</td>
+<td>Этот файл нельзя использовать. Поддерживаются: {список}.</td>
+<td>Выбрать другой файл</td>
+</tr>
+</tbody>
+</table>
+<p>Правила: «Повторить» всегда отправляет <strong>тот же ключ идемпотентности</strong> (двойного списания нет); котировка цены показывается заново только если параметры менялись; у ошибок генерации в карточке сохраняется миниатюра промпта — видно, что именно не удалось. Обещание «Проект таймлайна сохранён» в строке «Рендер видео» обеспечивается моделью проекта и автосохранением — §12.</p>
+<h2 id="9">9. Набор иконок</h2>
+<p><code>/home/al/wiki/design/pots-media-icons/</code> — 24×24 <code>viewBox</code>, один цвет <code>fill="currentColor"</code> (тинт — <code>MaterialTheme.colorScheme.*</code>), стиль Material Filled под существующие <code>Icons.Filled.*</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Файл</th>
+<th>Назначение</th>
+<th>contentDescription</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode-audio.svg</code></td>
+<td>3-я кнопка тулбара режимов</td>
+<td>Режим аудио</td>
+</tr>
+<tr>
+<td><code>audio-wave.svg</code></td>
+<td>Аудио-элемент, волна в списке</td>
+<td>Волновая дорожка</td>
+</tr>
+<tr>
+<td><code>play.svg</code> / <code>pause.svg</code></td>
+<td>Плеер</td>
+<td>Воспроизвести / Пауза</td>
+</tr>
+<tr>
+<td><code>rewind.svg</code> / <code>forward.svg</code></td>
+<td>Перемотка ±10 с</td>
+<td>Назад 10 секунд / Вперёд 10 секунд</td>
+</tr>
+<tr>
+<td><code>speed.svg</code></td>
+<td>Скорость воспроизведения</td>
+<td>Скорость</td>
+</tr>
+<tr>
+<td><code>volume.svg</code></td>
+<td>Громкость</td>
+<td>Громкость</td>
+</tr>
+<tr>
+<td><code>trim.svg</code></td>
+<td>Обрезка аудио/видео</td>
+<td>Обрезать</td>
+</tr>
+<tr>
+<td><code>merge.svg</code></td>
+<td>Склейка треков</td>
+<td>Склейка треков</td>
+</tr>
+<tr>
+<td><code>export.svg</code></td>
+<td>Экспорт файла</td>
+<td>Экспортировать</td>
+</tr>
+<tr>
+<td><code>brush.svg</code></td>
+<td>Вход в рисование</td>
+<td>Карандаш</td>
+</tr>
+<tr>
+<td><code>color.svg</code></td>
+<td>Палитра</td>
+<td>Цвет</td>
+</tr>
+<tr>
+<td><code>line-weight.svg</code></td>
+<td>Толщина кисти</td>
+<td>Толщина</td>
+</tr>
+<tr>
+<td><code>undo.svg</code></td>
+<td>Отмена</td>
+<td>Отменить</td>
+</tr>
+<tr>
+<td><code>apply.svg</code></td>
+<td>Применить</td>
+<td>Применить</td>
+</tr>
+<tr>
+<td><code>crop.svg</code></td>
+<td>Обрезка кадра</td>
+<td>Кадрирование</td>
+</tr>
+<tr>
+<td><code>resize.svg</code></td>
+<td>Размер</td>
+<td>Размер</td>
+</tr>
+<tr>
+<td><code>overlay.svg</code></td>
+<td>Наложение слоёв</td>
+<td>Наложение</td>
+</tr>
+<tr>
+<td><code>audio-track.svg</code></td>
+<td>Аудиодорожка на видео</td>
+<td>Музыка</td>
+</tr>
+<tr>
+<td><code>timeline.svg</code></td>
+<td>Кнопка «Собрать видео»</td>
+<td>Таймлайн</td>
+</tr>
+<tr>
+<td><code>add-clip.svg</code></td>
+<td>Добавить клип в таймлайн</td>
+<td>Добавить клип</td>
+</tr>
+<tr>
+<td><code>error.svg</code></td>
+<td>Карточка ошибки</td>
+<td>Ошибка</td>
+</tr>
+<tr>
+<td><code>warning.svg</code></td>
+<td>Мягкое предупреждение</td>
+<td>Внимание</td>
+</tr>
+<tr>
+<td><code>voice.svg</code></td>
+<td>Голос (шит, чип)</td>
+<td>Голос</td>
+</tr>
+<tr>
+<td><code>duration.svg</code></td>
+<td>Длительность (шит, чип)</td>
+<td>Длительность</td>
+</tr>
+<tr>
+<td><code>format.svg</code></td>
+<td>Формат файла (шит, чип)</td>
+<td>Формат</td>
+</tr>
+<tr>
+<td><code>subtitles.svg</code></td>
+<td>Субтитры вкл/выкл (таймлайн)</td>
+<td>Субтитры</td>
+</tr>
+<tr>
+<td><code>movie-filter.svg</code></td>
+<td>«Сделать клип» на аудио-элементе</td>
+<td>Сделать клип</td>
+</tr>
+<tr>
+<td><code>equalizer.svg</code></td>
+<td>Аудио-реактивные эффекты клипа</td>
+<td>Эффекты</td>
+</tr>
+<tr>
+<td><code>project-save.svg</code></td>
+<td>Экспорт файла проекта</td>
+<td>Сохранить проект</td>
+</tr>
+<tr>
+<td><code>folder-open.svg</code></td>
+<td>Меню «Проекты»</td>
+<td>Проекты</td>
+</tr>
+</tbody>
+</table>
+<p>Импорт в Compose: конвертация в <code>ImageVector</code> (материал-пайплайн проекта); фолбэк — <code>painterResource</code> с тинтом. Имена соответствуют таблице — новые операции называть по этим файлам.</p>
+<p>Пять иконок, добавленных по REWORK, имеют прямые эквиваленты в <code>Icons.Filled.*</code> (material-icons-extended уже в зависимостях — используются <code>AutoFixHigh</code>, <code>FlipToBack</code>): <code>Subtitles</code>, <code>MovieFilter</code>, <code>Equalizer</code>, <code>Save</code>, <code>FolderOpen</code> — можно брать их напрямую, они побайтово совпадают с SVG. SVG в комплекте — эталон стиля и фолбэк.</p>
+<h2 id="10">10. Субтитры — «в момент произношения»</h2>
+<p>Вход: тумблер-кнопка «Субтитры» (<code>subtitles.svg</code>) на ленте таймлайна (§7), по умолчанию выключен.</p>
+<p>Тайминги:</p>
+<ul>
+<li>Источник — речь аудиодорожки таймлайна или звукового видеоклипа. Свой/сгенерированный файл уходит в STT через <code>POST /v1/files</code> → <code>audio_file_id</code> (публичного HTTPS у локальных файлов нет — контракт, справка @pifiya §5).</li>
+<li>Модель по умолчанию — <code>whisper-large-v3-turbo</code> (0.02 ₽/мин, мультиязычная); альтернатива с таймкодами фраз — <code>qwen3-asr-0.6b</code> (0.02). Для русского с несколькими спикерами — <code>universal-2</code>.</li>
+<li>Бесплатный путь: если озвучка сгенерирована <code>voice-clone-tts</code> или <code>inworld-realtime-tts-1-5-max</code>, тайминги слов приходят вместе с озвучкой — субтитры без STT-запроса; в шите этих моделей подсказка «Тайминги слов включены».</li>
+<li>Язык — автоопределение; <code>.en</code>-варианты моделей не применять к не-английскому аудио (переведут вместо расшифровки).</li>
+<li>STT-задание идёт тем же контрактом, что генерация: очередь и журнал, котировка «за минуту» в бейдже до отправки (§2, бейдж-правила @kodi).</li>
+</ul>
+<p>Результат — список реплик <code>{start, end, text}</code>; хранится в проекте (§12). Реплики редактируются: тап по реплике → шит с текстом и таймкодами; «Пересоздать субтитры» — повторный STT, старые реплики не стираются до подтверждения новых.</p>
+<p>Стиль (паттерны HyperFrames, согласованы планом):</p>
+<ul>
+<li>Три пресета по тону: «Нейтральный» (чистый sans 600, белый текст на плашке 60 % — дефолт), «Динамичный» (плотный 800, появление по словам, 2–3 слова), «Спокойный» (мягкий фейд, 4–6 слов).</li>
+<li>Группировка по естественным фразам; разрыв на границах предложений и паузах ≥ 150 мс; на экране одна группа за раз.</li>
+<li>Позиция: горизонталь — низ кадра (отступ 5–7 % высоты); вертикаль — 25–30 % от низа; не перекрывать лицо (при конфликте — сдвиг выше). Кегль автоподбирается под ширину кадра — переполнения нет.</li>
+</ul>
+<p>Поведение: тумблер меняет предпросмотр сразу, без рендера. В экспортном шите (§7) — чекбокс «Вшить субтитры» (по умолчанию вкл., если субтитры включены). В v1 субтитры вшиваются в кадр (hardsub); отдельная дорожка softsub — будущая версия. Ошибка субтитров — карточка §8; реплики и проект не теряются (§12).</p>
+<h2 id="11-">11. Аудио-реактивный клип одной кнопкой (без ЛЛМ)</h2>
+<p>Вход: выделить аудио-элемент на канвасе (импорт или генерация) → чип «Сделать клип» (<code>movie-filter.svg</code>). Весь поток детерминированный: ни одного запроса к ЛЛМ, стоимость 0 ₽ — только локальная обработка (котировка не запрашивается, бейдж «бесплатно»).</p>
+<p>Шит клипа:</p>
+<ul>
+<li>Визуальный ряд: мультивыбор фото/видео с канваса и журнала; порядок — перетаскиванием. При пустом выборе клип собирается на абстрактном фоне (градиент из доминирующих цветов обложки трека) — клип возможен всегда.</li>
+<li>Стиль — три пресета: «Пульс» (минимальный, акцент на такт), «Свечение» (мягкие пересветы), «Кино» (затемнения + плавный зум). Не больше трёх — то же правило, что для переходов §7.</li>
+<li>Длительность = длительность трека, не редактируется: клип монтируется под музыку.</li>
+</ul>
+<p>Анализ звука — один раз, локально: из трека предварительно извлекаются огибающие полос (бас, середина, верха, общая амплитуда) с покадровой частотой рендера. Никакого анализа в реальном времени при воспроизведении.</p>
+<p>Эффекты (паттерны HyperFrames: звук управляет поведением, контент ведёт картинку):</p>
+<ul>
+<li>бас → масштаб кадра 1.00–1.06 (пульс на такт);</li>
+<li>верха → интенсивность свечения оверлеев;</li>
+<li>общая амплитуда → лёгкий дрейф зума/прозрачности и сдвиг температуры;</li>
+<li>середина → мягкий зум-переход между сценами.</li>
+<li>Запрещено (антипаттерны): эквалайзер-бары, спектр-анализаторы, радужные циклы, типовые частицы.</li>
+</ul>
+<p>Монтаж: сцены = выбранные элементы в заданном порядке; смены сцен выравниваются по пикам энергии (детект по огибающей, без ЛЛМ); переходы — жёсткая склейка или затемнение 0.3 с (§7). Аудиодорожка результата = выбранный трек.</p>
+<p>Предпросмотр и рендер: в шите — быстрый предпросмотр первых 10 с; «Собрать клип» → стандартный прогресс («Свернуть», бейдж в капсуле — как экспорт §7). Результат — новый видео-элемент на канвасе + запись в журнале (пометка «клип, 0 ₽»). Ошибка рендера → строка «Рендер видео» (§8), проект сохранён (§12).</p>
+<h2 id="12-">12. Проекты медиа-студии: сохранение, импорт, экспорт</h2>
+<p>Модель: Проект = элементы канваса (позиции, <code>zIndex</code>, трансформации, наложения §6) + таймлайн (клипы, переходы, аудиодорожка §7) + субтитры со списком реплик (§10) + черновики промптов и чипов на каждый режим (§1). Связь с журналом — по <code>id</code> генераций. Формат — один файл <code>.potsproj</code> (JSON) с полем <code>schemaVersion</code>.</p>
+<p>Автосохранение:</p>
+<ul>
+<li>После каждой завершённой операции (добавлен элемент, применена операция, изменён таймлайн), дебаунс ~2 с, в локальное хранилище; модалок «сохранить» нет.</li>
+<li>Индикатор — ненавязчивая отметка «Сохранено» в верхней капсуле (появляется и гаснет), действия не требует.</li>
+</ul>
+<p>Меню «Проекты» (<code>folder-open.svg</code>) в верхней капсуле:</p>
+<ul>
+<li>Список локальных проектов: имя (авто «Проект, 13 ноя» — переименовывается), дата, миниатюра первого элемента/кадра.</li>
+<li>Действия: Открыть · Дублировать · Переименовать · Экспортировать (<code>project-save.svg</code>) · Удалить (подтверждение с именем проекта).</li>
+</ul>
+<p>Экспорт/импорт:</p>
+<ul>
+<li>«Экспортировать проект» → файл <code>.potsproj</code>; вариант «со связанными медиа» — zip (проект + файлы элементов) для переноса между устройствами.</li>
+<li>Импорт из файла: проверка <code>schemaVersion</code>; неизвестная версия → карточка §8 «Формат не поддерживается» с текстом про версию. Импортированный проект открывается как новый, существующие не затираются.</li>
+</ul>
+<p>Гарантии: исходники не перезаписываются (§6); ошибка рендера/экспорта не теряет проект — строка «Рендер видео» (§8) обещает сохранённый проект именно благодаря этому разделу; повторное открытие — из «Проектов». Синхронизации/облака в v1 нет: только локальное хранилище и файлы.</p>
+<h2 id="13">13. Что исследовано (источники решений)</h2>
+<ul>
+<li><strong>CapCut</strong> — контекстный тулбар по выделению; зафиксированный плейхед с лентой под ним; переходы кликом по стыку клипов; трим за края; скорость обычная/кривая; бит-маркеры на волне; темплейт-поток рядом с ручным таймлайном.</li>
+<li><strong>VN</strong> — мультитрек (видео/аудио/оверлеи), магнитная лента, режимы Quick/Pro, аудиодорожка над видео, точный трим с зумом, синхронизация по пикам волны.</li>
+<li><strong>Canva Magic Studio</strong> — выбор стиля миниатюрами вместо лексикона промптов; точка входа на генерацию прямо в потоке подбора контента; опция «без стиля» по результатам тестов; рост вовлечённости после интеграции в контекст редактора.</li>
+<li><strong>WavePad / Lexis / AudioCraft</strong> — волна + выделение + зум как основа аудиоредактора; трим тишины; неограниченная отмена; пресеты скорости 0.5–2×.</li>
+<li><strong>Picsart / Snap Markup / Apple Markup</strong> — рисование-аннотация: кисть, свотчи цвета, отмена по штрихам, применение к копии.</li>
+<li><strong>Runway / Midjourney + UX Patterns «AI Error States»</strong> — структура ошибки: суть → причина → спасение → сохранённый ввод; восстановление должно соответствовать реальному типу сбоя.</li>
+<li><strong>Справка @pifiya</strong> (<code>/home/al/wiki/design/pots-audio-gen-research.md</code>) — состав шита аудио-моделей, правила чипов по осям, цена/единицы, лучшие практики аудиоредакторов (волна только когда по ней действуют, неразрушающий трим за ручки, предпрослушивание скорости без переписывания файла, A/B с оригиналом, фейды с явным нулём, тач-цель скраббера ≥ 44 pt).</li>
+<li><strong>Material 3</strong> — роли цветов <code>errorContainer</code>/<code>error</code>, снейкбары с действием, иконки 24 <code>.dp</code>/18 <code>.dp</code>.</li>
+<li><strong>HyperFrames</strong> (паттерны, не пайплайн — согласовано планом) — стили субтитров по тону, группировка 3–5 слов, позиция снизу без перекрытия лица, автокегль против переполнения; аудио-реактивные эффекты: бас→масштаб, верха→свечение, амплитуда→дрейф; антипаттерны: эквалайзер-бары, спектр, радужные циклы; всё детерминированно.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
