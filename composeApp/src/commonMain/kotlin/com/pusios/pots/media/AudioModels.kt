@@ -23,7 +23,13 @@ internal fun MediaModel.isGenerativeAudio(): Boolean = (kind == MediaKind.Audio 
     !acceptsAudioReference &&
     task != "utility"
 
-/** Hidden in v1 until the cloned `voice_id` origin is verified live (spec §14–§15). */
+/**
+ * Hidden in v1 (spec §15): the model needs a cloned `voice_id`, but the provider
+ * documents no upload path for it and the voice-clone contract only creates voices
+ * for elevenlabs engines, so the clone-voice picker would be structurally empty here.
+ * It returns to the sheet once the provider documents voice upload for Dune/MiMo —
+ * documentation is the unblock condition, not a live generation test.
+ */
 internal val HIDDEN_AUDIO_MODEL_IDS = setOf("mimo-v2-5-tts-voiceclone")
 
 /** Shown only when the journal already has a Suno track to replace a section of. */
