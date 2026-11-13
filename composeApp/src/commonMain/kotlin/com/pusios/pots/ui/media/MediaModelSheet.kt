@@ -24,29 +24,39 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.media.AudioFlow
+import com.pusios.pots.media.AudioSheetGroup
 import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaModel
+import com.pusios.pots.media.audioFlowGroups
 import com.pusios.pots.media.audioPriceLabel
-import com.pusios.pots.media.audioSheetGroups
 import com.pusios.pots.ui.handCursor
 
 /**
  * Bottom sheet listing image and video models with price badges. The selected
  * row uses the container colors the theme defines for it — `primaryContainer`
  * background with `onPrimaryContainer` text.
+ *
+ * The audio sheet follows the active flow (spec §14): TTS shows the Voice
+ * group, music shows Music + Effects. The selected audio row recomputes its
+ * price badge from the selected chips when the model has tiers (spec §2).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MediaModelSheet(
     models: List<MediaModel>,
     kind: MediaKind,
+    audioFlow: AudioFlow,
+    hasSunoHistory: Boolean,
+    selectedAudioOpts: Map<String, String>,
     selectedImageModelId: String,
     selectedVideoModelId: String,
+    selectedTtsModelId: String,
+    selectedMusicModelId: String,
     onSelectImage: (String) -> Unit,
     onSelectVideo: (String) -> Unit,
+    onSelectAudio: (String) -> Unit,
     onDismiss: () -> Unit,
-    selectedAudioModelId: String = "",
-    onSelectAudio: (String) -> Unit = {},
 ) {
     val isAudioKind = kind == MediaKind.Audio || kind == MediaKind.Music
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -87,16 +97,22 @@ internal fun MediaModelSheet(
             }
 
             if (isAudioKind) {
-                // Voice / Music / Effects groups per research; STT and audio-input
-                // models never reach this list (audioSheetGroups filters them out).
-                audioSheetGroups(models).forEach { (group, groupModels) ->
+                // Groups of the active flow; STT and audio-input models never
+                // reach this list (audioFlowGroups filters them out).
+                audioFlowGroups(models, audioFlow, hasSunoHistory).forEach { (group, groupModels) ->
                     Text(group.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(8.dp))
+                    val selectedId = when (group) {
+                        AudioSheetGroup.Voice -> selectedTtsModelId
+                        else -> selectedMusicModelId
+                    }
                     groupModels.forEach { model ->
+                        val selected = model.id == selectedId
                         ModelSheetRow(
                             model = model,
-                            selected = model.id == selectedAudioModelId,
-                            priceLabel = audioPriceLabel(model),
+                            selected = selected,
+                            // Tier models recompute the badge for the selected chips.
+                            priceLabel = audioPriceLabel(model, if (selected) selectedAudioOpts else emptyMap()),
                             onClick = {
                                 onSelectAudio(model.id)
                                 onDismiss()
@@ -108,7 +124,11 @@ internal fun MediaModelSheet(
                 }
             }
 
-            val nothingToShow = if (isAudioKind) audioSheetGroups(models).isEmpty() else models.none { it.kind == kind }
+            val nothingToShow = if (isAudioKind) {
+                audioFlowGroups(models, audioFlow, hasSunoHistory).isEmpty()
+            } else {
+                models.none { it.kind == kind }
+            }
             if (nothingToShow) {
                 Text(
                     "Каталог пуст — обнови его в настройках сервисов или проверь сеть",

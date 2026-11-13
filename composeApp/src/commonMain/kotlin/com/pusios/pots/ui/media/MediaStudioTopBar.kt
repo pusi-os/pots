@@ -12,19 +12,29 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Badge
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.media.AudioFlow
 import com.pusios.pots.ui.handCursor
 
 /**
@@ -32,6 +42,9 @@ import com.pusios.pots.ui.handCursor
  * (recenter canvas, import a file, pick a model, generation journal),
  * and a second row beneath it with the image/video switch, the current model,
  * the aspect ratio (images) and the generation parameters such as resolution.
+ *
+ * In audio mode a re-tap of the active segment opens the two-flow picker
+ * («Озвучить текст» / «Создать музыку», spec §13).
  */
 @Composable
 internal fun MediaStudioTopBar(
@@ -48,6 +61,8 @@ internal fun MediaStudioTopBar(
     mode: MediaMode,
     onSelectMode: (MediaMode) -> Unit,
     currentModelLabel: String?,
+    audioFlow: AudioFlow = AudioFlow.Tts,
+    onSelectAudioFlow: (AudioFlow) -> Unit = {},
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
@@ -70,7 +85,36 @@ internal fun MediaStudioTopBar(
         Spacer(Modifier.size(6.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            ModeSegment(mode = mode, onSelect = onSelectMode)
+            var showFlowMenu by remember { mutableStateOf(false) }
+            Box {
+                ModeSegment(
+                    mode = mode,
+                    onSelect = onSelectMode,
+                    onActiveAudioTap = { showFlowMenu = true },
+                )
+                DropdownMenu(expanded = showFlowMenu, onDismissRequest = { showFlowMenu = false }) {
+                    AudioFlow.entries.forEach { flow ->
+                        DropdownMenuItem(
+                            text = { Text(flow.title) },
+                            leadingIcon = {
+                                Icon(
+                                    if (flow == AudioFlow.Tts) Icons.Filled.RecordVoiceOver else Icons.Filled.LibraryMusic,
+                                    contentDescription = null,
+                                )
+                            },
+                            trailingIcon = if (flow == audioFlow) {
+                                { Icon(Icons.Filled.Check, contentDescription = "Активный флоу") }
+                            } else {
+                                null
+                            },
+                            onClick = {
+                                showFlowMenu = false
+                                onSelectAudioFlow(flow)
+                            },
+                        )
+                    }
+                }
+            }
             currentModelLabel?.let { label ->
                 Spacer(Modifier.width(8.dp))
                 TopBarChip(label, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, onOpenModels)

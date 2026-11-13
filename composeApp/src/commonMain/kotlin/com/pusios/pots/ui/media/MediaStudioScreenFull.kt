@@ -41,13 +41,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.pusios.pots.isImageCompressionSupported
-import com.pusios.pots.media.AudioSheetGroup
+import com.pusios.pots.media.AudioFlow
 import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaParamDef
 import com.pusios.pots.media.MediaReference
-import com.pusios.pots.media.audioSheetGroup
+import com.pusios.pots.media.audioFlowModels
 import com.pusios.pots.media.audioToolbarParams
-import com.pusios.pots.media.isGenerativeAudio
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.saveFileToDevice
 import com.pusios.pots.ui.handCursor
@@ -77,7 +76,10 @@ fun MediaStudioScreenFull(
     val justFinished by viewModel.justFinished.collectAsState()
     val selectedImageModelId by viewModel.selectedImageModelId.collectAsState()
     val selectedVideoModelId by viewModel.selectedVideoModelId.collectAsState()
-    val selectedAudioModelId by viewModel.selectedAudioModelId.collectAsState()
+    val selectedTtsModelId by viewModel.selectedTtsModelId.collectAsState()
+    val selectedMusicModelId by viewModel.selectedMusicModelId.collectAsState()
+    val audioFlow by viewModel.audioFlow.collectAsState()
+    val drafts by viewModel.drafts.collectAsState()
     val historyEntries by viewModel.historyEntries.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -111,15 +113,18 @@ fun MediaStudioScreenFull(
         }
     }
 
-    var promptByMode by remember { mutableStateOf(MediaMode.entries.associateWith { "" }) }
+    // Drafts live in the view model (MediaSettings), keyed per mode and audio
+    // flow: switching modes/flows or an error never erases them (spec §13, §17).
     var mode by remember { mutableStateOf(MediaMode.Image) }
-    val prompt = promptByMode[mode].orEmpty()
+    val promptKey = mediaDraftKey(mode, audioFlow)
+    val prompt = drafts[promptKey].orEmpty()
     var canvasScale by remember { mutableFloatStateOf(1f) }
     var canvasOffset by remember { mutableStateOf(Offset.Zero) }
     var params by remember { mutableStateOf(mapOf<String, String>()) }
     var showModelSheet by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     var showAspectRatio by remember { mutableStateOf(false) }
+    var showExpandedPrompt by remember { mutableStateOf(false) }
     var openParam by remember { mutableStateOf<String?>(null) }
     var lightboxUrl by remember { mutableStateOf<String?>(null) }
     var lightboxIsVideo by remember { mutableStateOf(false) }
@@ -128,7 +133,8 @@ fun MediaStudioScreenFull(
     val pending = jobs.values.filter { !it.isTerminal }
     val imageModels = models.filter { it.kind == MediaKind.Image }
     val videoModels = models.filter { it.kind == MediaKind.Video }
-    val audioModels = models.filter { it.isGenerativeAudio() }
+    val hasSunoHistory = historyEntries.any { it.model == "suno" }
+    val audioModels = audioFlowModels(models, audioFlow, hasSunoHistory)
     val currentModels = when (mode) {
         MediaMode.Image -> imageModels
         MediaMode.Video -> videoModels
@@ -137,7 +143,7 @@ fun MediaStudioScreenFull(
     val currentModelId = when (mode) {
         MediaMode.Image -> selectedImageModelId
         MediaMode.Video -> selectedVideoModelId
-        MediaMode.Audio -> selectedAudioModelId
+        MediaMode.Audio -> if (audioFlow == AudioFlow.Tts) selectedTtsModelId else selectedMusicModelId
     }
     val currentModel = currentModels.firstOrNull { it.id == currentModelId } ?: currentModels.firstOrNull()
     val toolbarParamDefs: List<MediaParamDef> = when (mode) {
@@ -164,10 +170,27 @@ fun MediaStudioScreenFull(
         else -> "Выбрать модель"
     }
     val dockPlaceholder = when {
-        mode == MediaMode.Audio && currentModel?.audioSheetGroup() == AudioSheetGroup.Music -> "Опиши трек: жанр, настроение…"
-        mode == MediaMode.Audio -> "Опиши звук или речь…"
+        mode == MediaMode.Audio && audioFlow == AudioFlow.Music -> "Опиши трек: жанр, настроение…"
+        mode == MediaMode.Audio -> "Введите текст для озвучки…"
         mode == MediaMode.Video -> "Опиши видео…"
         else -> "Опиши изображение…"
+    }
+    // The model's documented text limit drives the counter; overflow blocks
+    // sending but never truncates the text (spec §17).
+    val promptLimit = if (mode == MediaMode.Audio) currentModel?.promptLimit else null
+    val overLimit = promptLimit != null && prompt.length > promptLimit
+
+    // Model switched under a too-long text: warn, trim only on explicit action.
+    LaunchedEffect(mode, audioFlow, currentModel?.id) {
+        val limit = currentModel?.promptLimit ?: return@LaunchedEffect
+        if (mode != MediaMode.Audio || prompt.length <= limit) return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = "Текст длиннее лимита выбранной модели",
+            actionLabel = "Обрезать до лимита",
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.setDraft(mode, audioFlow, prompt.take(limit))
+        }
     }
 
     // Canvas import: dropped on the board as an element.
@@ -219,7 +242,7 @@ fun MediaStudioScreenFull(
                 }
                 MediaDock(
                     prompt = prompt,
-                    onPromptChange = { promptByMode = promptByMode + (mode to it) },
+                    onPromptChange = { viewModel.setDraft(mode, audioFlow, it) },
                     placeholder = dockPlaceholder,
                     isBusy = isStarting || pending.isNotEmpty(),
                     isEnhancing = isEnhancing,
@@ -235,8 +258,11 @@ fun MediaStudioScreenFull(
                         }
                     },
                     onEnhancePrompt = {
-                        viewModel.enhancePrompt(prompt) { promptByMode = promptByMode + (mode to it) }
+                        viewModel.enhancePrompt(prompt) { viewModel.setDraft(mode, audioFlow, it) }
                     },
+                    onExpand = { showExpandedPrompt = true },
+                    createEnabled = !overLimit,
+                    overLimitNote = if (overLimit) "Лимит модели: $promptLimit символов" else null,
                 )
             }
         },
@@ -285,8 +311,16 @@ fun MediaStudioScreenFull(
                 currentModelLabel = modelChipLabel,
                 aspectRatioLabel = if (mode == MediaMode.Image) aspectRatioDef?.let { def -> params[def.key] ?: def.defaultValue } else null,
                 onOpenAspectRatio = { showAspectRatio = true },
-                paramChips = toolbarParamDefs.map { def -> ParamChip(def.key, params[def.key] ?: def.defaultValue.orEmpty()) },
+                paramChips = toolbarParamDefs.map { def ->
+                    val value = params[def.key] ?: def.defaultValue.orEmpty()
+                    ParamChip(def.key, def.options.firstOrNull { it.value == value }?.label ?: value)
+                },
                 onOpenParam = { key -> openParam = key },
+                audioFlow = audioFlow,
+                onSelectAudioFlow = { flow ->
+                    viewModel.selectAudioFlow(flow)
+                    params = emptyMap()
+                },
             )
         }
     }
@@ -318,9 +352,13 @@ fun MediaStudioScreenFull(
                 MediaMode.Video -> MediaKind.Video
                 MediaMode.Audio -> MediaKind.Audio
             },
+            audioFlow = audioFlow,
+            hasSunoHistory = hasSunoHistory,
+            selectedAudioOpts = params,
             selectedImageModelId = selectedImageModelId,
             selectedVideoModelId = selectedVideoModelId,
-            selectedAudioModelId = selectedAudioModelId,
+            selectedTtsModelId = selectedTtsModelId,
+            selectedMusicModelId = selectedMusicModelId,
             onSelectImage = {
                 viewModel.selectImageModel(it)
                 params = emptyMap()
@@ -330,10 +368,38 @@ fun MediaStudioScreenFull(
                 params = emptyMap()
             },
             onSelectAudio = {
-                viewModel.selectAudioModel(it)
+                viewModel.selectAudioModel(it, audioFlow)
                 params = emptyMap()
             },
             onDismiss = { showModelSheet = false },
+        )
+    }
+
+    if (showExpandedPrompt) {
+        MediaPromptSheet(
+            prompt = prompt,
+            onPromptChange = { viewModel.setDraft(mode, audioFlow, it) },
+            placeholder = dockPlaceholder,
+            promptLimit = promptLimit,
+            isBusy = isStarting || pending.isNotEmpty(),
+            isEnhancing = isEnhancing,
+            createEnabled = !overLimit,
+            onCreate = {
+                if (prompt.isBlank()) {
+                    scope.launch { snackbarHostState.showSnackbar("Опиши, что нужно сгенерировать") }
+                } else {
+                    when (mode) {
+                        MediaMode.Image -> viewModel.generateImage(prompt, params)
+                        MediaMode.Video -> viewModel.generateVideo(prompt, params)
+                        MediaMode.Audio -> viewModel.generateAudio(prompt, params)
+                    }
+                    showExpandedPrompt = false
+                }
+            },
+            onEnhancePrompt = {
+                viewModel.enhancePrompt(prompt) { viewModel.setDraft(mode, audioFlow, it) }
+            },
+            onDismiss = { showExpandedPrompt = false },
         )
     }
 

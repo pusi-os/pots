@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +61,9 @@ internal fun MediaDock(
     onCreate: () -> Unit,
     onEnhancePrompt: () -> Unit,
     modifier: Modifier = Modifier,
+    onExpand: (() -> Unit)? = null,
+    createEnabled: Boolean = true,
+    overLimitNote: String? = null,
 ) {
     Surface(
         modifier = modifier,
@@ -79,8 +83,28 @@ internal fun MediaDock(
                     minLines = 1,
                     maxLines = 3,
                     shape = RoundedCornerShape(16.dp),
+                    isError = overLimitNote != null,
+                    supportingText = overLimitNote?.let { note -> { Text(note) } },
                 )
                 Spacer(Modifier.width(6.dp))
+                if (onExpand != null) {
+                    Surface(
+                        onClick = onExpand,
+                        modifier = Modifier.size(32.dp).handCursor().semantics { contentDescription = "Развернуть промпт" },
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Filled.OpenInFull,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
                 Surface(
                     onClick = onEnhancePrompt,
                     enabled = !isEnhancing,
@@ -108,7 +132,7 @@ internal fun MediaDock(
                 Spacer(Modifier.width(6.dp))
                 Surface(
                     onClick = onCreate,
-                    enabled = !isBusy,
+                    enabled = !isBusy && createEnabled,
                     modifier = Modifier.size(52.dp).handCursor().semantics { contentDescription = "Создать" },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primary,
@@ -183,9 +207,17 @@ internal fun ReferenceStrip(
     }
 }
 
-/** Image/video/audio switch; shared by the studio top bar. */
+/**
+ * Image/video/audio switch; shared by the studio top bar. Tapping the active
+ * audio segment calls [onActiveAudioTap] (the flow picker, spec §13); other
+ * segments keep the plain select behavior.
+ */
 @Composable
-internal fun ModeSegment(mode: MediaMode, onSelect: (MediaMode) -> Unit) {
+internal fun ModeSegment(
+    mode: MediaMode,
+    onSelect: (MediaMode) -> Unit,
+    onActiveAudioTap: () -> Unit = {},
+) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
@@ -193,7 +225,12 @@ internal fun ModeSegment(mode: MediaMode, onSelect: (MediaMode) -> Unit) {
         Row(Modifier.padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
             ModeSegmentButton(Icons.Filled.Image, "Режим изображений", active = mode == MediaMode.Image, onClick = { onSelect(MediaMode.Image) })
             ModeSegmentButton(Icons.Filled.Movie, "Режим видео", active = mode == MediaMode.Video, onClick = { onSelect(MediaMode.Video) })
-            ModeSegmentButton(Icons.Filled.MusicNote, "Режим аудио", active = mode == MediaMode.Audio, onClick = { onSelect(MediaMode.Audio) })
+            ModeSegmentButton(
+                Icons.Filled.MusicNote,
+                "Режим аудио",
+                active = mode == MediaMode.Audio,
+                onClick = { if (mode == MediaMode.Audio) onActiveAudioTap() else onSelect(MediaMode.Audio) },
+            )
         }
     }
 }

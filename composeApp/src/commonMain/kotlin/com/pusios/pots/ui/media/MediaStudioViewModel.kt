@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.data.AppSettings
+import com.pusios.pots.media.AudioFlow
 import com.pusios.pots.media.MAX_INLINE_REFERENCE_BYTES
 import com.pusios.pots.media.MediaException
 import com.pusios.pots.media.MediaGenerationRepository
@@ -19,15 +20,23 @@ import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.PlusVibeMediaProvider
 import com.pusios.pots.media.PromptEnhancer
+import com.pusios.pots.media.audioFlow
+import com.pusios.pots.media.audioFlowModels
 import com.pusios.pots.media.compressReferenceToLimit
 import com.pusios.pots.media.defaultAudioModel
 import com.pusios.pots.media.getInstanceMediaAudioModelId
+import com.pusios.pots.media.getInstanceMediaAudioMusicModelId
+import com.pusios.pots.media.getInstanceMediaAudioTtsModelId
 import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
-import com.pusios.pots.media.isGenerativeAudio
-import com.pusios.pots.media.setInstanceMediaAudioModelId
+import com.pusios.pots.media.getMediaAudioFlow
+import com.pusios.pots.media.getMediaDraft
+import com.pusios.pots.media.setInstanceMediaAudioMusicModelId
+import com.pusios.pots.media.setInstanceMediaAudioTtsModelId
 import com.pusios.pots.media.setInstanceMediaImageModelId
 import com.pusios.pots.media.setInstanceMediaVideoModelId
+import com.pusios.pots.media.setMediaAudioFlow
+import com.pusios.pots.media.setMediaDraft
 import com.pusios.pots.media.toHistoryReference
 import com.pusios.pots.media.userMessageRu
 import com.pusios.pots.readAppStorageBytes
@@ -104,8 +113,22 @@ class MediaStudioViewModel(
     private val _selectedVideoModelId = MutableStateFlow(appSettings.getInstanceMediaVideoModelId(instanceIdProvider()))
     val selectedVideoModelId: StateFlow<String> = _selectedVideoModelId.asStateFlow()
 
-    private val _selectedAudioModelId = MutableStateFlow(appSettings.getInstanceMediaAudioModelId(instanceIdProvider()))
-    val selectedAudioModelId: StateFlow<String> = _selectedAudioModelId.asStateFlow()
+    /** Audio model selection is per flow (spec §14): TTS and music remember separate models. */
+    private val _selectedTtsModelId = MutableStateFlow(appSettings.getInstanceMediaAudioTtsModelId(instanceIdProvider()))
+    val selectedTtsModelId: StateFlow<String> = _selectedTtsModelId.asStateFlow()
+
+    private val _selectedMusicModelId = MutableStateFlow(appSettings.getInstanceMediaAudioMusicModelId(instanceIdProvider()))
+    val selectedMusicModelId: StateFlow<String> = _selectedMusicModelId.asStateFlow()
+
+    /** Remembered audio flow (spec §13): first tap enables audio with it, re-tap offers the choice. */
+    private val _audioFlow = MutableStateFlow(appSettings.getMediaAudioFlow())
+    val audioFlow: StateFlow<AudioFlow> = _audioFlow.asStateFlow()
+
+    /** Prompt drafts keyed per mode and flow (`mediaDraftKey`); errors and switching never erase them. */
+    private val _drafts = MutableStateFlow(loadDrafts())
+    val drafts: StateFlow<Map<String, String>> = _drafts.asStateFlow()
+
+    private var legacyAudioModelRouted = false
 
     /** Emits when a new job succeeds; host announces via TTS ("генерация готова"). */
     private val _justFinished = MutableStateFlow<MediaJobState?>(null)
@@ -141,14 +164,32 @@ class MediaStudioViewModel(
                     _models.value = catalog
                     // Drop selections that no longer exist in the catalog.
                     if (catalog.isNotEmpty()) {
+                        routeLegacyAudioModel(catalog)
                         if (catalog.none { it.id == _selectedImageModelId.value }) _selectedImageModelId.value = ""
                         if (catalog.none { it.id == _selectedVideoModelId.value }) _selectedVideoModelId.value = ""
-                        if (catalog.none { it.id == _selectedAudioModelId.value && it.isGenerativeAudio() }) {
-                            _selectedAudioModelId.value = ""
+                        if (audioFlowModels(catalog, AudioFlow.Tts).none { it.id == _selectedTtsModelId.value }) {
+                            _selectedTtsModelId.value = ""
+                        }
+                        if (audioFlowModels(catalog, AudioFlow.Music).none { it.id == _selectedMusicModelId.value }) {
+                            _selectedMusicModelId.value = ""
                         }
                     }
                 }
                 .onFailure { showError("Каталог моделей не загрузился", it) }
+        }
+    }
+
+    /** One-time migration: the pre-flow audio selection moves to the flow its model belongs to. */
+    private fun routeLegacyAudioModel(catalog: List<MediaModel>) {
+        if (legacyAudioModelRouted) return
+        legacyAudioModelRouted = true
+        val legacyId = appSettings.getInstanceMediaAudioModelId(instanceIdProvider())
+        if (legacyId.isBlank()) return
+        val flow = catalog.firstOrNull { it.id == legacyId }?.audioFlow() ?: return
+        val target = if (flow == AudioFlow.Tts) _selectedTtsModelId else _selectedMusicModelId
+        if (target.value.isBlank()) {
+            target.value = legacyId
+            persistAudioModelId(flow, legacyId)
         }
     }
 
@@ -398,16 +439,17 @@ class MediaStudioViewModel(
         }
     }
 
-    /** Saved choice wins; otherwise auto-pick and persist (audio uses the research defaults). */
+    /** Saved choice wins; otherwise auto-pick and persist (audio uses the research defaults per flow). */
     private fun resolveModel(kind: MediaKind, instanceId: String): MediaModel? {
         if (kind == MediaKind.Audio || kind == MediaKind.Music) {
-            val candidates = _models.value.filter { it.isGenerativeAudio() }
-            val saved = candidates.firstOrNull { it.id == _selectedAudioModelId.value }
+            val flow = _audioFlow.value
+            val candidates = audioFlowModels(_models.value, flow, hasSunoHistory())
+            val savedId = if (flow == AudioFlow.Tts) _selectedTtsModelId.value else _selectedMusicModelId.value
+            val saved = candidates.firstOrNull { it.id == savedId }
             if (saved != null) return saved
-            val fallback = defaultAudioModel(candidates) ?: return null
-            appSettings.setInstanceMediaAudioModelId(instanceId, fallback.id)
-            _selectedAudioModelId.value = fallback.id
-            MediaLog.i("Auto-selected audio model: ${fallback.id}")
+            val fallback = defaultAudioModel(_models.value, flow) ?: return null
+            selectAudioModel(fallback.id, flow)
+            MediaLog.i("Auto-selected audio model for flow ${flow.storageKey}: ${fallback.id}")
             return fallback
         }
         val candidates = _models.value.filter { it.kind == kind }
@@ -426,6 +468,8 @@ class MediaStudioViewModel(
         return fallback
     }
 
+    private fun hasSunoHistory(): Boolean = history.entries.value.any { it.model == "suno" }
+
     fun selectImageModel(modelId: String) {
         appSettings.setInstanceMediaImageModelId(instanceIdProvider(), modelId)
         _selectedImageModelId.value = modelId
@@ -436,9 +480,37 @@ class MediaStudioViewModel(
         _selectedVideoModelId.value = modelId
     }
 
-    fun selectAudioModel(modelId: String) {
-        appSettings.setInstanceMediaAudioModelId(instanceIdProvider(), modelId)
-        _selectedAudioModelId.value = modelId
+    fun selectAudioModel(modelId: String, flow: AudioFlow = _audioFlow.value) {
+        persistAudioModelId(flow, modelId)
+        if (flow == AudioFlow.Tts) _selectedTtsModelId.value = modelId else _selectedMusicModelId.value = modelId
+    }
+
+    private fun persistAudioModelId(flow: AudioFlow, modelId: String) {
+        if (flow == AudioFlow.Tts) {
+            appSettings.setInstanceMediaAudioTtsModelId(instanceIdProvider(), modelId)
+        } else {
+            appSettings.setInstanceMediaAudioMusicModelId(instanceIdProvider(), modelId)
+        }
+    }
+
+    /** Remembers the audio flow; the next first tap enables audio with it (spec §13). */
+    fun selectAudioFlow(flow: AudioFlow) {
+        if (_audioFlow.value == flow) return
+        appSettings.setMediaAudioFlow(flow)
+        _audioFlow.value = flow
+        MediaLog.i("Audio flow selected: ${flow.storageKey}")
+    }
+
+    private fun loadDrafts(): Map<String, String> = MediaMode.entries
+        .flatMap { mode -> AudioFlow.entries.map { flow -> mediaDraftKey(mode, flow) } }
+        .distinct()
+        .associateWith { appSettings.getMediaDraft(it) }
+
+    /** Saves the prompt draft of one mode+flow pair; survives switching and errors. */
+    fun setDraft(mode: MediaMode, flow: AudioFlow, text: String) {
+        val key = mediaDraftKey(mode, flow)
+        _drafts.update { it + (key to text) }
+        appSettings.setMediaDraft(key, text)
     }
 
     fun addElement(state: MediaJobState) {

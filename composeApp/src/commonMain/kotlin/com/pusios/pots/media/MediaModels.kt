@@ -49,6 +49,18 @@ data class MediaVariantPrice(
     val priceStatus: String? = null,
 )
 
+/**
+ * One price tier of a variable-price model: the price applies when every
+ * [whenConditions] entry matches the selected opts (`{"engine": "minimax-hd"}`).
+ * An empty condition map matches any selection (the default tier).
+ */
+@Immutable
+data class MediaTierPrice(
+    val label: String?,
+    val priceRub: Double?,
+    val whenConditions: Map<String, String>,
+)
+
 @Immutable
 data class MediaModel(
     /** Public id sent as `model` (`gpt-image-2`, `veo-3.1`, …). */
@@ -62,7 +74,11 @@ data class MediaModel(
     val priceUnavailable: Boolean = false,
     val generationAvailable: Boolean = true,
     val variants: List<MediaVariantPrice> = emptyList(),
+    /** Price tiers: the price depends on selected opts (chips). */
+    val tiers: List<MediaTierPrice> = emptyList(),
     val params: List<MediaParamDef> = emptyList(),
+    /** Max prompt characters documented in the catalog note; null when unknown. */
+    val promptLimit: Int? = null,
     /** Provider task hint (`tts`, `asr`, `sfx`, `utility`, …); null when absent. */
     val task: String? = null,
     /** Model accepts a source image (edit / image-to-image / I2V). */

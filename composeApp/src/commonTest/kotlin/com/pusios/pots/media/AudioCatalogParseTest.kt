@@ -1,5 +1,7 @@
 package com.pusios.pots.media
 
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -79,6 +81,77 @@ class AudioCatalogParseTest {
         val parsed = provider.parseCatalog(catalogJson)
         val sheet = parsed.filter { it.isGenerativeAudio() }.map { it.id }
         assertEquals(listOf("gpt-4o-mini-tts", "suno"), sheet)
+    }
+
+    private val tiersJson = """
+    {
+      "models": [
+        {
+          "model": "tts", "kind": "audio", "task": "tts",
+          "unit": "за озвучку", "fromRub": 7,
+          "note": "Агрегатор: до 4000 символов за запрос.",
+          "tiers": [
+            {"label": "Gemini Flash", "priceRub": 7.0, "when": {"engine": "gemini-flash"}},
+            {"label": "MiniMax HD", "priceRub": 13.0, "when": {"engine": "minimax-hd"}}
+          ]
+        },
+        {
+          "model": "suno", "kind": "music",
+          "unit": "за трек", "fromRub": 6.29,
+          "tiers": [{"label": "Не указано", "priceRub": 6.29, "when": {"personaModel": ""}}]
+        },
+        {
+          "model": "chatterbox-tts", "kind": "audio", "task": "tts",
+          "unit": "за 1000 символов", "fromRub": 3,
+          "note": "Chatterbox: до 300 символов за запрос."
+        },
+        {
+          "model": "suno-speech", "kind": "audio", "task": "tts",
+          "unit": "за озвучку", "fromRub": 10.82,
+          "note": "Расширенный режим: свой текст до 5000 символов, тон до 1000 символов."
+        }
+      ]
+    }
+    """.trimIndent()
+
+    @Test
+    fun parsesTiersFromCatalog() {
+        val parsed = provider.parseCatalog(tiersJson)
+        val aggregator = parsed.first { it.id == "tts" }
+        assertEquals(2, aggregator.tiers.size)
+        assertEquals(mapOf("engine" to "gemini-flash"), aggregator.tiers[0].whenConditions)
+        assertEquals(13.0, aggregator.tiers[1].priceRub)
+        assertEquals("MiniMax HD", aggregator.tiers[1].label)
+        // An empty `when` matches any selected chips (default tier).
+        assertEquals(mapOf("personaModel" to ""), parsed.first { it.id == "suno" }.tiers.single().whenConditions)
+        // No tiers in the payload -> empty list.
+        assertEquals(emptyList(), parsed.first { it.id == "chatterbox-tts" }.tiers)
+    }
+
+    @Test
+    fun parsesPromptLimitFromNote() {
+        val parsed = provider.parseCatalog(tiersJson)
+        assertEquals(4000, parsed.first { it.id == "tts" }.promptLimit)
+        assertEquals(300, parsed.first { it.id == "chatterbox-tts" }.promptLimit)
+        // Several «до N символов» mentions: the largest is the request limit.
+        assertEquals(5000, parsed.first { it.id == "suno-speech" }.promptLimit)
+        // No documented limit -> null (no counter).
+        assertEquals(null, parsed.first { it.id == "suno" }.promptLimit)
+    }
+
+    @Test
+    fun generateBodyCarriesVoiceAndSpeedOpts() {
+        val request = MediaJobRequest(
+            model = "gpt-4o-mini-tts",
+            prompt = "Привет",
+            opts = linkedMapOf("voice" to "nova", "speed" to "1.25"),
+        )
+        val body = provider.buildGenerateBody(request)
+        assertEquals("gpt-4o-mini-tts", body["model"]?.jsonPrimitive?.content)
+        assertEquals("Привет", body["prompt"]?.jsonPrimitive?.content)
+        val opts = body["opts"]?.jsonObject
+        assertEquals("nova", opts?.get("voice")?.jsonPrimitive?.content)
+        assertEquals("1.25", opts?.get("speed")?.jsonPrimitive?.content)
     }
 
     private fun assertNullSafe(value: String?) = assertEquals(null, value)

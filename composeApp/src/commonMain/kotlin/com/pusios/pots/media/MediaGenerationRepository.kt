@@ -54,7 +54,11 @@ class MediaGenerationRepository(
         return fresh
     }
 
-    /** Quote-then-submit: tries a real quote first, falls back to direct submit. */
+    /**
+     * Quote-then-submit: metered models («за 1000 символов», «за секунду») and
+     * `mirelo-sfx-2` are quoted first; fixed prices submit without the extra
+     * request (spec §2). Unknown models keep the safe quote-first path.
+     */
     suspend fun generate(
         apiKey: String,
         request: MediaJobRequest,
@@ -63,12 +67,14 @@ class MediaGenerationRepository(
     ): MediaJobState {
         // A repeat of a failed submit already carries its quote: keep it, so the body
         // stays identical to the one behind the idempotency key.
-        val quoted = if (request.quoteId != null) {
-            null
-        } else {
+        val knownModel = catalogCache[apiKey.hashCode().toString()]?.firstOrNull { it.id == request.model }
+        val shouldQuote = request.quoteId == null && (knownModel == null || requiresPriceQuote(knownModel))
+        val quoted = if (shouldQuote) {
             runCatching { provider.quotePrice(apiKey, request) }
                 .onFailure { MediaLog.w("Quote failed (will submit without quote): ${it.message}") }
                 .getOrNull()
+        } else {
+            null
         }
         quoted?.let { onQuote?.invoke(it) }
         val submit = request.copy(

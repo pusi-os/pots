@@ -160,7 +160,8 @@ class PlusVibeMediaProvider(
         if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
     }
 
-    private fun buildGenerateBody(request: MediaJobRequest): JsonObject {
+    /** Internal for tests: the exact JSON body sent to `/api/media/generate` and `/api/media/price`. */
+    internal fun buildGenerateBody(request: MediaJobRequest): JsonObject {
         val optsMap = mutableMapOf<String, JsonElement>()
         request.opts.forEach { (k, v) -> optsMap[k] = JsonPrimitive(v) }
         appendReferences(optsMap, request)
@@ -304,7 +305,9 @@ class PlusVibeMediaProvider(
             priceUnavailable = obj["priceUnavailable"]?.jsonPrimitive?.booleanOrNull == true,
             generationAvailable = obj["generationAvailable"]?.jsonPrimitive?.booleanOrNull ?: true,
             variants = parseVariants(obj),
+            tiers = parseTiers(obj),
             params = params,
+            promptLimit = parsePromptLimit(obj["note"]?.jsonPrimitive?.contentOrNull),
             task = obj["task"]?.jsonPrimitive?.contentOrNull,
             acceptsImageReference = acceptsImage,
             acceptsVideoReference = acceptsVideo,
@@ -325,6 +328,27 @@ class PlusVibeMediaProvider(
                 priceStatus = o["priceStatus"]?.jsonPrimitive?.contentOrNull,
             )
         }
+    }
+
+    /** Price tiers: `{label, priceRub, when: {optKey: optValue}}`. */
+    private fun parseTiers(obj: JsonObject): List<MediaTierPrice> {
+        val arr = obj["tiers"] as? JsonArray ?: return emptyList()
+        return arr.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            val price = o["priceRub"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+            val conditions = (o["when"] as? JsonObject).orEmpty().mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }
+            MediaTierPrice(
+                label = o["label"]?.jsonPrimitive?.contentOrNull,
+                priceRub = price,
+                whenConditions = conditions,
+            )
+        }
+    }
+
+    /** The documented per-request text limit: the largest «до N символов» mention in the note. */
+    private fun parsePromptLimit(note: String?): Int? {
+        val limits = PROMPT_LIMIT_REGEX.findAll(note.orEmpty()).mapNotNull { it.groupValues[1].toIntOrNull() }
+        return limits.maxOrNull()
     }
 
     private fun collectParams(obj: JsonObject): List<MediaParamDef> {
@@ -405,6 +429,9 @@ class PlusVibeMediaProvider(
             "audio_base64",
             "audio_file_id",
         )
+
+        /** «До 4096 символов за запрос» in catalog notes. */
+        private val PROMPT_LIMIT_REGEX = Regex("""[Дд]о\s+(\d+)\s+символов""")
 
         /** Tolerant JSON for provider payloads (unknown fields never fail parsing). */
         val JsonTolerant: Json = Json {

@@ -1,12 +1,24 @@
 package com.pusios.pots.ui.media
 
 import androidx.compose.runtime.Immutable
+import com.pusios.pots.media.AudioFlow
 
 /** Studio generation mode; drives chips, the model sheet and the dock. */
 enum class MediaMode {
     Image,
     Video,
     Audio,
+}
+
+/**
+ * Draft storage key per mode; audio drafts are separate per flow (spec §13),
+ * image/video have no flow dimension. Drafts live in `MediaSettings`, never in
+ * transient `remember` state.
+ */
+internal fun mediaDraftKey(mode: MediaMode, flow: AudioFlow): String = when (mode) {
+    MediaMode.Image -> "image"
+    MediaMode.Video -> "video"
+    MediaMode.Audio -> "audio_" + flow.storageKey
 }
 
 /** One placed asset on the Media Studio canvas. */
