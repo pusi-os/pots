@@ -1,6 +1,6 @@
 # Media Studio
 
-**Last verified:** 2026-11-13
+**Last verified:** 2026-11-14
 
 Media Studio is the in-app creative surface for generating and editing images, video and audio with the currently active cloud media provider (PlusVibeAPI first). The main chat top bar switches to it: the media icon opens the studio, and while the studio is open the same slot shows a chat icon that returns to chat. The studio takes over the chat area. While it is open, the chat input is hidden: the studio has its own single prompt field in the dock. Speech output, if on, announces “генерация готова” in Russian when a job finishes.
 
