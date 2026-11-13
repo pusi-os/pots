@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Badge
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -56,7 +58,7 @@ internal fun MediaStudioTopBar(
     historyBadge: Int,
     aspectRatioLabel: String?,
     onOpenAspectRatio: () -> Unit,
-    paramChips: List<ParamChip>,
+    paramChips: List<MediaChipUi>,
     onOpenParam: (String) -> Unit,
     mode: MediaMode,
     onSelectMode: (MediaMode) -> Unit,
@@ -125,16 +127,47 @@ internal fun MediaStudioTopBar(
             }
             paramChips.forEach { chip ->
                 Spacer(Modifier.width(6.dp))
-                TopBarChip(chip.label, MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer) {
-                    onOpenParam(chip.key)
+                when (chip) {
+                    is MediaChipUi.Sheet -> TopBarChip(chip.label, MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer) {
+                        onOpenParam(chip.key)
+                    }
+
+                    is MediaChipUi.QualityDropdown -> QualityChip(chip)
+
+                    is MediaChipUi.AudioToggle -> AudioToggleChip(chip)
                 }
             }
         }
     }
 }
 
-/** A parameter shown as a toolbar chip; [label] is the current value, e.g. `2K`. */
-internal data class ParamChip(val key: String, val label: String)
+/** One toolbar chip of the image/video/audio modes (spec §19.3). */
+internal sealed class MediaChipUi {
+    abstract val key: String
+
+    /** Existing behaviour: the chip opens `MediaParamSheet`. */
+    data class Sheet(override val key: String, val label: String) : MediaChipUi()
+
+    /** The quality dropdown with prices (§19.1): one control for generation and editing. */
+    data class QualityDropdown(
+        override val key: String,
+        val label: String,
+        val options: List<QualityOptionUi>,
+        val footerNote: String?,
+        val onSelect: (String) -> Unit,
+    ) : MediaChipUi()
+
+    /** The «со звуком / без звука» toggle (§19.2). */
+    data class AudioToggle(override val key: String, val withSound: Boolean, val onToggle: () -> Unit) : MediaChipUi()
+}
+
+/** One line of the quality dropdown: Russian label plus the exact price when known. */
+internal data class QualityOptionUi(
+    val value: String,
+    val label: String,
+    val priceLabel: String?,
+    val selected: Boolean,
+)
 
 @Composable
 private fun TopBarChip(
@@ -156,6 +189,84 @@ private fun TopBarChip(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             maxLines = 1,
         )
+    }
+}
+
+/** The quality selector chip: current level indicator, tap opens the dropdown (spec §19.1). */
+@Composable
+private fun QualityChip(chip: MediaChipUi.QualityDropdown) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TopBarChip(
+            chip.label,
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.onPrimaryContainer,
+            onClick = { expanded = true },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            chip.options.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            buildString {
+                                append(option.label)
+                                option.priceLabel?.let {
+                                    append(" — ")
+                                    append(it)
+                                }
+                            },
+                        )
+                    },
+                    leadingIcon = if (option.selected) {
+                        { Icon(Icons.Filled.Check, contentDescription = "Выбрано") }
+                    } else {
+                        null
+                    },
+                    onClick = {
+                        expanded = false
+                        chip.onSelect(option.value)
+                    },
+                )
+            }
+            chip.footerNote?.let { note ->
+                Text(
+                    note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+/** The «со звуком / без звука» toggle chip (spec §19.2). */
+@Composable
+private fun AudioToggleChip(chip: MediaChipUi.AudioToggle) {
+    Surface(
+        onClick = chip.onToggle,
+        modifier = Modifier.handCursor(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                if (chip.withSound) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                if (chip.withSound) "Со звуком" else "Без звука",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                maxLines = 1,
+            )
+        }
     }
 }
 

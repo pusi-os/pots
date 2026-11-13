@@ -45,8 +45,15 @@ import com.pusios.pots.media.AudioFlow
 import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaParamDef
 import com.pusios.pots.media.MediaReference
+import com.pusios.pots.media.MediaToolbarChip
+import com.pusios.pots.media.applyMediaOptDefaults
 import com.pusios.pots.media.audioFlowModels
 import com.pusios.pots.media.audioToolbarParams
+import com.pusios.pots.media.formatRub
+import com.pusios.pots.media.mediaToolbarParams
+import com.pusios.pots.media.qualityOptionLabel
+import com.pusios.pots.media.qualityPriceInfo
+import com.pusios.pots.media.qualitySelectorAxis
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.saveFileToDevice
 import com.pusios.pots.ui.handCursor
@@ -81,6 +88,7 @@ fun MediaStudioScreenFull(
     val audioFlow by viewModel.audioFlow.collectAsState()
     val drafts by viewModel.drafts.collectAsState()
     val historyEntries by viewModel.historyEntries.collectAsState()
+    val priceTables by viewModel.priceTables.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -146,16 +154,42 @@ fun MediaStudioScreenFull(
         MediaMode.Audio -> if (audioFlow == AudioFlow.Tts) selectedTtsModelId else selectedMusicModelId
     }
     val currentModel = currentModels.firstOrNull { it.id == currentModelId } ?: currentModels.firstOrNull()
-    val toolbarParamDefs: List<MediaParamDef> = when (mode) {
-        // Audio chips come from the catalog axes, universal per model; image/video
-        // keep the fixed resolution/duration pair they had before.
-        MediaMode.Audio -> audioToolbarParams(currentModel)
-
-        else ->
-            currentModel
-                ?.params
-                ?.filter { it.key in listOf("resolution", "duration") && it.options.isNotEmpty() }
-                .orEmpty()
+    // The generalized «axis → chip» mechanism (spec §19.3): resolution, quality
+    // dropdown, duration and the sound toggle — all decided by the model's axes.
+    val toolbarChips: List<MediaToolbarChip> = when (mode) {
+        MediaMode.Audio -> audioToolbarParams(currentModel).map { MediaToolbarChip(MediaToolbarChip.Kind.Sheet, it) }
+        else -> mediaToolbarParams(currentModel)
+    }
+    // Chip labels and submit share one view: explicit defaults applied
+    // (quality default Low, catalog audio default), saved quality wins (spec §19.1).
+    val savedQuality = currentModel?.let { viewModel.savedQuality(it.id) }
+    val effectiveParams = applyMediaOptDefaults(params, currentModel, savedQuality)
+    val qualityAxis = if (mode != MediaMode.Audio) currentModel?.qualitySelectorAxis() else null
+    val priceInfo = qualityAxis?.let { axis ->
+        qualityPriceInfo(
+            priceTables[currentModel?.id],
+            axis,
+            effectiveParams,
+            mode = if (currentModel?.kind == MediaKind.Image) {
+                if (references.isNotEmpty()) "image-to-image" else "text-to-image"
+            } else {
+                null
+            },
+        )
+    }
+    // The dropdown's price table is fetched once per model; failures degrade
+    // to the note mode (spec §19.4).
+    LaunchedEffect(currentModel?.id, mode) {
+        if (qualityAxis != null) viewModel.loadPriceTable(currentModel?.id.orEmpty())
+    }
+    // A model/mode switch drops selections the new model does not accept
+    // (stale choice silently rolls back, spec §19.4).
+    LaunchedEffect(currentModel?.id, mode) {
+        val model = currentModel ?: return@LaunchedEffect
+        val accepted = model.params.map { it.key }.toSet()
+        if (params.keys.any { it !in accepted }) {
+            params = params.filterKeys { it in accepted }
+        }
     }
     val aspectRatioDef: MediaParamDef? = if (mode == MediaMode.Image) {
         currentModel
@@ -311,9 +345,41 @@ fun MediaStudioScreenFull(
                 currentModelLabel = modelChipLabel,
                 aspectRatioLabel = if (mode == MediaMode.Image) aspectRatioDef?.let { def -> params[def.key] ?: def.defaultValue } else null,
                 onOpenAspectRatio = { showAspectRatio = true },
-                paramChips = toolbarParamDefs.map { def ->
-                    val value = params[def.key] ?: def.defaultValue.orEmpty()
-                    ParamChip(def.key, def.options.firstOrNull { it.value == value }?.label ?: value)
+                paramChips = toolbarChips.map { chip ->
+                    when (chip.kind) {
+                        MediaToolbarChip.Kind.Sheet -> {
+                            val value = effectiveParams[chip.def.key] ?: chip.def.defaultValue.orEmpty()
+                            MediaChipUi.Sheet(chip.def.key, chip.def.options.firstOrNull { it.value == value }?.label ?: value)
+                        }
+
+                        MediaToolbarChip.Kind.QualityDropdown -> {
+                            val current = effectiveParams[chip.def.key].orEmpty()
+                            MediaChipUi.QualityDropdown(
+                                key = chip.def.key,
+                                label = chip.def.options.firstOrNull { it.value == current }?.let(::qualityOptionLabel) ?: "Качество",
+                                options = chip.def.options.map { option ->
+                                    QualityOptionUi(
+                                        value = option.value,
+                                        label = qualityOptionLabel(option),
+                                        priceLabel = priceInfo?.optionPrices?.get(option.value)?.let { formatRub(it) + " ₽" },
+                                        selected = option.value == current,
+                                    )
+                                },
+                                footerNote = priceInfo?.footerNote,
+                                onSelect = { value ->
+                                    params = params + (chip.def.key to value)
+                                    currentModel?.let { viewModel.selectQuality(it.id, value) }
+                                },
+                            )
+                        }
+
+                        MediaToolbarChip.Kind.AudioToggle -> {
+                            val withSound = (effectiveParams[chip.def.key] ?: chip.def.defaultValue) == "true"
+                            MediaChipUi.AudioToggle(chip.def.key, withSound = withSound) {
+                                params = params + (chip.def.key to if (withSound) "false" else "true")
+                            }
+                        }
+                    }
                 },
                 onOpenParam = { key -> openParam = key },
                 audioFlow = audioFlow,
@@ -325,7 +391,7 @@ fun MediaStudioScreenFull(
         }
     }
 
-    toolbarParamDefs.firstOrNull { it.key == openParam }?.let { def ->
+    toolbarChips.firstOrNull { it.kind == MediaToolbarChip.Kind.Sheet && it.def.key == openParam }?.def?.let { def ->
         MediaParamSheet(
             title = def.label,
             options = def.options,

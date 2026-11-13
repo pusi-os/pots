@@ -17,9 +17,11 @@ import com.pusios.pots.media.MediaJobStatus
 import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaLog
 import com.pusios.pots.media.MediaModel
+import com.pusios.pots.media.MediaPriceTable
 import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.PlusVibeMediaProvider
 import com.pusios.pots.media.PromptEnhancer
+import com.pusios.pots.media.applyMediaOptDefaults
 import com.pusios.pots.media.audioFlow
 import com.pusios.pots.media.audioFlowModels
 import com.pusios.pots.media.compressReferenceToLimit
@@ -31,12 +33,14 @@ import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
 import com.pusios.pots.media.getMediaAudioFlow
 import com.pusios.pots.media.getMediaDraft
+import com.pusios.pots.media.getMediaQuality
 import com.pusios.pots.media.setInstanceMediaAudioMusicModelId
 import com.pusios.pots.media.setInstanceMediaAudioTtsModelId
 import com.pusios.pots.media.setInstanceMediaImageModelId
 import com.pusios.pots.media.setInstanceMediaVideoModelId
 import com.pusios.pots.media.setMediaAudioFlow
 import com.pusios.pots.media.setMediaDraft
+import com.pusios.pots.media.setMediaQuality
 import com.pusios.pots.media.toHistoryReference
 import com.pusios.pots.media.userMessageRu
 import com.pusios.pots.readAppStorageBytes
@@ -248,8 +252,13 @@ class MediaStudioViewModel(
             return
         }
         val references = _references.value
-        pendingGeneration = PendingGeneration(prompt, opts, kind)
-        MediaLog.i("Generate: kind=$kind model=${model.id} opts=${opts.keys} refs=${references.size}")
+        // Explicit opt defaults (spec §19.1, §19.2): quality is always sent for
+        // selector models (generation and editing alike), the sound toggle rides
+        // its catalog default. The journal keeps exactly these opts, so `repeat`
+        // resubmits the same combination.
+        val finalOpts = applyMediaOptDefaults(opts, model, appSettings.getMediaQuality(model.id))
+        pendingGeneration = PendingGeneration(prompt, finalOpts, kind)
+        MediaLog.i("Generate: kind=$kind model=${model.id} opts=${finalOpts.keys} refs=${references.size}")
         val entry = MediaHistoryEntry(
             localId = Uuid.random().toString(),
             createdAtMs = kotlin.time.Clock.System.now().toEpochMilliseconds(),
@@ -257,7 +266,7 @@ class MediaStudioViewModel(
             isAudio = kind == MediaKind.Audio || kind == MediaKind.Music,
             model = model.id,
             prompt = prompt,
-            opts = opts,
+            opts = finalOpts,
             references = references.mapNotNull { it.toHistoryReference() },
             droppedReferences = references.count { it.toHistoryReference() == null },
         )
@@ -265,7 +274,7 @@ class MediaStudioViewModel(
         _isStarting.value = true
         viewModelScope.launch {
             try {
-                submitGeneration(key, entry.localId, model.id, prompt, opts, references)
+                submitGeneration(key, entry.localId, model.id, prompt, finalOpts, references)
             } finally {
                 _isStarting.value = false
             }
@@ -499,6 +508,27 @@ class MediaStudioViewModel(
         appSettings.setMediaAudioFlow(flow)
         _audioFlow.value = flow
         MediaLog.i("Audio flow selected: ${flow.storageKey}")
+    }
+
+    /** The image quality selection per model (spec §19.1): one control for generation and editing. */
+    fun selectQuality(modelId: String, quality: String) {
+        appSettings.setMediaQuality(modelId, quality)
+    }
+
+    fun savedQuality(modelId: String): String? = appSettings.getMediaQuality(modelId)
+
+    /** Cached price tables for the quality dropdown; null means the note mode (spec §19.1). */
+    private val _priceTables = MutableStateFlow<Map<String, MediaPriceTable?>>(emptyMap())
+    val priceTables: StateFlow<Map<String, MediaPriceTable?>> = _priceTables.asStateFlow()
+
+    /** Fetches the price table once per model; failures stay cached (no retry storm on every open). */
+    fun loadPriceTable(modelId: String) {
+        if (_priceTables.value.containsKey(modelId)) return
+        val key = apiKeyProvider()
+        viewModelScope.launch {
+            val table = repository.priceTable(key, modelId)
+            _priceTables.update { it + (modelId to table) }
+        }
     }
 
     private fun loadDrafts(): Map<String, String> = MediaMode.entries
