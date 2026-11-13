@@ -180,6 +180,8 @@ kotlin {
                 implementation(libs.litert.lm.jvm)
                 implementation(libs.sqldelight.sqlite.driver)
                 implementation(libs.nanohttpd)
+                // MP3 decoding for the studio audio player (WAV uses javax.sound).
+                implementation(libs.jlayer)
             }
         }
         iosMain.dependencies {

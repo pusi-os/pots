@@ -142,13 +142,7 @@ class MediaGenerationRepository(
             MediaLog.w("Result download failed (keeping remote URL): jobId=${state.jobId} ${e.message}")
             return
         }
-        val ext = when {
-            first.contains(".mp4") || first.contains(".mov") || first.contains(".webm") -> "mp4"
-            first.contains(".png") -> "png"
-            first.contains(".jpg") || first.contains(".jpeg") -> "jpg"
-            first.contains(".webp") -> "webp"
-            else -> if (state.kind == MediaKind.Video) "mp4" else "png"
-        }
+        val ext = mediaResultExtension(first, state.kind)
         val path = "media/jobs/${state.jobId}/0.$ext"
         writeAppStorageBytes(path, bytes)
         MediaLog.i("Result cached: jobId=${state.jobId} path=$path (${bytes.size} bytes)")
@@ -166,5 +160,29 @@ class MediaGenerationRepository(
         val POLL_MAX_MS: Long = 30_000L
 
         fun backoff(current: Long): Long = min(current * 2, POLL_MAX_MS)
+    }
+}
+
+/**
+ * Local file extension for a downloaded result. Signed proxy URLs carry no
+ * extension, so the kind decides the default (audio → `mp3`, the provider's
+ * TTS/music default format).
+ */
+internal fun mediaResultExtension(url: String, kind: MediaKind?): String {
+    val path = url.substringBefore('?').lowercase()
+    return when {
+        path.contains(".mp4") || path.contains(".mov") || path.contains(".webm") -> "mp4"
+        path.contains(".png") -> "png"
+        path.contains(".jpg") || path.contains(".jpeg") -> "jpg"
+        path.contains(".webp") -> "webp"
+        path.contains(".mp3") -> "mp3"
+        path.contains(".wav") -> "wav"
+        path.contains(".opus") -> "opus"
+        path.contains(".flac") -> "flac"
+        path.contains(".aac") || path.contains(".m4a") -> "m4a"
+        path.contains(".ogg") -> "ogg"
+        kind == MediaKind.Video -> "mp4"
+        kind == MediaKind.Audio || kind == MediaKind.Music -> "mp3"
+        else -> "png"
     }
 }

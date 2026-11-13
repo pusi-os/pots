@@ -63,10 +63,14 @@ data class MediaModel(
     val generationAvailable: Boolean = true,
     val variants: List<MediaVariantPrice> = emptyList(),
     val params: List<MediaParamDef> = emptyList(),
+    /** Provider task hint (`tts`, `asr`, `sfx`, `utility`, …); null when absent. */
+    val task: String? = null,
     /** Model accepts a source image (edit / image-to-image / I2V). */
     val acceptsImageReference: Boolean = false,
     /** Model accepts a source video. */
     val acceptsVideoReference: Boolean = false,
+    /** Model consumes audio input (STT / transforms) — excluded from the audio sheet. */
+    val acceptsAudioReference: Boolean = false,
 )
 
 @Immutable

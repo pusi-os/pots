@@ -60,6 +60,8 @@ data class MediaHistoryEntry(
     val localPath: String? = null,
     val failMsg: String? = null,
     val progress: Float? = null,
+    /** Audio/music generation; the journal treats it like video (no image preview). */
+    val isAudio: Boolean = false,
 ) {
     val isActive: Boolean get() = status == MediaHistoryStatus.Sending || status == MediaHistoryStatus.Processing
     val canRepeat: Boolean get() = !isActive && droppedReferences == 0

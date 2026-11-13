@@ -52,13 +52,24 @@ class PlusVibeMediaProvider(
 
     override suspend fun listModels(apiKey: String): List<MediaModel> {
         val body = client.get("$baseUrl/api/media-catalog") { authed(apiKey) }.bodyAsText()
+        val parsed = parseCatalog(body)
+        parsed.forEach { modelsById[it.id] = it }
+        MediaLog.i(
+            "Catalog loaded: ${parsed.size} usable models (" +
+                "${parsed.count { it.kind == MediaKind.Image }} image, " +
+                "${parsed.count { it.kind == MediaKind.Video }} video, " +
+                "${parsed.count { it.kind == MediaKind.Audio }} audio, " +
+                "${parsed.count { it.kind == MediaKind.Music }} music)",
+        )
+        return parsed
+    }
+
+    /** Parses the catalog payload and keeps only models usable for generation. */
+    internal fun parseCatalog(body: String): List<MediaModel> {
         val root = json.parseToJsonElement(body).jsonObject
         val models = root["models"]?.jsonArray ?: return emptyList()
-        val parsed = models.mapNotNull { parseModel(it as? JsonObject ?: return@mapNotNull null) }
+        return models.mapNotNull { parseModel(it as? JsonObject ?: return@mapNotNull null) }
             .filter { it.id.isNotBlank() && it.generationAvailable && !it.priceUnavailable }
-        parsed.forEach { modelsById[it.id] = it }
-        MediaLog.i("Catalog loaded: ${parsed.size} usable models (${parsed.count { it.kind == MediaKind.Image }} image, ${parsed.count { it.kind == MediaKind.Video }} video)")
-        return parsed
     }
 
     override suspend fun quotePrice(apiKey: String, request: MediaJobRequest): MediaPriceQuote {
@@ -279,10 +290,10 @@ class PlusVibeMediaProvider(
         val kindRaw = obj["kind"]?.jsonPrimitive?.contentOrNull ?: "image"
         val kind = MediaKind.Image.fromProviderId(kindRaw)
         val params = collectParams(obj)
-        val acceptsImage = params.any { it.key in IMAGE_REFERENCE_KEYS } ||
-            (obj["inputTypes"]?.jsonArray?.any { it.jsonPrimitive.contentOrNull == "image" } == true)
-        val acceptsVideo = params.any { it.key in VIDEO_REFERENCE_KEYS } ||
-            (obj["inputTypes"]?.jsonArray?.any { it.jsonPrimitive.contentOrNull == "video" } == true)
+        val inputTypes = obj["inputTypes"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
+        val acceptsImage = params.any { it.key in IMAGE_REFERENCE_KEYS } || "image" in inputTypes
+        val acceptsVideo = params.any { it.key in VIDEO_REFERENCE_KEYS } || "video" in inputTypes
+        val acceptsAudio = params.any { it.key in AUDIO_REFERENCE_KEYS } || "audio" in inputTypes
         return MediaModel(
             id = id,
             kind = kind,
@@ -294,8 +305,10 @@ class PlusVibeMediaProvider(
             generationAvailable = obj["generationAvailable"]?.jsonPrimitive?.booleanOrNull ?: true,
             variants = parseVariants(obj),
             params = params,
+            task = obj["task"]?.jsonPrimitive?.contentOrNull,
             acceptsImageReference = acceptsImage,
             acceptsVideoReference = acceptsVideo,
+            acceptsAudioReference = acceptsAudio,
         )
     }
 
@@ -386,6 +399,11 @@ class PlusVibeMediaProvider(
             "video_base64",
             "video_file_id",
             "reference_video_urls",
+        )
+        private val AUDIO_REFERENCE_KEYS = setOf(
+            "audio_url",
+            "audio_base64",
+            "audio_file_id",
         )
 
         /** Tolerant JSON for provider payloads (unknown fields never fail parsing). */
