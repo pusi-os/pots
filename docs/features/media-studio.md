@@ -50,7 +50,19 @@ Metered models (“за 1000 символов”, “за секунду”) and
 
 Audio jobs go through the same submit/poll/download contract and the same queue and journal (`media/history.json`) as image and video; the journal entry carries an `isAudio` flag and the result is downloaded to bytes immediately (signed URLs live 5 days). Retry reuses the same `Idempotency-Key`, so a repeated submit never charges twice.
 
-A finished audio result lands on the canvas as an audio element with a basic player: play/pause and a seek slider. Desktop plays MP3 (JLayer) and WAV; Android uses the system media player over a temp file copy; iOS and web show a static card (playback not wired yet). Editing audio is a separate later feature and intentionally not part of the player.
+A finished audio result lands on the canvas as an audio element with a full in-app player: a real waveform (peaks decoded from the audio bytes; a decorative pattern stands in where decoding is unavailable), play/pause, ±10 s, tap-to-seek, position/duration, and — in the lightbox and the editor — playback-speed presets (0.5× / 0.75× / 1× / 1.25× / 1.5× / 2×), a volume slider with mute and looping. Desktop plays MP3 (JLayer) and WAV with all extended controls; Android uses the system media player (speed/volume/looping included); iOS and web show a static card (playback not wired yet). Editing is the audio editor below.
+
+### Audio editor
+
+Entry: the «Редактировать» chip in the selected audio element's toolbar. The editor opens full-screen with the real waveform, tap-to-seek and a drag-to-select range with two edge handles. Three operations, each non-destructive — the source element is never modified, the result is always a NEW audio element on the canvas plus a WAV file under `media/edits/` in app storage:
+
+* **Обрезка** — «Обрезать до выделения» renders the selected range.
+* **Скорость** — a 0.25–4× slider with 0.5 / 1 / 1.5 / 2 presets; speed and pitch change together (tape behavior — honest about what linear resampling does; pitch-preserving time-stretch is a later version).
+* **Склейка** — «Добавить трек» picks other canvas audio elements; the ordered list (move up/down, remove) joins top-to-bottom into one file. Mixed formats are converted to the first track's channel count and sample rate.
+
+Rendering runs in the background with a progress bar and a cancel button («Отмена» stops the operation; the source stays intact). Failures show the §8 error card (title, human detail, rescue action) inside the sheet. Decoding is the only platform-dependent step: desktop understands MP3 and WAV, every other target decodes WAV in pure common code and refuses MP3 with «Формат не поддерживается» (playback of MP3 still works where the platform player exists).
+
+Audio processing is PCM sample math in pure Kotlin `commonMain` (trim = slice, speed = linear-interpolation resample, concat = copy), not a local `ffmpeg`. Reasons: (1) no new dependency — ffmpeg would mean shipping a ~100 MB binary per OS/arch just for three operations that fit in deterministic sample loops; (2) the pure logic is unit-tested in CI without any binary; (3) the output is always lossless WAV, so no MP3 encoder is needed (the spec's MP3 export chip waits for a later version together with time-stretch).
 
 ### Local TTS (offline)
 
@@ -76,7 +88,7 @@ Video mode adds a «Со звуком / Без звука» toggle chip (VolumeU
 
 ### Canvas element
 
-A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, open player, save and delete. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).
+A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, edit (opens the audio editor), open player, save and delete. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).
 
 ### Canvas element toolbar
 
@@ -122,7 +134,8 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 | `composeApp/src/commonMain/.../media/MediaHistory.kt` | Journal model and `MediaHistoryStore` (`media/history.json`) |
 | `composeApp/src/commonMain/.../media/AudioModels.kt` | Generative audio filter, flows (TTS / music), flow filtering, price label with unit, tier parsing, voice/speed axis aliases, quote policy, toolbar chips, clone-voice axis |
 | `composeApp/src/commonMain/.../media/LocalTts.kt` | Local TTS honesty contract, synthetic catalog entries; actuals: `androidMain` (system `synthesizeToFile` + Piper), empty catalogs on `desktopMain`/`iosMain`/`wasmJsMain` |
-| `composeApp/src/commonMain/.../media/WavAudio.kt` | Pure common WAV codec and duration parsing (local synthesis output, voice-sample pre-check, MP3 CBR estimate) |
+| `composeApp/src/commonMain/.../media/WavAudio.kt` | Pure common WAV codec, duration parsing and 16-bit PCM decoding (local synthesis output, voice-sample pre-check, MP3 CBR estimate, editor/waveform input) |
+| `composeApp/src/commonMain/.../media/AudioEdit.kt` | Audio editing core: `AudioPcm`, trim/speed/concat as pure cancellable sample math, §8 editor errors; `decodeAudioToPcm` actuals — `desktopMain` (WAV + MP3 via JLayer), `androidMain`/`iosMain`/`wasmJsMain` (WAV only) |
 | `composeApp/src/commonMain/.../media/MediaVoices.kt` | Voice cloning domain: levels, pre-upload sample validation, voices payload parsing, create body, §8 error mapping |
 | `composeApp/src/commonMain/.../media/MediaQualityParams.kt` | Axis→chip mechanism: quality selector visibility, the Low default, audio toggle axes, explicit opt defaults |
 | `composeApp/src/commonMain/.../media/MediaPriceTables.kt` | Price-table parsing and quality price rules (exact lines, flat/conservative notes, quote basis) |
@@ -135,8 +148,9 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 | `composeApp/src/commonMain/.../ui/media/MediaCanvas.kt` | Dotted canvas, independent element gestures, two-row element toolbar, skeletons, empty state |
 | `composeApp/src/commonMain/.../ui/media/MediaDock.kt` | Prompt field, enhance/expand and create buttons, reference strip, parameter chips, flow dropdown on the active audio segment |
 | `composeApp/src/commonMain/.../ui/media/MediaPromptSheet.kt` | Expanded near-full-height prompt editor: line breaks, `{len}/{limit}` counter, enhance, create |
-| `composeApp/src/commonMain/.../ui/media/MediaAudioPlayer.kt` | Audio element player: play/pause, seek slider, degraded static card where unsupported |
-| `composeApp/src/commonMain/.../ui/media/MediaAudioEngine.kt` | Audio playback contract; actuals in `desktopMain` (MP3 via JLayer, WAV), `androidMain` (MediaPlayer), `iosMain`/`wasmJsMain` (unsupported) |
+| `composeApp/src/commonMain/.../ui/media/MediaAudioPlayer.kt` | Audio element player: real waveform with decorative fallback, play/pause, ±10 s, seek, speed presets, volume with mute, loop |
+| `composeApp/src/commonMain/.../ui/media/MediaAudioEngine.kt` | Audio playback contract incl. extended transport (speed/volume/loop); actuals in `desktopMain` (MP3 via JLayer, WAV), `androidMain` (MediaPlayer), `iosMain`/`wasmJsMain` (unsupported) |
+| `composeApp/src/commonMain/.../ui/media/MediaAudioEditorSheet.kt` | Full-screen audio editor: waveform selection with handles, trim/speed/concat with progress and cancel, §8 error cards, non-destructive WAV results |
 | `composeApp/src/commonMain/.../ui/media/MediaHistorySheet.kt` | Generation journal sheet: open, save to gallery, regenerate, remove |
 | `composeApp/src/commonMain/.../ui/media/MediaAspectRatioSheet.kt` | Aspect-ratio sheet with rectangle previews |
 | `composeApp/src/commonMain/.../ui/media/MediaModelSheet.kt` | Model picker sheet with price badges; local group with friendly engine names |

@@ -10,6 +10,7 @@ actual fun createMediaAudioEngine(): MediaAudioEngine = DesktopMediaAudioEngine(
 internal class DesktopMediaAudioEngine : MediaAudioEngine {
 
     override val isSupported: Boolean = true
+    override val supportsExtendedControls: Boolean = true
 
     private var source: ByteArray = ByteArray(0)
     private var isMp3 = false
@@ -26,8 +27,18 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
 
     @Volatile private var seekTargetMs = -1L
 
+    @Volatile private var speed = 1f
+
+    @Volatile private var volume = 1f
+
+    @Volatile private var looping = false
+
+    /** Set when [speed] changes mid-playback; the loop reopens at the position. */
+    @Volatile private var speedChangePending = false
+
     private var worker: Thread? = null
     private var line: javax.sound.sampled.SourceDataLine? = null
+    private var lineRate = 0
 
     override val durationMs: Long get() = duration
     override val positionMs: Long get() = position
@@ -62,6 +73,21 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
         } else {
             position = target
         }
+    }
+
+    override fun setSpeed(factor: Float) {
+        val next = factor.coerceIn(0.25f, 4f)
+        if (next == speed) return
+        speed = next
+        speedChangePending = true
+    }
+
+    override fun setVolume(volume: Float) {
+        this.volume = volume.coerceIn(0f, 1f)
+    }
+
+    override fun setLooping(loop: Boolean) {
+        looping = loop
     }
 
     override fun release() {
@@ -135,14 +161,25 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
                     index = cursor.index
                     position = target
                 }
-                val header = cursor.bitstream.readFrame() ?: break
+                val header = cursor.bitstream.readFrame()
+                if (header == null) {
+                    if (looping) {
+                        // Restart from the beginning instead of stopping.
+                        runCatching { cursor.bitstream.close() }
+                        cursor = openMp3At(0L) ?: break
+                        index = cursor.index
+                        position = 0L
+                        continue
+                    }
+                    break
+                }
                 val output = cursor.decoder.decodeFrame(header, cursor.bitstream) as? javazoom.jl.decoder.SampleBuffer
                 cursor.bitstream.closeFrame()
                 if (output == null) {
                     index++
                     continue
                 }
-                val line = lineFor(output.sampleFrequency, output.channelCount) ?: break
+                val line = lineFor((output.sampleFrequency * speed).toInt(), output.channelCount) ?: break
                 val samples = output.buffer
                 val pcm = ByteArray(output.bufferLength * 2)
                 for (i in 0 until output.bufferLength) {
@@ -150,9 +187,15 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
                     pcm[i * 2] = (v and 0xFF).toByte()
                     pcm[i * 2 + 1] = ((v shr 8) and 0xFF).toByte()
                 }
+                applyVolume(pcm, pcm.size)
                 line.write(pcm, 0, pcm.size)
                 index++
                 position = (index * cursor.msPerFrame).toLong().coerceAtMost(duration)
+                if (speedChangePending) {
+                    speedChangePending = false
+                    // The line's sample rate encodes speed; reopen to apply it.
+                    closeLine()
+                }
             }
             if (!released) position = duration
         } catch (e: Exception) {
@@ -203,9 +246,16 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
             framesWritten = targetMs * format.frameRate.toLong() / 1000L
             stream.skip(framesWritten * format.frameSize)
         }
-        val info = javax.sound.sampled.DataLine.Info(javax.sound.sampled.SourceDataLine::class.java, format)
+        // Speed trick: the line plays raw PCM at its own sample rate, so opening
+        // it at rate*speed resamples without any DSP (pitch follows speed).
+        val lineFormat = if (speed == 1f) {
+            format
+        } else {
+            javax.sound.sampled.AudioFormat(format.sampleRate * speed, 16, format.channels, true, false)
+        }
+        val info = javax.sound.sampled.DataLine.Info(javax.sound.sampled.SourceDataLine::class.java, lineFormat)
         val line = javax.sound.sampled.AudioSystem.getLine(info) as javax.sound.sampled.SourceDataLine
-        line.open(format)
+        line.open(lineFormat)
         line.start()
         WavCursor(stream, format, line, ByteArray((format.frameSize * 512).coerceAtLeast(1024)), framesWritten)
     } catch (e: Exception) {
@@ -225,12 +275,34 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
                     cursor = openWavAt(target) ?: break
                     position = target
                 }
+                if (speedChangePending) {
+                    speedChangePending = false
+                    val posMs = if (cursor.format.frameRate > 0f) {
+                        cursor.framesWritten * 1000L / cursor.format.frameRate.toLong()
+                    } else {
+                        0L
+                    }
+                    runCatching { cursor.line.close() }
+                    cursor = openWavAt(posMs) ?: break
+                    position = posMs
+                }
                 val read = cursor.stream.read(cursor.chunk, 0, cursor.chunk.size)
-                if (read <= 0) break
+                if (read <= 0) {
+                    if (looping) {
+                        // Restart from the beginning instead of stopping.
+                        runCatching { cursor.line.close() }
+                        cursor = openWavAt(0L) ?: break
+                        position = 0L
+                        continue
+                    }
+                    break
+                }
+                applyVolume(cursor.chunk, read)
                 cursor.line.write(cursor.chunk, 0, read)
                 cursor.framesWritten += read / cursor.format.frameSize
                 position = (cursor.framesWritten * 1000L / cursor.format.frameRate.toLong()).coerceAtMost(duration)
             }
+            runCatching { cursor.line.close() }
             if (!released) position = duration
         } catch (e: Exception) {
             // Decode or line failure: stop quietly.
@@ -253,7 +325,10 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
     // -- Shared line management ---------------------------------------------
 
     private fun lineFor(sampleRate: Int, channels: Int): javax.sound.sampled.SourceDataLine? {
-        line?.let { return it }
+        line?.let {
+            if (lineRate == sampleRate) return it
+            closeLine()
+        }
         return try {
             val format = javax.sound.sampled.AudioFormat(sampleRate.toFloat(), 16, channels, true, false)
             val info = javax.sound.sampled.DataLine.Info(javax.sound.sampled.SourceDataLine::class.java, format)
@@ -261,6 +336,7 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
             opened.open(format)
             opened.start()
             line = opened
+            lineRate = sampleRate
             opened
         } catch (e: Exception) {
             null
@@ -273,6 +349,25 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
             line?.close()
         }
         line = null
+        lineRate = 0
+    }
+
+    /** Scales interleaved 16-bit PCM in place by the current volume. */
+    private fun applyVolume(pcm: ByteArray, length: Int) {
+        val gain = volume
+        if (gain >= 1f) return
+        if (gain <= 0f) {
+            for (i in 0 until length) pcm[i] = 0
+            return
+        }
+        var i = 0
+        while (i + 1 < length) {
+            val value = ((pcm[i].toInt() and 0xFF) or (pcm[i + 1].toInt() shl 8)).toShort()
+            val scaled = (value * gain).toInt().coerceIn(-32768, 32767).toShort()
+            pcm[i] = (scaled.toInt() and 0xFF).toByte()
+            pcm[i + 1] = ((scaled.toInt() shr 8) and 0xFF).toByte()
+            i += 2
+        }
     }
 }
 

@@ -123,6 +123,60 @@ fun mp3DurationSecondsEstimate(bytes: ByteArray): Double? {
 private val MP3_BITRATES_V1_L3 = intArrayOf(0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0)
 private val MP3_BITRATES_V2_L3 = intArrayOf(0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0)
 
+/**
+ * Decodes a 16-bit PCM WAV into interleaved samples. Walks chunks like
+ * [wavDurationSeconds]; returns null for non-WAV bytes, unsupported
+ * encodings or bit depths the editor does not handle.
+ */
+fun wavToPcm(bytes: ByteArray): AudioPcm? {
+    if (bytes.size < 44) return null
+    if (bytes.riffStr(0) != "RIFF" || bytes.riffStr(8) != "WAVE") return null
+    var pos = 12
+    var format = -1
+    var channels = 0
+    var sampleRate = 0
+    var bits = 0
+    var dataStart = -1
+    var dataLen = -1
+    while (pos + 8 <= bytes.size) {
+        val id = bytes.riffStr(pos)
+        val size = bytes.riffInt(pos + 4)
+        if (size < 0) return null
+        val body = pos + 8
+        when (id) {
+            "fmt " -> {
+                if (body + 16 > bytes.size) return null
+                format = bytes.riffShort(body)
+                channels = bytes.riffShort(body + 2)
+                sampleRate = bytes.riffInt(body + 4)
+                bits = bytes.riffShort(body + 14)
+            }
+
+            "data" -> {
+                dataStart = body
+                dataLen = size
+            }
+        }
+        if (dataStart >= 0) break
+        pos = body + size + (size and 1)
+        if (pos <= body) return null
+    }
+    if (format != 1 || bits != 16 || channels <= 0 || sampleRate <= 0 || dataStart < 0) return null
+    val available = bytes.size - dataStart
+    val usable = minOf(dataLen, available) and 1.inv()
+    if (usable < 2) return null
+    val samples = ShortArray(usable / 2)
+    var off = dataStart
+    for (i in samples.indices) {
+        samples[i] = ((bytes[off].toInt() and 0xFF) or (bytes[off + 1].toInt() shl 8)).toShort()
+        off += 2
+    }
+    // A truncated file can end mid-frame: drop the dangling partial frame.
+    val frames = samples.size / channels
+    val whole = if (frames * channels == samples.size) samples else samples.copyOf(frames * channels)
+    return AudioPcm(whole, sampleRate, channels)
+}
+
 private fun ByteArray.riffStr(off: Int): String = if (off + 4 <= size) decodeToString(off, off + 4) else ""
 
 private fun ByteArray.riffInt(off: Int): Int = (this[off].toInt() and 0xFF) or

@@ -23,6 +23,21 @@ interface MediaAudioEngine {
     fun pause()
     fun seek(positionMs: Long)
     fun release()
+
+    /**
+     * Extended transport controls. Engines without them keep the defaults
+     * (no-ops, [supportsExtendedControls] false) and the UI hides the widgets.
+     */
+    val supportsExtendedControls: Boolean get() = false
+
+    /** Playback rate multiplier (0.25–4); pitch follows speed. */
+    fun setSpeed(factor: Float) {}
+
+    /** Linear gain 0..1. */
+    fun setVolume(volume: Float) {}
+
+    /** Restart from the beginning when the track ends. */
+    fun setLooping(loop: Boolean) {}
 }
 
 expect fun createMediaAudioEngine(): MediaAudioEngine

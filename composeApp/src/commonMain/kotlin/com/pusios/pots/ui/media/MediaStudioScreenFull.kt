@@ -142,6 +142,7 @@ fun MediaStudioScreenFull(
     var lightboxUrl by remember { mutableStateOf<String?>(null) }
     var lightboxIsVideo by remember { mutableStateOf(false) }
     var lightboxIsAudio by remember { mutableStateOf(false) }
+    var editAudioElement by remember { mutableStateOf<CanvasElement?>(null) }
 
     val pending = jobs.values.filter { !it.isTerminal }
     val imageModels = models.filter { it.kind == MediaKind.Image }
@@ -335,6 +336,7 @@ fun MediaStudioScreenFull(
                     lightboxIsAudio = element.isAudio
                     lightboxUrl = element.url ?: element.localPath
                 },
+                onEditAudio = { element -> editAudioElement = element },
             )
 
             MediaStudioTopBar(
@@ -555,6 +557,15 @@ fun MediaStudioScreenFull(
                     }
                 }
             },
+        )
+    }
+
+    editAudioElement?.let { element ->
+        MediaAudioEditorSheet(
+            element = element,
+            audioElements = elements.filter { it.isAudio },
+            onDismiss = { editAudioElement = null },
+            onResult = { wavBytes -> viewModel.addEditedAudioElement(wavBytes) },
         )
     }
 }

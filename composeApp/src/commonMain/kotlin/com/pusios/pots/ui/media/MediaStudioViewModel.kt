@@ -882,6 +882,22 @@ class MediaStudioViewModel(
         }
     }
 
+    /**
+     * Saves an edited audio result (always WAV) under `media/edits/` and
+     * places it as a new audio element. The source element is never touched.
+     * Returns false when the storage write fails (surfaced as ExportFailed).
+     */
+    fun addEditedAudioElement(bytes: ByteArray): Boolean {
+        val path = "media/edits/${Uuid.random()}.wav"
+        if (!com.pusios.pots.writeAppStorageBytes(path, bytes)) {
+            MediaLog.e("Audio edit export failed: storage write refused for $path")
+            return false
+        }
+        importFromGallery(path, isVideo = false, isAudio = true)
+        MediaLog.d("Audio edit saved: $path (${bytes.size} bytes)")
+        return true
+    }
+
     /** Save a canvas element to the device gallery via platform writer. */
     fun exportToGallery(elementId: String) {
         val element = _elements.value.firstOrNull { it.id == elementId } ?: return

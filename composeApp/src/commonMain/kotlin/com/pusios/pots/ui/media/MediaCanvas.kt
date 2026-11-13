@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FlipToBack
 import androidx.compose.material.icons.filled.FlipToFront
 import androidx.compose.material.icons.filled.Fullscreen
@@ -90,6 +91,7 @@ internal fun MediaCanvas(
     onAction: (String, CanvasAction) -> Unit,
     onExportToGallery: (String) -> Unit,
     onOpenLightbox: (CanvasElement) -> Unit,
+    onEditAudio: (CanvasElement) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sorted = elements.sortedBy { it.zIndex }
@@ -121,6 +123,7 @@ internal fun MediaCanvas(
                 onAction = onAction,
                 onExportToGallery = onExportToGallery,
                 onOpenLightbox = onOpenLightbox,
+                onEditAudio = onEditAudio,
             )
         }
 
@@ -192,6 +195,7 @@ private fun CanvasElementView(
     onAction: (String, CanvasAction) -> Unit,
     onExportToGallery: (String) -> Unit,
     onOpenLightbox: (CanvasElement) -> Unit,
+    onEditAudio: (CanvasElement) -> Unit,
 ) {
     val url = element.url
     val local = element.localPath
@@ -261,6 +265,7 @@ private fun CanvasElementView(
                             ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }
                             ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
                             ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(element.id, CanvasAction.Duplicate) }
+                            ElementChip(Icons.Filled.Edit, "Редактировать") { onEditAudio(element) }
                             ElementChip(Icons.Filled.Fullscreen, "Открыть плеер") { onOpenLightbox(element) }
                             ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(element.id) }
                             ElementChip(Icons.Filled.Delete, "Удалить", tint = MaterialTheme.colorScheme.error) {
