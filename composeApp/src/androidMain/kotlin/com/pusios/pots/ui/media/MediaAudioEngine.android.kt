@@ -27,11 +27,12 @@ internal class AndroidMediaAudioEngine : MediaAudioEngine {
         val file = File.createTempFile("pots-audio", ".bin")
         FileOutputStream(file).use { it.write(bytes) }
         tempFile = file
-        player = MediaPlayer().apply {
+        val mp = MediaPlayer().apply {
             setDataSource(file.absolutePath)
             prepare()
-            duration = this.duration.toLong()
         }
+        player = mp
+        duration = mp.duration.toLong()
     }
 
     override fun play() {

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,7 +54,7 @@ import com.pusios.pots.ui.handCursor
 internal fun MediaDock(
     prompt: String,
     onPromptChange: (String) -> Unit,
-    isVideoMode: Boolean,
+    placeholder: String,
     isBusy: Boolean,
     isEnhancing: Boolean,
     onCreate: () -> Unit,
@@ -73,7 +74,7 @@ internal fun MediaDock(
                     value = prompt,
                     onValueChange = onPromptChange,
                     modifier = Modifier.weight(1f).semantics { contentDescription = "Промпт генерации" },
-                    placeholder = { Text(if (isVideoMode) "Опиши видео…" else "Опиши изображение…") },
+                    placeholder = { Text(placeholder) },
                     singleLine = false,
                     minLines = 1,
                     maxLines = 3,
@@ -182,16 +183,17 @@ internal fun ReferenceStrip(
     }
 }
 
-/** Image/video switch; shared by the studio top bar. */
+/** Image/video/audio switch; shared by the studio top bar. */
 @Composable
-internal fun ModeSegment(isVideoMode: Boolean, onToggle: () -> Unit) {
+internal fun ModeSegment(mode: MediaMode, onSelect: (MediaMode) -> Unit) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
     ) {
         Row(Modifier.padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
-            ModeSegmentButton(Icons.Filled.Image, "Режим изображений", active = !isVideoMode, onClick = { if (isVideoMode) onToggle() })
-            ModeSegmentButton(Icons.Filled.Movie, "Режим видео", active = isVideoMode, onClick = { if (!isVideoMode) onToggle() })
+            ModeSegmentButton(Icons.Filled.Image, "Режим изображений", active = mode == MediaMode.Image, onClick = { onSelect(MediaMode.Image) })
+            ModeSegmentButton(Icons.Filled.Movie, "Режим видео", active = mode == MediaMode.Video, onClick = { onSelect(MediaMode.Video) })
+            ModeSegmentButton(Icons.Filled.MusicNote, "Режим аудио", active = mode == MediaMode.Audio, onClick = { onSelect(MediaMode.Audio) })
         }
     }
 }

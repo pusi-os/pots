@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Schedule
@@ -299,6 +300,12 @@ private fun HistoryThumb(entry: MediaHistoryEntry, onOpen: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         when {
+            entry.hasPreview && entry.isAudio -> Icon(
+                Icons.Filled.MusicNote,
+                contentDescription = "Открыть аудио",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             entry.hasPreview && !entry.isVideo && source != null -> AsyncImage(
                 model = rememberImageModel(source),
                 contentDescription = "Открыть результат",
@@ -319,7 +326,11 @@ private fun HistoryThumb(entry: MediaHistoryEntry, onOpen: () -> Unit) {
             )
 
             else -> Icon(
-                if (entry.isVideo) Icons.Filled.Movie else Icons.Filled.Image,
+                when {
+                    entry.isAudio -> Icons.Filled.MusicNote
+                    entry.isVideo -> Icons.Filled.Movie
+                    else -> Icons.Filled.Image
+                },
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )

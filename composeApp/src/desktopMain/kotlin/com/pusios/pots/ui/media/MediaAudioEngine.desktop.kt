@@ -15,10 +15,15 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
     private var isMp3 = false
 
     @Volatile private var duration = 0L
+
     @Volatile private var position = 0L
+
     @Volatile private var playing = false
+
     @Volatile private var released = false
+
     @Volatile private var pauseRequested = false
+
     @Volatile private var seekTargetMs = -1L
 
     private var worker: Thread? = null
@@ -68,22 +73,20 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
 
     // -- MP3 ----------------------------------------------------------------
 
-    private fun mp3DurationMs(bytes: ByteArray): Long {
-        return try {
-            val bitstream = javazoom.jl.decoder.Bitstream(java.io.ByteArrayInputStream(bytes))
-            var frames = 0f
-            var msPerFrame = 0f
-            while (true) {
-                val header = bitstream.readFrame() ?: break
-                if (msPerFrame == 0f) msPerFrame = header.ms_per_frame()
-                frames += 1f
-                bitstream.closeFrame()
-            }
-            bitstream.close()
-            (frames * msPerFrame).toLong()
-        } catch (e: Exception) {
-            0L
+    private fun mp3DurationMs(bytes: ByteArray): Long = try {
+        val bitstream = javazoom.jl.decoder.Bitstream(java.io.ByteArrayInputStream(bytes))
+        var frames = 0f
+        var msPerFrame = 0f
+        while (true) {
+            val header = bitstream.readFrame() ?: break
+            if (msPerFrame == 0f) msPerFrame = header.ms_per_frame()
+            frames += 1f
+            bitstream.closeFrame()
         }
+        bitstream.close()
+        (frames * msPerFrame).toLong()
+    } catch (e: Exception) {
+        0L
     }
 
     private class Mp3Cursor(
@@ -162,15 +165,13 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
 
     // -- WAV ----------------------------------------------------------------
 
-    private fun wavDurationMs(bytes: ByteArray): Long {
-        return try {
-            val stream = javax.sound.sampled.AudioSystem.getAudioInputStream(java.io.ByteArrayInputStream(bytes))
-            val frames = stream.frameLength
-            val rate = stream.format.frameRate
-            if (frames > 0 && rate > 0f) frames * 1000L / rate.toLong() else 0L
-        } catch (e: Exception) {
-            0L
-        }
+    private fun wavDurationMs(bytes: ByteArray): Long = try {
+        val stream = javax.sound.sampled.AudioSystem.getAudioInputStream(java.io.ByteArrayInputStream(bytes))
+        val frames = stream.frameLength
+        val rate = stream.format.frameRate
+        if (frames > 0 && rate > 0f) frames * 1000L / rate.toLong() else 0L
+    } catch (e: Exception) {
+        0L
     }
 
     private class WavCursor(
@@ -181,31 +182,34 @@ internal class DesktopMediaAudioEngine : MediaAudioEngine {
         var framesWritten: Long,
     )
 
-    private fun openWavAt(targetMs: Long): WavCursor? {
-        return try {
-            var stream = javax.sound.sampled.AudioSystem.getAudioInputStream(java.io.ByteArrayInputStream(source))
-            var format = stream.format
-            if (format.encoding != javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED) {
-                val pcm = javax.sound.sampled.AudioFormat(
-                    javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED,
-                    format.sampleRate, 16, format.channels, format.channels * 2, format.sampleRate, false,
-                )
-                stream = javax.sound.sampled.AudioSystem.getAudioInputStream(pcm, stream)
-                format = pcm
-            }
-            var framesWritten = 0L
-            if (targetMs > 0 && format.frameRate > 0f) {
-                framesWritten = targetMs * format.frameRate.toLong() / 1000L
-                stream.skip(framesWritten * format.frameSize)
-            }
-            val info = javax.sound.sampled.DataLine.Info(javax.sound.sampled.SourceDataLine::class.java, format)
-            val line = javax.sound.sampled.AudioSystem.getLine(info) as javax.sound.sampled.SourceDataLine
-            line.open(format)
-            line.start()
-            WavCursor(stream, format, line, ByteArray((format.frameSize * 512).coerceAtLeast(1024)), framesWritten)
-        } catch (e: Exception) {
-            null
+    private fun openWavAt(targetMs: Long): WavCursor? = try {
+        var stream = javax.sound.sampled.AudioSystem.getAudioInputStream(java.io.ByteArrayInputStream(source))
+        var format = stream.format
+        if (format.encoding != javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED) {
+            val pcm = javax.sound.sampled.AudioFormat(
+                javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED,
+                format.sampleRate,
+                16,
+                format.channels,
+                format.channels * 2,
+                format.sampleRate,
+                false,
+            )
+            stream = javax.sound.sampled.AudioSystem.getAudioInputStream(pcm, stream)
+            format = pcm
         }
+        var framesWritten = 0L
+        if (targetMs > 0 && format.frameRate > 0f) {
+            framesWritten = targetMs * format.frameRate.toLong() / 1000L
+            stream.skip(framesWritten * format.frameSize)
+        }
+        val info = javax.sound.sampled.DataLine.Info(javax.sound.sampled.SourceDataLine::class.java, format)
+        val line = javax.sound.sampled.AudioSystem.getLine(info) as javax.sound.sampled.SourceDataLine
+        line.open(format)
+        line.start()
+        WavCursor(stream, format, line, ByteArray((format.frameSize * 512).coerceAtLeast(1024)), framesWritten)
+    } catch (e: Exception) {
+        null
     }
 
     private fun wavLoop() {

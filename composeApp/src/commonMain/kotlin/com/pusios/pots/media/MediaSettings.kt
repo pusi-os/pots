@@ -22,6 +22,12 @@ fun AppSettings.setInstanceMediaVideoModelId(instanceId: String, modelId: String
     settings.putString("instance_${instanceId}_media_video_model_id", modelId)
 }
 
+fun AppSettings.getInstanceMediaAudioModelId(instanceId: String): String = settings.getString("instance_${instanceId}_media_audio_model_id", "")
+
+fun AppSettings.setInstanceMediaAudioModelId(instanceId: String, modelId: String) {
+    settings.putString("instance_${instanceId}_media_audio_model_id", modelId)
+}
+
 /**
  * The service instance media generation bills. Chat keys double as media keys,
  * so prefer the first instance that actually has one; the first instance is
@@ -36,4 +42,5 @@ fun AppSettings.resolveMediaInstance(): ServiceInstance? {
 fun AppSettings.removeInstanceMediaSettings(instanceId: String) {
     settings.remove("instance_${instanceId}_media_image_model_id")
     settings.remove("instance_${instanceId}_media_video_model_id")
+    settings.remove("instance_${instanceId}_media_audio_model_id")
 }

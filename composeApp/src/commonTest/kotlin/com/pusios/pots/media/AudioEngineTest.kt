@@ -37,10 +37,19 @@ class AudioEngineTest {
             out[pos] = (v and 0xFF).toByte()
             out[pos + 1] = ((v shr 8) and 0xFF).toByte()
         }
-        put(0, "RIFF"); putLe32(4, 36 + dataSize); put(8, "WAVE")
-        put(12, "fmt "); putLe32(16, 16); putLe16(20, 1); putLe16(22, 1)
-        putLe32(24, sampleRate); putLe32(28, sampleRate * 2); putLe16(32, 2); putLe16(34, 16)
-        put(36, "data"); putLe32(40, dataSize)
+        put(0, "RIFF")
+        putLe32(4, 36 + dataSize)
+        put(8, "WAVE")
+        put(12, "fmt ")
+        putLe32(16, 16)
+        putLe16(20, 1)
+        putLe16(22, 1)
+        putLe32(24, sampleRate)
+        putLe32(28, sampleRate * 2)
+        putLe16(32, 2)
+        putLe16(34, 16)
+        put(36, "data")
+        putLe32(40, dataSize)
         data.copyInto(out, 44)
         return out
     }

@@ -221,13 +221,24 @@ private fun CanvasElementView(
                     if (rotation != 0f) onRotate(element.id, rotation)
                 }
             }
-            .semantics { contentDescription = if (element.isVideo) "Видео-элемент" else "Изображение" }
+            .semantics {
+                contentDescription = when {
+                    element.isAudio -> "Аудио-элемент"
+                    element.isVideo -> "Видео-элемент"
+                    else -> "Изображение"
+                }
+            }
             .clickable(role = Role.Button, onClick = onSelect),
     ) {
-        if (element.isVideo) {
-            MediaVideoPlayer(url = url ?: local ?: "", autoplay = false, fullControls = true, modifier = Modifier.fillMaxSize())
-        } else {
-            AsyncImage(
+        when {
+            element.isAudio -> MediaAudioPlayer(
+                source = element.localPath ?: element.url,
+                modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
+            )
+
+            element.isVideo -> MediaVideoPlayer(url = url ?: local ?: "", autoplay = false, fullControls = true, modifier = Modifier.fillMaxSize())
+
+            else -> AsyncImage(
                 model = rememberImageModel(url ?: local),
                 contentDescription = "Изображение на канвасе",
                 modifier = Modifier.fillMaxSize(),
@@ -243,21 +254,36 @@ private fun CanvasElementView(
                 tonalElevation = 4.dp,
             ) {
                 Column(Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ElementChip(Icons.AutoMirrored.Filled.RotateLeft, "Повернуть влево") { onRotate(element.id, -15f) }
-                        ElementChip(Icons.AutoMirrored.Filled.RotateRight, "Повернуть вправо") { onRotate(element.id, 15f) }
-                        ElementChip(Icons.Filled.Remove, "Уменьшить") { onScale(element.id, 0.85f) }
-                        ElementChip(Icons.Filled.Add, "Увеличить") { onScale(element.id, 1.2f) }
-                        ElementChip(Icons.Filled.Fullscreen, "Открыть на весь экран") { onOpenLightbox(element) }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }
-                        ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
-                        ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(element.id, CanvasAction.Duplicate) }
-                        ElementChip(Icons.Filled.Link, "Использовать как референс") { onAction(element.id, CanvasAction.UseAsReference) }
-                        ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(element.id) }
-                        ElementChip(Icons.Filled.Delete, "Удалить", tint = MaterialTheme.colorScheme.error) {
-                            onAction(element.id, CanvasAction.Delete)
+                    if (element.isAudio) {
+                        // Audio card: playback lives in the card itself; the panel
+                        // keeps layer/save/delete. No reference or transform actions.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }
+                            ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
+                            ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(element.id, CanvasAction.Duplicate) }
+                            ElementChip(Icons.Filled.Fullscreen, "Открыть плеер") { onOpenLightbox(element) }
+                            ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(element.id) }
+                            ElementChip(Icons.Filled.Delete, "Удалить", tint = MaterialTheme.colorScheme.error) {
+                                onAction(element.id, CanvasAction.Delete)
+                            }
+                        }
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ElementChip(Icons.AutoMirrored.Filled.RotateLeft, "Повернуть влево") { onRotate(element.id, -15f) }
+                            ElementChip(Icons.AutoMirrored.Filled.RotateRight, "Повернуть вправо") { onRotate(element.id, 15f) }
+                            ElementChip(Icons.Filled.Remove, "Уменьшить") { onScale(element.id, 0.85f) }
+                            ElementChip(Icons.Filled.Add, "Увеличить") { onScale(element.id, 1.2f) }
+                            ElementChip(Icons.Filled.Fullscreen, "Открыть на весь экран") { onOpenLightbox(element) }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }
+                            ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
+                            ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(element.id, CanvasAction.Duplicate) }
+                            ElementChip(Icons.Filled.Link, "Использовать как референс") { onAction(element.id, CanvasAction.UseAsReference) }
+                            ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(element.id) }
+                            ElementChip(Icons.Filled.Delete, "Удалить", tint = MaterialTheme.colorScheme.error) {
+                                onAction(element.id, CanvasAction.Delete)
+                            }
                         }
                     }
                 }

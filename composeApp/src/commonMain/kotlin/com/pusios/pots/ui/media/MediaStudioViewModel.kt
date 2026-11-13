@@ -20,8 +20,12 @@ import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.PlusVibeMediaProvider
 import com.pusios.pots.media.PromptEnhancer
 import com.pusios.pots.media.compressReferenceToLimit
+import com.pusios.pots.media.defaultAudioModel
+import com.pusios.pots.media.getInstanceMediaAudioModelId
 import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
+import com.pusios.pots.media.isGenerativeAudio
+import com.pusios.pots.media.setInstanceMediaAudioModelId
 import com.pusios.pots.media.setInstanceMediaImageModelId
 import com.pusios.pots.media.setInstanceMediaVideoModelId
 import com.pusios.pots.media.toHistoryReference
@@ -100,6 +104,9 @@ class MediaStudioViewModel(
     private val _selectedVideoModelId = MutableStateFlow(appSettings.getInstanceMediaVideoModelId(instanceIdProvider()))
     val selectedVideoModelId: StateFlow<String> = _selectedVideoModelId.asStateFlow()
 
+    private val _selectedAudioModelId = MutableStateFlow(appSettings.getInstanceMediaAudioModelId(instanceIdProvider()))
+    val selectedAudioModelId: StateFlow<String> = _selectedAudioModelId.asStateFlow()
+
     /** Emits when a new job succeeds; host announces via TTS ("генерация готова"). */
     private val _justFinished = MutableStateFlow<MediaJobState?>(null)
     val justFinished: StateFlow<MediaJobState?> = _justFinished.asStateFlow()
@@ -136,6 +143,9 @@ class MediaStudioViewModel(
                     if (catalog.isNotEmpty()) {
                         if (catalog.none { it.id == _selectedImageModelId.value }) _selectedImageModelId.value = ""
                         if (catalog.none { it.id == _selectedVideoModelId.value }) _selectedVideoModelId.value = ""
+                        if (catalog.none { it.id == _selectedAudioModelId.value && it.isGenerativeAudio() }) {
+                            _selectedAudioModelId.value = ""
+                        }
                     }
                 }
                 .onFailure { showError("Каталог моделей не загрузился", it) }
@@ -148,6 +158,10 @@ class MediaStudioViewModel(
 
     fun generateVideo(prompt: String, opts: Map<String, String> = emptyMap()) {
         generate(prompt, opts, MediaKind.Video)
+    }
+
+    fun generateAudio(prompt: String, opts: Map<String, String> = emptyMap()) {
+        generate(prompt, opts, MediaKind.Audio)
     }
 
     /** Rewrites [prompt] with the active chat model and hands the result back. Ignored while one is running. */
@@ -183,7 +197,11 @@ class MediaStudioViewModel(
         val model = resolveModel(kind, instanceId)
         if (model == null) {
             _error.value = MediaStudioError(
-                if (kind == MediaKind.Image) "Нет доступной модели изображения — обнови каталог" else "Нет доступной модели видео — обнови каталог",
+                when (kind) {
+                    MediaKind.Image -> "Нет доступной модели изображения — обнови каталог"
+                    MediaKind.Video -> "Нет доступной модели видео — обнови каталог"
+                    else -> "Нет доступной аудио-модели — обнови каталог"
+                },
             )
             MediaLog.w("Generate refused: no $kind model available")
             return
@@ -195,6 +213,7 @@ class MediaStudioViewModel(
             localId = Uuid.random().toString(),
             createdAtMs = kotlin.time.Clock.System.now().toEpochMilliseconds(),
             isVideo = kind == MediaKind.Video,
+            isAudio = kind == MediaKind.Audio || kind == MediaKind.Music,
             model = model.id,
             prompt = prompt,
             opts = opts,
@@ -312,7 +331,7 @@ class MediaStudioViewModel(
                 _error.value = MediaStudioError("Файл ещё не скачан — попробуй через минуту")
                 return@launch
             }
-            saveFileToDevice(bytes, "pots-${entry.localId.take(8)}", if (entry.isVideo) "mp4" else "png")
+            saveFileToDevice(bytes, "pots-${entry.localId.take(8)}", galleryExtension(entry.localPath, entry.isVideo, entry.isAudio))
         }
     }
 
@@ -332,7 +351,11 @@ class MediaStudioViewModel(
         val state = MediaJobState(
             jobId = entry.jobId ?: return,
             status = MediaJobStatus.Success,
-            kind = if (entry.isVideo) MediaKind.Video else MediaKind.Image,
+            kind = when {
+                entry.isAudio -> MediaKind.Audio
+                entry.isVideo -> MediaKind.Video
+                else -> MediaKind.Image
+            },
             resultUrls = listOfNotNull(entry.resultUrl),
             localPath = entry.localPath,
         )
@@ -375,8 +398,18 @@ class MediaStudioViewModel(
         }
     }
 
-    /** Saved choice wins; otherwise auto-pick the first catalog model and persist it. */
+    /** Saved choice wins; otherwise auto-pick and persist (audio uses the research defaults). */
     private fun resolveModel(kind: MediaKind, instanceId: String): MediaModel? {
+        if (kind == MediaKind.Audio || kind == MediaKind.Music) {
+            val candidates = _models.value.filter { it.isGenerativeAudio() }
+            val saved = candidates.firstOrNull { it.id == _selectedAudioModelId.value }
+            if (saved != null) return saved
+            val fallback = defaultAudioModel(candidates) ?: return null
+            appSettings.setInstanceMediaAudioModelId(instanceId, fallback.id)
+            _selectedAudioModelId.value = fallback.id
+            MediaLog.i("Auto-selected audio model: ${fallback.id}")
+            return fallback
+        }
         val candidates = _models.value.filter { it.kind == kind }
         val savedId = if (kind == MediaKind.Image) _selectedImageModelId.value else _selectedVideoModelId.value
         val saved = candidates.firstOrNull { it.id == savedId }
@@ -403,9 +436,15 @@ class MediaStudioViewModel(
         _selectedVideoModelId.value = modelId
     }
 
+    fun selectAudioModel(modelId: String) {
+        appSettings.setInstanceMediaAudioModelId(instanceIdProvider(), modelId)
+        _selectedAudioModelId.value = modelId
+    }
+
     fun addElement(state: MediaJobState) {
         val url = state.resultUrls.firstOrNull() ?: return
-        val isVideo = state.kind == MediaKind.Video || url.endsWith(".mp4")
+        val isAudio = state.kind == MediaKind.Audio || state.kind == MediaKind.Music || AUDIO_EXTENSIONS.any { url.endsWith(it, ignoreCase = true) }
+        val isVideo = !isAudio && (state.kind == MediaKind.Video || url.endsWith(".mp4"))
         val id = Uuid.random().toString()
         _elements.update {
             it + CanvasElement(
@@ -414,6 +453,7 @@ class MediaStudioViewModel(
                 url = url,
                 localPath = state.localPath,
                 isVideo = isVideo,
+                isAudio = isAudio,
                 x = (it.size * 32f),
                 y = (it.size * 32f),
                 zIndex = (it.maxOfOrNull { e -> e.zIndex } ?: 0) + 1,
@@ -515,7 +555,7 @@ class MediaStudioViewModel(
     }
 
     /** Add an imported gallery asset straight to the canvas (bytes already cached). */
-    fun importFromGallery(localPath: String, isVideo: Boolean, bytes: ByteArray? = null) {
+    fun importFromGallery(localPath: String, isVideo: Boolean, bytes: ByteArray? = null, isAudio: Boolean = false) {
         if (bytes != null) com.pusios.pots.writeAppStorageBytes(localPath, bytes)
         val id = Uuid.random().toString()
         _elements.update {
@@ -525,6 +565,7 @@ class MediaStudioViewModel(
                 url = null,
                 localPath = localPath,
                 isVideo = isVideo,
+                isAudio = isAudio,
                 x = (it.size * 32f),
                 y = (it.size * 32f),
                 zIndex = (it.maxOfOrNull { e -> e.zIndex } ?: 0) + 1,
@@ -539,8 +580,18 @@ class MediaStudioViewModel(
             val bytes = element.localPath?.let { readAppStorageBytes(it) }
                 ?: element.url?.let { runCatching { repositoryDownload(element.url) }.getOrNull() }
                 ?: return@launch
-            val ext = if (element.isVideo) "mp4" else "png"
-            saveFileToDevice(bytes, "pots-media-${elementId.take(8)}", ext)
+            saveFileToDevice(bytes, "pots-media-${elementId.take(8)}", galleryExtension(element.localPath, element.isVideo, element.isAudio))
+        }
+    }
+
+    /** Extension from the cached path when present, otherwise by element type. */
+    private fun galleryExtension(localPath: String?, isVideo: Boolean, isAudio: Boolean): String {
+        val fromPath = localPath?.substringAfterLast('.', "")?.takeIf { it.length <= 4 }
+        if (!fromPath.isNullOrBlank()) return fromPath
+        return when {
+            isAudio -> "mp3"
+            isVideo -> "mp4"
+            else -> "png"
         }
     }
 
@@ -548,5 +599,9 @@ class MediaStudioViewModel(
         // Provider download is key-free for signed URLs; reuse repository's next
         // available mechanism by fetching through a fresh provider call.
         return PlusVibeMediaProvider().downloadResult(apiKeyProvider(), url)
+    }
+
+    companion object {
+        private val AUDIO_EXTENSIONS = listOf(".mp3", ".wav", ".opus", ".flac", ".m4a", ".aac", ".ogg")
     }
 }

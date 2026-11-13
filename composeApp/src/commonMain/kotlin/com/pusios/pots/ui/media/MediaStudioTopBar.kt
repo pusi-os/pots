@@ -45,8 +45,8 @@ internal fun MediaStudioTopBar(
     onOpenAspectRatio: () -> Unit,
     paramChips: List<ParamChip>,
     onOpenParam: (String) -> Unit,
-    isVideoMode: Boolean,
-    onToggleMode: () -> Unit,
+    mode: MediaMode,
+    onSelectMode: (MediaMode) -> Unit,
     currentModelLabel: String?,
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -70,7 +70,7 @@ internal fun MediaStudioTopBar(
         Spacer(Modifier.size(6.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            ModeSegment(isVideoMode = isVideoMode, onToggle = onToggleMode)
+            ModeSegment(mode = mode, onSelect = onSelectMode)
             currentModelLabel?.let { label ->
                 Spacer(Modifier.width(8.dp))
                 TopBarChip(label, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, onOpenModels)

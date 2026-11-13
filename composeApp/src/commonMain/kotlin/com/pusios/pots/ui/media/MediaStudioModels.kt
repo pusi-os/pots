@@ -2,6 +2,13 @@ package com.pusios.pots.ui.media
 
 import androidx.compose.runtime.Immutable
 
+/** Studio generation mode; drives chips, the model sheet and the dock. */
+enum class MediaMode {
+    Image,
+    Video,
+    Audio,
+}
+
 /** One placed asset on the Media Studio canvas. */
 @Immutable
 data class CanvasElement(
@@ -12,6 +19,8 @@ data class CanvasElement(
     /** Local cached copy (`media/jobs/…`) once downloaded. */
     val localPath: String? = null,
     val isVideo: Boolean = false,
+    /** Audio/music result: rendered as a player card instead of an image. */
+    val isAudio: Boolean = false,
     val x: Float = 0f,
     val y: Float = 0f,
     val scale: Float = 1f,

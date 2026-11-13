@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,9 +41,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.pusios.pots.isImageCompressionSupported
+import com.pusios.pots.media.AudioSheetGroup
 import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaParamDef
 import com.pusios.pots.media.MediaReference
+import com.pusios.pots.media.audioSheetGroup
+import com.pusios.pots.media.audioToolbarParams
+import com.pusios.pots.media.isGenerativeAudio
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.saveFileToDevice
 import com.pusios.pots.ui.handCursor
@@ -72,6 +77,7 @@ fun MediaStudioScreenFull(
     val justFinished by viewModel.justFinished.collectAsState()
     val selectedImageModelId by viewModel.selectedImageModelId.collectAsState()
     val selectedVideoModelId by viewModel.selectedVideoModelId.collectAsState()
+    val selectedAudioModelId by viewModel.selectedAudioModelId.collectAsState()
     val historyEntries by viewModel.historyEntries.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -105,8 +111,9 @@ fun MediaStudioScreenFull(
         }
     }
 
-    var prompt by remember { mutableStateOf("") }
-    var isVideoMode by remember { mutableStateOf(false) }
+    var promptByMode by remember { mutableStateOf(MediaMode.entries.associateWith { "" }) }
+    var mode by remember { mutableStateOf(MediaMode.Image) }
+    val prompt = promptByMode[mode].orEmpty()
     var canvasScale by remember { mutableFloatStateOf(1f) }
     var canvasOffset by remember { mutableStateOf(Offset.Zero) }
     var params by remember { mutableStateOf(mapOf<String, String>()) }
@@ -116,38 +123,70 @@ fun MediaStudioScreenFull(
     var openParam by remember { mutableStateOf<String?>(null) }
     var lightboxUrl by remember { mutableStateOf<String?>(null) }
     var lightboxIsVideo by remember { mutableStateOf(false) }
+    var lightboxIsAudio by remember { mutableStateOf(false) }
 
     val pending = jobs.values.filter { !it.isTerminal }
     val imageModels = models.filter { it.kind == MediaKind.Image }
     val videoModels = models.filter { it.kind == MediaKind.Video }
-    val currentModels = if (isVideoMode) videoModels else imageModels
-    val currentModelId = if (isVideoMode) selectedVideoModelId else selectedImageModelId
+    val audioModels = models.filter { it.isGenerativeAudio() }
+    val currentModels = when (mode) {
+        MediaMode.Image -> imageModels
+        MediaMode.Video -> videoModels
+        MediaMode.Audio -> audioModels
+    }
+    val currentModelId = when (mode) {
+        MediaMode.Image -> selectedImageModelId
+        MediaMode.Video -> selectedVideoModelId
+        MediaMode.Audio -> selectedAudioModelId
+    }
     val currentModel = currentModels.firstOrNull { it.id == currentModelId } ?: currentModels.firstOrNull()
-    val toolbarParamDefs: List<MediaParamDef> = currentModel
-        ?.params
-        ?.filter { it.key in listOf("resolution", "duration") && it.options.isNotEmpty() }
-        .orEmpty()
-    val aspectRatioDef: MediaParamDef? = if (isVideoMode) {
-        null
-    } else {
+    val toolbarParamDefs: List<MediaParamDef> = when (mode) {
+        // Audio chips come from the catalog axes, universal per model; image/video
+        // keep the fixed resolution/duration pair they had before.
+        MediaMode.Audio -> audioToolbarParams(currentModel)
+
+        else ->
+            currentModel
+                ?.params
+                ?.filter { it.key in listOf("resolution", "duration") && it.options.isNotEmpty() }
+                .orEmpty()
+    }
+    val aspectRatioDef: MediaParamDef? = if (mode == MediaMode.Image) {
         currentModel
             ?.params
             ?.firstOrNull { it.key == "aspect_ratio" && it.options.isNotEmpty() }
+    } else {
+        null
     }
     val modelChipLabel = when {
         currentModel != null -> currentModel.id
         models.isEmpty() -> "Каталог пуст"
         else -> "Выбрать модель"
     }
+    val dockPlaceholder = when {
+        mode == MediaMode.Audio && currentModel?.audioSheetGroup() == AudioSheetGroup.Music -> "Опиши трек: жанр, настроение…"
+        mode == MediaMode.Audio -> "Опиши звук или речь…"
+        mode == MediaMode.Video -> "Опиши видео…"
+        else -> "Опиши изображение…"
+    }
 
     // Canvas import: dropped on the board as an element.
-    val importPicker = rememberFilePickerLauncher(type = FileKitType.File(extensions = listOf("png", "jpg", "jpeg", "webp", "mp4", "mov"))) { file: PlatformFile? ->
+    val importPicker = rememberFilePickerLauncher(
+        type = FileKitType.File(extensions = listOf("png", "jpg", "jpeg", "webp", "mp4", "mov", "mp3", "wav", "m4a", "ogg")),
+    ) { file: PlatformFile? ->
         file ?: return@rememberFilePickerLauncher
         scope.launch {
             val bytes = runCatching { file.readBytes() }.getOrNull() ?: return@launch
-            val isVideo = file.name.endsWith(".mp4", ignoreCase = true) || file.name.endsWith(".mov", ignoreCase = true)
-            val path = "media/imports/${kotlin.time.Clock.System.now().toEpochMilliseconds()}." + if (isVideo) "mp4" else "png"
-            viewModel.importFromGallery(path, isVideo, bytes)
+            val lower = file.name.lowercase()
+            val isVideo = lower.endsWith(".mp4") || lower.endsWith(".mov")
+            val isAudio = lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".m4a") || lower.endsWith(".ogg")
+            val ext = when {
+                isVideo -> "mp4"
+                isAudio -> lower.substringAfterLast('.', "mp3")
+                else -> "png"
+            }
+            val path = "media/imports/${kotlin.time.Clock.System.now().toEpochMilliseconds()}.$ext"
+            viewModel.importFromGallery(path, isVideo, bytes, isAudio = isAudio)
         }
     }
 
@@ -180,21 +219,23 @@ fun MediaStudioScreenFull(
                 }
                 MediaDock(
                     prompt = prompt,
-                    onPromptChange = { prompt = it },
-                    isVideoMode = isVideoMode,
+                    onPromptChange = { promptByMode = promptByMode + (mode to it) },
+                    placeholder = dockPlaceholder,
                     isBusy = isStarting || pending.isNotEmpty(),
                     isEnhancing = isEnhancing,
                     onCreate = {
                         if (prompt.isBlank()) {
                             scope.launch { snackbarHostState.showSnackbar("Опиши, что нужно сгенерировать") }
-                        } else if (isVideoMode) {
-                            viewModel.generateVideo(prompt, params)
                         } else {
-                            viewModel.generateImage(prompt, params)
+                            when (mode) {
+                                MediaMode.Image -> viewModel.generateImage(prompt, params)
+                                MediaMode.Video -> viewModel.generateVideo(prompt, params)
+                                MediaMode.Audio -> viewModel.generateAudio(prompt, params)
+                            }
                         }
                     },
                     onEnhancePrompt = {
-                        viewModel.enhancePrompt(prompt) { prompt = it }
+                        viewModel.enhancePrompt(prompt) { promptByMode = promptByMode + (mode to it) }
                     },
                 )
             }
@@ -224,6 +265,7 @@ fun MediaStudioScreenFull(
                 onExportToGallery = viewModel::exportToGallery,
                 onOpenLightbox = { element ->
                     lightboxIsVideo = element.isVideo
+                    lightboxIsAudio = element.isAudio
                     lightboxUrl = element.url ?: element.localPath
                 },
             )
@@ -238,10 +280,10 @@ fun MediaStudioScreenFull(
                 onOpenModels = { showModelSheet = true },
                 onOpenHistory = { showHistory = true },
                 historyBadge = historyEntries.count { it.isActive },
-                isVideoMode = isVideoMode,
-                onToggleMode = { isVideoMode = !isVideoMode },
+                mode = mode,
+                onSelectMode = { mode = it },
                 currentModelLabel = modelChipLabel,
-                aspectRatioLabel = if (isVideoMode) null else aspectRatioDef?.let { def -> params[def.key] ?: def.defaultValue },
+                aspectRatioLabel = if (mode == MediaMode.Image) aspectRatioDef?.let { def -> params[def.key] ?: def.defaultValue } else null,
                 onOpenAspectRatio = { showAspectRatio = true },
                 paramChips = toolbarParamDefs.map { def -> ParamChip(def.key, params[def.key] ?: def.defaultValue.orEmpty()) },
                 onOpenParam = { key -> openParam = key },
@@ -271,15 +313,24 @@ fun MediaStudioScreenFull(
     if (showModelSheet) {
         MediaModelSheet(
             models = models,
-            kind = if (isVideoMode) MediaKind.Video else MediaKind.Image,
+            kind = when (mode) {
+                MediaMode.Image -> MediaKind.Image
+                MediaMode.Video -> MediaKind.Video
+                MediaMode.Audio -> MediaKind.Audio
+            },
             selectedImageModelId = selectedImageModelId,
             selectedVideoModelId = selectedVideoModelId,
+            selectedAudioModelId = selectedAudioModelId,
             onSelectImage = {
                 viewModel.selectImageModel(it)
                 params = emptyMap()
             },
             onSelectVideo = {
                 viewModel.selectVideoModel(it)
+                params = emptyMap()
+            },
+            onSelectAudio = {
+                viewModel.selectAudioModel(it)
                 params = emptyMap()
             },
             onDismiss = { showModelSheet = false },
@@ -293,6 +344,7 @@ fun MediaStudioScreenFull(
             onOpen = { entry ->
                 val source = entry.localPath ?: entry.resultUrl ?: return@MediaHistorySheet
                 lightboxIsVideo = entry.isVideo
+                lightboxIsAudio = entry.isAudio
                 lightboxUrl = source
             },
             onSave = viewModel::saveToGallery,
@@ -307,12 +359,20 @@ fun MediaStudioScreenFull(
         MediaLightbox(
             url = url,
             isVideo = lightboxIsVideo,
+            isAudio = lightboxIsAudio,
             onDismiss = { lightboxUrl = null },
             onSave = {
                 scope.launch {
                     val bytes = readAppStorageBytes(url)
                         ?: runCatching { com.pusios.pots.media.PlusVibeMediaProvider().downloadResult("", url) }.getOrNull()
-                    if (bytes != null) saveFileToDevice(bytes, "pots-lightbox", if (lightboxIsVideo) "mp4" else "png")
+                    if (bytes != null) {
+                        val ext = when {
+                            lightboxIsAudio -> url.substringAfterLast('.', "mp3").takeIf { it.length <= 4 } ?: "mp3"
+                            lightboxIsVideo -> "mp4"
+                            else -> "png"
+                        }
+                        saveFileToDevice(bytes, "pots-lightbox", ext)
+                    }
                 }
             },
         )
@@ -321,16 +381,24 @@ fun MediaStudioScreenFull(
 
 /** Full-screen viewer for a finished result, with save and close icon buttons. */
 @Composable
-fun MediaLightbox(url: String, isVideo: Boolean, onDismiss: () -> Unit, onSave: () -> Unit) {
+fun MediaLightbox(url: String, isVideo: Boolean, onDismiss: () -> Unit, onSave: () -> Unit, isAudio: Boolean = false) {
     var scale by remember { mutableFloatStateOf(1f) }
     Box(
         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.92f)).clickable(onClick = onDismiss),
         contentAlignment = Alignment.Center,
     ) {
-        if (isVideo) {
-            MediaVideoPlayer(url = url, autoplay = true, fullControls = true, modifier = Modifier.fillMaxSize())
-        } else {
-            Box(
+        when {
+            isAudio -> Surface(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                MediaAudioPlayer(source = url, fullControls = true, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp))
+            }
+
+            isVideo -> MediaVideoPlayer(url = url, autoplay = true, fullControls = true, modifier = Modifier.fillMaxSize())
+
+            else -> Box(
                 Modifier.fillMaxSize().pointerInput(Unit) {
                     detectTransformGestures { _, _, zoom, _ ->
                         scale = (scale * zoom).coerceIn(1f, 5f)

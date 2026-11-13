@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaModel
+import com.pusios.pots.media.audioPriceLabel
+import com.pusios.pots.media.audioSheetGroups
 import com.pusios.pots.ui.handCursor
 
 /**
@@ -43,7 +45,10 @@ internal fun MediaModelSheet(
     onSelectImage: (String) -> Unit,
     onSelectVideo: (String) -> Unit,
     onDismiss: () -> Unit,
+    selectedAudioModelId: String = "",
+    onSelectAudio: (String) -> Unit = {},
 ) {
+    val isAudioKind = kind == MediaKind.Audio || kind == MediaKind.Music
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             val imageModels = models.filter { it.kind == MediaKind.Image }
@@ -81,7 +86,30 @@ internal fun MediaModelSheet(
                 }
             }
 
-            if (models.none { it.kind == kind }) {
+            if (isAudioKind) {
+                // Voice / Music / Effects groups per research; STT and audio-input
+                // models never reach this list (audioSheetGroups filters them out).
+                audioSheetGroups(models).forEach { (group, groupModels) ->
+                    Text(group.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(Modifier.height(8.dp))
+                    groupModels.forEach { model ->
+                        ModelSheetRow(
+                            model = model,
+                            selected = model.id == selectedAudioModelId,
+                            priceLabel = audioPriceLabel(model),
+                            onClick = {
+                                onSelectAudio(model.id)
+                                onDismiss()
+                            },
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+
+            val nothingToShow = if (isAudioKind) audioSheetGroups(models).isEmpty() else models.none { it.kind == kind }
+            if (nothingToShow) {
                 Text(
                     "Каталог пуст — обнови его в настройках сервисов или проверь сеть",
                     style = MaterialTheme.typography.bodyMedium,
@@ -96,7 +124,7 @@ internal fun MediaModelSheet(
 }
 
 @Composable
-private fun ModelSheetRow(model: MediaModel, selected: Boolean, onClick: () -> Unit) {
+private fun ModelSheetRow(model: MediaModel, selected: Boolean, onClick: () -> Unit, priceLabel: String? = null) {
     Surface(
         modifier = Modifier.fillMaxWidth().handCursor().clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
@@ -119,7 +147,7 @@ private fun ModelSheetRow(model: MediaModel, selected: Boolean, onClick: () -> U
                 }
             }
             Spacer(Modifier.width(8.dp))
-            PriceBadge(model, emphasized = selected)
+            PriceBadge(model, emphasized = selected, labelOverride = priceLabel)
             if (selected) {
                 Spacer(Modifier.width(8.dp))
                 Icon(
@@ -134,8 +162,8 @@ private fun ModelSheetRow(model: MediaModel, selected: Boolean, onClick: () -> U
 }
 
 @Composable
-private fun PriceBadge(model: MediaModel, emphasized: Boolean) {
-    val label = when {
+private fun PriceBadge(model: MediaModel, emphasized: Boolean, labelOverride: String? = null) {
+    val label = labelOverride ?: when {
         model.priceUnavailable -> "цена недоступна"
         model.fromRub != null -> "от ${model.fromRub} ₽" + (model.unit?.let { " · $it" } ?: "")
         else -> model.unit ?: ""

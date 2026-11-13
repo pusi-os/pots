@@ -5,10 +5,9 @@ package com.pusios.pots.media
  * models only — STT/analytics (audio input), audio transforms and text
  * utilities are excluded (research: `docs/design/media-expansion/pots-audio-gen-research.md`).
  */
-internal fun MediaModel.isGenerativeAudio(): Boolean =
-    (kind == MediaKind.Audio || kind == MediaKind.Music) &&
-        !acceptsAudioReference &&
-        task != "utility"
+internal fun MediaModel.isGenerativeAudio(): Boolean = (kind == MediaKind.Audio || kind == MediaKind.Music) &&
+    !acceptsAudioReference &&
+    task != "utility"
 
 /** Sheet sections, top to bottom. */
 internal enum class AudioSheetGroup(val title: String) {
