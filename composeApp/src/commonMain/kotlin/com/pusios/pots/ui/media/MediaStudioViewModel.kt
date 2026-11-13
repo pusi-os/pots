@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.media.AudioFlow
+import com.pusios.pots.media.LOCAL_TTS_PROVIDER_MARK
+import com.pusios.pots.media.LocalTtsSynthesizer
 import com.pusios.pots.media.MAX_INLINE_REFERENCE_BYTES
 import com.pusios.pots.media.MediaException
 import com.pusios.pots.media.MediaGenerationRepository
@@ -19,12 +21,17 @@ import com.pusios.pots.media.MediaLog
 import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.MediaPriceTable
 import com.pusios.pots.media.MediaReference
+import com.pusios.pots.media.MediaVoice
 import com.pusios.pots.media.PlusVibeMediaProvider
 import com.pusios.pots.media.PromptEnhancer
+import com.pusios.pots.media.VoiceException
+import com.pusios.pots.media.VoiceLevel
 import com.pusios.pots.media.applyMediaOptDefaults
 import com.pusios.pots.media.audioFlow
 import com.pusios.pots.media.audioFlowModels
+import com.pusios.pots.media.audioFlowModelsWithLocal
 import com.pusios.pots.media.compressReferenceToLimit
+import com.pusios.pots.media.createLocalTtsSynthesizer
 import com.pusios.pots.media.defaultAudioModel
 import com.pusios.pots.media.getInstanceMediaAudioModelId
 import com.pusios.pots.media.getInstanceMediaAudioMusicModelId
@@ -34,6 +41,9 @@ import com.pusios.pots.media.getInstanceMediaVideoModelId
 import com.pusios.pots.media.getMediaAudioFlow
 import com.pusios.pots.media.getMediaDraft
 import com.pusios.pots.media.getMediaQuality
+import com.pusios.pots.media.isKnownLocalTtsId
+import com.pusios.pots.media.isLocalTts
+import com.pusios.pots.media.isLocalTtsId
 import com.pusios.pots.media.setInstanceMediaAudioMusicModelId
 import com.pusios.pots.media.setInstanceMediaAudioTtsModelId
 import com.pusios.pots.media.setInstanceMediaImageModelId
@@ -52,6 +62,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -138,6 +150,18 @@ class MediaStudioViewModel(
     private val _justFinished = MutableStateFlow<MediaJobState?>(null)
     val justFinished: StateFlow<MediaJobState?> = _justFinished.asStateFlow()
 
+    /** True while an offline (local engine) synthesis runs; no provider job exists meanwhile. */
+    private val _isLocalSynthesizing = MutableStateFlow(false)
+    val isLocalSynthesizing: StateFlow<Boolean> = _isLocalSynthesizing.asStateFlow()
+
+    /** Cloned voices «Мой голос»; null until the first list request. */
+    private val _myVoices = MutableStateFlow<List<MediaVoice>?>(null)
+    val myVoices: StateFlow<List<MediaVoice>?> = _myVoices.asStateFlow()
+
+    /** True while `POST /api/media/voices` is in flight. */
+    private val _isCreatingVoice = MutableStateFlow(false)
+    val isCreatingVoice: StateFlow<Boolean> = _isCreatingVoice.asStateFlow()
+
     fun consumeFinished() {
         _justFinished.value = null
     }
@@ -171,7 +195,9 @@ class MediaStudioViewModel(
                         routeLegacyAudioModel(catalog)
                         if (catalog.none { it.id == _selectedImageModelId.value }) _selectedImageModelId.value = ""
                         if (catalog.none { it.id == _selectedVideoModelId.value }) _selectedVideoModelId.value = ""
-                        if (audioFlowModels(catalog, AudioFlow.Tts).none { it.id == _selectedTtsModelId.value }) {
+                        if (audioFlowModels(catalog, AudioFlow.Tts).none { it.id == _selectedTtsModelId.value } &&
+                            !isKnownLocalTtsId(_selectedTtsModelId.value)
+                        ) {
                             _selectedTtsModelId.value = ""
                         }
                         if (audioFlowModels(catalog, AudioFlow.Music).none { it.id == _selectedMusicModelId.value }) {
@@ -229,15 +255,6 @@ class MediaStudioViewModel(
 
     private fun generate(prompt: String, opts: Map<String, String>, kind: MediaKind) {
         if (isGenerationBusy()) return
-        val key = apiKeyProvider()
-        if (key.isBlank()) {
-            _error.value = MediaStudioError(
-                "Нет API-ключа сервиса — добавь его в настройках сервисов",
-                isKeyProblem = true,
-            )
-            MediaLog.w("Generate refused: no API key configured")
-            return
-        }
         val instanceId = instanceIdProvider()
         val model = resolveModel(kind, instanceId)
         if (model == null) {
@@ -249,6 +266,20 @@ class MediaStudioViewModel(
                 },
             )
             MediaLog.w("Generate refused: no $kind model available")
+            return
+        }
+        // Local engines synthesize offline: no API key, no provider job (spec §14).
+        if (model.isLocalTts) {
+            generateLocalTts(model, prompt, applyMediaOptDefaults(opts, model, null))
+            return
+        }
+        val key = apiKeyProvider()
+        if (key.isBlank()) {
+            _error.value = MediaStudioError(
+                "Нет API-ключа сервиса — добавь его в настройках сервисов",
+                isKeyProblem = true,
+            )
+            MediaLog.w("Generate refused: no API key configured")
             return
         }
         val references = _references.value
@@ -334,12 +365,80 @@ class MediaStudioViewModel(
     }
 
     /**
+     * Offline synthesis (spec §14): the platform engine writes a WAV into app
+     * storage, the journal gets a «локально» entry without a provider, and the
+     * result lands on the canvas like any audio element. No key, no billing,
+     * no polling — the journal entry is persisted once, in its terminal state.
+     */
+    private fun generateLocalTts(model: MediaModel, prompt: String, opts: Map<String, String>) {
+        if (_isLocalSynthesizing.value) return
+        val synthesizer = createLocalTtsSynthesizer(model.id)
+        if (synthesizer == null) {
+            _error.value = MediaStudioError("Локальный синтез недоступен на этой платформе")
+            return
+        }
+        val speed = opts["speed"]?.toFloatOrNull() ?: 1f
+        val localId = Uuid.random().toString()
+        val path = "media/local/$localId.wav"
+        _isLocalSynthesizing.value = true
+        MediaLog.i("Local TTS: model=${model.id} chars=${prompt.length} speed=$speed")
+        viewModelScope.launch {
+            val bytes = runCatching { synthesizer.synthesizeToWav(prompt, speed) }.getOrNull()
+            val saved = bytes != null && com.pusios.pots.writeAppStorageBytes(path, bytes)
+            _isLocalSynthesizing.value = false
+            val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
+            if (!saved) {
+                MediaLog.w("Local TTS failed: model=${model.id}")
+                history.upsert(
+                    MediaHistoryEntry(
+                        localId = localId,
+                        createdAtMs = now,
+                        isVideo = false,
+                        isAudio = true,
+                        model = model.id,
+                        provider = LOCAL_TTS_PROVIDER_MARK,
+                        prompt = prompt,
+                        opts = opts,
+                        status = MediaHistoryStatus.Failed,
+                        failMsg = "Не удалось синтезировать речь локально. Проверь голоса устройства и попробуй ещё раз.",
+                    ),
+                )
+                _error.value = MediaStudioError("Не удалось синтезировать речь локально")
+                return@launch
+            }
+            history.upsert(
+                MediaHistoryEntry(
+                    localId = localId,
+                    createdAtMs = now,
+                    isVideo = false,
+                    isAudio = true,
+                    model = model.id,
+                    provider = LOCAL_TTS_PROVIDER_MARK,
+                    prompt = prompt,
+                    opts = opts,
+                    status = MediaHistoryStatus.Success,
+                    localPath = path,
+                    priceRub = 0.0,
+                ),
+            )
+            importFromGallery(path, isVideo = false, isAudio = true)
+            MediaLog.i("Local TTS ready: ${bytes!!.size} bytes at $path")
+        }
+    }
+
+    /**
      * Repeats an entry with its original references and prompt. A failed submit keeps its
      * idempotency key, so the provider cannot charge twice; a finished job gets a new key.
      */
     fun repeat(localId: String) {
         val source = history.entries.value.firstOrNull { it.localId == localId } ?: return
         if (!source.canRepeat || isGenerationBusy()) return
+        // Local entries repeat offline — no key, no provider.
+        if (source.model.isLocalTtsId()) {
+            val model = com.pusios.pots.media.localTtsCatalog().firstOrNull { it.id == source.model } ?: return
+            generateLocalTts(model, source.prompt, source.opts)
+            return
+        }
         val key = apiKeyProvider()
         if (key.isBlank()) {
             _error.value = MediaStudioError("Нет API-ключа сервиса — добавь его в настройках сервисов", isKeyProblem = true)
@@ -412,8 +511,8 @@ class MediaStudioViewModel(
         if (_elements.value.none { it.jobId == state.jobId }) addElement(state)
     }
 
-    /** True while a submit is in flight or a job is still running; the create button stays locked meanwhile. */
-    fun isGenerationBusy(): Boolean = _isStarting.value || _jobs.value.values.any { !it.isTerminal } || history.entries.value.any { it.isActive }
+    /** True while a submit is in flight, a job is still running, or a local synthesis is busy; the create button stays locked meanwhile. */
+    fun isGenerationBusy(): Boolean = _isStarting.value || _isLocalSynthesizing.value || _jobs.value.values.any { !it.isTerminal } || history.entries.value.any { it.isActive }
 
     private fun oversizedReferenceIndex(references: List<MediaReference>): Int? = references.indexOfFirst { ref ->
         val path = ref.localPath
@@ -452,7 +551,8 @@ class MediaStudioViewModel(
     private fun resolveModel(kind: MediaKind, instanceId: String): MediaModel? {
         if (kind == MediaKind.Audio || kind == MediaKind.Music) {
             val flow = _audioFlow.value
-            val candidates = audioFlowModels(_models.value, flow, hasSunoHistory())
+            // TTS candidates include this platform's local engines (spec §14).
+            val candidates = audioFlowModelsWithLocal(_models.value, flow, hasSunoHistory())
             val savedId = if (flow == AudioFlow.Tts) _selectedTtsModelId.value else _selectedMusicModelId.value
             val saved = candidates.firstOrNull { it.id == savedId }
             if (saved != null) return saved
@@ -516,6 +616,113 @@ class MediaStudioViewModel(
     }
 
     fun savedQuality(modelId: String): String? = appSettings.getMediaQuality(modelId)
+
+    // ── Voice cloning «Мой голос» (spec §16; cloud-only, provider voices API) ──
+
+    /** The voices API shares the media contract; the VM keeps its own adapter. */
+    private val voiceApi = PlusVibeMediaProvider()
+
+    /** Idempotent-create state: one key per attempt, reused while the body is identical. */
+    private var voiceCreateFingerprint = ""
+    private var voiceCreateKey = ""
+
+    /** Loads the account's cloned voices; failures surface as a snackbar. */
+    fun loadMyVoices() {
+        val key = apiKeyProvider()
+        if (key.isBlank()) {
+            _error.value = MediaStudioError("Нет API-ключа сервиса — добавь его в настройках сервисов", isKeyProblem = true)
+            return
+        }
+        viewModelScope.launch {
+            runCatching { voiceApi.listVoices(key) }
+                .onSuccess { _myVoices.value = it }
+                .onFailure { e ->
+                    MediaLog.w("Load voices failed: ${e.message}")
+                    _error.value = voiceErrorUi(e)
+                }
+        }
+    }
+
+    /**
+     * Creates a cloned voice. [samplePath] must already pass
+     * [com.pusios.pots.media.validateVoiceSample]; consent is mandatory (the
+     * UI blocks the button until it is ticked). [onDone] reports success so
+     * the sheet can close. Retries of the same attempt reuse one idempotency
+     * key, so a duplicate voice is never created.
+     */
+    @OptIn(ExperimentalEncodingApi::class)
+    fun createMyVoice(name: String, level: VoiceLevel, samplePath: String, consent: Boolean, onDone: (Boolean) -> Unit) {
+        if (_isCreatingVoice.value) return
+        if (!consent) {
+            _error.value = MediaStudioError("Подтверди, что это твой голос или у тебя есть право его использовать")
+            onDone(false)
+            return
+        }
+        val engine = level.engine
+        if (engine == null) {
+            _error.value = MediaStudioError("Этот уровень пока недоступен: провайдер не задокументировал движок создания")
+            onDone(false)
+            return
+        }
+        val key = apiKeyProvider()
+        if (key.isBlank()) {
+            _error.value = MediaStudioError("Нет API-ключа сервиса — добавь его в настройках сервисов", isKeyProblem = true)
+            onDone(false)
+            return
+        }
+        viewModelScope.launch {
+            val bytes = withContext(Dispatchers.Default) { readAppStorageBytes(samplePath) }
+            if (bytes == null) {
+                _error.value = MediaStudioError("Файл сэмпла не найден — выбери запись заново")
+                onDone(false)
+                return@launch
+            }
+            val mime = if (samplePath.endsWith(".mp3", ignoreCase = true)) "audio/mpeg" else "audio/wav"
+            val dataUri = "data:$mime;base64," + Base64.encode(bytes)
+            val fingerprint = "$name|$engine|$samplePath|${bytes.size}"
+            if (voiceCreateFingerprint != fingerprint || voiceCreateKey.isEmpty()) {
+                voiceCreateFingerprint = fingerprint
+                voiceCreateKey = PlusVibeMediaProvider.newIdempotencyKey()
+            }
+            _isCreatingVoice.value = true
+            MediaLog.i("Create voice: name=$name level=$level sample=${bytes.size} bytes")
+            runCatching { voiceApi.createVoice(key, name, engine, dataUri, voiceCreateKey) }
+                .onSuccess { voice ->
+                    voiceCreateKey = ""
+                    voiceCreateFingerprint = ""
+                    _myVoices.value = _myVoices.value.orEmpty().filterNot { it.id == voice.id } + voice
+                    onDone(true)
+                }
+                .onFailure { e ->
+                    MediaLog.w("Create voice failed: ${e.message}")
+                    _error.value = voiceErrorUi(e)
+                    onDone(false)
+                }
+            _isCreatingVoice.value = false
+        }
+    }
+
+    /** Deletes a cloned voice after the UI confirms with the voice name. */
+    fun deleteMyVoice(voiceId: String) {
+        val key = apiKeyProvider()
+        if (key.isBlank()) {
+            _error.value = MediaStudioError("Нет API-ключа сервиса — добавь его в настройках сервисов", isKeyProblem = true)
+            return
+        }
+        viewModelScope.launch {
+            runCatching { voiceApi.deleteVoice(key, voiceId) }
+                .onSuccess { _myVoices.value = _myVoices.value.orEmpty().filterNot { it.id == voiceId } }
+                .onFailure { e ->
+                    MediaLog.w("Delete voice failed: ${e.message}")
+                    _error.value = voiceErrorUi(e)
+                }
+        }
+    }
+
+    private fun voiceErrorUi(e: Throwable): MediaStudioError = when (e) {
+        is VoiceException -> MediaStudioError(e.userMessageRu(), isKeyProblem = e is VoiceException.KeyProblem)
+        else -> MediaStudioError("Не удалось выполнить операцию с голосом. Проверь связь и попробуй ещё раз.")
+    }
 
     /** Cached price tables for the quality dropdown; null means the note mode (spec §19.1). */
     private val _priceTables = MutableStateFlow<Map<String, MediaPriceTable?>>(emptyMap())

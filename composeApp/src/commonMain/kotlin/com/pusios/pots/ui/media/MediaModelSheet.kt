@@ -30,6 +30,8 @@ import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.audioFlowGroups
 import com.pusios.pots.media.audioPriceLabel
+import com.pusios.pots.media.isLocalTts
+import com.pusios.pots.media.localTtsDisplayName
 import com.pusios.pots.ui.handCursor
 
 /**
@@ -111,6 +113,8 @@ internal fun MediaModelSheet(
                         ModelSheetRow(
                             model = model,
                             selected = selected,
+                            // Local engines show a friendly name instead of the `local:` id.
+                            title = if (model.isLocalTts) localTtsDisplayName(model.id) else model.id,
                             // Tier models recompute the badge for the selected chips.
                             priceLabel = audioPriceLabel(model, if (selected) selectedAudioOpts else emptyMap()),
                             onClick = {
@@ -144,7 +148,7 @@ internal fun MediaModelSheet(
 }
 
 @Composable
-private fun ModelSheetRow(model: MediaModel, selected: Boolean, onClick: () -> Unit, priceLabel: String? = null) {
+private fun ModelSheetRow(model: MediaModel, selected: Boolean, onClick: () -> Unit, priceLabel: String? = null, title: String = model.id) {
     Surface(
         modifier = Modifier.fillMaxWidth().handCursor().clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
@@ -153,7 +157,7 @@ private fun ModelSheetRow(model: MediaModel, selected: Boolean, onClick: () -> U
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    model.id,
+                    title,
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                 )

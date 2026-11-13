@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.pusios.pots.media.MediaHistoryEntry
 import com.pusios.pots.media.MediaHistoryStatus
+import com.pusios.pots.media.isLocalTtsId
+import com.pusios.pots.media.localTtsDisplayName
 import com.pusios.pots.ui.handCursor
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -398,7 +400,10 @@ private fun HistoryAction(
 }
 
 private fun buildMetaLine(entry: MediaHistoryEntry): String {
-    val parts = mutableListOf(entry.model, entry.provider)
+    // Local synthesis carries a friendly engine name and the «локально» mark
+    // instead of a provider (spec §14).
+    val modelLabel = if (entry.model.isLocalTtsId()) localTtsDisplayName(entry.model) else entry.model
+    val parts = mutableListOf(modelLabel, entry.provider)
     val price = entry.priceRub ?: entry.estimateRub
     if (price != null) {
         val label = if (entry.priceRub != null) "списано" else "оценка"

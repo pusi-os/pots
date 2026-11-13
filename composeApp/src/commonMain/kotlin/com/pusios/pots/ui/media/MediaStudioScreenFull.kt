@@ -47,8 +47,9 @@ import com.pusios.pots.media.MediaParamDef
 import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.MediaToolbarChip
 import com.pusios.pots.media.applyMediaOptDefaults
-import com.pusios.pots.media.audioFlowModels
+import com.pusios.pots.media.audioFlowModelsWithLocal
 import com.pusios.pots.media.audioToolbarParams
+import com.pusios.pots.media.cloneVoiceAxis
 import com.pusios.pots.media.formatRub
 import com.pusios.pots.media.mediaToolbarParams
 import com.pusios.pots.media.qualityOptionLabel
@@ -79,8 +80,11 @@ fun MediaStudioScreenFull(
     val references by viewModel.references.collectAsState()
     val error by viewModel.error.collectAsState()
     val isStarting by viewModel.isStarting.collectAsState()
+    val isLocalBusy by viewModel.isLocalSynthesizing.collectAsState()
     val isEnhancing by viewModel.isEnhancing.collectAsState()
     val justFinished by viewModel.justFinished.collectAsState()
+    val myVoices by viewModel.myVoices.collectAsState()
+    val isCreatingVoice by viewModel.isCreatingVoice.collectAsState()
     val selectedImageModelId by viewModel.selectedImageModelId.collectAsState()
     val selectedVideoModelId by viewModel.selectedVideoModelId.collectAsState()
     val selectedTtsModelId by viewModel.selectedTtsModelId.collectAsState()
@@ -134,6 +138,7 @@ fun MediaStudioScreenFull(
     var showAspectRatio by remember { mutableStateOf(false) }
     var showExpandedPrompt by remember { mutableStateOf(false) }
     var openParam by remember { mutableStateOf<String?>(null) }
+    var showVoiceCloneSheet by remember { mutableStateOf(false) }
     var lightboxUrl by remember { mutableStateOf<String?>(null) }
     var lightboxIsVideo by remember { mutableStateOf(false) }
     var lightboxIsAudio by remember { mutableStateOf(false) }
@@ -142,7 +147,9 @@ fun MediaStudioScreenFull(
     val imageModels = models.filter { it.kind == MediaKind.Image }
     val videoModels = models.filter { it.kind == MediaKind.Video }
     val hasSunoHistory = historyEntries.any { it.model == "suno" }
-    val audioModels = audioFlowModels(models, audioFlow, hasSunoHistory)
+    // Local engines ride the TTS flow on platforms that can synthesize to a
+    // file (Android only — spec §14); elsewhere the list is untouched.
+    val audioModels = audioFlowModelsWithLocal(models, audioFlow, hasSunoHistory)
     val currentModels = when (mode) {
         MediaMode.Image -> imageModels
         MediaMode.Video -> videoModels
@@ -278,7 +285,7 @@ fun MediaStudioScreenFull(
                     prompt = prompt,
                     onPromptChange = { viewModel.setDraft(mode, audioFlow, it) },
                     placeholder = dockPlaceholder,
-                    isBusy = isStarting || pending.isNotEmpty(),
+                    isBusy = isStarting || isLocalBusy || pending.isNotEmpty(),
                     isEnhancing = isEnhancing,
                     onCreate = {
                         if (prompt.isBlank()) {
@@ -349,7 +356,14 @@ fun MediaStudioScreenFull(
                     when (chip.kind) {
                         MediaToolbarChip.Kind.Sheet -> {
                             val value = effectiveParams[chip.def.key] ?: chip.def.defaultValue.orEmpty()
-                            MediaChipUi.Sheet(chip.def.key, chip.def.options.firstOrNull { it.value == value }?.label ?: value)
+                            // The clone-voice axis carries a voice id, not a catalog option:
+                            // show the cloned voice's name (or «Мой голос» while unset).
+                            val cloneLabel = if (chip.def.key == currentModel?.cloneVoiceAxis()?.key) {
+                                myVoices?.firstOrNull { it.id == value }?.name ?: "Мой голос"
+                            } else {
+                                null
+                            }
+                            MediaChipUi.Sheet(chip.def.key, cloneLabel ?: chip.def.options.firstOrNull { it.value == value }?.label ?: value)
                         }
 
                         MediaToolbarChip.Kind.QualityDropdown -> {
@@ -391,13 +405,47 @@ fun MediaStudioScreenFull(
         }
     }
 
-    toolbarChips.firstOrNull { it.kind == MediaToolbarChip.Kind.Sheet && it.def.key == openParam }?.def?.let { def ->
-        MediaParamSheet(
-            title = def.label,
-            options = def.options,
-            selected = params[def.key] ?: def.defaultValue.orEmpty(),
-            onSelect = { params = params + (def.key to it) },
+    val openSheetDef = toolbarChips.firstOrNull { it.kind == MediaToolbarChip.Kind.Sheet && it.def.key == openParam }?.def
+    val openCloneAxis = openSheetDef?.takeIf { it.key == currentModel?.cloneVoiceAxis()?.key }
+    if (openCloneAxis != null) {
+        // «Мой голос»: built-in voices + cloned voices + the creation entry
+        // (spec §15–16). The list refreshes on every open.
+        LaunchedEffect(openCloneAxis.key) { viewModel.loadMyVoices() }
+        MediaVoiceSheet(
+            title = openCloneAxis.label,
+            builtInOptions = openCloneAxis.options,
+            selected = params[openCloneAxis.key].orEmpty(),
+            myVoices = myVoices,
+            onSelect = { params = params + (openCloneAxis.key to it) },
+            onOpenCreate = {
+                openParam = null
+                showVoiceCloneSheet = true
+            },
+            onDeleteVoice = { voice -> viewModel.deleteMyVoice(voice.id) },
             onDismiss = { openParam = null },
+        )
+    } else if (openSheetDef != null) {
+        MediaParamSheet(
+            title = openSheetDef.label,
+            options = openSheetDef.options,
+            selected = params[openSheetDef.key] ?: openSheetDef.defaultValue.orEmpty(),
+            onSelect = { params = params + (openSheetDef.key to it) },
+            onDismiss = { openParam = null },
+        )
+    }
+
+    if (showVoiceCloneSheet) {
+        MediaVoiceCloneSheet(
+            isCreating = isCreatingVoice,
+            onCreate = { name, level, samplePath, consent ->
+                viewModel.createMyVoice(name, level, samplePath, consent) { ok ->
+                    if (ok) {
+                        showVoiceCloneSheet = false
+                        viewModel.loadMyVoices()
+                    }
+                }
+            },
+            onDismiss = { showVoiceCloneSheet = false },
         )
     }
 
@@ -447,7 +495,7 @@ fun MediaStudioScreenFull(
             onPromptChange = { viewModel.setDraft(mode, audioFlow, it) },
             placeholder = dockPlaceholder,
             promptLimit = promptLimit,
-            isBusy = isStarting || pending.isNotEmpty(),
+            isBusy = isStarting || isLocalBusy || pending.isNotEmpty(),
             isEnhancing = isEnhancing,
             createEnabled = !overLimit,
             onCreate = {

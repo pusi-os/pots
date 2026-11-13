@@ -51,17 +51,24 @@ internal enum class AudioSheetGroup(val title: String) {
     Voice("Голос"),
     Music("Музыка"),
     Effects("Эффекты"),
+
+    /** Platform engines (spec §14); last, separate, badge «Локально · 0 ₽». */
+    Local(LOCAL_TTS_BADGE),
 }
 
-internal fun MediaModel.audioSheetGroup(): AudioSheetGroup = when (task) {
-    "tts" -> AudioSheetGroup.Voice
-    "sfx" -> AudioSheetGroup.Effects
+internal fun MediaModel.audioSheetGroup(): AudioSheetGroup = when {
+    isLocalTts -> AudioSheetGroup.Local
+    task == "tts" -> AudioSheetGroup.Voice
+    task == "sfx" -> AudioSheetGroup.Effects
     else -> AudioSheetGroup.Music
 }
 
+/** TTS flow appends this platform's local engines after the cloud models. */
+internal fun audioFlowModelsWithLocal(catalog: List<MediaModel>, flow: AudioFlow, hasSunoHistory: Boolean = true): List<MediaModel> = audioFlowModels(catalog, flow, hasSunoHistory) + if (flow == AudioFlow.Tts) localTtsCatalog() else emptyList()
+
 /** Non-empty sheet sections of one flow; models inside each are sorted cheapest first. */
 internal fun audioFlowGroups(catalog: List<MediaModel>, flow: AudioFlow, hasSunoHistory: Boolean = true): List<Pair<AudioSheetGroup, List<MediaModel>>> {
-    val models = audioFlowModels(catalog, flow, hasSunoHistory)
+    val models = audioFlowModelsWithLocal(catalog, flow, hasSunoHistory)
     val priceThenId = compareBy<MediaModel>({ it.fromRub ?: Double.MAX_VALUE }, { it.id })
     return AudioSheetGroup.entries.mapNotNull { group ->
         val grouped = models.filter { it.audioSheetGroup() == group }.sortedWith(priceThenId)
@@ -76,15 +83,19 @@ private val PREFERRED_MODELS_BY_FLOW = mapOf(
 )
 
 internal fun defaultAudioModel(catalog: List<MediaModel>, flow: AudioFlow): MediaModel? {
-    val flowModels = audioFlowModels(catalog, flow)
+    // Local engines are never auto-selected: the default stays a cloud model.
+    val flowModels = audioFlowModels(catalog, flow).filterNot { it.isLocalTts }
     return PREFERRED_MODELS_BY_FLOW[flow].orEmpty().firstNotNullOfOrNull { id -> flowModels.firstOrNull { it.id == id } }
         ?: flowModels.firstOrNull()
 }
 
 /** Toolbar chip axes for audio: catalog selects with options, priority order, max 4. */
 internal fun audioToolbarParams(model: MediaModel?): List<MediaParamDef> {
-    val params = model?.params.orEmpty().map(::prepareAudioParam)
-    val selectable = params.filter { it.options.isNotEmpty() && it.key !in AUDIO_TECHNICAL_KEYS }
+    val acceptsClones = model?.acceptsCloneVoices() == true
+    val params = model?.params.orEmpty().map { prepareAudioParam(it, acceptsClones) }
+    val selectable = params.filter {
+        (it.options.isNotEmpty() || it.isCloneVoiceChip(acceptsClones)) && it.key !in AUDIO_TECHNICAL_KEYS
+    }
     val remaining = selectable.associateByTo(linkedMapOf()) { it.key }
     val ordered = AUDIO_CHIP_PRIORITY.mapNotNull { remaining.remove(it) } + remaining.values
     return ordered.take(MAX_AUDIO_CHIPS)
@@ -93,14 +104,29 @@ internal fun audioToolbarParams(model: MediaModel?): List<MediaParamDef> {
 /**
  * Axes the chips understand even when the catalog gives no options:
  * numeric voice/speed aliases get fixed presets (spec §15), bool axes become
- * two-option toggles (`instrumental` = «Без слов»).
+ * two-option toggles (`instrumental` = «Без слов»). The `voice_id` axis of
+ * clone models keeps empty options — the «Мой голос» picker fills it.
  */
-private fun prepareAudioParam(def: MediaParamDef): MediaParamDef = when {
+private fun prepareAudioParam(def: MediaParamDef, acceptsCloneVoices: Boolean = false): MediaParamDef = when {
     def.options.isNotEmpty() -> def
+    def.isCloneVoiceChip(acceptsCloneVoices) -> def
     def.key in SPEED_AXIS_ALIASES -> def.copy(type = "select", options = SPEED_PRESET_OPTIONS)
     def.type == "bool" -> def.copy(type = "select", options = listOf(MediaCapValue("false", "Выкл"), MediaCapValue("true", "Вкл")))
     else -> def
 }
+
+private fun MediaParamDef.isCloneVoiceChip(acceptsCloneVoices: Boolean): Boolean = acceptsCloneVoices && key == "voice_id"
+
+/**
+ * Models taking a cloned `voice_id` (research §3.3): `voice-clone-tts`
+ * (required) plus `elevenlabs-v4-tts` and the `tts` aggregator (optional).
+ */
+internal val CLONE_VOICE_MODEL_IDS = setOf("voice-clone-tts", "elevenlabs-v4-tts", "tts")
+
+internal fun MediaModel.acceptsCloneVoices(): Boolean = id in CLONE_VOICE_MODEL_IDS
+
+/** The axis cloned voices ride into `opts`; null outside clone models. */
+internal fun MediaModel.cloneVoiceAxis(): MediaParamDef? = if (acceptsCloneVoices()) params.firstOrNull { it.key == "voice_id" } else null
 
 private val SPEED_AXIS_ALIASES = setOf("speed", "speaking_rate", "pace")
 
@@ -130,6 +156,7 @@ internal fun MediaModel.tierPrice(opts: Map<String, String>): Double? {
 
 /** `от 0,07 ₽ за 1000 символов` — price badge text for the audio sheet (ru locale). */
 internal fun audioPriceLabel(model: MediaModel, opts: Map<String, String> = emptyMap()): String {
+    if (model.isLocalTts) return LOCAL_TTS_BADGE
     if (model.priceUnavailable) return "цена недоступна"
     val unit = model.unit.orEmpty()
     val tier = model.tierPrice(opts)?.let { formatRub(it) }

@@ -4,6 +4,7 @@ import com.pusios.pots.httpClient
 import com.pusios.pots.readAppStorageBytes
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -168,6 +169,61 @@ class PlusVibeMediaProvider(
         val bytes = client.get(url).body<ByteArray>()
         MediaLog.i("Downloaded result: ${bytes.size} bytes from ${url.take(80)}")
         return bytes
+    }
+
+    // ── Voice cloning «Мой голос» (spec §16, contract «Клонирование голоса») ──
+
+    /** Cloned voices of the account; errors map to the §8 cards. */
+    suspend fun listVoices(apiKey: String): List<MediaVoice> {
+        val response = client.get("$baseUrl/api/media/voices") { authed(apiKey) }
+        val body = response.bodyAsText()
+        if (response.status.value !in 200..299) {
+            MediaLog.w("List voices failed: HTTP ${response.status.value}")
+            val (code, message) = parseVoiceErrorPayload(body)
+            throw mapVoiceHttpError(response.status.value, code, message)
+        }
+        return parseVoicesPayload(body)
+    }
+
+    /**
+     * Creates a voice from a `data:<mime>;base64,…` sample. The caller owns
+     * consent (UI blocks create until it is given) and passes one
+     * [idempotencyKey] per attempt, so a retry never creates a second voice.
+     */
+    suspend fun createVoice(apiKey: String, name: String, engine: String, audioDataUri: String, idempotencyKey: String): MediaVoice {
+        MediaLog.i("Create voice: engine=$engine sample=${audioDataUri.length} chars keyPresent=${apiKey.isNotBlank()}")
+        val response = client.post("$baseUrl/api/media/voices") {
+            authed(apiKey)
+            contentType(ContentType.Application.Json)
+            header("Idempotency-Key", idempotencyKey)
+            setBody(buildVoiceCreateBody(name, engine, audioDataUri).toString())
+        }
+        val body = response.bodyAsText()
+        if (response.status.value !in 200..299) {
+            MediaLog.e("Create voice failed: HTTP ${response.status.value} body=${body.take(500)}")
+            val (code, message) = parseVoiceErrorPayload(body)
+            throw mapVoiceHttpError(response.status.value, code, message)
+        }
+        // Response shape is not live-verified: parse defensively, default to
+        // Processing — the list endpoint will show the real status.
+        val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull()
+        val voiceObj = (root?.get("voice") as? JsonObject) ?: root
+        val id = (voiceObj?.get("id") ?: voiceObj?.get("voice_id"))?.jsonPrimitive?.contentOrNull ?: idempotencyKey
+        val status = parseVoiceStatus(voiceObj?.get("status")?.jsonPrimitive?.contentOrNull)
+        MediaLog.i("Voice created: id=$id status=$status")
+        return MediaVoice(id = id, name = name, status = if (status == VoiceStatus.Unknown) VoiceStatus.Processing else status, engine = engine)
+    }
+
+    /** Deletes a cloned voice; 404 maps to the «Голос не найден» card. */
+    suspend fun deleteVoice(apiKey: String, voiceId: String) {
+        val response = client.delete("$baseUrl/api/media/voices/$voiceId") { authed(apiKey) }
+        if (response.status.value !in 200..299) {
+            val body = response.bodyAsText()
+            MediaLog.w("Delete voice failed: id=$voiceId HTTP ${response.status.value}")
+            val (code, message) = parseVoiceErrorPayload(body)
+            throw mapVoiceHttpError(response.status.value, code, message)
+        }
+        MediaLog.i("Voice deleted: $voiceId")
     }
 
     private fun io.ktor.client.request.HttpRequestBuilder.authed(apiKey: String) {

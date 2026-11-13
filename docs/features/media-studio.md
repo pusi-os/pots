@@ -52,6 +52,18 @@ Audio jobs go through the same submit/poll/download contract and the same queue 
 
 A finished audio result lands on the canvas as an audio element with a basic player: play/pause and a seek slider. Desktop plays MP3 (JLayer) and WAV; Android uses the system media player over a temp file copy; iOS and web show a static card (playback not wired yet). Editing audio is a separate later feature and intentionally not part of the player.
 
+### Local TTS (offline)
+
+The TTS flow ends with a «Локально · 0 ₽» group that never touches a provider. Local synthesis is honest about platforms: only Android can synthesize into a FILE, so the group exists there and only there — the system engine (`TextToSpeech.synthesizeToFile`) and the bundled Piper voice «Ирина» (sherpa-onnx, the same engine Settings → Озвучивание uses; no new dependency). Desktop, iOS and web native engines only play speech and expose no audio data, so those targets show no group at all — no disabled rows, no “unavailable” notes, no fake local models.
+
+Synthesis writes a WAV into app storage; the result then rides the regular flow: an audio element on the canvas and one journal entry with the friendly engine name and the «локально» mark instead of a provider, price 0 ₽. No API key, no billing, no polling — the entry is persisted once, in its terminal state. Speed rides the standard chip (both engines accept a rate; pitch is not supported by either). Local engines are never auto-picked as the default model and never hide cloud models; repeating a local journal entry synthesizes offline again.
+
+### Voice cloning «Мой голос»
+
+Cloud-only voice cloning through the provider voices API; the local TTS path never sees cloned voices. Models that accept a cloned voice (`voice-clone-tts`, `elevenlabs-v4-tts`, `tts`) render their free-text `voice_id` axis as a «Мой голос» chip: the sheet lists the model's built-in voices, the account's cloned voices with a mic mark and their status (ready / processing / error), and a «+ Мой голос» entry that opens the creation sheet. Only ready voices can be selected; the chosen id lands in the generation `opts` under the axis key.
+
+Creation validates before upload: wav or mp3, at most 10 МБ, duration 3–60 s (Standard) or 10–60 s (ElevenLabs, Premium) — WAV duration is parsed exactly, MP3 estimated from the first frame. The sheet offers a listen-before-send player, a voice name, the level with its price note (only levels whose creation engine is documented by the provider are creatable — currently ElevenLabs), and a mandatory consent checkbox without which the create button stays disabled. `POST /api/media/voices` sends `name`, `consent: true`, `engine` and `audio_base64` as a `data:<mime>;base64,…` string with an `Idempotency-Key`, so a retry never creates a duplicate voice; the list (`GET`) refreshes on every sheet open, and deletion (`DELETE`) asks for confirmation with the voice name. Errors map to Russian cards: rejected sample, sample-count limit (25 recordings / 300 s), daily addition limit (20), engine refusal, missing voice, key and balance problems.
+
 ### Image quality and video parameters
 
 The image/video toolbar is driven by the model's catalog axes (the generalized «axis → chip» mechanism, in chip order resolution → quality → duration → sound, at most four chips).
@@ -108,7 +120,10 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 | `composeApp/src/commonMain/.../media/PlusVibeMediaProvider.kt` | PlusVibeAPI adapter; body building, `mode` injection, reference mapping, `HttpTimeout` |
 | `composeApp/src/commonMain/.../media/MediaGenerationRepository.kt` | Async queue, submit reconcile, polling with backoff, dedup, quote reuse, download-and-cache, resume |
 | `composeApp/src/commonMain/.../media/MediaHistory.kt` | Journal model and `MediaHistoryStore` (`media/history.json`) |
-| `composeApp/src/commonMain/.../media/AudioModels.kt` | Generative audio filter, flows (TTS / music), flow filtering, price label with unit, tier parsing, voice/speed axis aliases, quote policy, toolbar chips |
+| `composeApp/src/commonMain/.../media/AudioModels.kt` | Generative audio filter, flows (TTS / music), flow filtering, price label with unit, tier parsing, voice/speed axis aliases, quote policy, toolbar chips, clone-voice axis |
+| `composeApp/src/commonMain/.../media/LocalTts.kt` | Local TTS honesty contract, synthetic catalog entries; actuals: `androidMain` (system `synthesizeToFile` + Piper), empty catalogs on `desktopMain`/`iosMain`/`wasmJsMain` |
+| `composeApp/src/commonMain/.../media/WavAudio.kt` | Pure common WAV codec and duration parsing (local synthesis output, voice-sample pre-check, MP3 CBR estimate) |
+| `composeApp/src/commonMain/.../media/MediaVoices.kt` | Voice cloning domain: levels, pre-upload sample validation, voices payload parsing, create body, §8 error mapping |
 | `composeApp/src/commonMain/.../media/MediaQualityParams.kt` | Axis→chip mechanism: quality selector visibility, the Low default, audio toggle axes, explicit opt defaults |
 | `composeApp/src/commonMain/.../media/MediaPriceTables.kt` | Price-table parsing and quality price rules (exact lines, flat/conservative notes, quote basis) |
 | `composeApp/src/commonMain/.../media/MediaSettings.kt` | Per-instance image/video/audio model selection, audio flow, per-flow models, prompt drafts and the per-model quality selection, media instance resolution |
@@ -124,7 +139,9 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 | `composeApp/src/commonMain/.../ui/media/MediaAudioEngine.kt` | Audio playback contract; actuals in `desktopMain` (MP3 via JLayer, WAV), `androidMain` (MediaPlayer), `iosMain`/`wasmJsMain` (unsupported) |
 | `composeApp/src/commonMain/.../ui/media/MediaHistorySheet.kt` | Generation journal sheet: open, save to gallery, regenerate, remove |
 | `composeApp/src/commonMain/.../ui/media/MediaAspectRatioSheet.kt` | Aspect-ratio sheet with rectangle previews |
-| `composeApp/src/commonMain/.../ui/media/MediaModelSheet.kt` | Model picker sheet with price badges |
+| `composeApp/src/commonMain/.../ui/media/MediaModelSheet.kt` | Model picker sheet with price badges; local group with friendly engine names |
+| `composeApp/src/commonMain/.../ui/media/MediaVoiceSheet.kt` | «Мой голос» picker: built-in voices, cloned voices with status and mic mark, delete confirmation |
+| `composeApp/src/commonMain/.../ui/media/MediaVoiceCloneSheet.kt` | Voice creation sheet: file picker, pre-upload validation, preview player, levels, consent |
 | `composeApp/src/commonMain/.../ui/media/MediaStudioViewModel.kt` | Studio state: jobs, elements, references, model selection, generation lock, typed errors |
 | `composeApp/src/commonMain/.../ui/settings/MediaModelsSettings.kt` | Media model picker in Settings → Services → Media |
 | `composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt` | Main top bar: media icon opens the studio, chat icon returns from it |
