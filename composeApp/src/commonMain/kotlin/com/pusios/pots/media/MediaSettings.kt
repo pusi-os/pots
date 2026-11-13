@@ -58,6 +58,13 @@ fun AppSettings.setMediaDraft(key: String, text: String) {
     settings.putString("media_draft_$key", text)
 }
 
+/** The image quality selection per model (spec §19.1): survives model switches and failures. */
+fun AppSettings.getMediaQuality(modelId: String): String? = settings.getStringOrNull("media_quality_$modelId")
+
+fun AppSettings.setMediaQuality(modelId: String, quality: String) {
+    settings.putString("media_quality_$modelId", quality)
+}
+
 /**
  * The service instance media generation bills. Chat keys double as media keys,
  * so prefer the first instance that actually has one; the first instance is

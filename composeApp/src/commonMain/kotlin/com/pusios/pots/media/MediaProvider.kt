@@ -13,6 +13,9 @@ interface MediaProvider {
     /** Catalog of image/video models with prices; public for most providers (no key needed). */
     suspend fun listModels(apiKey: String): List<MediaModel>
 
+    /** Per-model price table (public, no key needed); null when unavailable. */
+    suspend fun priceTable(apiKey: String, modelId: String): MediaPriceTable? = null
+
     /** Optional pre-submit quote; providers without it return a local estimate. */
     suspend fun quotePrice(apiKey: String, request: MediaJobRequest): MediaPriceQuote
 

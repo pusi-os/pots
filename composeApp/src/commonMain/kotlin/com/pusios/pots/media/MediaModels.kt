@@ -24,6 +24,8 @@ fun MediaKind.fromProviderId(raw: String): MediaKind = when (raw.lowercase()) {
 data class MediaCapValue(
     val value: String,
     val label: String = value,
+    /** The catalog's option price in RUB («от» at the default axes); null when unpublished. */
+    val priceRub: Double? = null,
 )
 
 @Immutable

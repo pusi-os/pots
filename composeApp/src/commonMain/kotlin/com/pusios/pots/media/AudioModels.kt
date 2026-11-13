@@ -139,7 +139,7 @@ internal fun audioPriceLabel(model: MediaModel, opts: Map<String, String> = empt
     return if (unit.isBlank()) prefix + "от " + formatRub(price) + " ₽" else prefix + "от " + formatRub(price) + " ₽ " + unit
 }
 
-private fun formatRub(price: Double): String = price.toString().replace('.', ',').let { if (it.endsWith(",0")) it.dropLast(2) else it }
+internal fun formatRub(price: Double): String = price.toString().replace('.', ',').let { if (it.endsWith(",0")) it.dropLast(2) else it }
 
 /**
  * Quote policy (spec §2): metered models («за 1000 символов», «за секунду») and

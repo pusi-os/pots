@@ -6,6 +6,7 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -70,6 +71,19 @@ class PlusVibeMediaProvider(
         val models = root["models"]?.jsonArray ?: return emptyList()
         return models.mapNotNull { parseModel(it as? JsonObject ?: return@mapNotNull null) }
             .filter { it.id.isNotBlank() && it.generationAvailable && !it.priceUnavailable }
+    }
+
+    /** Public per-model price table (spec §19.1); null on any HTTP/parse failure. */
+    override suspend fun priceTable(apiKey: String, modelId: String): MediaPriceTable? {
+        val response = client.get("$baseUrl/api/media/price-table") {
+            parameter("model", modelId)
+            authed(apiKey)
+        }
+        if (response.status.value !in 200..299) {
+            MediaLog.w("Price table unavailable: model=$modelId HTTP ${response.status.value}")
+            return null
+        }
+        return parsePriceTable(response.bodyAsText())
     }
 
     override suspend fun quotePrice(apiKey: String, request: MediaJobRequest): MediaPriceQuote {
@@ -353,6 +367,10 @@ class PlusVibeMediaProvider(
 
     private fun collectParams(obj: JsonObject): List<MediaParamDef> {
         val merged = linkedMapOf<String, MediaParamDef>()
+        // The compact `params` array wins the merge, so option prices parsed
+        // from the richer `axes` array are re-attached afterwards (quality
+        // selector default and flat-price detection need them, spec §19.1).
+        val axisOptionPrices = linkedMapOf<String, Map<String, Double>>()
         fun add(key: String, label: String, type: String, defaultValue: String?, options: List<MediaCapValue>, required: Boolean) {
             if (key.isBlank() || merged.containsKey(key)) return
             merged[key] = MediaParamDef(key, label, type, defaultValue, options, required)
@@ -367,9 +385,10 @@ class PlusVibeMediaProvider(
                 val options = (o["options"] as? JsonArray)?.mapNotNull { opt ->
                     (opt as? JsonObject)?.let {
                         val v = it["value"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                        MediaCapValue(v, it["label"]?.jsonPrimitive?.contentOrNull ?: v)
+                        MediaCapValue(v, it["label"]?.jsonPrimitive?.contentOrNull ?: v, it["priceRub"]?.jsonPrimitive?.doubleOrNull)
                     }
                 }.orEmpty()
+                axisOptionPrices[key] = options.mapNotNull { option -> option.priceRub?.let { option.value to it } }.toMap()
                 add(key, label, type, defaultValue, options, o["required"]?.jsonPrimitive?.booleanOrNull == true)
             }
         }
@@ -388,7 +407,11 @@ class PlusVibeMediaProvider(
         }
         fromParams(obj["params"] as? JsonArray)
         fromAxes(obj["axes"] as? JsonArray)
-        return merged.values.toList()
+        if (axisOptionPrices.isEmpty()) return merged.values.toList()
+        return merged.values.map { def ->
+            val prices = axisOptionPrices[def.key].orEmpty()
+            if (prices.isEmpty()) def else def.copy(options = def.options.map { it.copy(priceRub = prices[it.value]) })
+        }
     }
 
     private fun mapError(code: Int, body: String): MediaException {

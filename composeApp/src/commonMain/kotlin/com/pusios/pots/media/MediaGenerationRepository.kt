@@ -37,6 +37,9 @@ class MediaGenerationRepository(
     /** Catalog cache per api-key fingerprint (key is never stored). */
     private val catalogCache = mutableMapOf<String, List<MediaModel>>()
 
+    /** Price-table cache per api-key fingerprint; fetch failures cache as null. */
+    private val priceTableCache = mutableMapOf<String, MediaPriceTable?>()
+
     suspend fun models(apiKey: String): List<MediaModel> {
         val fingerprint = apiKey.hashCode().toString()
         catalogCache[fingerprint]?.let {
@@ -55,6 +58,20 @@ class MediaGenerationRepository(
     }
 
     /**
+     * Per-model price table for the quality dropdown (spec §19.1). Public
+     * endpoint; a failure degrades the menu to the note mode, never breaks it.
+     */
+    suspend fun priceTable(apiKey: String, modelId: String): MediaPriceTable? {
+        val cacheKey = apiKey.hashCode().toString() + ":" + modelId
+        if (priceTableCache.containsKey(cacheKey)) return priceTableCache[cacheKey]
+        val table = runCatching { provider.priceTable(apiKey, modelId) }
+            .onFailure { MediaLog.w("Price table unavailable for $modelId (${it.message}) — quality menu without exact prices") }
+            .getOrNull()
+        priceTableCache[cacheKey] = table
+        return table
+    }
+
+    /**
      * Quote-then-submit: metered models («за 1000 символов», «за секунду») and
      * `mirelo-sfx-2` are quoted first; fixed prices submit without the extra
      * request (spec §2). Unknown models keep the safe quote-first path.
@@ -67,8 +84,12 @@ class MediaGenerationRepository(
     ): MediaJobState {
         // A repeat of a failed submit already carries its quote: keep it, so the body
         // stays identical to the one behind the idempotency key.
-        val knownModel = catalogCache[apiKey.hashCode().toString()]?.firstOrNull { it.id == request.model }
-        val shouldQuote = request.quoteId == null && (knownModel == null || requiresPriceQuote(knownModel))
+        val fingerprint = apiKey.hashCode().toString()
+        val knownModel = catalogCache[fingerprint]?.firstOrNull { it.id == request.model }
+        // `chargeBasis=quote` price tables (image quality, spec §19.1) quote before
+        // submit exactly like metered audio — the cached table decides.
+        val quoteBasisTable = priceTableCache["$fingerprint:${request.model}"]?.isQuoteBasis == true
+        val shouldQuote = request.quoteId == null && (knownModel == null || requiresPriceQuote(knownModel) || quoteBasisTable)
         val quoted = if (shouldQuote) {
             runCatching { provider.quotePrice(apiKey, request) }
                 .onFailure { MediaLog.w("Quote failed (will submit without quote): ${it.message}") }
