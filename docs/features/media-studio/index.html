@@ -1161,6 +1161,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#audio-editor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audio editor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#local-tts-offline" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1313,7 +1324,16 @@
 <p>A flow keeps its own prompt draft: drafts are keyed by mode plus flow in <code>MediaSettings</code> and survive mode/flow switches and generation errors; entering a flow restores its draft. The prompt field expands into a near-full-height editor (line breaks kept, live <code>{len}/{limit}</code> counter from the model's documented character limit, the text is never truncated). When the selected model's limit is exceeded, the counter turns to the error color and create is blocked; switching to a model with a smaller limit under an over-long text only offers trimming via snackbar action. The prompt-enhance button works for both flows through the active chat model.</p>
 <p>Metered models (“за 1000 символов”, “за секунду”) and <code>mirelo-sfx-2</code> are quoted via <code>POST /api/media/price</code> before submit; fixed prices submit directly without the extra request.</p>
 <p>Audio jobs go through the same submit/poll/download contract and the same queue and journal (<code>media/history.json</code>) as image and video; the journal entry carries an <code>isAudio</code> flag and the result is downloaded to bytes immediately (signed URLs live 5 days). Retry reuses the same <code>Idempotency-Key</code>, so a repeated submit never charges twice.</p>
-<p>A finished audio result lands on the canvas as an audio element with a basic player: play/pause and a seek slider. Desktop plays MP3 (JLayer) and WAV; Android uses the system media player over a temp file copy; iOS and web show a static card (playback not wired yet). Editing audio is a separate later feature and intentionally not part of the player.</p>
+<p>A finished audio result lands on the canvas as an audio element with a full in-app player: a real waveform (peaks decoded from the audio bytes; a decorative pattern stands in where decoding is unavailable), play/pause, ±10 s, tap-to-seek, position/duration, and — in the lightbox and the editor — playback-speed presets (0.5× / 0.75× / 1× / 1.25× / 1.5× / 2×), a volume slider with mute and looping. Desktop plays MP3 (JLayer) and WAV with all extended controls; Android uses the system media player (speed/volume/looping included); iOS and web show a static card (playback not wired yet). Editing is the audio editor below.</p>
+<h3 id="audio-editor">Audio editor</h3>
+<p>Entry: the «Редактировать» chip in the selected audio element's toolbar. The editor opens full-screen with the real waveform, tap-to-seek and a drag-to-select range with two edge handles. Three operations, each non-destructive — the source element is never modified, the result is always a NEW audio element on the canvas plus a WAV file under <code>media/edits/</code> in app storage:</p>
+<ul>
+<li><strong>Обрезка</strong> — «Обрезать до выделения» renders the selected range.</li>
+<li><strong>Скорость</strong> — a 0.25–4× slider with 0.5 / 1 / 1.5 / 2 presets; speed and pitch change together (tape behavior — honest about what linear resampling does; pitch-preserving time-stretch is a later version).</li>
+<li><strong>Склейка</strong> — «Добавить трек» picks other canvas audio elements; the ordered list (move up/down, remove) joins top-to-bottom into one file. Mixed formats are converted to the first track's channel count and sample rate.</li>
+</ul>
+<p>Rendering runs in the background with a progress bar and a cancel button («Отмена» stops the operation; the source stays intact). Failures show the §8 error card (title, human detail, rescue action) inside the sheet. Decoding is the only platform-dependent step: desktop understands MP3 and WAV, every other target decodes WAV in pure common code and refuses MP3 with «Формат не поддерживается» (playback of MP3 still works where the platform player exists).</p>
+<p>Audio processing is PCM sample math in pure Kotlin <code>commonMain</code> (trim = slice, speed = linear-interpolation resample, concat = copy), not a local <code>ffmpeg</code>. Reasons: (1) no new dependency — ffmpeg would mean shipping a ~100 MB binary per OS/arch just for three operations that fit in deterministic sample loops; (2) the pure logic is unit-tested in CI without any binary; (3) the output is always lossless WAV, so no MP3 encoder is needed (the spec's MP3 export chip waits for a later version together with time-stretch).</p>
 <h3 id="local-tts-offline">Local TTS (offline)</h3>
 <p>The TTS flow ends with a «Локально · 0 ₽» group that never touches a provider. Local synthesis is honest about platforms: only Android can synthesize into a FILE, so the group exists there and only there — the system engine (<code>TextToSpeech.synthesizeToFile</code>) and the bundled Piper voice «Ирина» (sherpa-onnx, the same engine Settings → Озвучивание uses; no new dependency). Desktop, iOS and web native engines only play speech and expose no audio data, so those targets show no group at all — no disabled rows, no “unavailable” notes, no fake local models.</p>
 <p>Synthesis writes a WAV into app storage; the result then rides the regular flow: an audio element on the canvas and one journal entry with the friendly engine name and the «локально» mark instead of a provider, price 0 ₽. No API key, no billing, no polling — the entry is persisted once, in its terminal state. Speed rides the standard chip (both engines accept a rate; pitch is not supported by either). Local engines are never auto-picked as the default model and never hide cloud models; repeating a local journal entry synthesizes offline again.</p>
@@ -1326,7 +1346,7 @@
 <p>Dropdown prices come from the public <code>GET /api/media/price-table?model=&lt;id&gt;</code>, cached per model: exact lines only for rows matching the current (price-affecting axes) combination — resolution, quality and generation/editing mode. A combination without a table row shows no price and no note; when the table is unavailable, flat equal catalog prices render with a «Качество не влияет на цену» note and anything else shows the conservative «Среднее ≈ ×2, высокое ≈ ×3» note without numbers. Tables whose rows carry <code>chargeBasis=quote</code> are quoted via <code>POST /api/media/price</code> before submit, exactly like metered audio.</p>
 <p>Video mode adds a «Со звуком / Без звука» toggle chip (VolumeUp/VolumeOff icons) for models with an <code>audio</code> or <code>generate_audio</code> axis; the toggle rides the catalog default until flipped. Models without the corresponding axes show no controls. Switching model or mode drops parameter selections the new model does not accept.</p>
 <h3 id="canvas-element">Canvas element</h3>
-<p>A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, open player, save and delete. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).</p>
+<p>A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, edit (opens the audio editor), open player, save and delete. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).</p>
 <h3 id="canvas-element-toolbar">Canvas element toolbar</h3>
 <p>The toolbar appears over the selected element in two icon rows. The first row holds the quick transform actions. The second row holds the former context-menu actions as vector icons: bring forward, send back, duplicate, use as reference, save to gallery and delete. The old text menu was removed, so the toolbar never overlaps another menu.</p>
 <h3 id="references">References</h3>
@@ -1392,7 +1412,11 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/WavAudio.kt</code></td>
-<td>Pure common WAV codec and duration parsing (local synthesis output, voice-sample pre-check, MP3 CBR estimate)</td>
+<td>Pure common WAV codec, duration parsing and 16-bit PCM decoding (local synthesis output, voice-sample pre-check, MP3 CBR estimate, editor/waveform input)</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/AudioEdit.kt</code></td>
+<td>Audio editing core: <code>AudioPcm</code>, trim/speed/concat as pure cancellable sample math, §8 editor errors; <code>decodeAudioToPcm</code> actuals — <code>desktopMain</code> (WAV + MP3 via JLayer), <code>androidMain</code>/<code>iosMain</code>/<code>wasmJsMain</code> (WAV only)</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/MediaVoices.kt</code></td>
@@ -1444,11 +1468,15 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaAudioPlayer.kt</code></td>
-<td>Audio element player: play/pause, seek slider, degraded static card where unsupported</td>
+<td>Audio element player: real waveform with decorative fallback, play/pause, ±10 s, seek, speed presets, volume with mute, loop</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaAudioEngine.kt</code></td>
-<td>Audio playback contract; actuals in <code>desktopMain</code> (MP3 via JLayer, WAV), <code>androidMain</code> (MediaPlayer), <code>iosMain</code>/<code>wasmJsMain</code> (unsupported)</td>
+<td>Audio playback contract incl. extended transport (speed/volume/loop); actuals in <code>desktopMain</code> (MP3 via JLayer, WAV), <code>androidMain</code> (MediaPlayer), <code>iosMain</code>/<code>wasmJsMain</code> (unsupported)</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/media/MediaAudioEditorSheet.kt</code></td>
+<td>Full-screen audio editor: waveform selection with handles, trim/speed/concat with progress and cancel, §8 error cards, non-destructive WAV results</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaHistorySheet.kt</code></td>
