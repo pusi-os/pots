@@ -1161,6 +1161,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#image-quality-and-video-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image quality and video parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#canvas-element" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1281,6 +1292,11 @@
 <p>Metered models (“за 1000 символов”, “за секунду”) and <code>mirelo-sfx-2</code> are quoted via <code>POST /api/media/price</code> before submit; fixed prices submit directly without the extra request.</p>
 <p>Audio jobs go through the same submit/poll/download contract and the same queue and journal (<code>media/history.json</code>) as image and video; the journal entry carries an <code>isAudio</code> flag and the result is downloaded to bytes immediately (signed URLs live 5 days). Retry reuses the same <code>Idempotency-Key</code>, so a repeated submit never charges twice.</p>
 <p>A finished audio result lands on the canvas as an audio element with a basic player: play/pause and a seek slider. Desktop plays MP3 (JLayer) and WAV; Android uses the system media player over a temp file copy; iOS and web show a static card (playback not wired yet). Editing audio is a separate later feature and intentionally not part of the player.</p>
+<h3 id="image-quality-and-video-parameters">Image quality and video parameters</h3>
+<p>The image/video toolbar is driven by the model's catalog axes (the generalized «axis → chip» mechanism, in chip order resolution → quality → duration → sound, at most four chips).</p>
+<p>Image quality gets one selector: a chip indicator right after the resolution chip opens a dropdown of the model's quality levels with Russian labels. It renders only for models whose <code>quality</code> axis has at least two real levels — degenerate one-option axes and models whose <code>quality</code> axis holds resolution values (<code>pixverse</code>, <code>runway</code>) have no selector; the latter render that axis as the resolution chip instead. The default is the lowest level: the cheapest option by catalog price, ties or missing prices fall back to the first option (so <code>gpt-image-2-6</code> defaults to Low although the catalog default is <code>high</code>, and <code>flux-3</code> video quality defaults to draft). The choice is stored per model in <code>MediaSettings</code>, applies to generation and editing alike, and is always sent explicitly in <code>opts.quality</code>; a stale stored value that no longer exists in the axis silently rolls back to the default.</p>
+<p>Dropdown prices come from the public <code>GET /api/media/price-table?model=&lt;id&gt;</code>, cached per model: exact lines only for rows matching the current (price-affecting axes) combination — resolution, quality and generation/editing mode. A combination without a table row shows no price and no note; when the table is unavailable, flat equal catalog prices render with a «Качество не влияет на цену» note and anything else shows the conservative «Среднее ≈ ×2, высокое ≈ ×3» note without numbers. Tables whose rows carry <code>chargeBasis=quote</code> are quoted via <code>POST /api/media/price</code> before submit, exactly like metered audio.</p>
+<p>Video mode adds a «Со звуком / Без звука» toggle chip (VolumeUp/VolumeOff icons) for models with an <code>audio</code> or <code>generate_audio</code> axis; the toggle rides the catalog default until flipped. Models without the corresponding axes show no controls. Switching model or mode drops parameter selections the new model does not accept.</p>
 <h3 id="canvas-element">Canvas element</h3>
 <p>A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, open player, save and delete. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).</p>
 <h3 id="canvas-element-toolbar">Canvas element toolbar</h3>
@@ -1297,7 +1313,7 @@
 <li>Result URLs are downloaded to bytes immediately and cached under the app storage; the canvas keeps the remote URL as a fallback until the download completes.</li>
 <li>Top bar (main chat bar, shown in both modes): the media icon opens the studio; in the studio the same slot shows a chat icon that returns to chat.</li>
 <li>Studio top capsule: recenter canvas, import a file, pick a model, and the generation journal. The sparkle icon recenters the canvas. It is not prompt enhancement.</li>
-<li>Studio second row: the image/video/audio switch (three icon buttons; audio is a music note), the current model chip (opens the model sheet), and, in image mode only, the aspect-ratio chip. The chip opens a sheet with a rectangle preview for each ratio and its name.</li>
+<li>Studio second row: the image/video/audio switch (three icon buttons; audio is a music note), the current model chip (opens the model sheet), and, in image mode only, the aspect-ratio chip. The chip opens a sheet with a rectangle preview for each ratio and its name. Image/video models then show axis-driven chips: resolution, the quality dropdown (default Low), duration and the sound toggle — each only when the model declares the axis.</li>
 <li>Audio mode has a remembered flow (TTS / music): the first tap on the audio segment restores it, a repeat tap on the active segment opens the flow dropdown; the flow, its model and its draft persist separately from the other flow.</li>
 <li>Audio mode swaps the resolution/aspect chips for the selected audio model's parameter chips from the catalog axes; switching the audio model or flow resets the chosen values.</li>
 <li>Dock: one prompt field (draft kept separately per mode, and per audio flow inside audio mode), the prompt-enhance button (small, icon only, left of the send button), a round create button with a progress indicator while a job runs, a reference strip, and the duration and resolution chips when the model declares them. Aspect ratio is not in the dock. The audio dock adds an expand button that opens the expanded prompt editor with line breaks, a <code>{len}/{limit}</code> counter and the same enhance/create actions.</li>
@@ -1324,7 +1340,7 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/MediaProvider.kt</code></td>
-<td>Provider interface (catalog, quote, submit, poll, download)</td>
+<td>Provider interface (catalog, price table, quote, submit, poll, download)</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/PlusVibeMediaProvider.kt</code></td>
@@ -1343,8 +1359,16 @@
 <td>Generative audio filter, flows (TTS / music), flow filtering, price label with unit, tier parsing, voice/speed axis aliases, quote policy, toolbar chips</td>
 </tr>
 <tr>
+<td><code>composeApp/src/commonMain/.../media/MediaQualityParams.kt</code></td>
+<td>Axis→chip mechanism: quality selector visibility, the Low default, audio toggle axes, explicit opt defaults</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/MediaPriceTables.kt</code></td>
+<td>Price-table parsing and quality price rules (exact lines, flat/conservative notes, quote basis)</td>
+</tr>
+<tr>
 <td><code>composeApp/src/commonMain/.../media/MediaSettings.kt</code></td>
-<td>Per-instance image/video/audio model selection, audio flow, per-flow models and prompt drafts, media instance resolution</td>
+<td>Per-instance image/video/audio model selection, audio flow, per-flow models, prompt drafts and the per-model quality selection, media instance resolution</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/MediaLog.kt</code></td>

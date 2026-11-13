@@ -1104,7 +1104,9 @@
 
 <h1 id="-">Медиа-студия — референсы расширения (аудио, рисование, монтаж)</h1>
 <p>Материалы подготовки третьего режима медиа-студии (генерация аудио),
-скопированы из <code>~/wiki/design/</code> 2026-11-13 (карточка <code>t_f1891f4c</code>, доска <code>pots</code>).</p>
+скопированы из <code>~/wiki/design/</code> 2026-11-13 (карточка <code>t_f1891f4c</code>, доска <code>pots</code>).
+Блок качества изображений и параметров видео добавлен 2026-11-13
+(карточки <code>t_52b5bf84</code>, <code>t_4741bec6</code>, <code>t_da67ac0d</code>).</p>
 <table>
 <thead>
 <tr>
@@ -1115,7 +1117,7 @@
 <tbody>
 <tr>
 <td><code>pots-media-ux-spec.md</code></td>
-<td>UX/UI-спек расширения (@joni, карточка <code>t_5b9da93f</code>): режимы, чипы, плеер, редактор, ошибки</td>
+<td>UX/UI-спек расширения (@joni): режимы, чипы, плеер, редактор, ошибки; §13–§17 аудио-флоу; §19 селектор качества изображений и параметры видео (v4)</td>
 </tr>
 <tr>
 <td><code>pots-audio-gen-research.md</code></td>
@@ -1124,6 +1126,18 @@
 <tr>
 <td><code>pots-audio-catalog-dump.json</code></td>
 <td>Дамп <code>GET https://plusvibeapi.ru/api/media-catalog</code> от 2026-11-13: 57 моделей <code>kind=audio\|music</code>, поле <code>class</code> добавлено исследованием (в живом API его нет; нативное поле — <code>task</code>)</td>
+</tr>
+<tr>
+<td><code>pots-quality-params-research.md</code></td>
+<td>Справка по качеству изображений и параметрам видео (@pifiya, карточка <code>t_4741bec6</code>): ось <code>quality</code>, price-table, тумблеры звука, разрешение в оси <code>quality</code></td>
+</tr>
+<tr>
+<td><code>pots-image-quality-price-tables.json</code></td>
+<td>Живые <code>GET /api/media/price-table</code> 8 моделей изображений от 2026-11-13 (строки <code>opts</code>/<code>price</code>/<code>priceStatus</code>/<code>chargeBasis</code>) — фикстура тестов цен</td>
+</tr>
+<tr>
+<td><code>pots-image-video-catalog-dump.json</code></td>
+<td>Срез того же дампа каталога: 20 моделей <code>kind=image\|video</code> с осями качества/звука/разрешения (+ негативные кейсы) — фикстура тестов тулбара</td>
 </tr>
 <tr>
 <td><code>icons/</code></td>

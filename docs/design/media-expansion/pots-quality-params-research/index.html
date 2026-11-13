@@ -1,0 +1,1675 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Pots - AI Assistant App">
+      
+      
+      
+        <link rel="canonical" href="https://pusi-os.github.io/pots/docs/design/media-expansion/pots-quality-params-research/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Pots quality params research - Pots Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Pots Documentation" class="md-header__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pots Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Pots quality params research
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Pots Documentation" class="md-nav__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pots Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat & Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/hands-free/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hands-Free Voice Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/multi-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/dynamic-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mini-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/mini-app-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-app server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/memories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/heartbeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/encryption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encryption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/on-device-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    On-Device Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasoning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/system-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/pots-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pots Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/sms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/potsiki/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/settings-export-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings Export & Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/splinterlands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splinterlands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../desktop-release-smoketest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop Release Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Ось quality у моделей изображений
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Как quality уходит в запрос
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-apimediaprice-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Таблицы цен (/api/media/price-table)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Таблицы цен (/api/media/price-table)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-gpt-image-2-6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 gpt-image-2-6 — качество × разрешение × режим
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-gpt-image-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 gpt-image-2
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Видео: звук, разрешение, длительность
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Видео: звук, разрешение, длительность">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Звук «вкл/выкл» — булевы тумблеры генерации звука
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Разрешение
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Длительность
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Модели без осей разрешения/качества/длительности — контролы скрыты
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-023e6354" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Что тулбар рендерит сейчас (код 023e6354)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Рекомендации
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Источники и сверка
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<hr />
+<p>title: Качество генерации изображений (price-table) и параметры видео (звук/разрешение) — медиа-студия Pots
+created: 2026-11-13
+updated: 2026-11-13
+type: doc
+tags: [project, ai, api, pots, media-studio]
+sources:
+  - https://plusvibeapi.ru/api/media-catalog
+  - https://plusvibeapi.ru/api/media/price-table?model=gpt-image-2-6
+  - https://plusvibeapi.ru/api/media/price-table?model=gpt-image-2
+  - /run/media/al/ARCHIVE/code/pusi/apps/pots/docs/knowledge/media-providers/plusvibe.md
+  - /run/media/al/ARCHIVE/code/pusi/apps/pots/composeApp/src/commonMain/kotlin/com/pusios/pots/media/PlusVibeMediaProvider.kt
+  - /run/media/al/ARCHIVE/code/pusi/apps/pots/composeApp/src/commonMain/kotlin/com/pusios/pots/ui/media/MediaStudioScreenFull.kt
+  - /run/media/al/ARCHIVE/code/pusi/apps/pots/composeApp/src/commonMain/kotlin/com/pusios/pots/ui/media/MediaStudioTopBar.kt
+  - /run/media/al/ARCHIVE/code/pusi/apps/pots/composeApp/src/commonMain/kotlin/com/pusios/pots/media/AudioModels.kt
+confidence: high
+status: active
+related: [[design/pots-media-ux-spec]], [[design/pots-audio-flows-research]], [[design/pots-audio-gen-research]]</p>
+<hr />
+<h1 id="_1">Качество генерации изображений и параметры видео (звук/разрешение)</h1>
+<p>Исследование для цепочки <code>t_4741bec6</code> (это, @pifiya) → <code>t_f1e6f686</code> (спек-дельта, @joni). Директива владельца: селектор качества генерации изображений в медиа-студию (по умолчанию Low) + проверить параметры видео (звук вкл/выкл, разрешение).</p>
+<p>База: живой каталог <code>GET https://plusvibeapi.ru/api/media-catalog</code> (снят 2026-11-13 ~18:31 MSK, 1 214 115 байт, 208 моделей: 88 video / 56 image / 46 audio / 11 music / 7 3d; <code>videoDisabled=false</code>), живые price-table обеих моделей <code>gpt-image-*</code>, контракт <code>docs/knowledge/media-providers/plusvibe.md</code> (okf 0.2), код приложения — клон <code>/run/media/al/ARCHIVE/code/pusi/apps/pots</code>, коммит <code>023e6354</code> (2026-11-13 17:33 +0300). Платных запросов не было; все цены — из публичных эндпоинтов без ключа. Рабочие дампы: <code>/home/al/.hermes/kanban/workspaces/t_4741bec6/</code> (<code>catalog.json</code>, <code>price-gpt-image-2-6.json</code>, <code>price-gpt-image-2.json</code>).</p>
+<hr />
+<h2 id="1-quality">1. Ось <code>quality</code> у моделей изображений</h2>
+<p>В каталоге 56 моделей <code>kind=image</code>; ось <code>quality</code> в <code>axes</code>/<code>params</code> есть у <strong>8</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Модель</th>
+<th>Значения <code>quality</code></th>
+<th>Дефолт каталога</th>
+<th>Цены опций (₽)</th>
+<th><code>priceStatus</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>gpt-image-2-6</code></strong></td>
+<td><code>low</code> / <code>medium</code> / <code>high</code></td>
+<td><strong><code>high</code></strong></td>
+<td>по 1,44 («от», см. §3)</td>
+<td>exact</td>
+</tr>
+<tr>
+<td><code>grok-imagine-image-2.0</code></td>
+<td>только <code>low</code> (одна опция — вырожденная ось)</td>
+<td><code>low</code></td>
+<td>—</td>
+<td>exact</td>
+</tr>
+<tr>
+<td><code>ideogram-4-5</code></td>
+<td><code>very_low</code> / <code>low</code> / <code>medium</code> / <code>high</code></td>
+<td><code>medium</code></td>
+<td>1,09 / 4,07 / 8,13 / 13,54</td>
+<td>exact</td>
+</tr>
+<tr>
+<td><code>ideogram-4-5-precise-edit</code></td>
+<td><code>very_low</code> / <code>low</code> / <code>medium</code> / <code>high</code></td>
+<td><code>medium</code></td>
+<td>1,09 / 4,07 / 8,13 / 29,79</td>
+<td>exact</td>
+</tr>
+<tr>
+<td><code>gpt-image-1-5</code></td>
+<td><code>medium</code> / <code>high</code></td>
+<td><code>medium</code></td>
+<td>2,51 / 13,83</td>
+<td>exact</td>
+</tr>
+<tr>
+<td><code>seedream-5</code></td>
+<td><code>basic</code> / <code>high</code> / <code>ultra</code></td>
+<td><code>basic</code></td>
+<td>все 3,72 (качество на цену не влияет)</td>
+<td>exact</td>
+</tr>
+<tr>
+<td><code>seedream-4-5</code></td>
+<td><code>basic</code> / <code>high</code></td>
+<td><code>basic</code></td>
+<td>— (estimate)</td>
+<td>estimate</td>
+</tr>
+<tr>
+<td><code>seedream-5-uncensored</code></td>
+<td><code>basic</code> / <code>high</code></td>
+<td><code>basic</code></td>
+<td>4,62 / 9,24 (×2)</td>
+<td>exact</td>
+</tr>
+</tbody>
+</table>
+<p>Упомянутые в задаче <strong><code>gpt-image-2</code> и <code>nano-banana-pro</code> оси <code>quality</code> НЕ имеют</strong>:</p>
+<ul>
+<li><code>gpt-image-2</code>: оси <code>aspect_ratio</code>, <code>resolution</code> (1K/2K/4K), <code>mode</code> (text-to-image/image-to-image). Цена зависит от соотношения и разрешения (§3.2).</li>
+<li><code>nano-banana-pro</code>: оси <code>aspect_ratio</code>, <code>resolution</code> (1K/2K = 4,06 ₽, 4K = 5,42 ₽), <code>mode</code> (text-to-image/edit). <code>priceStatus=estimate</code>.</li>
+</ul>
+<p>Вывод для тулбара: селектор качества показывать только моделям с осью <code>quality</code> и ≥2 опциями (7 моделей; <code>grok-imagine-image-2.0</code> с одной опцией — скрыть). Для <code>gpt-image-2</code>, <code>nano-banana-pro</code> и остальных 48 моделей контрол скрыт.</p>
+<h2 id="2-quality">2. Как <code>quality</code> уходит в запрос</h2>
+<p><strong>Основной путь приложения — async</strong> (<code>POST /api/media/generate</code>, контракт §«Async generation»): параметры модели идут в <code>opts</code>, т.е. <code>opts.quality: "low"|"medium"|"high"</code>. Неизвестный параметр в не-strict режиме игнорируется, в <code>strict</code> — 422 (контракт §«opts»).</p>
+<p><strong>Синхронный шорткат</strong> <code>POST /v1/images/generations</code> (контракт §«Sync image shortcut»): поле <code>quality</code> принимается <strong>«только если есть в каталоге»</strong> — для <code>gpt-image-2-6</code> валидно, для <code>gpt-image-2</code> неизвестное поле → <code>400</code> по имени поля. Штатный размер уходит как <code>size</code>-пропорция (<code>1024x1024</code>→1:1 и т.д.). <strong>Приложение синхронный путь не использует</strong>: по коду <code>composeApp/src/commonMain</code> совпадений <code>v1/images</code> нет — только async (проверено grep по <code>*.kt</code>).</p>
+<p><strong>Что шлёт приложение сейчас</strong> (<code>PlusVibeMediaProvider.kt</code>, коммит <code>023e6354</code>):</p>
+<ul>
+<li><code>buildGenerateBody()</code> собирает <code>{ model, prompt, opts, quote_id?, max_price_rub? }</code>; <code>opts</code> — сквозной проброс <code>request.opts</code> (что выбрал пользователь в тулбаре) + маппинг референсов + авто-<code>mode=image-to-image</code> при референсах, если у модели есть параметр <code>mode</code> (строки 163–178).</li>
+<li><strong><code>quality</code> не добавляется нигде</strong> — ни в тулбаре, ни в провайдере. При отсутствии <code>opts.quality</code> сервер применяет дефолт каталога: у <code>gpt-image-2-6</code> это <strong><code>high</code></strong> (поле <code>defaults</code> price-table). Следствие: выбор 2K/4K без селектора качества молча тарифицируется по 17,33 ₽ вместо 6,77 ₽ — ровно та «ловушка стоимости», которую закрывает директива «дефолт Low».</li>
+</ul>
+<h2 id="3-apimediaprice-table">3. Таблицы цен (<code>/api/media/price-table</code>)</h2>
+<h3 id="31-gpt-image-2-6">3.1 <code>gpt-image-2-6</code> — качество × разрешение × режим</h3>
+<p>Живой <code>GET /api/media/price-table?model=gpt-image-2-6</code>: <code>ok=true</code>, <code>currency=RUB</code>, <code>priceAffecting=[resolution, quality, mode]</code>, <code>defaults={aspect_ratio:1:1, resolution:1K, quality:high, complexity:high, tier:flare, mode:text-to-image}</code>, <strong>18 строк</strong> (3 разрешения × 3 качества × 2 режима), все <code>priceStatus=exact</code>, <code>chargeBasis=quote</code>, <code>priceScope=job_total</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Разрешение</th>
+<th>Low</th>
+<th>Medium</th>
+<th>High</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1K</strong></td>
+<td>1,44 ₽</td>
+<td>1,44 ₽</td>
+<td>1,44 ₽</td>
+</tr>
+<tr>
+<td><strong>2K</strong></td>
+<td>6,77 ₽</td>
+<td>12,19 ₽</td>
+<td>17,33 ₽</td>
+</tr>
+<tr>
+<td><strong>4K</strong></td>
+<td>6,77 ₽</td>
+<td>12,19 ₽</td>
+<td>17,33 ₽</td>
+</tr>
+</tbody>
+</table>
+<p>Сверка с таблицей владельца: <strong>совпадение 1:1</strong> (Low 1K 1,44 / 2K–4K 6,77; Medium 2K/4K 12,19; High 2K/4K 17,33).</p>
+<p>Дополнительно подтверждено по строкам:</p>
+<ul>
+<li><strong>Генерация и редактирование стоят одинаково</strong>: во всех 9 парах (разрешение×качество) цена <code>text-to-image</code> = <code>image-to-image</code>. Одно место выбора качества на оба режима корректно и по ценам.</li>
+<li><strong>Режим формально в <code>priceAffecting</code>, но цену не меняет</strong>; цена зависит только от разрешения и качества.</li>
+<li>На 1K качество на цену <strong>не влияет</strong> (все три качества — 1,44 ₽).</li>
+</ul>
+<p><strong>Проверка правила «×2/×3»</strong> (2K/4K, относительно Low):</p>
+<ul>
+<li>Medium/Low = 12,19 / 6,77 = <strong>×1,80</strong> (номинал ×2 завышает на 1,35 ₽);</li>
+<li>High/Low = 17,33 / 6,77 = <strong>×2,56</strong> (номинал ×3 завышает на 2,98 ₽);</li>
+<li>High/Medium = ×1,42.</li>
+</ul>
+<p>Итог: «среднее ≈ ×2, высокое ≈ ×3» — <strong>консервативная оценка сверху, подтверждается как приближение</strong> (реальные множители ×1,8 и ×2,56). Для 1K правило не действует — наценка ×1, это нужно отражать в пометке.</p>
+<p>Осторожно с <code>priceRub</code> опций самой оси в каталоге: у <code>quality</code> все три опции несут 1,44 ₽, у <code>resolution</code> — 1,44/17,33/17,33 ₽. Это цены «от» при дефолтном <code>quality=high</code>, а не цены опций при выбранном разрешении — для индикации цены качества использовать строки price-table по ключу (разрешение, качество, режим), а не <code>priceRub</code> опций оси.</p>
+<h3 id="32-gpt-image-2">3.2 <code>gpt-image-2</code></h3>
+<p>Живой <code>GET /api/media/price-table?model=gpt-image-2</code>: <code>ok=true</code>, <code>priceAffecting=[aspect_ratio, resolution]</code> (оси качества нет), 24 строки (8 соотношений × 3 разрешения), все <code>exact</code>, только генерация (<code>requiresInput=prompt</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Разрешение</th>
+<th>1:1, 16:9, 9:16, 4:3, 3:4</th>
+<th>3:2, 2:3, 21:9</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1K</td>
+<td>0,45 ₽</td>
+<td>2,70 ₽</td>
+</tr>
+<tr>
+<td>2K</td>
+<td>2,70 ₽</td>
+<td>2,70 ₽</td>
+</tr>
+<tr>
+<td>4K</td>
+<td>2,70 ₽</td>
+<td>2,70 ₽</td>
+</tr>
+</tbody>
+</table>
+<p>Нюанс: публичный price-table не содержит строк редактирования <code>gpt-image-2</code>, но каталожные <code>tiers</code> содержат: редактирование 1K = 2,70 ₽ при любом соотношении (×6 к генерации 1K 0,45 ₽), 2K/4K — 2,70 ₽ в обоих режимах. Селектора качества у модели нет; рычаги цены — разрешение и (на 1K) соотношение сторон.</p>
+<h2 id="4">4. Видео: звук, разрешение, длительность</h2>
+<p>88 моделей <code>kind=video</code> (<code>videoDisabled=false</code>).</p>
+<h3 id="41">4.1 Звук «вкл/выкл» — булевы тумблеры генерации звука</h3>
+<p>Готовый «звук вкл/выкл» дают <strong>12 моделей</strong> с осью-тумблером <code>audio</code>/<code>generate_audio</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Модель</th>
+<th>Ключ</th>
+<th>Подпись в каталоге</th>
+<th>Дефолт</th>
+<th>Влияет на цену</th>
+<th>Без звука → Со звуком (₽)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kling-v2.6</code></td>
+<td><code>audio</code></td>
+<td>«Со звуком»</td>
+<td><code>false</code></td>
+<td>да (точно)</td>
+<td>35,64 → 71,28 (<strong>×2,0</strong>)</td>
+</tr>
+<tr>
+<td><code>kling-v3.0</code></td>
+<td><code>audio</code></td>
+<td>«Со звуком»</td>
+<td><code>false</code></td>
+<td>да (цены опций не опубликованы)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>kling-v3-omni</code></td>
+<td><code>audio</code></td>
+<td>«Нативное аудио»</td>
+<td><code>false</code></td>
+<td>да (точно)</td>
+<td>7,99 → 11,43 (×1,43)</td>
+</tr>
+<tr>
+<td><code>kling-v3-omni-reference</code></td>
+<td><code>audio</code></td>
+<td>«Нативное аудио»</td>
+<td><code>false</code></td>
+<td>да (estimate)</td>
+<td>8,54 → 11,43 (×1,34)</td>
+</tr>
+<tr>
+<td><code>seedance-2.0</code></td>
+<td><code>audio</code></td>
+<td>«Генерировать звук»</td>
+<td><code>false</code></td>
+<td>да (точно)</td>
+<td>17,85 → 23,19 (×1,30)</td>
+</tr>
+<tr>
+<td><code>seedance-2.5</code></td>
+<td><code>audio</code></td>
+<td>«Генерировать звук»</td>
+<td><code>false</code></td>
+<td>флаг не заявлен</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>seedance-2-0-mini</code></td>
+<td><code>audio</code></td>
+<td>«Генерировать звук»</td>
+<td><code>false</code></td>
+<td>флаг не заявлен</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>pixverse-v6</code></td>
+<td><code>audio</code></td>
+<td>«Генерировать звук»</td>
+<td><code>false</code></td>
+<td>да (точно)</td>
+<td>4,07 → 5,43 (×1,33)</td>
+</tr>
+<tr>
+<td><code>pixverse-v6-max</code></td>
+<td><code>audio</code></td>
+<td>«Генерировать звук»</td>
+<td><code>false</code></td>
+<td>да (estimate)</td>
+<td>4,98 → 6,79 (×1,36)</td>
+</tr>
+<tr>
+<td><code>wan-3-0-prime</code></td>
+<td><code>audio</code></td>
+<td>«Звук»</td>
+<td><strong><code>true</code></strong></td>
+<td>флаг не заявлен</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>flux-3</code> (видео)</td>
+<td><code>generate_audio</code></td>
+<td>«Синхронный звук»</td>
+<td><strong><code>true</code></strong></td>
+<td>флаг не заявлен</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>vidu-q4</code></td>
+<td><code>audio</code></td>
+<td>«Со звуком»</td>
+<td><strong><code>true</code></strong></td>
+<td>флаг не заявлен</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Дефолты: у 9 моделей «без звука» (<code>false</code>), у 3 (<code>wan-3-0-prime</code>, <code>flux-3</code>, <code>vidu-q4</code>) — «со звуком» (<code>true</code>). Дефолт тумблера в тулбаре брать из каталога, не хардкодить.</p>
+<p><strong>Это не тумблеры «вкл/выкл»</strong>, а другие звуковые оси (в селектор звука не превращать): <code>audio_url</code> (входная дорожка; у 20 моделей — аватары/липсинк/озвучка: <code>skyreels-v4-*</code>, <code>p-video-2</code>, <code>kling-ai-avatar</code>, <code>wan-2-7</code>, <code>wan-speech-to-video</code>, <code>omnihuman-*</code>, <code>volcengine-lipsync</code>, <code>lipsync-2-pro</code>, <code>sync-3</code>, <code>sync-3-avatar</code>, <code>react-1</code>, <code>minimax-h3-max-lipsync</code>, <code>heygen-avatar-*</code>, <code>veed-fabric-1.0</code>, <code>ltx-2.5-audio-to-video</code>, <code>p-video-avatar</code>), <code>keep_audio</code> (<code>p-video-2-pro-reference</code>), <code>keep_original_sound</code> (<code>kling-v4</code>, <code>kling-v4-flash</code>), <code>audio_setting</code> auto/origin (<code>happyhorse</code>), <code>save_audio</code> (<code>p-video-2</code>), <code>target_audio_url</code> (<code>minimax-h3-max</code>, <code>minimax-h3-max-turbo</code>), <code>source_audio_id</code> (<code>suno-music-video</code>).</p>
+<h3 id="42">4.2 Разрешение</h3>
+<p>Ось разрешения есть у <strong>69</strong> видео-моделей; диапазон значений от 360p до 4K. 4K-класс: <code>veo-3.1</code>, <code>kling-v3-omni</code>, <code>kling-v3-omni-reference</code>, <code>kling-v3-omni-transformation</code>, <code>seedance-2.0</code>, <code>vidu-q4</code> (до 4k + 2k), <code>gemini-omni-video</code>, <code>gemini-omni-flash-1-1</code>, <code>gemini-omni-flash-1-2</code>, <code>video-upscale</code> (1080P/2K/4K).</p>
+<p>⚠️ У трёх моделей разрешение лежит в оси с ключом <strong><code>quality</code></strong>, а не <code>resolution</code>: <code>pixverse-v6</code> и <code>pixverse-v6-max</code> (360p/540p/720p/1080p), <code>runway-gen4</code> (720p/1080p). Текущий тулбар их не видит (§5) — у этих моделей сейчас вообще нет контрола разрешения. Не путать с <code>flux-3</code> (видео): у неё <code>quality</code> = <code>full</code>/<code>draft</code> — уровень качества поверх отдельной оси <code>resolution</code> (720p/1080p).</p>
+<h3 id="43">4.3 Длительность</h3>
+<p>Ось <code>duration</code> у <strong>62</strong> моделей; типичные значения 5/10 с; максимум 30 с (<code>seedance-2.5</code>, до 30 и у <code>wan-3-0-prime</code> 2–30); особые: <code>veo-3.1</code> 4/6/8, <code>p-video-2</code> 2–20, <code>skyreels-v4-*</code> 3–15, <code>hailuo-2-3</code> 6/10.</p>
+<h3 id="44">4.4 Модели без осей разрешения/качества/длительности — контролы скрыты</h3>
+<p>14 моделей: <code>MiniMax-H3-Context-IR</code>, <code>p-video-edit</code>, <code>kling-ai-avatar</code>, <code>grok-imagine-extend</code>, <code>omnihuman-1-5</code>, <code>volcengine-lipsync</code>, <code>topaz-video-upscale</code>, <code>omnihuman-v2</code>, <code>lipsync-2-pro</code>, <code>sync-3</code>, <code>react-1</code>, <code>sync-3-avatar</code>, <code>ltx-2.5-audio-to-video</code>, <code>suno-music-video</code> (в основном аватары/липсинк/апскейл — параметры задаются входом, а не осями).</p>
+<h2 id="5-023e6354">5. Что тулбар рендерит сейчас (код <code>023e6354</code>)</h2>
+<p><code>MediaStudioScreenFull.kt</code> + <code>MediaStudioTopBar.kt</code>:</p>
+<ul>
+<li><strong>Изображение/видео</strong>: <code>toolbarParamDefs = currentModel.params.filter { it.key in listOf("resolution", "duration") &amp;&amp; it.options.isNotEmpty() }</code> — захардкоженная пара ключей. Чипы показывают <code>params[key] ?: defaultValue</code>, тап открывает <code>MediaParamSheet</code> со списком опций оси; выбор попадает в <code>params</code>, который целиком уходит как <code>opts</code> в <code>generateImage/generateVideo</code>.</li>
+<li><strong>Соотношение сторон</strong> — отдельный чип, только в режиме изображения (<code>aspect_ratio</code>).</li>
+<li><strong>Аудио</strong>: универсальный механизм <code>audioToolbarParams()</code> (<code>AudioModels.kt</code>) — все опционные оси модели кроме технических (<code>seed</code>, <code>sample_rate</code>, <code>bitrate</code>, <code>channel</code>, <code>stability</code>, <code>similarity_boost</code>), приоритетный порядок (<code>duration</code>, <code>voice</code>, <code>response_format</code>, <code>output_format</code>, <code>language</code>, <code>language_code</code>), максимум 4 чипа. Это готовый образец для расширения на изображение/видео.</li>
+<li>Порядок чипов в тулбаре: модель → соотношение (изображение) → парам-чипы (<code>MediaStudioTopBar.kt</code>).</li>
+<li>При смене модели <code>params</code> сбрасывается в пустую карту.</li>
+</ul>
+<p><strong>Чего в тулбаре нет:</strong></p>
+<ol>
+<li><code>quality</code> — ни у одной модели (фильтр его не включает);</li>
+<li>тумблеры звука видео (§4.1) — 12 моделей без контрола «со звуком / без звука»;</li>
+<li>разрешение у <code>pixverse-v6</code>, <code>pixverse-v6-max</code>, <code>runway-gen4</code> (ключ <code>quality</code> мимо фильтра); <code>flux-3</code> (видео) не показывает <code>quality=full/draft</code>.</li>
+</ol>
+<h2 id="6">6. Рекомендации</h2>
+<p><strong>Качество изображений (режим «Изображение»):</strong></p>
+<ol>
+<li>Единственный выпадающий список качества в тулбаре, позиция — сразу после чипа разрешения (кнопка-индикатор текущего значения, как чип соотношения сторон). Показывать, только если у выбранной модели есть ось <code>quality</code> с ≥2 опциями; иначе контрол скрыт. Одна точка выбора на генерацию и редактирование — цены обоих режимов идентичны (§3.1).</li>
+<li><strong>Дефолт Low</strong>: для <code>gpt-image-2-6</code> — <code>low</code>. Универсальное правило: опция с минимальной ценой (по <code>priceRub</code> опций оси, при равенстве — первая): <code>seedream-5</code>→<code>basic</code>, <code>seedream-5-uncensored</code>→<code>basic</code>, <code>ideogram-4-5(-precise-edit)</code>→<code>very_low</code>, <code>gpt-image-1-5</code>→<code>medium</code> (низшего уровня у модели нет — дефолт честный минимум). Подписи опций — из каталога (<code>optionLabels</code>: Low/Medium/High, Basic/Ultra и т.д.).</li>
+<li><strong>Отправлять явно</strong>: выбранное значение обязательно класть в <code>opts.quality</code>. Серверный дефолт <code>gpt-image-2-6</code> — <code>high</code>; неотправка при 2K/4K стоит ×2,56 (§2).</li>
+<li><strong>Цена в селекторе</strong>: для <code>gpt-image-2-6</code> — точные ₽ из строк price-table по выбранному разрешению (1,44 / 6,77 / 12,19 / 17,33; генерация=редактирование). Где точной цены качества нет (<code>seedream-4-5</code>, <code>kling-v3.0</code> и пр.) — пометка «среднее ≈ ×2, высокое ≈ ×3»: для <code>gpt-image-2-6</code> реальные множители ×1,80/×2,56 на 2K/4K, т.е. пометка консервативна и безопасна; на 1K качества цена не меняется — при выбранном 1K пометку скрывать (или писать «на цену не влияет»). <code>priceRub</code> опций оси для этих пометок не использовать (§3.1).</li>
+</ol>
+<p><strong>Видео-режим:</strong></p>
+<ol>
+<li>Тумблер «со звуком / без звука» — чип по оси <code>audio</code>/<code>generate_audio</code> для 12 моделей §4.1; дефолт из каталога (у 9 — выкл, у <code>wan-3-0-prime</code>/<code>flux-3</code>/<code>vidu-q4</code> — вкл); подпись — из каталога. Если ось <code>priceAffecting</code> и у опций есть <code>priceRub</code> — показывать дельту цены (у <code>kling-v2.6</code> ровно ×2: 35,64→71,28 ₽; у остальных ×1,3–1,43). Остальные звуковые оси (<code>audio_url</code>, <code>keep_audio</code>, …) в этот тумблер не включать.</li>
+<li>Разрешение видео уже рендерится чипом для 69 моделей с осью <code>resolution</code>; добавить обработку ключа <code>quality</code> со значениями формата <code>*p</code>/<code>4k</code> (<code>pixverse-v6</code>, <code>pixverse-v6-max</code>, <code>runway-gen4</code>) — иначе у них нет контрола разрешения. <code>flux-3</code> (видео): <code>quality=full/draft</code> — отдельный уровень качества, показывать отдельным чипом либо оставить скрытым до решения спеки. Длительность уже рендерится (62 модели). Для 14 моделей без осей (§4.4) контролы не показывать.</li>
+</ol>
+<p><strong>Механизм:</strong></p>
+<ol>
+<li>Заменить захардкоженный фильтр <code>["resolution", "duration"]</code> на обобщённый механизм по образцу <code>audioToolbarParams()</code>: приоритетный порядок (предложение: <code>resolution</code>, <code>quality</code>, <code>duration</code>, <code>audio</code>/<code>generate_audio</code>) + список технических ключей, которые никогда не становятся чипами (<code>seed</code>, <code>negative_prompt</code>, <code>guidance_scale</code>, <code>image_url</code>-поля и пр. входные/служебные оси) + ограничение числа чипов. Это закроет пункты 1, 5, 6 одним изменением и сохранит существующий паттерн чипов/шитов (<code>MediaParamSheet</code>).</li>
+</ol>
+<p><strong>Синхронный шорткат (на будущее):</strong> если приложение когда-либо пойдёт в <code>POST /v1/images/generations</code>, поле <code>quality</code> отправлять только моделям с осью качества в каталоге (<code>gpt-image-2-6</code> — да; <code>gpt-image-2</code>, <code>nano-banana-pro</code> — нет, будет 400 по имени поля). Сейчас приложение использует только async-путь, поэтому основной маршрут — <code>opts.quality</code>.</p>
+<h2 id="_2">Источники и сверка</h2>
+<ul>
+<li><code>GET https://plusvibeapi.ru/api/media-catalog</code> — 2026-11-13 ~18:31 MSK (дамп <code>t_4741bec6/catalog.json</code>, 208 моделей).</li>
+<li><code>GET https://plusvibeapi.ru/api/media/price-table?model=gpt-image-2-6</code> — 18 строк, <code>exact</code>; <code>…?model=gpt-image-2</code> — 24 строки, <code>exact</code> (дампы рядом).</li>
+<li>Контракт <code>docs/knowledge/media-providers/plusvibe.md</code> (okf 0.2, last_verified 2026-11-10): async <code>opts</code>, sync-шорткат «<code>quality</code> только если есть в каталоге», price-table формат.</li>
+<li>Код: <code>PlusVibeMediaProvider.kt</code> (buildGenerateBody, строки 163–178), <code>MediaStudioScreenFull.kt</code> (toolbarParamDefs, строки 143–160), <code>MediaStudioTopBar.kt</code>, <code>AudioModels.kt</code> (audioToolbarParams) — коммит <code>023e6354</code>.</li>
+<li>Таблица владельца (Low 1K 1,44 / 2K–4K 6,77; Medium 12,19; High 17,33; «×2/×3») — сверена в §3.1: числа точные, «×2/×3» подтверждается как приближение сверху (×1,80/×2,56).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

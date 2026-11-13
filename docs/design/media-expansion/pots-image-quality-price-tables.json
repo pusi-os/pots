@@ -1,0 +1,1061 @@
+{
+ "source": "GET https://plusvibeapi.ru/api/media/price-table?model=<id>",
+ "fetchedAt": "2026-11-13T18:46:20+03:00",
+ "public": true,
+ "tables": {
+  "gpt-image-2-6": {
+   "ok": true,
+   "model": "gpt-image-2-6",
+   "currency": "RUB",
+   "priceAffecting": [
+    "resolution",
+    "quality",
+    "mode"
+   ],
+   "unit": "request",
+   "defaults": {
+    "aspect_ratio": "1:1",
+    "resolution": "1K",
+    "quality": "high",
+    "complexity": "high",
+    "tier": "flare",
+    "mode": "text-to-image"
+   },
+   "rows": [
+    {
+     "opts": {
+      "resolution": "1K",
+      "quality": "low",
+      "mode": "text-to-image"
+     },
+     "price": 1.44,
+     "unitPrice": 1.44,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "resolution": "1K",
+      "quality": "low",
+      "mode": "image-to-image"
+     },
+     "price": 1.44,
+     "unitPrice": 1.44,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64",
+        "opts.input_urls",
+        "opts.input_file_ids",
+        "opts.input_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "builder_contract",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "resolution": "1K",
+      "quality": "medium",
+      "mode": "text-to-image"
+     },
+     "price": 1.44,
+     "unitPrice": 1.44,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "resolution": "1K",
+      "quality": "medium",
+      "mode": "image-to-image"
+     },
+     "price": 1.44,
+     "unitPrice": 1.44,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64",
+        "opts.input_urls",
+        "opts.input_file_ids",
+        "opts.input_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "builder_contract",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "resolution": "1K",
+      "quality": "high",
+      "mode": "text-to-image"
+     },
+     "price": 1.44,
+     "unitPrice": 1.44,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "resolution": "1K",
+      "quality": "high",
+      "mode": "image-to-image"
+     },
+     "price": 1.44,
+     "unitPrice": 1.44,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64",
+        "opts.input_urls",
+        "opts.input_file_ids",
+        "opts.input_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "builder_contract",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "resolution": "2K",
+      "quality": "low",
+      "mode": "text-to-image"
+     },
+     "price": 6.77,
+     "unitPrice": 6.77,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "resolution": "2K",
+      "quality": "low",
+      "mode": "image-to-image"
+     },
+     "price": 6.77,
+     "unitPrice": 6.77,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64",
+        "opts.input_urls",
+        "opts.input_file_ids",
+        "opts.input_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "builder_contract",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "resolution": "2K",
+      "quality": "medium",
+      "mode": "text-to-image"
+     },
+     "price": 12.19,
+     "unitPrice": 12.19,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "resolution": "2K",
+      "quality": "medium",
+      "mode": "image-to-image"
+     },
+     "price": 12.19,
+     "unitPrice": 12.19,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64",
+        "opts.input_urls",
+        "opts.input_file_ids",
+        "opts.input_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "builder_contract",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "resolution": "2K",
+      "quality": "high",
+      "mode": "text-to-image"
+     },
+     "price": 17.33,
+     "unitPrice": 17.33,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "resolution": "2K",
+      "quality": "high",
+      "mode": "image-to-image"
+     },
+     "price": 17.33,
+     "unitPrice": 17.33,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64",
+        "opts.input_urls",
+        "opts.input_file_ids",
+        "opts.input_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "builder_contract",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "resolution": "4K",
+      "quality": "low",
+      "mode": "text-to-image"
+     },
+     "price": 6.77,
+     "unitPrice": 6.77,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "resolution": "4K",
+      "quality": "low",
+      "mode": "image-to-image"
+     },
+     "price": 6.77,
+     "unitPrice": 6.77,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64",
+        "opts.input_urls",
+        "opts.input_file_ids",
+        "opts.input_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "builder_contract",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "resolution": "4K",
+      "quality": "medium",
+      "mode": "text-to-image"
+     },
+     "price": 12.19,
+     "unitPrice": 12.19,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "resolution": "4K",
+      "quality": "medium",
+      "mode": "image-to-image"
+     },
+     "price": 12.19,
+     "unitPrice": 12.19,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64",
+        "opts.input_urls",
+        "opts.input_file_ids",
+        "opts.input_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "builder_contract",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "resolution": "4K",
+      "quality": "high",
+      "mode": "text-to-image"
+     },
+     "price": 17.33,
+     "unitPrice": 17.33,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "resolution": "4K",
+      "quality": "high",
+      "mode": "image-to-image"
+     },
+     "price": 17.33,
+     "unitPrice": 17.33,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64",
+        "opts.input_urls",
+        "opts.input_file_ids",
+        "opts.input_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "builder_contract",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    }
+   ],
+   "truncated": false
+  },
+  "ideogram-4-5": {
+   "ok": true,
+   "model": "ideogram-4-5",
+   "currency": "RUB",
+   "priceAffecting": [
+    "quality"
+   ],
+   "unit": "request",
+   "defaults": {
+    "quality": "medium",
+    "size": "1024x1024"
+   },
+   "rows": [
+    {
+     "opts": {
+      "quality": "very_low"
+     },
+     "price": 1.09,
+     "unitPrice": 1.09,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "quality": "low"
+     },
+     "price": 4.07,
+     "unitPrice": 4.07,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "quality": "medium"
+     },
+     "price": 8.13,
+     "unitPrice": 8.13,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "quality": "high"
+     },
+     "price": 13.54,
+     "unitPrice": 13.54,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    }
+   ],
+   "truncated": false
+  },
+  "ideogram-4-5-precise-edit": {
+   "ok": true,
+   "model": "ideogram-4-5-precise-edit",
+   "currency": "RUB",
+   "priceAffecting": [
+    "quality"
+   ],
+   "unit": "request",
+   "defaults": {
+    "quality": "medium"
+   },
+   "rows": [
+    {
+     "opts": {
+      "quality": "very_low"
+     },
+     "price": 1.09,
+     "unitPrice": 1.09,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "quality": "low"
+     },
+     "price": 4.07,
+     "unitPrice": 4.07,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "quality": "medium"
+     },
+     "price": 8.13,
+     "unitPrice": 8.13,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    },
+    {
+     "opts": {
+      "quality": "high"
+     },
+     "price": 29.79,
+     "unitPrice": 29.79,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [
+       [
+        "opts.image_url",
+        "opts.image_file_id",
+        "opts.image_base64"
+       ]
+      ],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "image_url"
+    }
+   ],
+   "truncated": false
+  },
+  "gpt-image-1-5": {
+   "ok": true,
+   "model": "gpt-image-1-5",
+   "currency": "RUB",
+   "priceAffecting": [
+    "quality"
+   ],
+   "unit": "request",
+   "defaults": {
+    "aspect_ratio": "1:1",
+    "mode": "text-to-image",
+    "quality": "medium"
+   },
+   "rows": [
+    {
+     "opts": {
+      "quality": "medium"
+     },
+     "price": 2.51,
+     "unitPrice": 2.51,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "quality": "high"
+     },
+     "price": 13.83,
+     "unitPrice": 13.83,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    }
+   ],
+   "truncated": false
+  },
+  "seedream-5": {
+   "ok": true,
+   "model": "seedream-5",
+   "currency": "RUB",
+   "priceAffecting": [
+    "tier",
+    "quality"
+   ],
+   "unit": "request",
+   "defaults": {
+    "aspect_ratio": "1:1",
+    "tier": "lite",
+    "mode": "text-to-image",
+    "quality": "basic"
+   },
+   "rows": [
+    {
+     "opts": {
+      "tier": "lite",
+      "quality": "basic"
+     },
+     "price": 3.72,
+     "unitPrice": 3.72,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "tier": "lite",
+      "quality": "high"
+     },
+     "price": 3.72,
+     "unitPrice": 3.72,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "tier": "lite",
+      "quality": "ultra"
+     },
+     "price": 3.72,
+     "unitPrice": 3.72,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "tier": "pro",
+      "quality": "basic"
+     },
+     "price": 4.74,
+     "unitPrice": 4.74,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "tier": "pro",
+      "quality": "high"
+     },
+     "price": 9.48,
+     "unitPrice": 9.48,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    }
+   ],
+   "truncated": false
+  },
+  "seedream-4-5": {
+   "ok": true,
+   "model": "seedream-4-5",
+   "currency": "RUB",
+   "priceAffecting": [],
+   "unit": "request",
+   "defaults": {
+    "aspect_ratio": "1:1",
+    "mode": "text-to-image",
+    "quality": "basic"
+   },
+   "rows": [
+    {
+     "opts": {},
+     "price": 4.09,
+     "unitPrice": 4.09,
+     "priceStatus": "estimate",
+     "chargeBasis": "supplier_credits",
+     "estimateReason": "Списывается по кредитам, которые поставщик насчитал за эту задачу: не больше этой цены, иногда меньше.",
+     "priceScope": "job_total",
+     "jobTotalStatus": "estimate",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    }
+   ],
+   "truncated": false
+  },
+  "seedream-5-uncensored": {
+   "ok": true,
+   "model": "seedream-5-uncensored",
+   "currency": "RUB",
+   "priceAffecting": [
+    "quality"
+   ],
+   "unit": "request",
+   "defaults": {
+    "aspect_ratio": "1:1",
+    "quality": "basic"
+   },
+   "rows": [
+    {
+     "opts": {
+      "quality": "basic"
+     },
+     "price": 4.62,
+     "unitPrice": 4.62,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    },
+    {
+     "opts": {
+      "quality": "high"
+     },
+     "price": 9.24,
+     "unitPrice": 9.24,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    }
+   ],
+   "truncated": false
+  },
+  "grok-imagine-image-2.0": {
+   "ok": true,
+   "model": "grok-imagine-image-2.0",
+   "currency": "RUB",
+   "priceAffecting": [],
+   "unit": "request",
+   "defaults": {
+    "resolution": "1K",
+    "quality": "low"
+   },
+   "rows": [
+    {
+     "opts": {},
+     "price": 4.02,
+     "unitPrice": 4.02,
+     "priceStatus": "exact",
+     "chargeBasis": "quote",
+     "priceScope": "job_total",
+     "jobTotalStatus": "exact",
+     "requiredInputs": {
+      "allOf": [
+       "prompt"
+      ],
+      "anyOf": [],
+      "exactlyOneOf": [],
+      "source": "catalog",
+      "additionalFormsPossible": true
+     },
+     "requiresInput": "prompt"
+    }
+   ],
+   "truncated": false
+  }
+ }
+}
