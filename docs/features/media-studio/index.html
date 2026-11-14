@@ -1194,6 +1194,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#video-editor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video editor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#local-tts-offline" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1367,6 +1378,15 @@
 <li><strong>Корректировки</strong> — brightness (−100…+100 %) and contrast (0…400 %, 100 % = unchanged) sliders, 90° turns in both directions and horizontal/vertical flips, composed into one render.</li>
 </ul>
 <p>Rendering runs in the background with a progress bar and a cancel button («Отмена» stops the operation; the source stays intact). Failures show the §8 error card (title, human detail, rescue action) with a retry that repeats the last operation. The pipeline is pure pixel math in <code>commonMain</code> (<code>PixelGrid</code>, straight-alpha ARGB <code>0xAARRGGBB</code>, row-major): crop = slice, resize = bilinear resample, rotate/flip = index remap, adjustments = per-channel clamp math, overlay = premultiplied-free over blending with clipping. Decoding and PNG encoding are the only platform-dependent steps (<code>ImageCodec</code> expect/actuals): desktop uses ImageIO (direct <code>getRGB</code>, no premultiplying intermediate), Android uses <code>BitmapFactory</code>/<code>Bitmap.compress</code>, iOS and web use Skia (<code>Image.makeFromEncoded</code> + <code>readPixels(RGBA_8888, UNPREMUL)</code>). The output is always lossless PNG, so no encoder dependency was added.</p>
+<h3 id="video-editor">Video editor</h3>
+<p>Entry: the «Редактировать» chip in a selected video element's toolbar. Video editing is local desktop processing and ships desktop-only — other targets compile but never show the chip (the same honesty as local TTS). The editor opens full-screen with three operations, each non-destructive — the source element is never modified, the result is always a NEW video element on the canvas plus an MP4 file under <code>media/edits/</code> in app storage:</p>
+<ul>
+<li><strong>Обрезка</strong> — interactive start/end handles over a filmstrip of real frames grabbed from the clip (the desktop canvas has no embedded player, so the filmstrip is the preview); excluded tails are dimmed, the handles keep a minimum gap, and «Обрезать» re-encodes the selected range frame-accurately.</li>
+<li><strong>Скорость</strong> — a 0.25–4× slider with 0.5 / 1 / 1.5 / 2 presets and the computed new duration; video is retimed with <code>setpts</code>, audio with cascaded <code>atempo</code>, and pitch follows speed (tape behavior — the same honesty as the audio editor). Speed 1× is blocked as pointless.</li>
+<li><strong>Аудиодорожка</strong> — «Убрать звук» mutes the clip, «Заменить дорожку» swaps the soundtrack for a canvas audio element or a picked file (mp3/wav/m4a/ogg/opus/flac/aac). Both copy the video stream bit-for-bit, so they finish in seconds; a short replacement track is padded with silence and a long one is cut at the video end — the picture never changes length.</li>
+</ul>
+<p>Rendering runs with a progress bar and a cancel button («Отмена» destroys the ffmpeg process; the source stays intact). Failures show the §8 error card (title, human detail, rescue action) with a retry that repeats the last operation.</p>
+<p>Video tooling decision: the <strong>system <code>ffmpeg</code>/<code>ffprobe</code> binaries</strong> driven through <code>ProcessBuilder</code>, not a library wrapper. Reasons: (1) no new dependency — wrapper libraries bundle 100–300 MB of native codecs per OS/arch, while the binary is already present on the Linux desktop this app targets; (2) runtime detection — the sheet probes the binaries on open and, when missing, shows the §8 card with per-OS install commands and a «Проверить снова» re-probe; (3) the command building, trim/speed timecode math and <code>-progress</code> parsing are pure <code>commonMain</code> code unit-tested without any binary, plus desktop integration tests run against the real ffmpeg on a synthetic lavfi clip (skipped cleanly when the binary is absent). Future timeline export and audio-clip assembly tasks reuse this same processor contract.</p>
 <h3 id="local-tts-offline">Local TTS (offline)</h3>
 <p>The TTS flow ends with a «Локально · 0 ₽» group that never touches a provider. Local synthesis is honest about platforms: only Android can synthesize into a FILE, so the group exists there and only there — the system engine (<code>TextToSpeech.synthesizeToFile</code>) and the bundled Piper voice «Ирина» (sherpa-onnx, the same engine Settings → Озвучивание uses; no new dependency). Desktop, iOS and web native engines only play speech and expose no audio data, so those targets show no group at all — no disabled rows, no “unavailable” notes, no fake local models.</p>
 <p>Synthesis writes a WAV into app storage; the result then rides the regular flow: an audio element on the canvas and one journal entry with the friendly engine name and the «локально» mark instead of a provider, price 0 ₽. No API key, no billing, no polling — the entry is persisted once, in its terminal state. Speed rides the standard chip (both engines accept a rate; pitch is not supported by either). Local engines are never auto-picked as the default model and never hide cloud models; repeating a local journal entry synthesizes offline again.</p>
@@ -1379,9 +1399,9 @@
 <p>Dropdown prices come from the public <code>GET /api/media/price-table?model=&lt;id&gt;</code>, cached per model: exact lines only for rows matching the current (price-affecting axes) combination — resolution, quality and generation/editing mode. A combination without a table row shows no price and no note; when the table is unavailable, flat equal catalog prices render with a «Качество не влияет на цену» note and anything else shows the conservative «Среднее ≈ ×2, высокое ≈ ×3» note without numbers. Tables whose rows carry <code>chargeBasis=quote</code> are quoted via <code>POST /api/media/price</code> before submit, exactly like metered audio.</p>
 <p>Video mode adds a «Со звуком / Без звука» toggle chip (VolumeUp/VolumeOff icons) for models with an <code>audio</code> or <code>generate_audio</code> axis; the toggle rides the catalog default until flipped. Models without the corresponding axes show no controls. Switching model or mode drops parameter selections the new model does not accept.</p>
 <h3 id="canvas-element">Canvas element</h3>
-<p>A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, edit (opens the audio editor), open player, save and delete. Image elements additionally get «Карандаш» (opens the drawing sheet on top of the element) and «Редактировать» (opens the image editor). The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).</p>
+<p>A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, edit (opens the audio editor), open player, save and delete. Image elements additionally get «Карандаш» (opens the drawing sheet on top of the element) and «Редактировать» (opens the image editor). Video elements get «Редактировать» (opens the video editor: trim, speed, audio track) on desktop only. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).</p>
 <h3 id="canvas-element-toolbar">Canvas element toolbar</h3>
-<p>The toolbar appears over the selected element in icon rows. The first row holds the quick transform actions. For image elements the second row holds «Карандаш», «Редактировать», layers and duplicate; the last row holds use as reference, save to gallery and delete. Audio elements render rows without the transform/drawing/edit-image actions. The old text menu was removed, so the toolbar never overlaps another menu.</p>
+<p>The toolbar appears over the selected element in icon rows. The first row holds the quick transform actions. For image elements the second row holds «Карандаш», «Редактировать», layers and duplicate; for video elements it holds «Редактировать» (desktop only, where ffmpeg runs), layers and duplicate. The last row holds use as reference, save to gallery and delete. Audio elements render rows without the transform/drawing/edit-image actions. The old text menu was removed, so the toolbar never overlaps another menu.</p>
 <h3 id="references">References</h3>
 <p>The dock shows a strip of reference thumbnails for the next generation. References come from three places: the file picker in the strip, the “Как референс” action on a canvas element, or the agent. A reference is either a public <code>https://</code> URL, which the provider downloads itself, or app-storage bytes, which are sent inline as <code>data:&lt;mime&gt;;base64,…</code> in the matching <code>*_base64</code> field. Inline bytes are capped at 8 MB; larger files are refused with a Russian message asking the user to compress them, and the journal entry is removed so that a compressed retry does not create a duplicate. Models that do not accept an image reference refuse the request before submit.</p>
 <p>When references are attached and the model declares a <code>mode</code> parameter, the request sends <code>mode = "image-to-image"</code>. Without references the mode is left at the model's default.</p>
@@ -1458,6 +1478,14 @@
 <tr>
 <td><code>composeApp/src/commonMain/.../media/ImageCodec.kt</code></td>
 <td><code>decodeImageToGrid</code> / <code>encodeGridToPng</code> expect/actuals — <code>desktopMain</code> (ImageIO), <code>androidMain</code> (BitmapFactory/Bitmap), <code>iosMain</code>/<code>wasmJsMain</code> (Skia decode + PNG encode)</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/VideoEdit.kt</code></td>
+<td>Video editing core: ffmpeg command building, trim/speed timecode math, <code>-progress</code> parsing, §8 editor errors; <code>VideoProcessor</code> contract with actuals — <code>desktopMain</code> (system ffmpeg/ffprobe via <code>ProcessBuilder</code>), unsupported stubs on <code>androidMain</code>/<code>iosMain</code>/<code>wasmJsMain</code></td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/media/MediaVideoEditorSheet.kt</code></td>
+<td>Full-screen video editor: filmstrip trim handles, speed slider with presets, audio track remove/replace (canvas element or file), progress, cancel and §8 error cards</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/MediaVoices.kt</code></td>
