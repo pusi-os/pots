@@ -58,6 +58,12 @@ jobs:
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
+      - name: Update package database
+        run: |
+          # Full upgrade first: the runner image's DB lags behind the mirrors,
+          # and a bare '-Sy' install fails with "could not satisfy dependencies".
+          pacman -Syu --noconfirm
+
       - name: Install dependencies
         run: pacman -Sy --noconfirm openssh git
 
