@@ -1205,6 +1205,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#video-sequence-assembly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video sequence (assembly)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#local-tts-offline" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1387,6 +1398,15 @@
 </ul>
 <p>Rendering runs with a progress bar and a cancel button («Отмена» destroys the ffmpeg process; the source stays intact). Failures show the §8 error card (title, human detail, rescue action) with a retry that repeats the last operation.</p>
 <p>Video tooling decision: the <strong>system <code>ffmpeg</code>/<code>ffprobe</code> binaries</strong> driven through <code>ProcessBuilder</code>, not a library wrapper. Reasons: (1) no new dependency — wrapper libraries bundle 100–300 MB of native codecs per OS/arch, while the binary is already present on the Linux desktop this app targets; (2) runtime detection — the sheet probes the binaries on open and, when missing, shows the §8 card with per-OS install commands and a «Проверить снова» re-probe; (3) the command building, trim/speed timecode math and <code>-progress</code> parsing are pure <code>commonMain</code> code unit-tested without any binary, plus desktop integration tests run against the real ffmpeg on a synthetic lavfi clip (skipped cleanly when the binary is absent). Future timeline export and audio-clip assembly tasks reuse this same processor contract.</p>
+<h3 id="video-sequence-assembly">Video sequence (assembly)</h3>
+<p>Entry: the capsule button with the film-strip icon, shown only where local video processing exists (desktop — the same honesty as the video editor). The sheet lines photo/video canvas elements up in playback order — add from the canvas (a video's duration is probed at add time), reorder, remove; an image clip is a still frame with 1–10 s screen time. One button assembles the finished clip:</p>
+<ul>
+<li><strong>Transitions</strong> — every gap carries one, no jump cuts (the hyperframes pattern): crossfade (the default), slide, wipe, or an explicit hard cut, all fixed at 0.5 s. A junction whose neighbours are too short to host the transition degrades to a cut instead of failing the render; the xfade offsets track the shrunk visible timeline, so overlaps never desync.</li>
+<li><strong>Soundtrack</strong> — an optional canvas audio element or file (mp3/wav/m4a/ogg/opus/flac/aac). A short track loops to cover the whole result, a long one is trimmed to the clip's duration (a duration cut — the running time, not individual frames) and fades out over the last half second. Clip sound is not mixed in v1: the result carries exactly one audio track — the picked one, or silence.</li>
+<li><strong>Subtitles</strong> — optional plain text from existing sources only (a manual text or a transcript the user already has; no STT runs here). The text splits into phrases of at most 4 words (a sentence boundary closes a phrase early) and the phrases are spread evenly over the whole clip duration — the even split stands in while per-word timecodes are absent; a future STT <code>resultText</code> plugs into the same cue model unchanged. Phrases burn into the frame (v1 hardsub) via SRT + libass: white text on a 60 % dark box, bottom-centered, font size scaled off the frame height so 720p and 1080p read alike.</li>
+<li><strong>Output</strong> — 720p or 1080p, 24 or 30 fps (default 1080p/30). Every input is normalized to the output resolution/fps/SAR (letterbox pad, black) before the junction chain.</li>
+</ul>
+<p>Rendering rides the video editor's ffmpeg contract: a progress bar fed by <code>-progress</code>, «Отмена» destroys the process, failures show the §8 card (title, human detail, rescue action) with a retry, and the missing-binary gate offers the install steps with «Проверить снова». The result is a NEW mp4 under <code>media/edits/</code> placed as a new canvas element plus a journal entry («локально», 0 ₽, persisted once in its terminal state — the local-TTS precedent); failed assemblies are journaled too. Source elements are never touched. The sequence lives in memory — the §12 project autosave is a later version.</p>
 <h3 id="local-tts-offline">Local TTS (offline)</h3>
 <p>The TTS flow ends with a «Локально · 0 ₽» group that never touches a provider. Local synthesis is honest about platforms: only Android can synthesize into a FILE, so the group exists there and only there — the system engine (<code>TextToSpeech.synthesizeToFile</code>) and the bundled Piper voice «Ирина» (sherpa-onnx, the same engine Settings → Озвучивание uses; no new dependency). Desktop, iOS and web native engines only play speech and expose no audio data, so those targets show no group at all — no disabled rows, no “unavailable” notes, no fake local models.</p>
 <p>Synthesis writes a WAV into app storage; the result then rides the regular flow: an audio element on the canvas and one journal entry with the friendly engine name and the «локально» mark instead of a provider, price 0 ₽. No API key, no billing, no polling — the entry is persisted once, in its terminal state. Speed rides the standard chip (both engines accept a rate; pitch is not supported by either). Local engines are never auto-picked as the default model and never hide cloud models; repeating a local journal entry synthesizes offline again.</p>
@@ -1481,7 +1501,15 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/VideoEdit.kt</code></td>
-<td>Video editing core: ffmpeg command building, trim/speed timecode math, <code>-progress</code> parsing, §8 editor errors; <code>VideoProcessor</code> contract with actuals — <code>desktopMain</code> (system ffmpeg/ffprobe via <code>ProcessBuilder</code>), unsupported stubs on <code>androidMain</code>/<code>iosMain</code>/<code>wasmJsMain</code></td>
+<td>Video editing core: ffmpeg command building, trim/speed timecode math, <code>-progress</code> parsing, §8 editor errors; <code>VideoProcessor</code> contract (incl. <code>assembleSequence</code>) with actuals — <code>desktopMain</code> (system ffmpeg/ffprobe via <code>ProcessBuilder</code>), unsupported stubs on <code>androidMain</code>/<code>iosMain</code>/<code>wasmJsMain</code></td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/VideoSequence.kt</code></td>
+<td>Sequence assembly core: transitions, junction resolution with clamping, duration math, subtitle grouping/timecodes, SRT rendering and the ffmpeg assembly command building</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/media/MediaSequenceSheet.kt</code></td>
+<td>Full-screen assembly sheet: clip strip with junction rows, soundtrack picker (canvas element or file), subtitle text, 720/1080 and 24/30 fps, progress, cancel and §8 error cards</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaVideoEditorSheet.kt</code></td>
