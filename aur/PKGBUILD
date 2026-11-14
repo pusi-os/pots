@@ -2,7 +2,7 @@
 # https://github.com/pusi-os/pots
 
 pkgname=pots-bin
-pkgver=3.12.0
+pkgver=3.12.1
 pkgrel=1
 pkgdesc='Pots — AI assistant by Pusi with persistent memory and local models'
 arch=('x86_64')
@@ -14,7 +14,7 @@ conflicts=('pots')
 options=('!strip')
 
 source=("Pots-${pkgver}-linux-x86_64.tar.gz::https://github.com/pusi-os/pots/releases/download/v${pkgver}/Pots-${pkgver}-linux-x86_64.tar.gz")
-sha256sums=('baa422b5348aa00e205e0d722e5389a44ebcfed289d98ba6dff6cf52edc641f0')
+sha256sums=('45725b6868ec7f8f27ea98d5005bc33e7fd530cce29c546468d10af938879ec5')
 
 package() {
     # Install application files
