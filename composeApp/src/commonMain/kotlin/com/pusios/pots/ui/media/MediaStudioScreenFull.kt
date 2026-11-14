@@ -143,6 +143,10 @@ fun MediaStudioScreenFull(
     var lightboxIsVideo by remember { mutableStateOf(false) }
     var lightboxIsAudio by remember { mutableStateOf(false) }
     var editAudioElement by remember { mutableStateOf<CanvasElement?>(null) }
+    // Drawing mode: drawElement == null means an empty-canvas sketch.
+    var drawOpen by remember { mutableStateOf(false) }
+    var drawElement by remember { mutableStateOf<CanvasElement?>(null) }
+    var editImageElement by remember { mutableStateOf<CanvasElement?>(null) }
 
     val pending = jobs.values.filter { !it.isTerminal }
     val imageModels = models.filter { it.kind == MediaKind.Image }
@@ -337,6 +341,11 @@ fun MediaStudioScreenFull(
                     lightboxUrl = element.url ?: element.localPath
                 },
                 onEditAudio = { element -> editAudioElement = element },
+                onDrawImage = { element ->
+                    drawElement = element
+                    drawOpen = true
+                },
+                onEditImage = { element -> editImageElement = element },
             )
 
             MediaStudioTopBar(
@@ -346,6 +355,10 @@ fun MediaStudioScreenFull(
                     canvasOffset = Offset.Zero
                 },
                 onImport = { importPicker.launch() },
+                onDraw = {
+                    drawElement = null
+                    drawOpen = true
+                },
                 onOpenModels = { showModelSheet = true },
                 onOpenHistory = { showHistory = true },
                 historyBadge = historyEntries.count { it.isActive },
@@ -566,6 +579,23 @@ fun MediaStudioScreenFull(
             audioElements = elements.filter { it.isAudio },
             onDismiss = { editAudioElement = null },
             onResult = { wavBytes -> viewModel.addEditedAudioElement(wavBytes) },
+        )
+    }
+
+    if (drawOpen) {
+        MediaDrawSheet(
+            target = drawElement,
+            onDismiss = { drawOpen = false },
+            onResult = { pngBytes -> viewModel.addEditedImageElement(pngBytes) },
+        )
+    }
+
+    editImageElement?.let { element ->
+        MediaImageEditorSheet(
+            element = element,
+            imageElements = elements.filter { !it.isAudio && !it.isVideo && it.id != element.id },
+            onDismiss = { editImageElement = null },
+            onResult = { pngBytes -> viewModel.addEditedImageElement(pngBytes) },
         )
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.RotateLeft
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -92,6 +93,8 @@ internal fun MediaCanvas(
     onExportToGallery: (String) -> Unit,
     onOpenLightbox: (CanvasElement) -> Unit,
     onEditAudio: (CanvasElement) -> Unit,
+    onDrawImage: (CanvasElement) -> Unit,
+    onEditImage: (CanvasElement) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sorted = elements.sortedBy { it.zIndex }
@@ -124,6 +127,8 @@ internal fun MediaCanvas(
                 onExportToGallery = onExportToGallery,
                 onOpenLightbox = onOpenLightbox,
                 onEditAudio = onEditAudio,
+                onDrawImage = onDrawImage,
+                onEditImage = onEditImage,
             )
         }
 
@@ -196,6 +201,8 @@ private fun CanvasElementView(
     onExportToGallery: (String) -> Unit,
     onOpenLightbox: (CanvasElement) -> Unit,
     onEditAudio: (CanvasElement) -> Unit,
+    onDrawImage: (CanvasElement) -> Unit,
+    onEditImage: (CanvasElement) -> Unit,
 ) {
     val url = element.url
     val local = element.localPath
@@ -281,9 +288,17 @@ private fun CanvasElementView(
                             ElementChip(Icons.Filled.Fullscreen, "Открыть на весь экран") { onOpenLightbox(element) }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!element.isVideo) {
+                                // Image-only actions: video elements cannot be
+                                // decoded for annotation or pixel editing.
+                                ElementChip(Icons.Filled.Brush, "Карандаш") { onDrawImage(element) }
+                                ElementChip(Icons.Filled.Edit, "Редактировать") { onEditImage(element) }
+                            }
                             ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }
                             ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
                             ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(element.id, CanvasAction.Duplicate) }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             ElementChip(Icons.Filled.Link, "Использовать как референс") { onAction(element.id, CanvasAction.UseAsReference) }
                             ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(element.id) }
                             ElementChip(Icons.Filled.Delete, "Удалить", tint = MaterialTheme.colorScheme.error) {

@@ -898,6 +898,22 @@ class MediaStudioViewModel(
         return true
     }
 
+    /**
+     * Saves an edited image result (always PNG) under `media/edits/` and
+     * places it as a new canvas element. The source element is never touched.
+     * Returns false when the storage write fails (surfaced as ExportFailed).
+     */
+    fun addEditedImageElement(pngBytes: ByteArray): Boolean {
+        val path = "media/edits/${Uuid.random()}.png"
+        if (!com.pusios.pots.writeAppStorageBytes(path, pngBytes)) {
+            MediaLog.e("Image edit export failed: storage write refused for $path")
+            return false
+        }
+        importFromGallery(path, isVideo = false)
+        MediaLog.d("Image edit saved: $path (${pngBytes.size} bytes)")
+        return true
+    }
+
     /** Save a canvas element to the device gallery via platform writer. */
     fun exportToGallery(elementId: String) {
         val element = _elements.value.firstOrNull { it.id == elementId } ?: return

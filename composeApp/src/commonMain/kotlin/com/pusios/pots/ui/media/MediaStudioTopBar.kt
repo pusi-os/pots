@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -55,6 +56,7 @@ internal fun MediaStudioTopBar(
     onImport: () -> Unit,
     onOpenModels: () -> Unit,
     onOpenHistory: () -> Unit,
+    onDraw: () -> Unit,
     historyBadge: Int,
     aspectRatioLabel: String?,
     onOpenAspectRatio: () -> Unit,
@@ -79,6 +81,7 @@ internal fun MediaStudioTopBar(
             ) {
                 TopBarIconButton(Icons.Filled.AutoAwesome, "Медиа-канвас: в центр", onRecenter)
                 TopBarIconButton(Icons.Filled.AddPhotoAlternate, "Импортировать файл", onImport)
+                TopBarIconButton(Icons.Filled.Brush, "Рисовать на канвасе", onDraw)
                 TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)
                 TopBarIconButton(Icons.Filled.History, "Журнал генераций", onOpenHistory, badge = historyBadge)
             }

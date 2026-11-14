@@ -64,6 +64,21 @@ Rendering runs in the background with a progress bar and a cancel button («От
 
 Audio processing is PCM sample math in pure Kotlin `commonMain` (trim = slice, speed = linear-interpolation resample, concat = copy), not a local `ffmpeg`. Reasons: (1) no new dependency — ffmpeg would mean shipping a ~100 MB binary per OS/arch just for three operations that fit in deterministic sample loops; (2) the pure logic is unit-tested in CI without any binary; (3) the output is always lossless WAV, so no MP3 encoder is needed (the spec's MP3 export chip waits for a later version together with time-stretch).
 
+### Drawing (pencil)
+
+Entry: the brush icon in the studio top capsule draws on an empty canvas — a fixed transparent 1024×1024 sketch sheet shown over a checkerboard so the transparency is visible; the «Карандаш» chip in a selected image element's toolbar draws on top of that image (annotation). Both chips appear only on image elements — video elements have no pixel data to draw on or edit. The drawing sheet is full-screen: a palette of colors, a brush width slider, undo of the last stroke, «Очистить» to wipe all strokes, and «Применить» to bake. Strokes are a separate layer — the source image is never touched until the user applies. Applying flattens strokes onto the base pixels and exports one PNG: on an image element the result keeps the element's size; an empty-canvas sketch is baked transparent and trimmed to the drawn bounding box (nothing drawn — apply is blocked). The result lands as a NEW canvas element via `media/edits/<uuid>.png`, so it can immediately be used as a reference for the next generation (dock strip, `*_base64`, `mode=image-to-image`) — the intended use is a visual hint for a generation prompt. Esc closes the sheet (asking first when strokes are not applied yet), Ctrl+Z undoes.
+
+### Image editor
+
+Entry: the «Редактировать» chip in a selected image element's toolbar. The editor opens full-screen with four operations, each non-destructive — the source element is never modified, the result is always a NEW canvas element plus a PNG file under `media/edits/` in app storage:
+
+* **Обрезка** — an interactive frame with draggable corners, drag-to-move and a rule-of-thirds grid over the fitted preview; aspect chips (Свободно, 1:1, 4:3, 3:4, 16:9, 9:16) snap the frame, «Обрезать» renders the selected region.
+* **Размер** — a width × height form (pixels, both required), a lock that keeps the aspect ratio, and 512 / 1024 / 2K quick presets (each sets the longer side; the other side follows the aspect ratio).
+* **Наложение** — overlay another canvas image element or a file from disk on top: drag to position, sliders for scale (relative to the base) and opacity (0–100 %), straight-alpha over blending.
+* **Корректировки** — brightness (−100…+100 %) and contrast (0…400 %, 100 % = unchanged) sliders, 90° turns in both directions and horizontal/vertical flips, composed into one render.
+
+Rendering runs in the background with a progress bar and a cancel button («Отмена» stops the operation; the source stays intact). Failures show the §8 error card (title, human detail, rescue action) with a retry that repeats the last operation. The pipeline is pure pixel math in `commonMain` (`PixelGrid`, straight-alpha ARGB `0xAARRGGBB`, row-major): crop = slice, resize = bilinear resample, rotate/flip = index remap, adjustments = per-channel clamp math, overlay = premultiplied-free over blending with clipping. Decoding and PNG encoding are the only platform-dependent steps (`ImageCodec` expect/actuals): desktop uses ImageIO (direct `getRGB`, no premultiplying intermediate), Android uses `BitmapFactory`/`Bitmap.compress`, iOS and web use Skia (`Image.makeFromEncoded` + `readPixels(RGBA_8888, UNPREMUL)`). The output is always lossless PNG, so no encoder dependency was added.
+
 ### Local TTS (offline)
 
 The TTS flow ends with a «Локально · 0 ₽» group that never touches a provider. Local synthesis is honest about platforms: only Android can synthesize into a FILE, so the group exists there and only there — the system engine (`TextToSpeech.synthesizeToFile`) and the bundled Piper voice «Ирина» (sherpa-onnx, the same engine Settings → Озвучивание uses; no new dependency). Desktop, iOS and web native engines only play speech and expose no audio data, so those targets show no group at all — no disabled rows, no “unavailable” notes, no fake local models.
@@ -88,11 +103,11 @@ Video mode adds a «Со звуком / Без звука» toggle chip (VolumeU
 
 ### Canvas element
 
-A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, edit (opens the audio editor), open player, save and delete. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).
+A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, edit (opens the audio editor), open player, save and delete. Image elements additionally get «Карандаш» (opens the drawing sheet on top of the element) and «Редактировать» (opens the image editor). The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).
 
 ### Canvas element toolbar
 
-The toolbar appears over the selected element in two icon rows. The first row holds the quick transform actions. The second row holds the former context-menu actions as vector icons: bring forward, send back, duplicate, use as reference, save to gallery and delete. The old text menu was removed, so the toolbar never overlaps another menu.
+The toolbar appears over the selected element in icon rows. The first row holds the quick transform actions. For image elements the second row holds «Карандаш», «Редактировать», layers and duplicate; the last row holds use as reference, save to gallery and delete. Audio elements render rows without the transform/drawing/edit-image actions. The old text menu was removed, so the toolbar never overlaps another menu.
 
 ### References
 
@@ -110,7 +125,7 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 * HTTP timeouts for the provider client: connect 30 s, request and socket 180 s. The default OkHttp timeout is too short for generation submits.
 * Result URLs are downloaded to bytes immediately and cached under the app storage; the canvas keeps the remote URL as a fallback until the download completes.
 * Top bar (main chat bar, shown in both modes): the media icon opens the studio; in the studio the same slot shows a chat icon that returns to chat.
-* Studio top capsule: recenter canvas, import a file, pick a model, and the generation journal. The sparkle icon recenters the canvas. It is not prompt enhancement.
+* Studio top capsule: recenter canvas, import a file, draw (brush icon, opens the drawing sheet on an empty canvas), pick a model, and the generation journal. The sparkle icon recenters the canvas. It is not prompt enhancement.
 * Studio second row: the image/video/audio switch (three icon buttons; audio is a music note), the current model chip (opens the model sheet), and, in image mode only, the aspect-ratio chip. The chip opens a sheet with a rectangle preview for each ratio and its name. Image/video models then show axis-driven chips: resolution, the quality dropdown (default Low), duration and the sound toggle — each only when the model declares the axis.
 * Audio mode has a remembered flow (TTS / music): the first tap on the audio segment restores it, a repeat tap on the active segment opens the flow dropdown; the flow, its model and its draft persist separately from the other flow.
 * Audio mode swaps the resolution/aspect chips for the selected audio model's parameter chips from the catalog axes; switching the audio model or flow resets the chosen values.
@@ -136,6 +151,8 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 | `composeApp/src/commonMain/.../media/LocalTts.kt` | Local TTS honesty contract, synthetic catalog entries; actuals: `androidMain` (system `synthesizeToFile` + Piper), empty catalogs on `desktopMain`/`iosMain`/`wasmJsMain` |
 | `composeApp/src/commonMain/.../media/WavAudio.kt` | Pure common WAV codec, duration parsing and 16-bit PCM decoding (local synthesis output, voice-sample pre-check, MP3 CBR estimate, editor/waveform input) |
 | `composeApp/src/commonMain/.../media/AudioEdit.kt` | Audio editing core: `AudioPcm`, trim/speed/concat as pure cancellable sample math, §8 editor errors; `decodeAudioToPcm` actuals — `desktopMain` (WAV + MP3 via JLayer), `androidMain`/`iosMain`/`wasmJsMain` (WAV only) |
+| `composeApp/src/commonMain/.../media/ImageEdit.kt` | Image editing core: `PixelGrid` (straight-alpha ARGB), crop/resize/rotate/flip/adjust/overlay/bake as pure cancellable pixel math, drawing strokes layer, §8 editor errors |
+| `composeApp/src/commonMain/.../media/ImageCodec.kt` | `decodeImageToGrid` / `encodeGridToPng` expect/actuals — `desktopMain` (ImageIO), `androidMain` (BitmapFactory/Bitmap), `iosMain`/`wasmJsMain` (Skia decode + PNG encode) |
 | `composeApp/src/commonMain/.../media/MediaVoices.kt` | Voice cloning domain: levels, pre-upload sample validation, voices payload parsing, create body, §8 error mapping |
 | `composeApp/src/commonMain/.../media/MediaQualityParams.kt` | Axis→chip mechanism: quality selector visibility, the Low default, audio toggle axes, explicit opt defaults |
 | `composeApp/src/commonMain/.../media/MediaPriceTables.kt` | Price-table parsing and quality price rules (exact lines, flat/conservative notes, quote basis) |
@@ -151,6 +168,8 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 | `composeApp/src/commonMain/.../ui/media/MediaAudioPlayer.kt` | Audio element player: real waveform with decorative fallback, play/pause, ±10 s, seek, speed presets, volume with mute, loop |
 | `composeApp/src/commonMain/.../ui/media/MediaAudioEngine.kt` | Audio playback contract incl. extended transport (speed/volume/loop); actuals in `desktopMain` (MP3 via JLayer, WAV), `androidMain` (MediaPlayer), `iosMain`/`wasmJsMain` (unsupported) |
 | `composeApp/src/commonMain/.../ui/media/MediaAudioEditorSheet.kt` | Full-screen audio editor: waveform selection with handles, trim/speed/concat with progress and cancel, §8 error cards, non-destructive WAV results |
+| `composeApp/src/commonMain/.../ui/media/MediaDrawSheet.kt` | Full-screen drawing sheet: palette, width, undo/clear, strokes as a separate layer, bake to PNG element (empty-canvas sketch or annotation over an image) |
+| `composeApp/src/commonMain/.../ui/media/MediaImageEditorSheet.kt` | Full-screen image editor: crop frame, resize form, overlay (element or file, drag/scale/opacity), brightness/contrast/rotate/flip with progress, cancel and §8 error cards |
 | `composeApp/src/commonMain/.../ui/media/MediaHistorySheet.kt` | Generation journal sheet: open, save to gallery, regenerate, remove |
 | `composeApp/src/commonMain/.../ui/media/MediaAspectRatioSheet.kt` | Aspect-ratio sheet with rectangle previews |
 | `composeApp/src/commonMain/.../ui/media/MediaModelSheet.kt` | Model picker sheet with price badges; local group with friendly engine names |
