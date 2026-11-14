@@ -1216,6 +1216,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#audio-reactive-clip-one-button-no-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audio-reactive clip (one button, no LLM)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#local-tts-offline" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1407,6 +1418,16 @@
 <li><strong>Output</strong> — 720p or 1080p, 24 or 30 fps (default 1080p/30). Every input is normalized to the output resolution/fps/SAR (letterbox pad, black) before the junction chain.</li>
 </ul>
 <p>Rendering rides the video editor's ffmpeg contract: a progress bar fed by <code>-progress</code>, «Отмена» destroys the process, failures show the §8 card (title, human detail, rescue action) with a retry, and the missing-binary gate offers the install steps with «Проверить снова». The result is a NEW mp4 under <code>media/edits/</code> placed as a new canvas element plus a journal entry («локально», 0 ₽, persisted once in its terminal state — the local-TTS precedent); failed assemblies are journaled too. Source elements are never touched. The sequence lives in memory — the §12 project autosave is a later version.</p>
+<h3 id="audio-reactive-clip-one-button-no-llm">Audio-reactive clip (one button, no LLM)</h3>
+<p>Entry: select an audio element on the canvas → «Сделать клип» chip (desktop only — the render rides the system ffmpeg, the same gate as the video editor and the sequence). The whole flow is deterministic and free: no LLM, no provider calls, no quote — the journal marks the result «клип, 0 ₽».</p>
+<p>The track is analyzed ONCE when the sheet opens, locally: per-frame band envelopes (bass / mid / treble / overall amplitude) from pure sample math — a pair of cascaded one-pole low-pass filters (150 Hz / 3 kHz) compared in the energy domain, each band with an instant-attack / ~150 ms-decay follower, normalized independently so quiet tracks drive the visuals too. No FFT, no realtime analysis at playback.</p>
+<ul>
+<li><strong>Visual row</strong> — multi-select of canvas photo/video elements and journal results; order is the scene order (up/down, the sequence-sheet precedent). With an empty selection the clip rides a deterministic gradient background seeded by the track bytes — a clip is always possible.</li>
+<li><strong>Styles</strong> — exactly three presets, no more (the §7 transition rule): «Пульс» (bass zoom pulse 1.00–1.06 on the beat), «Свечение» (soft treble-driven overexposure flashes + gentler zoom), «Кино» (linear zoom ramps alternating per scene + vignette). Anti-patterns are banned by design: no equalizer bars, no spectrum analyzers, no rainbow cycles.</li>
+<li><strong>Edit</strong> — scenes are the selected elements in order; scene cuts align to the strongest energy peaks (bass-weighted composite, salience-gated against the track mean, so a flat ambient track falls back to an even cut grid); junctions are fade-through-black 0.3 s, degrading to a cut when a neighbour is too short to host the fade (the sequence honesty). Bass onsets pulse the zoom inside their scene, loud passages drift the color temperature warm, and the track itself is the soundtrack (trimmed to the render, half-second fade-out).</li>
+<li><strong>Duration</strong> — equals the track, not editable: the clip is cut to the music. Output is one fixed 720p30 target.</li>
+</ul>
+<p>Preview and render: the sheet renders a fast preview of the first 10 s for a look before the commit; «Собрать клип» runs the full render with the standard progress bar and «Отмена». Failures show the §8 card («Рендер видео» row, retry) and land in the journal; a track ffmpeg cannot decode (anything but MP3/WAV on desktop) shows its own «Не удалось разобрать трек» card. The result is a NEW mp4 under <code>media/edits/</code> placed as a canvas video element plus the «клип, 0 ₽» journal entry. Sources are never touched.</p>
 <h3 id="local-tts-offline">Local TTS (offline)</h3>
 <p>The TTS flow ends with a «Локально · 0 ₽» group that never touches a provider. Local synthesis is honest about platforms: only Android can synthesize into a FILE, so the group exists there and only there — the system engine (<code>TextToSpeech.synthesizeToFile</code>) and the bundled Piper voice «Ирина» (sherpa-onnx, the same engine Settings → Озвучивание uses; no new dependency). Desktop, iOS and web native engines only play speech and expose no audio data, so those targets show no group at all — no disabled rows, no “unavailable” notes, no fake local models.</p>
 <p>Synthesis writes a WAV into app storage; the result then rides the regular flow: an audio element on the canvas and one journal entry with the friendly engine name and the «локально» mark instead of a provider, price 0 ₽. No API key, no billing, no polling — the entry is persisted once, in its terminal state. Speed rides the standard chip (both engines accept a rate; pitch is not supported by either). Local engines are never auto-picked as the default model and never hide cloud models; repeating a local journal entry synthesizes offline again.</p>
@@ -1419,7 +1440,7 @@
 <p>Dropdown prices come from the public <code>GET /api/media/price-table?model=&lt;id&gt;</code>, cached per model: exact lines only for rows matching the current (price-affecting axes) combination — resolution, quality and generation/editing mode. A combination without a table row shows no price and no note; when the table is unavailable, flat equal catalog prices render with a «Качество не влияет на цену» note and anything else shows the conservative «Среднее ≈ ×2, высокое ≈ ×3» note without numbers. Tables whose rows carry <code>chargeBasis=quote</code> are quoted via <code>POST /api/media/price</code> before submit, exactly like metered audio.</p>
 <p>Video mode adds a «Со звуком / Без звука» toggle chip (VolumeUp/VolumeOff icons) for models with an <code>audio</code> or <code>generate_audio</code> axis; the toggle rides the catalog default until flipped. Models without the corresponding axes show no controls. Switching model or mode drops parameter selections the new model does not accept.</p>
 <h3 id="canvas-element">Canvas element</h3>
-<p>A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, edit (opens the audio editor), open player, save and delete. Image elements additionally get «Карандаш» (opens the drawing sheet on top of the element) and «Редактировать» (opens the image editor). Video elements get «Редактировать» (opens the video editor: trim, speed, audio track) on desktop only. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).</p>
+<p>A placed image, video or audio item on the studio canvas. Image and video elements are scaled, rotated and moved independently, with their own gestures. Elements can be stacked (bring forward / send back), duplicated, deleted, saved to the device gallery, or used as a reference for the next generation (image/video only). A tap selects an element and shows its toolbar. Audio elements skip transform and reference actions; their toolbar keeps layers, duplicate, edit (opens the audio editor), «Сделать клип» (opens the audio-reactive clip sheet, desktop only), open player, save and delete. Image elements additionally get «Карандаш» (opens the drawing sheet on top of the element) and «Редактировать» (opens the image editor). Video elements get «Редактировать» (opens the video editor: trim, speed, audio track) on desktop only. The canvas pans and zooms with a two-finger gesture (or the matching trackpad gesture on desktop).</p>
 <h3 id="canvas-element-toolbar">Canvas element toolbar</h3>
 <p>The toolbar appears over the selected element in icon rows. The first row holds the quick transform actions. For image elements the second row holds «Карандаш», «Редактировать», layers and duplicate; for video elements it holds «Редактировать» (desktop only, where ffmpeg runs), layers and duplicate. The last row holds use as reference, save to gallery and delete. Audio elements render rows without the transform/drawing/edit-image actions. The old text menu was removed, so the toolbar never overlaps another menu.</p>
 <h3 id="references">References</h3>
@@ -1501,15 +1522,27 @@
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/VideoEdit.kt</code></td>
-<td>Video editing core: ffmpeg command building, trim/speed timecode math, <code>-progress</code> parsing, §8 editor errors; <code>VideoProcessor</code> contract (incl. <code>assembleSequence</code>) with actuals — <code>desktopMain</code> (system ffmpeg/ffprobe via <code>ProcessBuilder</code>), unsupported stubs on <code>androidMain</code>/<code>iosMain</code>/<code>wasmJsMain</code></td>
+<td>Video editing core: ffmpeg command building, trim/speed timecode math, <code>-progress</code> parsing, §8 editor errors; <code>VideoProcessor</code> contract (incl. <code>assembleSequence</code> and <code>assembleAudioClip</code>) with actuals — <code>desktopMain</code> (system ffmpeg/ffprobe via <code>ProcessBuilder</code>), unsupported stubs on <code>androidMain</code>/<code>iosMain</code>/<code>wasmJsMain</code></td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/VideoSequence.kt</code></td>
 <td>Sequence assembly core: transitions, junction resolution with clamping, duration math, subtitle grouping/timecodes, SRT rendering and the ffmpeg assembly command building</td>
 </tr>
 <tr>
+<td><code>composeApp/src/commonMain/.../media/AudioAnalysis.kt</code></td>
+<td>Local audio analysis (no LLM): cascaded one-pole band split, per-band envelope followers, independent normalization, salience-gated energy peak detection for scene cuts</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/AudioClip.kt</code></td>
+<td>Audio-reactive clip core: style presets, scene spans over energy peaks, fadeblack junctions on the shrunk timeline, bass-onset zoom expressions, treble/loudness overlay windows, gradient background and vignette grids, the clip ffmpeg command</td>
+</tr>
+<tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaSequenceSheet.kt</code></td>
 <td>Full-screen assembly sheet: clip strip with junction rows, soundtrack picker (canvas element or file), subtitle text, 720/1080 and 24/30 fps, progress, cancel and §8 error cards</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/media/MediaAudioClipSheet.kt</code></td>
+<td>Full-screen audio-reactive clip sheet: local track analysis on open, visual multi-select (canvas + journal), three style presets, 10 s preview, build with progress/cancel and §8 error cards</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/media/MediaVideoEditorSheet.kt</code></td>
