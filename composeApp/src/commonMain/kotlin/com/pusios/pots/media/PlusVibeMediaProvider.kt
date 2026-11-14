@@ -370,7 +370,8 @@ class PlusVibeMediaProvider(
         val kindRaw = obj["kind"]?.jsonPrimitive?.contentOrNull ?: "image"
         val kind = MediaKind.Image.fromProviderId(kindRaw)
         val params = collectParams(obj)
-        val inputTypes = obj["inputTypes"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
+        // Safe cast: a drifted non-primitive element is skipped, not the model.
+        val inputTypes = obj["inputTypes"]?.jsonArray?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
         val acceptsImage = params.any { it.key in IMAGE_REFERENCE_KEYS } || "image" in inputTypes
         val acceptsVideo = params.any { it.key in VIDEO_REFERENCE_KEYS } || "video" in inputTypes
         val acceptsAudio = params.any { it.key in AUDIO_REFERENCE_KEYS } || "audio" in inputTypes
@@ -476,8 +477,8 @@ class PlusVibeMediaProvider(
                 val label = o["label"]?.jsonPrimitive?.contentOrNull ?: key
                 val type = o["type"]?.jsonPrimitive?.contentOrNull ?: "select"
                 val defaultValue = o["default"]?.jsonPrimitive?.contentOrNull
-                val rawOptions = (o["options"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
-                val labels = (o["optionLabels"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
+                val rawOptions = (o["options"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
+                val labels = (o["optionLabels"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
                 val options = rawOptions.mapIndexed { idx, v -> MediaCapValue(v, labels.getOrElse(idx) { v }) }
                 add(key, label, type, defaultValue, options, o["required"]?.jsonPrimitive?.booleanOrNull == true)
             }

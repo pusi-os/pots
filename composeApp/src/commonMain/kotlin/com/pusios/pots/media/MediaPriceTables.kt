@@ -3,6 +3,7 @@ package com.pusios.pots.media
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -44,7 +45,10 @@ internal fun parsePriceTable(json: String): MediaPriceTable? = runCatching {
     val rows = (root["rows"] as? JsonArray).orEmpty().mapNotNull { el ->
         val o = el as? JsonObject ?: return@mapNotNull null
         MediaPriceTableRow(
-            opts = (o["opts"] as? JsonObject).orEmpty().mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() },
+            // Safe cast: a drifted non-primitive entry is skipped, not the table.
+            opts = (o["opts"] as? JsonObject).orEmpty()
+                .mapNotNull { (key, value) -> (value as? JsonPrimitive)?.let { key to it.contentOrNull.orEmpty() } }
+                .toMap(),
             price = o["price"]?.jsonPrimitive?.doubleOrNull,
             priceStatus = o["priceStatus"]?.jsonPrimitive?.contentOrNull,
             chargeBasis = o["chargeBasis"]?.jsonPrimitive?.contentOrNull,
@@ -53,8 +57,10 @@ internal fun parsePriceTable(json: String): MediaPriceTable? = runCatching {
     MediaPriceTable(
         model = root["model"]?.jsonPrimitive?.contentOrNull.orEmpty(),
         currency = root["currency"]?.jsonPrimitive?.contentOrNull,
-        priceAffecting = (root["priceAffecting"] as? JsonArray).orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull },
-        defaults = (root["defaults"] as? JsonObject).orEmpty().mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() },
+        priceAffecting = (root["priceAffecting"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull },
+        defaults = (root["defaults"] as? JsonObject).orEmpty()
+            .mapNotNull { (key, value) -> (value as? JsonPrimitive)?.let { key to it.contentOrNull.orEmpty() } }
+            .toMap(),
         rows = rows,
     )
 }.getOrNull()

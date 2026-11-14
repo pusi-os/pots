@@ -59,6 +59,24 @@ class MediaPriceTablesTest {
         assertNull(parsePriceTable("not json at all"))
     }
 
+    @Test
+    fun nonPrimitiveTableEntriesAreSkippedTableSurvives() {
+        val json = """
+            {"ok":true,"model":"drift","currency":"RUB",
+             "priceAffecting":["quality",{"odd":true},"resolution"],
+             "defaults":{"resolution":"1K","nested":{"a":1}},
+             "rows":[
+               {"opts":{"quality":"low","weird":{"x":1}},"price":1.5,"priceStatus":"exact","chargeBasis":"quote"},
+               {"opts":{"quality":"high"},"price":3.0,"priceStatus":"exact","chargeBasis":"quote"}]}
+        """.trimIndent()
+        val parsed = assertNotNull(parsePriceTable(json), "non-primitive entries must not drop the table")
+        assertEquals(listOf("quality", "resolution"), parsed.priceAffecting)
+        assertEquals(mapOf("resolution" to "1K"), parsed.defaults)
+        assertEquals(mapOf("quality" to "low"), parsed.rows[0].opts)
+        assertEquals(1.5, parsed.rows[0].price)
+        assertEquals(mapOf("quality" to "high"), parsed.rows[1].opts)
+    }
+
     // --- exact prices from the table ---
 
     private val gptImageTable = table(
