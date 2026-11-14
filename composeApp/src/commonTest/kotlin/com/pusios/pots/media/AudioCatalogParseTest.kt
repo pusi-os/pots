@@ -119,11 +119,11 @@ class AudioCatalogParseTest {
         val parsed = provider.parseCatalog(tiersJson)
         val aggregator = parsed.first { it.id == "tts" }
         assertEquals(2, aggregator.tiers.size)
-        assertEquals(mapOf("engine" to "gemini-flash"), aggregator.tiers[0].whenConditions)
+        assertEquals(mapOf("engine" to setOf("gemini-flash")), aggregator.tiers[0].whenConditions)
         assertEquals(13.0, aggregator.tiers[1].priceRub)
         assertEquals("MiniMax HD", aggregator.tiers[1].label)
         // An empty `when` matches any selected chips (default tier).
-        assertEquals(mapOf("personaModel" to ""), parsed.first { it.id == "suno" }.tiers.single().whenConditions)
+        assertEquals(mapOf("personaModel" to setOf("")), parsed.first { it.id == "suno" }.tiers.single().whenConditions)
         // No tiers in the payload -> empty list.
         assertEquals(emptyList(), parsed.first { it.id == "chatterbox-tts" }.tiers)
     }

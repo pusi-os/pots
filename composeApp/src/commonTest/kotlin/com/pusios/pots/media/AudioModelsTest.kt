@@ -237,9 +237,9 @@ class AudioModelsTest {
     fun tierPriceMatchesSelectedChips() {
         val suno = music.copy(
             tiers = listOf(
-                MediaTierPrice("Не указано", 6.29, mapOf("personaModel" to "")),
-                MediaTierPrice("Style Persona", 10.82, mapOf("personaModel" to "style_persona")),
-                MediaTierPrice("Voice Persona", 10.82, mapOf("personaModel" to "voice_persona")),
+                MediaTierPrice("Не указано", 6.29, mapOf("personaModel" to setOf(""))),
+                MediaTierPrice("Style Persona", 10.82, mapOf("personaModel" to setOf("style_persona"))),
+                MediaTierPrice("Voice Persona", 10.82, mapOf("personaModel" to setOf("voice_persona"))),
             ),
         )
         // No chips selected: the default (empty) tier matches exactly.
@@ -260,8 +260,8 @@ class AudioModelsTest {
             fromRub = 7.0,
             unit = "за озвучку",
             tiers = listOf(
-                MediaTierPrice("Gemini 3.1 Flash TTS", 7.0, mapOf("engine" to "gemini-flash")),
-                MediaTierPrice("MiniMax Speech 2.8 HD", 13.0, mapOf("engine" to "minimax-hd")),
+                MediaTierPrice("Gemini 3.1 Flash TTS", 7.0, mapOf("engine" to setOf("gemini-flash"))),
+                MediaTierPrice("MiniMax Speech 2.8 HD", 13.0, mapOf("engine" to setOf("minimax-hd"))),
             ),
         )
         // Selected engine: exact tier price, no «от».

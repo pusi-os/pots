@@ -70,7 +70,16 @@ class PlusVibeMediaProvider(
     internal fun parseCatalog(body: String): List<MediaModel> {
         val root = json.parseToJsonElement(body).jsonObject
         val models = root["models"]?.jsonArray ?: return emptyList()
-        return models.mapNotNull { parseModel(it as? JsonObject ?: return@mapNotNull null) }
+        return models
+            .mapNotNull { element ->
+                val obj = element as? JsonObject ?: return@mapNotNull null
+                // The provider evolves the payload (2026-11-14: array values in
+                // `tiers[].when`); one unrecognised shape must drop its model,
+                // never the whole list.
+                runCatching { parseModel(obj) }
+                    .onFailure { MediaLog.w("Catalog model ${obj["model"]} skipped: ${it.message}") }
+                    .getOrNull()
+            }
             .filter { it.id.isNotBlank() && it.generationAvailable && !it.priceUnavailable }
     }
 
@@ -400,19 +409,31 @@ class PlusVibeMediaProvider(
         }
     }
 
-    /** Price tiers: `{label, priceRub, when: {optKey: optValue}}`. */
+    /** Price tiers: `{label, priceRub, when: {optKey: optValue | [optValue, …]}}`. */
     private fun parseTiers(obj: JsonObject): List<MediaTierPrice> {
         val arr = obj["tiers"] as? JsonArray ?: return emptyList()
         return arr.mapNotNull { el ->
             val o = el as? JsonObject ?: return@mapNotNull null
             val price = o["priceRub"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
-            val conditions = (o["when"] as? JsonObject).orEmpty().mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }
+            val conditions = (o["when"] as? JsonObject).orEmpty()
+                .mapValues { (_, value) -> value.conditionValues() }
             MediaTierPrice(
                 label = o["label"]?.jsonPrimitive?.contentOrNull,
                 priceRub = price,
                 whenConditions = conditions,
             )
         }
+    }
+
+    /**
+     * One `when` condition: a single option or an array of them («any of
+     * these», live since 2026-11-14). An unknown shape becomes an empty set,
+     * so its tier never matches instead of breaking the catalog parse.
+     */
+    private fun JsonElement.conditionValues(): Set<String> = when (this) {
+        is JsonPrimitive -> setOf(contentOrNull.orEmpty())
+        is JsonArray -> mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.toSet()
+        else -> emptySet()
     }
 
     /** The documented per-request text limit: the largest «до N символов» mention in the note. */

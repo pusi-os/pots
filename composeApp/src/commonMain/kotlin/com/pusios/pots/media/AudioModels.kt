@@ -151,7 +151,7 @@ private const val MAX_AUDIO_CHIPS = 4
  */
 internal fun MediaModel.tierPrice(opts: Map<String, String>): Double? {
     if (tiers.isEmpty() || opts.isEmpty()) return null
-    return tiers.firstOrNull { tier -> tier.whenConditions.all { (key, value) -> opts[key].orEmpty() == value } }?.priceRub
+    return tiers.firstOrNull { tier -> tier.whenConditions.all { (key, values) -> opts[key].orEmpty() in values } }?.priceRub
 }
 
 /** `от 0,07 ₽ за 1000 символов` — price badge text for the audio sheet (ru locale). */

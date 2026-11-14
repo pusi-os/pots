@@ -1,7 +1,7 @@
 ---
 okf_version: "0.2"
 providers: [plusvibe]
-last_verified: 2026-11-10
+last_verified: 2026-11-14
 base_urls: [https://plusvibeapi.ru, https://gw.plusvibeapi.ru]
 ---
 
@@ -38,6 +38,7 @@ Chat-сервис `plusvibe` / `plusvibe-reserve` уже существует (`
 | `priceUnavailable` | bool | true — маршрут нельзя вызвать (503) |
 | `variants[]` | object[] | Маршруты `addressAs` (`gpt-image-2:network`, `flux-2:flow`) с `priceRub`, `priceStatus`, `priceUnavailable` |
 | `params[]` / `axes[]` / `inputSchema` | object | Схема `opts` для валидации клиента |
+| `tiers[]` | object[] | Ступени цены: `{label, priceRub, when: {optKey: optValue \| [optValue, …]}}`. Значение условия — одна опция или массив («любая из», живое с 2026-11-14); ступень применяется, когда все условия совпали с выбранными `opts` |
 | `generationAvailable` / `displayOnly` | bool | Служебные флаги; `displayOnly` — справочная модель без dispatch |
 
 Таблица цен для реселлеров: `GET /api/media/price-table?model=<id>` (публично): `opts`, `price`, `unitPrice`, `priceScope` (`job_total` \| `unit_rate`), `jobTotalStatus`, `requiredInputs`. При `priceScope=unit_rate` поле `price=null`, тариф в `unitPrice`.

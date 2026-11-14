@@ -53,14 +53,16 @@ data class MediaVariantPrice(
 
 /**
  * One price tier of a variable-price model: the price applies when every
- * [whenConditions] entry matches the selected opts (`{"engine": "minimax-hd"}`).
+ * [whenConditions] entry matches the selected opts — the chosen value is one
+ * of the allowed ones (`{"engine": {"minimax-hd"}}`). The provider may list
+ * several (`{"quality": ["basic", "high"]}` — live since 2026-11-14).
  * An empty condition map matches any selection (the default tier).
  */
 @Immutable
 data class MediaTierPrice(
     val label: String?,
     val priceRub: Double?,
-    val whenConditions: Map<String, String>,
+    val whenConditions: Map<String, Set<String>>,
 )
 
 @Immutable
