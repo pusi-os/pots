@@ -33,6 +33,7 @@ import com.pusios.pots.network.AnthropicInvalidApiKeyException
 import com.pusios.pots.network.ContextWindowExceededException
 import com.pusios.pots.network.FileTooLargeException
 import com.pusios.pots.network.GeminiInvalidApiKeyException
+import com.pusios.pots.network.NoConfiguredServiceException
 import com.pusios.pots.network.OpenAICompatibleBadRequestException
 import com.pusios.pots.network.OpenAICompatibleContentModerationException
 import com.pusios.pots.network.OpenAICompatibleEmptyResponseException
@@ -974,6 +975,11 @@ class RemoteDataRepository(
         val systemPrompt = getActiveSystemPrompt()
 
         val fallbackEntries = getOrderedFallbackEntries().filter { hasValidInstanceApiKey(it.instanceId, it.service) }
+
+        // Nothing to route to (no services, or none with a valid key). Say exactly
+        // that instead of falling through to a misleading "empty response" below:
+        // the chat UI turns this into the provider-suggestions panel (spec §5.4).
+        if (fallbackEntries.isEmpty()) throw NoConfiguredServiceException()
 
         val historyChars = messages.sumOf { it.content.length } + (systemPrompt?.length ?: 0)
 

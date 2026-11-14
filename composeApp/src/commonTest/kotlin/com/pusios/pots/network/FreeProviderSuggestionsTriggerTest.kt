@@ -3,6 +3,8 @@ package com.pusios.pots.network
 import com.pusios.pots.data.FreeProviderSuggestion
 import com.pusios.pots.data.Service
 import com.pusios.pots.data.freeProviderSuggestions
+import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.onboarding_skipped
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -100,5 +102,34 @@ class FreeProviderSuggestionsTriggerTest {
             assertNotNull(suggestion.service.apiKeyUrl)
             assertTrue(suggestion.signupUrl.startsWith("http"))
         }
+    }
+
+    // ---- second chance after onboarding skip (spec §5.4; review round 1 blocker) ----
+    // With an empty fallback chain askInternal throws NoConfiguredServiceException
+    // before any network call, so no misleading "empty response" can reach the UI.
+
+    @Test
+    fun `no configured service shows suggestions regardless of configured flag`() {
+        assertTrue(
+            shouldShowFreeProviderSuggestions(
+                noConfiguredServices = true,
+                exception = NoConfiguredServiceException(),
+            ),
+        )
+        // Instances exist but none has a valid key — the chain is still empty.
+        assertTrue(
+            shouldShowFreeProviderSuggestions(
+                noConfiguredServices = false,
+                exception = NoConfiguredServiceException(),
+            ),
+        )
+    }
+
+    @Test
+    fun `no configured service maps to onboarding skipped copy not empty response`() {
+        assertEquals(
+            UiError.Resource(Res.string.onboarding_skipped),
+            NoConfiguredServiceException().toUiError(),
+        )
     }
 }

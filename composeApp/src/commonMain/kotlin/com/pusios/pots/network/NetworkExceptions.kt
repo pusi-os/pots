@@ -27,6 +27,7 @@ import pots.composeapp.generated.resources.litert_error_inference_timeout
 import pots.composeapp.generated.resources.litert_error_insufficient_memory
 import pots.composeapp.generated.resources.litert_error_model_integrity
 import pots.composeapp.generated.resources.litert_error_no_model
+import pots.composeapp.generated.resources.onboarding_skipped
 
 sealed class ApiException(message: String?, cause: Throwable? = null) : Exception(message, cause)
 
@@ -63,6 +64,15 @@ class ContextWindowExceededException : ApiException(null)
 class UnsupportedFileTypeException : ApiException(null)
 class FileTooLargeException : ApiException(null)
 class AllServicesFailedException : ApiException(null)
+
+/**
+ * The request could not be routed at all: the fallback chain was empty — no
+ * services are configured, or none of the configured instances has a valid API
+ * key. Deliberately distinct from [OpenAICompatibleEmptyResponseException]
+ * ("a provider answered with nothing") so the UI can offer provider setup
+ * instead of claiming a response was lost.
+ */
+class NoConfiguredServiceException : ApiException(null)
 
 sealed interface UiError {
     data class Resource(val resource: StringResource) : UiError
@@ -110,13 +120,17 @@ internal fun messageLooksLikeFreeCapacity(message: String?): Boolean {
 }
 
 /**
- * Show the free-provider upsell only when Free is the sole path (no user
- * services configured) and the failure is a free-capacity rate/quota limit.
+ * Show the free-provider upsell when routing was impossible in the first place
+ * (empty fallback chain → [NoConfiguredServiceException]; this is the second
+ * chance after the onboarding wizard was skipped, spec §5.4), or when Free is
+ * the sole path (no user services configured) and the failure is a free-capacity
+ * rate/quota limit.
  */
 fun shouldShowFreeProviderSuggestions(
     noConfiguredServices: Boolean,
     exception: Exception,
-): Boolean = noConfiguredServices && exception.isFreeCapacityError()
+): Boolean = exception is NoConfiguredServiceException ||
+    (noConfiguredServices && exception.isFreeCapacityError())
 
 fun Exception.toUiError(): UiError = when (this) {
     is UnsupportedFileTypeException -> UiError.Resource(Res.string.error_unsupported_file_type)
@@ -144,6 +158,10 @@ fun Exception.toUiError(): UiError = when (this) {
     is OpenAICompatibleModelNotFoundException -> UiError.Resource(Res.string.error_openai_compatible_model_not_found)
 
     is OpenAICompatibleEmptyResponseException -> UiError.Resource(Res.string.error_empty_response)
+
+    // Nothing to route to: the honest message is @stiv's "until a model is
+    // connected, I stay silent" copy — never "no response received".
+    is NoConfiguredServiceException -> UiError.Resource(Res.string.onboarding_skipped)
 
     is OpenAICompatibleTimeoutException -> UiError.Resource(Res.string.error_openai_compatible_connection)
 

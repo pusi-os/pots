@@ -792,6 +792,9 @@ class ChatViewModel(
         val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.serviceId == Service.PlusVibe.id }
             ?: dataRepository.addConfiguredService(Service.PlusVibe.id)
         dataRepository.updateInstanceApiKey(instance.instanceId, apiKey.trim())
+        // Parity with Settings → Services' onChangeApiKey: a reused instance may
+        // still cache the previous key's models.
+        dataRepository.clearInstanceModels(instance.instanceId, Service.PlusVibe)
         dataRepository.setOnboardingStep(4)
         _state.update { it.copy(onboarding = it.onboarding.copy(step = 4, error = null)) }
         updateAvailableServices()

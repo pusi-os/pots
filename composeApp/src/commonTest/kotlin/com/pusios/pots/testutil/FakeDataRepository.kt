@@ -194,7 +194,10 @@ class FakeDataRepository : DataRepository {
         instanceCustomModelIds[instanceId] = modelId
     }
 
+    var clearInstanceModelsCalls = 0
+
     override fun clearInstanceModels(instanceId: String, service: Service) {
+        clearInstanceModelsCalls += 1
         instanceModels[instanceId]?.value = emptyList()
     }
 

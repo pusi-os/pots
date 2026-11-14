@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModelStore
 import app.cash.turbine.test
 import com.pusios.pots.data.Service
 import com.pusios.pots.data.TaskScheduler
+import com.pusios.pots.network.NoConfiguredServiceException
 import com.pusios.pots.network.OpenAICompatibleInvalidApiKeyException
 import com.pusios.pots.network.OpenAICompatibleQuotaExhaustedException
+import com.pusios.pots.network.UiError
 import com.pusios.pots.testutil.FakeDataRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -19,6 +21,7 @@ import pots.composeapp.generated.resources.onboarding_error_empty_key
 import pots.composeapp.generated.resources.onboarding_error_invalid_key
 import pots.composeapp.generated.resources.onboarding_error_network
 import pots.composeapp.generated.resources.onboarding_error_no_balance
+import pots.composeapp.generated.resources.onboarding_skipped
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -354,6 +357,53 @@ class ChatViewModelOnboardingTest {
             val instances = fakeRepository.getConfiguredServiceInstances()
             assertEquals(Service.LiteRT.id, instances.single().serviceId)
             assertTrue(fakeRepository.isOnboardingDone())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // ---- second chance after skip (spec §5.4; review round 1 blocker) ----
+
+    @Test
+    fun `first failed ask after skip opens provider panel with honest error`() = runTest {
+        val viewModel = createViewModel()
+        viewModel.state.test {
+            val initial = awaitItem()
+            assertEquals(OnboardingPhase.Active, initial.onboarding.phase)
+            initial.actions.onboardingSkip()
+            awaitItem()
+
+            // With no configured services the real repository's fallback chain is
+            // empty and it throws NoConfiguredServiceException before any network call.
+            fakeRepository.askException = NoConfiguredServiceException()
+            viewModel.state.value.actions.ask("Привет")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            var errorState: ChatUiState
+            do {
+                errorState = awaitItem()
+            } while (errorState.error == null)
+            assertTrue(errorState.showFreeProviderSuggestions)
+            assertEquals(UiError.Resource(Res.string.onboarding_skipped), errorState.error)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `saving a key clears cached models like the manual settings path`() = runTest {
+        // Review round 1 (non-blocking): Settings → Services' onChangeApiKey calls
+        // clearInstanceModels; the wizard reuses an instance whose cached models
+        // belong to the previous key, so it must clear them too.
+        val existing = fakeRepository.addConfiguredService(Service.PlusVibe.id)
+        fakeRepository.setOnboardingFinishedStep(true)
+        fakeRepository.setOnboardingStep(4)
+        val viewModel = createViewModel()
+        viewModel.state.test {
+            val initial = awaitItem()
+            initial.actions.onboardingResume()
+            awaitItem()
+            initial.actions.onboardingSaveKey("fresh-key")
+            assertEquals(1, fakeRepository.clearInstanceModelsCalls)
+            assertEquals("fresh-key", fakeRepository.getInstanceApiKey(existing.instanceId))
             cancelAndIgnoreRemainingEvents()
         }
     }
