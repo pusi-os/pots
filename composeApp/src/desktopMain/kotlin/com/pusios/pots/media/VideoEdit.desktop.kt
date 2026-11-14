@@ -206,6 +206,72 @@ private class DesktopVideoProcessor : VideoProcessor {
     }
 
     /**
+     * Audio-reactive clip (spec §11): plans scenes over the track's energy
+     * peaks, builds the reactive filtergraph (bass zoom pulses, treble
+     * flashes, warm tint, Cinema vignette) and renders it. With no visual
+     * sources a deterministic gradient stands in — the clip is always
+     * possible. The background/vignette PNGs are temporary; the sources are
+     * never touched.
+     */
+    override suspend fun assembleAudioClip(request: AudioClipAssemblyRequest, analysis: AudioAnalysis, onProgress: VideoEditProgress): String = withContext(Dispatchers.IO) {
+        val ffmpeg = findFfmpeg() ?: throw VideoEditException.ToolMissing()
+        val track = absoluteStoragePath(request.trackRelPath)
+        if (!track.isFile) throw VideoEditException.SourceMissing()
+
+        val plan = planAudioClip(request, analysis)
+        val tempFiles = ArrayList<File>()
+        try {
+            val backgroundSeed = track.inputStream().use { it.readNBytes(4096) }
+            val inputs = plan.spans.map { span ->
+                val spanMs = span.endMs - span.startMs
+                if (span.sourceIndex < 0) {
+                    val background = File.createTempFile("pots-clip-bg", ".png")
+                    background.writeBytes(encodeGridToPng(audioClipBackgroundGrid(request.width, request.height, backgroundSeed)))
+                    tempFiles.add(background)
+                    SequenceInput(background.path, isVideo = false, durationMs = spanMs)
+                } else {
+                    val source = request.scenes[span.sourceIndex]
+                    val file = absoluteStoragePath(source.relPath)
+                    if (!file.isFile) throw VideoEditException.SourceMissing()
+                    SequenceInput(file.path, source.isVideo, durationMs = spanMs)
+                }
+            }
+            val vignette = if (plan.needsVignette) {
+                File.createTempFile("pots-clip-vignette", ".png").also { file ->
+                    file.writeBytes(encodeGridToPng(audioClipVignetteGrid(request.width, request.height)))
+                    tempFiles.add(file)
+                }
+            } else {
+                null
+            }
+
+            val spec = AudioClipRenderSpec(
+                inputs = inputs,
+                junctions = plan.junctions,
+                visibleDurationMs = plan.visibleDurationMs,
+                renderDurationMs = plan.renderDurationMs,
+                width = request.width,
+                height = request.height,
+                fps = request.fps,
+                audioPath = track.path,
+                zoomExprs = plan.sceneZoomExprs,
+                flashes = plan.flashWindows,
+                vignettePath = vignette?.path,
+            )
+
+            @OptIn(ExperimentalUuidApi::class)
+            val outputRel = "media/edits/${Uuid.random()}.mp4"
+            val output = absoluteStoragePath(outputRel)
+            output.parentFile?.mkdirs()
+            executeFfmpeg(withBinary(ffmpegAudioClipArgs(spec, output.path), ffmpeg), plan.renderDurationMs, onProgress, output)
+            MediaLog.d("Audio clip assembled: $outputRel (${output.length()} bytes, style=${request.style}, ${plan.spans.size} scenes)")
+            outputRel
+        } finally {
+            tempFiles.forEach { it.delete() }
+        }
+    }
+
+    /**
      * Runs one prepared ffmpeg command: `-progress pipe:1` lines stream
      * through [onProgress] (false cancels by destroying the process), stderr
      * lands in a temp file whose tail feeds the §8 card. Verifies the output

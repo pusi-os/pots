@@ -150,6 +150,7 @@ fun MediaStudioScreenFull(
     var editImageElement by remember { mutableStateOf<CanvasElement?>(null) }
     var editVideoElement by remember { mutableStateOf<CanvasElement?>(null) }
     var sequenceOpen by remember { mutableStateOf(false) }
+    var clipTrackElement by remember { mutableStateOf<CanvasElement?>(null) }
     val sequenceState by viewModel.sequence.collectAsState()
 
     val pending = jobs.values.filter { !it.isTerminal }
@@ -345,6 +346,7 @@ fun MediaStudioScreenFull(
                     lightboxUrl = element.url ?: element.localPath
                 },
                 onEditAudio = { element -> editAudioElement = element },
+                onMakeClip = { element -> clipTrackElement = element },
                 onDrawImage = { element ->
                     drawElement = element
                     drawOpen = true
@@ -612,6 +614,20 @@ fun MediaStudioScreenFull(
             audioElements = elements.filter { it.isAudio },
             onDismiss = { editVideoElement = null },
             onResult = { editedRelPath -> viewModel.addEditedVideoElement(editedRelPath) },
+        )
+    }
+
+    // Audio-reactive clip (spec §11): one button from a selected audio element.
+    clipTrackElement?.let { track ->
+        MediaAudioClipSheet(
+            trackElement = track,
+            canvasElements = elements,
+            historyEntries = historyEntries,
+            onResult = { relPath, style, trackDurationMs ->
+                viewModel.addAudioClipElement(relPath, style, trackDurationMs)
+            },
+            onFailure = viewModel::recordAudioClipFailure,
+            onDismiss = { clipTrackElement = null },
         )
     }
 

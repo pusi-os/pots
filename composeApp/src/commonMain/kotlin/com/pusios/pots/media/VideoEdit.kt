@@ -201,6 +201,9 @@ interface VideoProcessor {
 
     /** Assembles the sequence into one clip; returns the new file's relative path. */
     suspend fun assembleSequence(request: SequenceAssemblyRequest, onProgress: VideoEditProgress): String
+
+    /** Assembles the audio-reactive clip (spec §11); returns the new file's relative path. */
+    suspend fun assembleAudioClip(request: AudioClipAssemblyRequest, analysis: AudioAnalysis, onProgress: VideoEditProgress): String
 }
 
 expect fun createVideoProcessor(): VideoProcessor
@@ -286,6 +289,13 @@ sealed class VideoEditException(
             "Не удалось собрать видео",
             "Рендер остановлен: $reason.",
             "Повторить",
+        )
+
+    class TrackUnreadable :
+        VideoEditException(
+            "Не удалось разобрать трек",
+            "Аудиофайл повреждён или записан в неподдерживаемом формате. Для клипа подходят MP3 и WAV.",
+            "Выбрать другой трек",
         )
 }
 

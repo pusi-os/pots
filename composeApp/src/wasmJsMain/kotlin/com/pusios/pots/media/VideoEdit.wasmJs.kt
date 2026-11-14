@@ -37,6 +37,8 @@ private object UnsupportedVideoProcessor : VideoProcessor {
     ): String = throw VideoEditException.UnsupportedPlatform()
 
     override suspend fun assembleSequence(request: SequenceAssemblyRequest, onProgress: VideoEditProgress): String = throw VideoEditException.UnsupportedPlatform()
+
+    override suspend fun assembleAudioClip(request: AudioClipAssemblyRequest, analysis: AudioAnalysis, onProgress: VideoEditProgress): String = throw VideoEditException.UnsupportedPlatform()
 }
 
 actual fun createVideoProcessor(): VideoProcessor = UnsupportedVideoProcessor

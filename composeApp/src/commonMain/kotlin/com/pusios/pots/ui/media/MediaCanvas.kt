@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.FlipToBack
 import androidx.compose.material.icons.filled.FlipToFront
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MovieFilter
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SaveAlt
@@ -94,6 +95,7 @@ internal fun MediaCanvas(
     onExportToGallery: (String) -> Unit,
     onOpenLightbox: (CanvasElement) -> Unit,
     onEditAudio: (CanvasElement) -> Unit,
+    onMakeClip: (CanvasElement) -> Unit,
     onDrawImage: (CanvasElement) -> Unit,
     onEditImage: (CanvasElement) -> Unit,
     onEditVideo: (CanvasElement) -> Unit,
@@ -129,6 +131,7 @@ internal fun MediaCanvas(
                 onExportToGallery = onExportToGallery,
                 onOpenLightbox = onOpenLightbox,
                 onEditAudio = onEditAudio,
+                onMakeClip = onMakeClip,
                 onDrawImage = onDrawImage,
                 onEditImage = onEditImage,
                 onEditVideo = onEditVideo,
@@ -204,6 +207,7 @@ private fun CanvasElementView(
     onExportToGallery: (String) -> Unit,
     onOpenLightbox: (CanvasElement) -> Unit,
     onEditAudio: (CanvasElement) -> Unit,
+    onMakeClip: (CanvasElement) -> Unit,
     onDrawImage: (CanvasElement) -> Unit,
     onEditImage: (CanvasElement) -> Unit,
     onEditVideo: (CanvasElement) -> Unit,
@@ -277,6 +281,11 @@ private fun CanvasElementView(
                             ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
                             ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(element.id, CanvasAction.Duplicate) }
                             ElementChip(Icons.Filled.Edit, "Редактировать") { onEditAudio(element) }
+                            if (videoEditingPlatformSupported()) {
+                                // Audio-reactive clip (spec §11): desktop-only like the
+                                // video editor — the render rides the system ffmpeg.
+                                ElementChip(Icons.Filled.MovieFilter, "Сделать клип") { onMakeClip(element) }
+                            }
                             ElementChip(Icons.Filled.Fullscreen, "Открыть плеер") { onOpenLightbox(element) }
                             ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(element.id) }
                             ElementChip(Icons.Filled.Delete, "Удалить", tint = MaterialTheme.colorScheme.error) {

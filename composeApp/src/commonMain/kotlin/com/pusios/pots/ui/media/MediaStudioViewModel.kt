@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.data.AppSettings
+import com.pusios.pots.media.AudioClipStyle
 import com.pusios.pots.media.AudioFlow
 import com.pusios.pots.media.LOCAL_TTS_PROVIDER_MARK
 import com.pusios.pots.media.LocalTtsSynthesizer
@@ -1035,6 +1036,55 @@ class MediaStudioViewModel(
                 prompt = "Сборка видео из $clipCount клипов",
                 status = MediaHistoryStatus.Failed,
                 failMsg = "Не удалось собрать видео. $reason",
+                priceRub = 0.0,
+            ),
+        )
+    }
+
+    // -- Audio-reactive clip (spec §11) ----------------------------------------
+
+    /**
+     * Result of the audio-reactive clip (spec §11): the file is already under
+     * `media/edits/`, the journal gets the «клип, 0 ₽» entry (deterministic
+     * local flow, no LLM, no quote), and the clip lands on the canvas.
+     * Returns false when the path is unexpected.
+     */
+    fun addAudioClipElement(relPath: String, style: AudioClipStyle, trackDurationMs: Long): Boolean {
+        if (!relPath.startsWith("media/edits/")) {
+            MediaLog.e("Audio clip export refused: unexpected path $relPath")
+            return false
+        }
+        history.upsert(
+            MediaHistoryEntry(
+                localId = Uuid.random().toString(),
+                createdAtMs = kotlin.time.Clock.System.now().toEpochMilliseconds(),
+                isVideo = true,
+                model = "audio-clip",
+                provider = LOCAL_TTS_PROVIDER_MARK,
+                prompt = "Аудио-реактивный клип · ${style.labelRu} · трек ${trackDurationMs / 1000} с",
+                opts = mapOf("style" to style.name, "track_ms" to trackDurationMs.toString()),
+                status = MediaHistoryStatus.Success,
+                localPath = relPath,
+                priceRub = 0.0,
+            ),
+        )
+        importFromGallery(relPath, isVideo = true)
+        MediaLog.d("Audio-reactive clip assembled: $relPath (style=${style.name})")
+        return true
+    }
+
+    /** Failed clip builds also land in the journal — the local-TTS honesty precedent. */
+    fun recordAudioClipFailure(reason: String) {
+        history.upsert(
+            MediaHistoryEntry(
+                localId = Uuid.random().toString(),
+                createdAtMs = kotlin.time.Clock.System.now().toEpochMilliseconds(),
+                isVideo = true,
+                model = "audio-clip",
+                provider = LOCAL_TTS_PROVIDER_MARK,
+                prompt = "Аудио-реактивный клип",
+                status = MediaHistoryStatus.Failed,
+                failMsg = "Не удалось собрать клип. $reason",
                 priceRub = 0.0,
             ),
         )
