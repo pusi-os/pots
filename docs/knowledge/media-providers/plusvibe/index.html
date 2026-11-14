@@ -1378,6 +1378,11 @@
 <td>Схема <code>opts</code> для валидации клиента</td>
 </tr>
 <tr>
+<td><code>tiers[]</code></td>
+<td>object[]</td>
+<td>Ступени цены: <code>{label, priceRub, when: {optKey: optValue \| [optValue, …]}}</code>. Значение условия — одна опция или массив («любая из», живое с 2026-11-14); ступень применяется, когда все условия совпали с выбранными <code>opts</code></td>
+</tr>
+<tr>
 <td><code>generationAvailable</code> / <code>displayOnly</code></td>
 <td>bool</td>
 <td>Служебные флаги; <code>displayOnly</code> — справочная модель без dispatch</td>

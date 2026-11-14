@@ -1,0 +1,3124 @@
+{
+  "models": [
+    {
+      "model": "seedream-5",
+      "kind": "image",
+      "unit": "за изображение",
+      "note": "ByteDance Seedream 5 — Lite и Pro, генерация и редактирование (seedream/5-*-text-to-image и seedream/5-*-image-to-image).",
+      "inputTypes": [
+        "text",
+        "image"
+      ],
+      "params": [
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "1:1",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4"
+          ],
+          "optionLabels": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "tier",
+          "label": "Качество",
+          "type": "select",
+          "default": "lite",
+          "options": [
+            "lite",
+            "pro"
+          ],
+          "optionLabels": [
+            "Lite (быстрая)",
+            "Pro (макс. качество)"
+          ],
+          "optionAvailability": [
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "mode",
+          "label": "Режим",
+          "type": "select",
+          "default": "text-to-image",
+          "options": [
+            "text-to-image",
+            "image-to-image"
+          ],
+          "optionLabels": [
+            "Генерация",
+            "Image-to-Image"
+          ],
+          "optionAvailability": [
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "quality",
+          "label": "Качество выхода",
+          "type": "select",
+          "default": "basic",
+          "options": [
+            "basic",
+            "high",
+            "ultra"
+          ],
+          "optionLabels": [
+            "Basic",
+            "High",
+            "Ultra (4K, Lite)"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            {
+              "tier": "lite"
+            }
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, для i2i)",
+          "type": "text",
+          "required": false,
+          "availableWhen": null
+        },
+        {
+          "key": "input_urls",
+          "label": "Изображения (1–14 URL, для i2i)",
+          "type": "array",
+          "required": false,
+          "availableWhen": null,
+          "items": {
+            "type": "string",
+            "format": "url"
+          },
+          "maxItems": 14
+        }
+      ],
+      "fromRub": 3.72,
+      "modePrices": [
+        {
+          "mode": "generate",
+          "fromRub": 3.72
+        },
+        {
+          "mode": "edit",
+          "fromRub": 3.72
+        }
+      ],
+      "operationIds": [
+        "seedream-5-text-to-image",
+        "seedream-5-image-to-image"
+      ],
+      "tiers": [
+        {
+          "label": "Lite",
+          "priceRub": 3.72,
+          "when": {
+            "tier": "lite",
+            "quality": [
+              "basic",
+              "high",
+              "ultra"
+            ]
+          }
+        },
+        {
+          "label": "Pro · basic (1K)",
+          "priceRub": 4.74,
+          "when": {
+            "tier": "pro",
+            "quality": "basic"
+          }
+        },
+        {
+          "label": "Pro · high (2K)",
+          "priceRub": 9.48,
+          "when": {
+            "tier": "pro",
+            "quality": "high"
+          }
+        }
+      ],
+      "variants": [],
+      "axes": [
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "1:1",
+          "options": [
+            {
+              "value": "1:1",
+              "label": "1:1"
+            },
+            {
+              "value": "16:9",
+              "label": "16:9"
+            },
+            {
+              "value": "9:16",
+              "label": "9:16"
+            },
+            {
+              "value": "4:3",
+              "label": "4:3"
+            },
+            {
+              "value": "3:4",
+              "label": "3:4"
+            }
+          ]
+        },
+        {
+          "key": "tier",
+          "label": "Качество",
+          "type": "select",
+          "default": "lite",
+          "options": [
+            {
+              "value": "lite",
+              "label": "Lite (быстрая)",
+              "priceRub": 3.72
+            },
+            {
+              "value": "pro",
+              "label": "Pro (макс. качество)",
+              "priceRub": 4.74
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "mode",
+          "label": "Режим",
+          "type": "select",
+          "default": "text-to-image",
+          "options": [
+            {
+              "value": "text-to-image",
+              "label": "Генерация"
+            },
+            {
+              "value": "image-to-image",
+              "label": "Image-to-Image"
+            }
+          ]
+        },
+        {
+          "key": "quality",
+          "label": "Качество выхода",
+          "type": "select",
+          "default": "basic",
+          "options": [
+            {
+              "value": "basic",
+              "label": "Basic",
+              "priceRub": 3.72
+            },
+            {
+              "value": "high",
+              "label": "High",
+              "priceRub": 3.72
+            },
+            {
+              "value": "ultra",
+              "label": "Ultra (4K, Lite)",
+              "priceRub": 3.72,
+              "availableWhen": {
+                "tier": "lite"
+              }
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, для i2i)",
+          "type": "text",
+          "default": "",
+          "options": [],
+          "required": false
+        }
+      ],
+      "inputSchema": {
+        "prompt": {
+          "type": "string",
+          "required": true,
+          "description": "Text prompt describing the desired output"
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "enum": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4"
+          ],
+          "default": "1:1",
+          "description": "Aspect ratio of the output"
+        },
+        "tier": {
+          "type": "string",
+          "enum": [
+            "lite",
+            "pro"
+          ],
+          "default": "lite",
+          "description": "Quality tier"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "text-to-image",
+            "image-to-image"
+          ],
+          "default": "text-to-image",
+          "description": "Generation mode"
+        },
+        "quality": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "high",
+            "ultra"
+          ],
+          "default": "basic",
+          "description": "Output quality level"
+        },
+        "image_url": {
+          "type": "string",
+          "format": "url",
+          "required": false,
+          "description": "Public HTTPS URL of the input image"
+        },
+        "input_urls": {
+          "type": "array",
+          "required": false,
+          "description": "Array of 1-16 public HTTPS image URLs",
+          "max": 14,
+          "items": {
+            "type": "string",
+            "description": "",
+            "format": "url"
+          }
+        }
+      },
+      "requiredInputs": {
+        "allOf": [
+          "prompt"
+        ],
+        "anyOf": [],
+        "exactlyOneOf": [],
+        "source": "catalog",
+        "additionalFormsPossible": true,
+        "operations": [
+          {
+            "id": "seedream-5-text-to-image",
+            "when": {
+              "mode": "text-to-image"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [],
+            "exactlyOneOf": [],
+            "source": "catalog"
+          },
+          {
+            "id": "seedream-5-image-to-image",
+            "when": {
+              "mode": "image-to-image"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [
+              [
+                "opts.image_url",
+                "opts.image_file_id",
+                "opts.image_base64",
+                "opts.input_urls",
+                "opts.input_file_ids",
+                "opts.input_base64"
+              ]
+            ],
+            "exactlyOneOf": [],
+            "source": "builder_contract"
+          }
+        ]
+      },
+      "priceUnavailable": false,
+      "pricesAreEstimate": false,
+      "priceStatus": "exact",
+      "priceProvenance": "exact",
+      "priceLabelRu": "точная",
+      "priceLabel": "exact",
+      "honestFromRub": 3.72,
+      "priceTableUrl": "/api/media/price-table?model=seedream-5",
+      "priceUnit": "request"
+    },
+    {
+      "model": "flux-3",
+      "kind": "video",
+      "unit": "за секунду",
+      "note": "FLUX 3 (Black Forest Labs) — видеомодель со встроенным звуком: текст → видео, изображение → видео и продолжение ролика. 720p/1080p, 5–20 с. Цена за секунду по разрешению и режиму (Canvas black-forest-labs/flux-3, официальная тарифная сетка модели). Draft — быстрый черновой рендер, только 720p.",
+      "inputTypes": [
+        "text",
+        "image",
+        "video"
+      ],
+      "params": [
+        {
+          "key": "mode",
+          "label": "Режим",
+          "type": "select",
+          "default": "text-to-video",
+          "options": [
+            "text-to-video",
+            "image-to-video",
+            "extend"
+          ],
+          "optionLabels": [
+            "Текст → видео",
+            "Изображение → видео",
+            "Продолжение ролика"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "duration",
+          "label": "Длительность, сек",
+          "type": "select",
+          "default": "5",
+          "options": [
+            "5",
+            "6",
+            "8",
+            "10",
+            "15",
+            "20"
+          ],
+          "optionLabels": [
+            "5",
+            "6",
+            "8",
+            "10",
+            "15",
+            "20"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "quality",
+          "label": "Качество",
+          "type": "select",
+          "default": "full",
+          "options": [
+            "full",
+            "draft"
+          ],
+          "optionLabels": [
+            "Полное",
+            "Черновик (быстро и дёшево)"
+          ],
+          "optionAvailability": [
+            null,
+            {
+              "resolution": "720p"
+            }
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "resolution",
+          "label": "Разрешение",
+          "type": "select",
+          "default": "720p",
+          "options": [
+            "720p",
+            "1080p"
+          ],
+          "optionLabels": [
+            "720p",
+            "1080p"
+          ],
+          "optionAvailability": [
+            null,
+            {
+              "quality": "full"
+            }
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "auto",
+          "options": [
+            "auto",
+            "21:9",
+            "2:1",
+            "16:9",
+            "4:3",
+            "1:1",
+            "3:4",
+            "9:16"
+          ],
+          "optionLabels": [
+            "Авто",
+            "21:9",
+            "2:1",
+            "16:9",
+            "4:3",
+            "1:1",
+            "3:4",
+            "9:16"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, для I2V)",
+          "type": "text",
+          "required": false,
+          "availableWhen": {
+            "mode": "image-to-video"
+          }
+        },
+        {
+          "key": "video_url",
+          "label": "Видео (URL, для продолжения)",
+          "type": "text",
+          "required": false,
+          "availableWhen": {
+            "mode": "extend"
+          }
+        },
+        {
+          "key": "generate_audio",
+          "label": "Синхронный звук",
+          "type": "bool",
+          "default": "true",
+          "availableWhen": null
+        }
+      ],
+      "fromRub": 7.54,
+      "operationIds": [
+        "flux-3-text-to-video",
+        "flux-3-image-to-video",
+        "flux-3-extend"
+      ],
+      "tiers": [
+        {
+          "label": "720p",
+          "priceRub": 21.37,
+          "when": {
+            "mode": [
+              "text-to-video",
+              "image-to-video"
+            ],
+            "quality": "full",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "1080p",
+          "priceRub": 36.46,
+          "when": {
+            "mode": [
+              "text-to-video",
+              "image-to-video"
+            ],
+            "quality": "full",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Черновик 720p",
+          "priceRub": 7.54,
+          "when": {
+            "mode": [
+              "text-to-video",
+              "image-to-video"
+            ],
+            "quality": "draft",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Продолжение 720p",
+          "priceRub": 51.54,
+          "when": {
+            "mode": "extend",
+            "quality": "full",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Продолжение 1080p",
+          "priceRub": 66.63,
+          "when": {
+            "mode": "extend",
+            "quality": "full",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Продолжение, черновик 720p",
+          "priceRub": 15.09,
+          "when": {
+            "mode": "extend",
+            "quality": "draft",
+            "resolution": "720p"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "addressAs": "flux-3",
+          "pinAs": "flux-3:canvas",
+          "label": "Canvas",
+          "priceRub": 7.54,
+          "provider": "canvas",
+          "priceStatus": "exact",
+          "priceProvenance": "exact",
+          "priceLabelRu": "точная",
+          "priceLabel": "exact",
+          "honestPriceRub": 7.54,
+          "priceTableUrl": "/api/media/price-table?model=flux-3"
+        }
+      ],
+      "axes": [
+        {
+          "key": "mode",
+          "label": "Режим",
+          "type": "select",
+          "default": "text-to-video",
+          "options": [
+            {
+              "value": "text-to-video",
+              "label": "Текст → видео",
+              "priceRub": 21.37
+            },
+            {
+              "value": "image-to-video",
+              "label": "Изображение → видео",
+              "priceRub": 21.37
+            },
+            {
+              "value": "extend",
+              "label": "Продолжение ролика",
+              "priceRub": 51.54
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "duration",
+          "label": "Длительность, сек",
+          "type": "select",
+          "default": "5",
+          "options": [
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            },
+            {
+              "value": "8",
+              "label": "8"
+            },
+            {
+              "value": "10",
+              "label": "10"
+            },
+            {
+              "value": "15",
+              "label": "15"
+            },
+            {
+              "value": "20",
+              "label": "20"
+            }
+          ],
+          "perSecondModel": true
+        },
+        {
+          "key": "quality",
+          "label": "Качество",
+          "type": "select",
+          "default": "full",
+          "options": [
+            {
+              "value": "full",
+              "label": "Полное",
+              "priceRub": 21.37
+            },
+            {
+              "value": "draft",
+              "label": "Черновик (быстро и дёшево)",
+              "priceRub": 7.54,
+              "availableWhen": {
+                "resolution": "720p"
+              }
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "resolution",
+          "label": "Разрешение",
+          "type": "select",
+          "default": "720p",
+          "options": [
+            {
+              "value": "720p",
+              "label": "720p",
+              "priceRub": 21.37
+            },
+            {
+              "value": "1080p",
+              "label": "1080p",
+              "priceRub": 36.46,
+              "availableWhen": {
+                "quality": "full"
+              }
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "auto",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Авто"
+            },
+            {
+              "value": "21:9",
+              "label": "21:9"
+            },
+            {
+              "value": "2:1",
+              "label": "2:1"
+            },
+            {
+              "value": "16:9",
+              "label": "16:9"
+            },
+            {
+              "value": "4:3",
+              "label": "4:3"
+            },
+            {
+              "value": "1:1",
+              "label": "1:1"
+            },
+            {
+              "value": "3:4",
+              "label": "3:4"
+            },
+            {
+              "value": "9:16",
+              "label": "9:16"
+            }
+          ]
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, для I2V)",
+          "type": "text",
+          "default": "",
+          "options": [],
+          "required": false
+        },
+        {
+          "key": "video_url",
+          "label": "Видео (URL, для продолжения)",
+          "type": "text",
+          "default": "",
+          "options": [],
+          "required": false
+        },
+        {
+          "key": "generate_audio",
+          "label": "Синхронный звук",
+          "type": "toggle",
+          "default": "true",
+          "options": [
+            {
+              "value": "true",
+              "label": "Да"
+            },
+            {
+              "value": "false",
+              "label": "Нет"
+            }
+          ]
+        }
+      ],
+      "inputSchema": {
+        "prompt": {
+          "type": "string",
+          "required": true,
+          "description": "Text prompt describing the desired output"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "text-to-video",
+            "image-to-video",
+            "extend"
+          ],
+          "default": "text-to-video",
+          "description": "Generation mode"
+        },
+        "duration": {
+          "type": "string",
+          "enum": [
+            "5",
+            "6",
+            "8",
+            "10",
+            "15",
+            "20"
+          ],
+          "default": "5",
+          "description": "Duration in seconds"
+        },
+        "quality": {
+          "type": "string",
+          "enum": [
+            "full",
+            "draft"
+          ],
+          "default": "full",
+          "description": "Output quality level"
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            "720p",
+            "1080p"
+          ],
+          "default": "720p",
+          "description": "Output resolution"
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "21:9",
+            "2:1",
+            "16:9",
+            "4:3",
+            "1:1",
+            "3:4",
+            "9:16"
+          ],
+          "default": "auto",
+          "description": "Aspect ratio of the output"
+        },
+        "image_url": {
+          "type": "string",
+          "format": "url",
+          "required": false,
+          "description": "Public HTTPS URL of the input image"
+        },
+        "video_url": {
+          "type": "string",
+          "format": "url",
+          "required": false,
+          "description": "Public HTTPS URL of the input video"
+        },
+        "generate_audio": {
+          "type": "boolean",
+          "default": true,
+          "description": "Синхронный звук"
+        }
+      },
+      "requiredInputs": {
+        "allOf": [
+          "prompt"
+        ],
+        "anyOf": [],
+        "exactlyOneOf": [],
+        "source": "audited_operation",
+        "additionalFormsPossible": true,
+        "operations": [
+          {
+            "id": "flux-3-text-to-video",
+            "when": {
+              "mode": "text-to-video"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [],
+            "exactlyOneOf": [],
+            "source": "audited_operation"
+          },
+          {
+            "id": "flux-3-image-to-video",
+            "when": {
+              "mode": "image-to-video"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [
+              [
+                "opts.image_url",
+                "opts.image_file_id",
+                "opts.image_base64"
+              ]
+            ],
+            "exactlyOneOf": [],
+            "source": "audited_operation"
+          },
+          {
+            "id": "flux-3-extend",
+            "when": {
+              "mode": "extend"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [
+              [
+                "opts.video_url",
+                "opts.video_file_id"
+              ]
+            ],
+            "exactlyOneOf": [],
+            "source": "audited_operation"
+          }
+        ]
+      },
+      "priceUnavailable": false,
+      "pricesAreEstimate": false,
+      "priceStatus": "exact",
+      "priceProvenance": "exact",
+      "priceLabelRu": "точная",
+      "priceLabel": "exact",
+      "honestFromRub": 7.54,
+      "priceTableUrl": "/api/media/price-table?model=flux-3",
+      "priceUnit": "second"
+    },
+    {
+      "model": "z-image-uncensored",
+      "kind": "image",
+      "gate": "uncensored",
+      "unit": "за изображение",
+      "note": "Z-Image без дополнительной NSFW-фильтрации — доступ по заявке. Генерация по тексту, цена за изображение.",
+      "inputTypes": [
+        "text"
+      ],
+      "params": [
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "1:1",
+          "options": [
+            "1:1",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "optionLabels": [
+            "1:1",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "availableWhen": null
+        }
+      ],
+      "fromRub": 0.53,
+      "operationIds": [
+        "z-image-uncensored-default"
+      ],
+      "tiers": [
+        {
+          "label": "Z-Image",
+          "priceRub": 0.53,
+          "when": {
+            "aspect_ratio": [
+              "1:1",
+              "4:3",
+              "3:4",
+              "16:9",
+              "9:16"
+            ]
+          }
+        }
+      ],
+      "variants": [
+        {
+          "addressAs": "z-image-uncensored",
+          "pinAs": "z-image-uncensored:pixel",
+          "label": "Pixel",
+          "priceRub": 0.53,
+          "provider": "pixel",
+          "priceStatus": "exact",
+          "priceProvenance": "exact",
+          "priceLabelRu": "точная",
+          "priceLabel": "exact",
+          "honestPriceRub": 0.53,
+          "priceTableUrl": "/api/media/price-table?model=z-image-uncensored"
+        }
+      ],
+      "axes": [
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "1:1",
+          "options": [
+            {
+              "value": "1:1",
+              "label": "1:1",
+              "priceRub": 0.53
+            },
+            {
+              "value": "4:3",
+              "label": "4:3",
+              "priceRub": 0.53
+            },
+            {
+              "value": "3:4",
+              "label": "3:4",
+              "priceRub": 0.53
+            },
+            {
+              "value": "16:9",
+              "label": "16:9",
+              "priceRub": 0.53
+            },
+            {
+              "value": "9:16",
+              "label": "9:16",
+              "priceRub": 0.53
+            }
+          ],
+          "priceAffecting": true
+        }
+      ],
+      "inputSchema": {
+        "prompt": {
+          "type": "string",
+          "required": true,
+          "description": "Text prompt describing the desired output"
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "enum": [
+            "1:1",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "default": "1:1",
+          "description": "Aspect ratio of the output"
+        }
+      },
+      "requiredInputs": {
+        "allOf": [
+          "prompt"
+        ],
+        "anyOf": [],
+        "exactlyOneOf": [],
+        "source": "catalog",
+        "additionalFormsPossible": true,
+        "operations": [
+          {
+            "id": "z-image-uncensored-default",
+            "when": {},
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [],
+            "exactlyOneOf": [],
+            "source": "catalog"
+          }
+        ]
+      },
+      "priceUnavailable": false,
+      "pricesAreEstimate": false,
+      "priceStatus": "exact",
+      "priceProvenance": "exact",
+      "priceLabelRu": "точная",
+      "priceLabel": "exact",
+      "honestFromRub": 0.53,
+      "priceTableUrl": "/api/media/price-table?model=z-image-uncensored",
+      "priceUnit": "request"
+    },
+    {
+      "model": "gemini-omni-video",
+      "kind": "video",
+      "unit": "за ролик",
+      "note": "Gemini Omni Video. Звук через до 3 audio_ids из POST /api/media/gemini-omni-audio. Это пресеты голоса, не клонирование голоса из записи и не липсинк с загруженной дорожкой. Для точного текста с клонированным голосом используйте voice-clone-tts и omnihuman-1-5.",
+      "inputTypes": [
+        "text",
+        "image"
+      ],
+      "params": [
+        {
+          "key": "input",
+          "label": "Видео-вход",
+          "type": "select",
+          "default": "no-video",
+          "options": [
+            "no-video",
+            "video"
+          ],
+          "optionLabels": [
+            "Без видео-входа",
+            "С видео-входом"
+          ],
+          "optionAvailability": [
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "16:9",
+          "options": [
+            "16:9",
+            "9:16"
+          ],
+          "optionLabels": [
+            "16:9",
+            "9:16"
+          ],
+          "optionAvailability": [
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "duration",
+          "label": "Длительность, сек",
+          "type": "select",
+          "default": "8",
+          "options": [
+            "4",
+            "6",
+            "8",
+            "10"
+          ],
+          "optionLabels": [
+            "4",
+            "6",
+            "8",
+            "10"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "availableWhen": {
+            "input": "no-video"
+          }
+        },
+        {
+          "key": "resolution",
+          "label": "Разрешение",
+          "type": "select",
+          "default": "720p",
+          "options": [
+            "720p",
+            "1080p",
+            "4k"
+          ],
+          "optionLabels": [
+            "720p",
+            "1080p",
+            "4K"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, опционально)",
+          "type": "text",
+          "required": false,
+          "availableWhen": null
+        },
+        {
+          "key": "audio_ids",
+          "label": "До 3 audio_ids — POST /api/media/gemini-omni-audio",
+          "type": "array",
+          "required": false,
+          "availableWhen": null,
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        {
+          "key": "video_list",
+          "label": "Референсные видео (объекты video_list по схеме Pixel)",
+          "type": "array",
+          "required": false,
+          "availableWhen": null,
+          "items": {
+            "type": "object"
+          }
+        },
+        {
+          "key": "seed",
+          "label": "Seed (опционально)",
+          "type": "number",
+          "required": false,
+          "availableWhen": null
+        }
+      ],
+      "fromRub": 35.64,
+      "operationIds": [
+        "gemini-omni-video-no-video",
+        "gemini-omni-video-video"
+      ],
+      "tiers": [
+        {
+          "label": "Без видео · 4 сек · 720p",
+          "priceRub": 35.64,
+          "when": {
+            "input": "no-video",
+            "duration": "4",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Без видео · 4 сек · 1080p",
+          "priceRub": 35.64,
+          "when": {
+            "input": "no-video",
+            "duration": "4",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Без видео · 4 сек · 4K",
+          "priceRub": 83.16,
+          "when": {
+            "input": "no-video",
+            "duration": "4",
+            "resolution": "4k"
+          }
+        },
+        {
+          "label": "Без видео · 6 сек · 720p",
+          "priceRub": 47.52,
+          "when": {
+            "input": "no-video",
+            "duration": "6",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Без видео · 6 сек · 1080p",
+          "priceRub": 47.52,
+          "when": {
+            "input": "no-video",
+            "duration": "6",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Без видео · 6 сек · 4K",
+          "priceRub": 95.04,
+          "when": {
+            "input": "no-video",
+            "duration": "6",
+            "resolution": "4k"
+          }
+        },
+        {
+          "label": "Без видео · 8 сек · 720p",
+          "priceRub": 59.4,
+          "when": {
+            "input": "no-video",
+            "duration": "8",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Без видео · 8 сек · 1080p",
+          "priceRub": 59.4,
+          "when": {
+            "input": "no-video",
+            "duration": "8",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Без видео · 8 сек · 4K",
+          "priceRub": 106.92,
+          "when": {
+            "input": "no-video",
+            "duration": "8",
+            "resolution": "4k"
+          }
+        },
+        {
+          "label": "Без видео · 10 сек · 720p",
+          "priceRub": 71.28,
+          "when": {
+            "input": "no-video",
+            "duration": "10",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Без видео · 10 сек · 1080p",
+          "priceRub": 71.28,
+          "when": {
+            "input": "no-video",
+            "duration": "10",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Без видео · 10 сек · 4K",
+          "priceRub": 118.8,
+          "when": {
+            "input": "no-video",
+            "duration": "10",
+            "resolution": "4k"
+          }
+        },
+        {
+          "label": "С видео · 720p",
+          "priceRub": 95.04,
+          "when": {
+            "input": "video",
+            "duration": [
+              "4",
+              "6",
+              "8",
+              "10"
+            ],
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "С видео · 1080p",
+          "priceRub": 95.04,
+          "when": {
+            "input": "video",
+            "duration": [
+              "4",
+              "6",
+              "8",
+              "10"
+            ],
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "С видео · 4K",
+          "priceRub": 142.56,
+          "when": {
+            "input": "video",
+            "duration": [
+              "4",
+              "6",
+              "8",
+              "10"
+            ],
+            "resolution": "4k"
+          }
+        }
+      ],
+      "variants": [],
+      "axes": [
+        {
+          "key": "input",
+          "label": "Видео-вход",
+          "type": "select",
+          "default": "no-video",
+          "options": [
+            {
+              "value": "no-video",
+              "label": "Без видео-входа",
+              "priceRub": 59.4
+            },
+            {
+              "value": "video",
+              "label": "С видео-входом",
+              "priceRub": 95.04
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "16:9",
+          "options": [
+            {
+              "value": "16:9",
+              "label": "16:9"
+            },
+            {
+              "value": "9:16",
+              "label": "9:16"
+            }
+          ]
+        },
+        {
+          "key": "duration",
+          "label": "Длительность, сек",
+          "type": "select",
+          "default": "8",
+          "options": [
+            {
+              "value": "4",
+              "label": "4",
+              "priceRub": 35.64
+            },
+            {
+              "value": "6",
+              "label": "6",
+              "priceRub": 47.52
+            },
+            {
+              "value": "8",
+              "label": "8",
+              "priceRub": 59.4
+            },
+            {
+              "value": "10",
+              "label": "10",
+              "priceRub": 71.28
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "resolution",
+          "label": "Разрешение",
+          "type": "select",
+          "default": "720p",
+          "options": [
+            {
+              "value": "720p",
+              "label": "720p",
+              "priceRub": 59.4
+            },
+            {
+              "value": "1080p",
+              "label": "1080p",
+              "priceRub": 59.4
+            },
+            {
+              "value": "4k",
+              "label": "4K",
+              "priceRub": 106.92
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, опционально)",
+          "type": "text",
+          "default": "",
+          "options": [],
+          "required": false
+        },
+        {
+          "key": "seed",
+          "label": "Seed (опционально)",
+          "type": "text",
+          "default": "",
+          "options": [],
+          "required": false
+        }
+      ],
+      "inputSchema": {
+        "prompt": {
+          "type": "string",
+          "required": true,
+          "description": "Text prompt describing the desired output"
+        },
+        "input": {
+          "type": "string",
+          "enum": [
+            "no-video",
+            "video"
+          ],
+          "default": "no-video",
+          "description": "Input type (text-to-video or image-to-video)"
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "enum": [
+            "16:9",
+            "9:16"
+          ],
+          "default": "16:9",
+          "description": "Aspect ratio of the output"
+        },
+        "duration": {
+          "type": "string",
+          "enum": [
+            "4",
+            "6",
+            "8",
+            "10"
+          ],
+          "default": "8",
+          "description": "Duration in seconds"
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            "720p",
+            "1080p",
+            "4k"
+          ],
+          "default": "720p",
+          "description": "Output resolution"
+        },
+        "image_url": {
+          "type": "string",
+          "format": "url",
+          "required": false,
+          "description": "Public HTTPS URL of the input image"
+        },
+        "audio_ids": {
+          "type": "array",
+          "required": false,
+          "description": "Audio IDs from gemini-omni-audio",
+          "min": 1,
+          "max": 3,
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "video_list": {
+          "type": "array",
+          "required": false,
+          "description": "Reference video objects for Gemini Omni Video",
+          "items": {
+            "type": "object",
+            "description": ""
+          }
+        },
+        "seed": {
+          "type": "number",
+          "required": false,
+          "description": "Seed (опционально)"
+        }
+      },
+      "requiredInputs": {
+        "allOf": [
+          "prompt"
+        ],
+        "anyOf": [],
+        "exactlyOneOf": [],
+        "source": "catalog",
+        "additionalFormsPossible": true,
+        "operations": [
+          {
+            "id": "gemini-omni-video-no-video",
+            "when": {
+              "input": "no-video"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [],
+            "exactlyOneOf": [],
+            "source": "catalog"
+          },
+          {
+            "id": "gemini-omni-video-video",
+            "when": {
+              "input": "video"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [],
+            "exactlyOneOf": [],
+            "source": "catalog"
+          }
+        ]
+      },
+      "priceUnavailable": false,
+      "pricesAreEstimate": false,
+      "priceStatus": "exact",
+      "priceProvenance": "exact",
+      "priceLabelRu": "точная",
+      "priceLabel": "exact",
+      "honestFromRub": 35.64,
+      "priceTableUrl": "/api/media/price-table?model=gemini-omni-video",
+      "priceUnit": "request"
+    },
+    {
+      "model": "gemini-omni-flash-1-1",
+      "kind": "video",
+      "unit": "за ролик",
+      "note": "Gemini Omni 1.1 Flash. Звук через до 3 audio_ids из POST /api/media/gemini-omni-audio. Это пресеты голоса, не клонирование голоса из записи и не липсинк с загруженной дорожкой. Не совмещайте audio_ids с first_frame_url. Для точного текста с клонированным голосом используйте voice-clone-tts и omnihuman-1-5.",
+      "inputTypes": [
+        "text",
+        "image",
+        "video",
+        "audio"
+      ],
+      "params": [
+        {
+          "key": "input",
+          "label": "Видео-вход",
+          "type": "select",
+          "default": "no-video",
+          "options": [
+            "no-video",
+            "video"
+          ],
+          "optionLabels": [
+            "Без видео-входа",
+            "С видео-входом"
+          ],
+          "optionAvailability": [
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "16:9",
+          "options": [
+            "16:9",
+            "9:16"
+          ],
+          "optionLabels": [
+            "16:9",
+            "9:16"
+          ],
+          "optionAvailability": [
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "duration",
+          "label": "Длительность, сек",
+          "type": "select",
+          "default": "8",
+          "options": [
+            "4",
+            "6",
+            "8",
+            "10"
+          ],
+          "optionLabels": [
+            "4",
+            "6",
+            "8",
+            "10"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "availableWhen": {
+            "input": "no-video"
+          }
+        },
+        {
+          "key": "resolution",
+          "label": "Разрешение",
+          "type": "select",
+          "default": "720p",
+          "options": [
+            "360p",
+            "720p",
+            "1080p",
+            "4k"
+          ],
+          "optionLabels": [
+            "360p",
+            "720p",
+            "1080p",
+            "4K"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, опционально)",
+          "type": "text",
+          "required": false,
+          "availableWhen": null
+        },
+        {
+          "key": "audio_ids",
+          "label": "До 3 audio_ids — POST /api/media/gemini-omni-audio",
+          "type": "array",
+          "required": false,
+          "availableWhen": null,
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        {
+          "key": "video_list",
+          "label": "Видео-вход (объекты video_list по схеме Pixel)",
+          "type": "array",
+          "required": false,
+          "availableWhen": {
+            "input": "video"
+          },
+          "items": {
+            "type": "object"
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        {
+          "key": "seed",
+          "label": "Seed (опционально)",
+          "type": "number",
+          "required": false,
+          "availableWhen": null
+        }
+      ],
+      "fromRub": 35.64,
+      "operationIds": [
+        "gemini-omni-flash-1-1-no-video",
+        "gemini-omni-flash-1-1-video"
+      ],
+      "tiers": [
+        {
+          "label": "Без видео · 4 сек · 360p",
+          "priceRub": 35.64,
+          "when": {
+            "input": "no-video",
+            "duration": "4",
+            "resolution": "360p"
+          }
+        },
+        {
+          "label": "Без видео · 4 сек · 720p",
+          "priceRub": 35.64,
+          "when": {
+            "input": "no-video",
+            "duration": "4",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Без видео · 4 сек · 1080p",
+          "priceRub": 35.64,
+          "when": {
+            "input": "no-video",
+            "duration": "4",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Без видео · 4 сек · 4K",
+          "priceRub": 83.16,
+          "when": {
+            "input": "no-video",
+            "duration": "4",
+            "resolution": "4k"
+          }
+        },
+        {
+          "label": "Без видео · 6 сек · 360p",
+          "priceRub": 47.52,
+          "when": {
+            "input": "no-video",
+            "duration": "6",
+            "resolution": "360p"
+          }
+        },
+        {
+          "label": "Без видео · 6 сек · 720p",
+          "priceRub": 47.52,
+          "when": {
+            "input": "no-video",
+            "duration": "6",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Без видео · 6 сек · 1080p",
+          "priceRub": 47.52,
+          "when": {
+            "input": "no-video",
+            "duration": "6",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Без видео · 6 сек · 4K",
+          "priceRub": 95.04,
+          "when": {
+            "input": "no-video",
+            "duration": "6",
+            "resolution": "4k"
+          }
+        },
+        {
+          "label": "Без видео · 8 сек · 360p",
+          "priceRub": 59.4,
+          "when": {
+            "input": "no-video",
+            "duration": "8",
+            "resolution": "360p"
+          }
+        },
+        {
+          "label": "Без видео · 8 сек · 720p",
+          "priceRub": 59.4,
+          "when": {
+            "input": "no-video",
+            "duration": "8",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Без видео · 8 сек · 1080p",
+          "priceRub": 59.4,
+          "when": {
+            "input": "no-video",
+            "duration": "8",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Без видео · 8 сек · 4K",
+          "priceRub": 106.92,
+          "when": {
+            "input": "no-video",
+            "duration": "8",
+            "resolution": "4k"
+          }
+        },
+        {
+          "label": "Без видео · 10 сек · 360p",
+          "priceRub": 71.28,
+          "when": {
+            "input": "no-video",
+            "duration": "10",
+            "resolution": "360p"
+          }
+        },
+        {
+          "label": "Без видео · 10 сек · 720p",
+          "priceRub": 71.28,
+          "when": {
+            "input": "no-video",
+            "duration": "10",
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "Без видео · 10 сек · 1080p",
+          "priceRub": 71.28,
+          "when": {
+            "input": "no-video",
+            "duration": "10",
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "Без видео · 10 сек · 4K",
+          "priceRub": 118.8,
+          "when": {
+            "input": "no-video",
+            "duration": "10",
+            "resolution": "4k"
+          }
+        },
+        {
+          "label": "С видео · 360p",
+          "priceRub": 95.04,
+          "when": {
+            "input": "video",
+            "duration": [
+              "4",
+              "6",
+              "8",
+              "10"
+            ],
+            "resolution": "360p"
+          }
+        },
+        {
+          "label": "С видео · 720p",
+          "priceRub": 95.04,
+          "when": {
+            "input": "video",
+            "duration": [
+              "4",
+              "6",
+              "8",
+              "10"
+            ],
+            "resolution": "720p"
+          }
+        },
+        {
+          "label": "С видео · 1080p",
+          "priceRub": 95.04,
+          "when": {
+            "input": "video",
+            "duration": [
+              "4",
+              "6",
+              "8",
+              "10"
+            ],
+            "resolution": "1080p"
+          }
+        },
+        {
+          "label": "С видео · 4K",
+          "priceRub": 142.56,
+          "when": {
+            "input": "video",
+            "duration": [
+              "4",
+              "6",
+              "8",
+              "10"
+            ],
+            "resolution": "4k"
+          }
+        }
+      ],
+      "variants": [],
+      "axes": [
+        {
+          "key": "input",
+          "label": "Видео-вход",
+          "type": "select",
+          "default": "no-video",
+          "options": [
+            {
+              "value": "no-video",
+              "label": "Без видео-входа",
+              "priceRub": 59.4
+            },
+            {
+              "value": "video",
+              "label": "С видео-входом",
+              "priceRub": 95.04
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "16:9",
+          "options": [
+            {
+              "value": "16:9",
+              "label": "16:9"
+            },
+            {
+              "value": "9:16",
+              "label": "9:16"
+            }
+          ]
+        },
+        {
+          "key": "duration",
+          "label": "Длительность, сек",
+          "type": "select",
+          "default": "8",
+          "options": [
+            {
+              "value": "4",
+              "label": "4",
+              "priceRub": 35.64
+            },
+            {
+              "value": "6",
+              "label": "6",
+              "priceRub": 47.52
+            },
+            {
+              "value": "8",
+              "label": "8",
+              "priceRub": 59.4
+            },
+            {
+              "value": "10",
+              "label": "10",
+              "priceRub": 71.28
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "resolution",
+          "label": "Разрешение",
+          "type": "select",
+          "default": "720p",
+          "options": [
+            {
+              "value": "360p",
+              "label": "360p",
+              "priceRub": 59.4
+            },
+            {
+              "value": "720p",
+              "label": "720p",
+              "priceRub": 59.4
+            },
+            {
+              "value": "1080p",
+              "label": "1080p",
+              "priceRub": 59.4
+            },
+            {
+              "value": "4k",
+              "label": "4K",
+              "priceRub": 106.92
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, опционально)",
+          "type": "text",
+          "default": "",
+          "options": [],
+          "required": false
+        },
+        {
+          "key": "seed",
+          "label": "Seed (опционально)",
+          "type": "text",
+          "default": "",
+          "options": [],
+          "required": false
+        }
+      ],
+      "inputSchema": {
+        "prompt": {
+          "type": "string",
+          "required": true,
+          "description": "Text prompt describing the desired output"
+        },
+        "input": {
+          "type": "string",
+          "enum": [
+            "no-video",
+            "video"
+          ],
+          "default": "no-video",
+          "description": "Input type (text-to-video or image-to-video)"
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "enum": [
+            "16:9",
+            "9:16"
+          ],
+          "default": "16:9",
+          "description": "Aspect ratio of the output"
+        },
+        "duration": {
+          "type": "string",
+          "enum": [
+            "4",
+            "6",
+            "8",
+            "10"
+          ],
+          "default": "8",
+          "description": "Duration in seconds"
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            "360p",
+            "720p",
+            "1080p",
+            "4k"
+          ],
+          "default": "720p",
+          "description": "Output resolution"
+        },
+        "image_url": {
+          "type": "string",
+          "format": "url",
+          "required": false,
+          "description": "Public HTTPS URL of the input image"
+        },
+        "audio_ids": {
+          "type": "array",
+          "required": false,
+          "description": "Audio IDs from gemini-omni-audio",
+          "min": 1,
+          "max": 3,
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "video_list": {
+          "type": "array",
+          "required": false,
+          "description": "Reference video objects for Gemini Omni Video",
+          "min": 1,
+          "max": 1,
+          "items": {
+            "type": "object",
+            "description": ""
+          }
+        },
+        "seed": {
+          "type": "number",
+          "required": false,
+          "description": "Seed (опционально)"
+        }
+      },
+      "requiredInputs": {
+        "allOf": [
+          "prompt"
+        ],
+        "anyOf": [],
+        "exactlyOneOf": [],
+        "source": "audited_operation",
+        "additionalFormsPossible": true,
+        "operations": [
+          {
+            "id": "gemini-omni-flash-1-1-no-video",
+            "when": {
+              "input": "no-video"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [],
+            "exactlyOneOf": [],
+            "source": "audited_operation"
+          },
+          {
+            "id": "gemini-omni-flash-1-1-video",
+            "when": {
+              "input": "video"
+            },
+            "allOf": [
+              "prompt",
+              "opts.video_list"
+            ],
+            "anyOf": [],
+            "exactlyOneOf": [],
+            "source": "audited_operation"
+          }
+        ]
+      },
+      "priceUnavailable": false,
+      "pricesAreEstimate": false,
+      "priceStatus": "exact",
+      "priceProvenance": "exact",
+      "priceLabelRu": "точная",
+      "priceLabel": "exact",
+      "honestFromRub": 35.64,
+      "priceTableUrl": "/api/media/price-table?model=gemini-omni-flash-1-1",
+      "priceUnit": "request"
+    },
+    {
+      "model": "gpt-image-2",
+      "kind": "image",
+      "unit": "за изображение",
+      "note": "GPT Image 2 — генерация и редактирование изображений. Text-to-image и image-to-image (edit/restoration).",
+      "inputTypes": [
+        "text",
+        "image"
+      ],
+      "params": [
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "1:1",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "3:2",
+            "2:3",
+            "21:9"
+          ],
+          "optionLabels": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "3:2",
+            "2:3",
+            "21:9"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "resolution",
+          "label": "Разрешение",
+          "type": "select",
+          "default": "1K",
+          "options": [
+            "1K",
+            "2K",
+            "4K"
+          ],
+          "optionLabels": [
+            "1K",
+            "2K",
+            "4K"
+          ],
+          "optionAvailability": [
+            null,
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "mode",
+          "label": "Режим",
+          "type": "select",
+          "default": "text-to-image",
+          "options": [
+            "text-to-image",
+            "image-to-image"
+          ],
+          "optionLabels": [
+            "Генерация (текст → изображение)",
+            "Редактирование (изображение → изображение)"
+          ],
+          "optionAvailability": [
+            null,
+            null
+          ],
+          "availableWhen": null
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, для режима редактирования)",
+          "type": "text",
+          "required": false,
+          "availableWhen": null
+        },
+        {
+          "key": "input_urls",
+          "label": "Изображения (1–16 URL, для режима редактирования)",
+          "type": "array",
+          "required": false,
+          "availableWhen": null,
+          "items": {
+            "type": "string",
+            "format": "url"
+          },
+          "maxItems": 16
+        }
+      ],
+      "fromRub": 0.53,
+      "modePrices": [
+        {
+          "mode": "generate",
+          "fromRub": 0.53
+        },
+        {
+          "mode": "edit",
+          "fromRub": 0.53
+        }
+      ],
+      "operationIds": [
+        "gpt-image-2-text-to-image",
+        "gpt-image-2-image-to-image"
+      ],
+      "tiers": [
+        {
+          "label": "1K · Генерация (текст → изображение) · 1:1",
+          "priceRub": 0.53,
+          "when": {
+            "resolution": "1K",
+            "mode": "text-to-image",
+            "aspect_ratio": "1:1"
+          }
+        },
+        {
+          "label": "1K · Генерация (текст → изображение) · 16:9",
+          "priceRub": 0.53,
+          "when": {
+            "resolution": "1K",
+            "mode": "text-to-image",
+            "aspect_ratio": "16:9"
+          }
+        },
+        {
+          "label": "1K · Генерация (текст → изображение) · 9:16",
+          "priceRub": 0.53,
+          "when": {
+            "resolution": "1K",
+            "mode": "text-to-image",
+            "aspect_ratio": "9:16"
+          }
+        },
+        {
+          "label": "1K · Генерация (текст → изображение) · 4:3",
+          "priceRub": 0.53,
+          "when": {
+            "resolution": "1K",
+            "mode": "text-to-image",
+            "aspect_ratio": "4:3"
+          }
+        },
+        {
+          "label": "1K · Генерация (текст → изображение) · 3:4",
+          "priceRub": 0.53,
+          "when": {
+            "resolution": "1K",
+            "mode": "text-to-image",
+            "aspect_ratio": "3:4"
+          }
+        },
+        {
+          "label": "1K · Генерация (текст → изображение) · 3:2",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "text-to-image",
+            "aspect_ratio": "3:2"
+          }
+        },
+        {
+          "label": "1K · Генерация (текст → изображение) · 2:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "text-to-image",
+            "aspect_ratio": "2:3"
+          }
+        },
+        {
+          "label": "1K · Генерация (текст → изображение) · 21:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "text-to-image",
+            "aspect_ratio": "21:9"
+          }
+        },
+        {
+          "label": "1K · Редактирование (изображение → изображение) · 1:1",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "image-to-image",
+            "aspect_ratio": "1:1"
+          }
+        },
+        {
+          "label": "1K · Редактирование (изображение → изображение) · 16:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "image-to-image",
+            "aspect_ratio": "16:9"
+          }
+        },
+        {
+          "label": "1K · Редактирование (изображение → изображение) · 9:16",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "image-to-image",
+            "aspect_ratio": "9:16"
+          }
+        },
+        {
+          "label": "1K · Редактирование (изображение → изображение) · 4:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "image-to-image",
+            "aspect_ratio": "4:3"
+          }
+        },
+        {
+          "label": "1K · Редактирование (изображение → изображение) · 3:4",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "image-to-image",
+            "aspect_ratio": "3:4"
+          }
+        },
+        {
+          "label": "1K · Редактирование (изображение → изображение) · 3:2",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "image-to-image",
+            "aspect_ratio": "3:2"
+          }
+        },
+        {
+          "label": "1K · Редактирование (изображение → изображение) · 2:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "image-to-image",
+            "aspect_ratio": "2:3"
+          }
+        },
+        {
+          "label": "1K · Редактирование (изображение → изображение) · 21:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "1K",
+            "mode": "image-to-image",
+            "aspect_ratio": "21:9"
+          }
+        },
+        {
+          "label": "2K · Генерация (текст → изображение) · 1:1",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "text-to-image",
+            "aspect_ratio": "1:1"
+          }
+        },
+        {
+          "label": "2K · Генерация (текст → изображение) · 16:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "text-to-image",
+            "aspect_ratio": "16:9"
+          }
+        },
+        {
+          "label": "2K · Генерация (текст → изображение) · 9:16",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "text-to-image",
+            "aspect_ratio": "9:16"
+          }
+        },
+        {
+          "label": "2K · Генерация (текст → изображение) · 4:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "text-to-image",
+            "aspect_ratio": "4:3"
+          }
+        },
+        {
+          "label": "2K · Генерация (текст → изображение) · 3:4",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "text-to-image",
+            "aspect_ratio": "3:4"
+          }
+        },
+        {
+          "label": "2K · Генерация (текст → изображение) · 3:2",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "text-to-image",
+            "aspect_ratio": "3:2"
+          }
+        },
+        {
+          "label": "2K · Генерация (текст → изображение) · 2:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "text-to-image",
+            "aspect_ratio": "2:3"
+          }
+        },
+        {
+          "label": "2K · Генерация (текст → изображение) · 21:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "text-to-image",
+            "aspect_ratio": "21:9"
+          }
+        },
+        {
+          "label": "2K · Редактирование (изображение → изображение) · 1:1",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "image-to-image",
+            "aspect_ratio": "1:1"
+          }
+        },
+        {
+          "label": "2K · Редактирование (изображение → изображение) · 16:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "image-to-image",
+            "aspect_ratio": "16:9"
+          }
+        },
+        {
+          "label": "2K · Редактирование (изображение → изображение) · 9:16",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "image-to-image",
+            "aspect_ratio": "9:16"
+          }
+        },
+        {
+          "label": "2K · Редактирование (изображение → изображение) · 4:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "image-to-image",
+            "aspect_ratio": "4:3"
+          }
+        },
+        {
+          "label": "2K · Редактирование (изображение → изображение) · 3:4",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "image-to-image",
+            "aspect_ratio": "3:4"
+          }
+        },
+        {
+          "label": "2K · Редактирование (изображение → изображение) · 3:2",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "image-to-image",
+            "aspect_ratio": "3:2"
+          }
+        },
+        {
+          "label": "2K · Редактирование (изображение → изображение) · 2:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "image-to-image",
+            "aspect_ratio": "2:3"
+          }
+        },
+        {
+          "label": "2K · Редактирование (изображение → изображение) · 21:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "2K",
+            "mode": "image-to-image",
+            "aspect_ratio": "21:9"
+          }
+        },
+        {
+          "label": "4K · Генерация (текст → изображение) · 1:1",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "text-to-image",
+            "aspect_ratio": "1:1"
+          }
+        },
+        {
+          "label": "4K · Генерация (текст → изображение) · 16:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "text-to-image",
+            "aspect_ratio": "16:9"
+          }
+        },
+        {
+          "label": "4K · Генерация (текст → изображение) · 9:16",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "text-to-image",
+            "aspect_ratio": "9:16"
+          }
+        },
+        {
+          "label": "4K · Генерация (текст → изображение) · 4:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "text-to-image",
+            "aspect_ratio": "4:3"
+          }
+        },
+        {
+          "label": "4K · Генерация (текст → изображение) · 3:4",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "text-to-image",
+            "aspect_ratio": "3:4"
+          }
+        },
+        {
+          "label": "4K · Генерация (текст → изображение) · 3:2",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "text-to-image",
+            "aspect_ratio": "3:2"
+          }
+        },
+        {
+          "label": "4K · Генерация (текст → изображение) · 2:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "text-to-image",
+            "aspect_ratio": "2:3"
+          }
+        },
+        {
+          "label": "4K · Генерация (текст → изображение) · 21:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "text-to-image",
+            "aspect_ratio": "21:9"
+          }
+        },
+        {
+          "label": "4K · Редактирование (изображение → изображение) · 1:1",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "image-to-image",
+            "aspect_ratio": "1:1"
+          }
+        },
+        {
+          "label": "4K · Редактирование (изображение → изображение) · 16:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "image-to-image",
+            "aspect_ratio": "16:9"
+          }
+        },
+        {
+          "label": "4K · Редактирование (изображение → изображение) · 9:16",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "image-to-image",
+            "aspect_ratio": "9:16"
+          }
+        },
+        {
+          "label": "4K · Редактирование (изображение → изображение) · 4:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "image-to-image",
+            "aspect_ratio": "4:3"
+          }
+        },
+        {
+          "label": "4K · Редактирование (изображение → изображение) · 3:4",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "image-to-image",
+            "aspect_ratio": "3:4"
+          }
+        },
+        {
+          "label": "4K · Редактирование (изображение → изображение) · 3:2",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "image-to-image",
+            "aspect_ratio": "3:2"
+          }
+        },
+        {
+          "label": "4K · Редактирование (изображение → изображение) · 2:3",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "image-to-image",
+            "aspect_ratio": "2:3"
+          }
+        },
+        {
+          "label": "4K · Редактирование (изображение → изображение) · 21:9",
+          "priceRub": 2.7,
+          "when": {
+            "resolution": "4K",
+            "mode": "image-to-image",
+            "aspect_ratio": "21:9"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "addressAs": "gpt-image-2:white",
+          "pinAs": "gpt-image-2:white",
+          "label": "White",
+          "priceRub": 2.7,
+          "provider": "white",
+          "priceStatus": "exact",
+          "priceProvenance": "exact",
+          "priceLabelRu": "точная",
+          "priceLabel": "exact",
+          "honestPriceRub": 2.7,
+          "priceTableUrl": "/api/media/price-table?model=gpt-image-2%3Awhite",
+          "modes": {
+            "generate": {
+              "supported": true,
+              "priceRub": 2.7
+            },
+            "edit": {
+              "supported": true,
+              "priceRub": 2.7
+            }
+          }
+        },
+        {
+          "addressAs": "gpt-image-2",
+          "pinAs": "gpt-image-2:pixel",
+          "label": "Pixel",
+          "priceRub": 4.06,
+          "provider": "pixel",
+          "priceStatus": "exact",
+          "priceProvenance": "exact",
+          "priceLabelRu": "точная",
+          "priceLabel": "exact",
+          "honestPriceRub": 4.06,
+          "priceTableUrl": "/api/media/price-table?model=gpt-image-2",
+          "modes": {
+            "generate": {
+              "supported": true,
+              "priceRub": 4.06
+            },
+            "edit": {
+              "supported": true,
+              "priceRub": 4.06
+            }
+          }
+        },
+        {
+          "addressAs": "gpt-image-2:network",
+          "pinAs": "gpt-image-2:network",
+          "label": "Network",
+          "priceRub": 0.53,
+          "provider": "network",
+          "limits": {
+            "options": {
+              "resolution": [
+                "1K"
+              ]
+            },
+            "maxReferenceImages": 1
+          },
+          "priceStatus": "exact",
+          "priceProvenance": "exact",
+          "priceLabelRu": "точная",
+          "priceLabel": "exact",
+          "honestPriceRub": 0.53,
+          "priceTableUrl": "/api/media/price-table?model=gpt-image-2%3Anetwork",
+          "modes": {
+            "generate": {
+              "supported": true,
+              "priceRub": 0.53
+            },
+            "edit": {
+              "supported": true,
+              "priceRub": 0.53
+            }
+          }
+        },
+        {
+          "addressAs": "gpt-image-2:yellow",
+          "pinAs": "gpt-image-2:yellow",
+          "label": "Yellow",
+          "priceRub": 0.73,
+          "provider": "yellow",
+          "limits": {
+            "options": {
+              "resolution": [
+                "1K",
+                "2K",
+                "4K"
+              ],
+              "aspect_ratio": [
+                "1:1",
+                "16:9",
+                "9:16"
+              ],
+              "mode": [
+                "text-to-image"
+              ]
+            },
+            "maxReferenceImages": 0
+          },
+          "priceStatus": "exact",
+          "priceProvenance": "exact",
+          "priceLabelRu": "точная",
+          "priceLabel": "exact",
+          "honestPriceRub": 0.73,
+          "priceTableUrl": "/api/media/price-table?model=gpt-image-2%3Ayellow",
+          "modes": {
+            "generate": {
+              "supported": true,
+              "priceRub": 0.73
+            },
+            "edit": {
+              "supported": false,
+              "priceRub": null
+            }
+          }
+        }
+      ],
+      "axes": [
+        {
+          "key": "aspect_ratio",
+          "label": "Соотношение",
+          "type": "select",
+          "default": "1:1",
+          "options": [
+            {
+              "value": "1:1",
+              "label": "1:1",
+              "priceRub": 0.53
+            },
+            {
+              "value": "16:9",
+              "label": "16:9",
+              "priceRub": 0.53
+            },
+            {
+              "value": "9:16",
+              "label": "9:16",
+              "priceRub": 0.53
+            },
+            {
+              "value": "4:3",
+              "label": "4:3",
+              "priceRub": 0.53
+            },
+            {
+              "value": "3:4",
+              "label": "3:4",
+              "priceRub": 0.53
+            },
+            {
+              "value": "3:2",
+              "label": "3:2",
+              "priceRub": 2.7
+            },
+            {
+              "value": "2:3",
+              "label": "2:3",
+              "priceRub": 2.7
+            },
+            {
+              "value": "21:9",
+              "label": "21:9",
+              "priceRub": 2.7
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "resolution",
+          "label": "Разрешение",
+          "type": "select",
+          "default": "1K",
+          "options": [
+            {
+              "value": "1K",
+              "label": "1K",
+              "priceRub": 0.53
+            },
+            {
+              "value": "2K",
+              "label": "2K",
+              "priceRub": 2.7
+            },
+            {
+              "value": "4K",
+              "label": "4K",
+              "priceRub": 2.7
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "mode",
+          "label": "Режим",
+          "type": "select",
+          "default": "text-to-image",
+          "options": [
+            {
+              "value": "text-to-image",
+              "label": "Генерация (текст → изображение)",
+              "priceRub": 0.53
+            },
+            {
+              "value": "image-to-image",
+              "label": "Редактирование (изображение → изображение)",
+              "priceRub": 2.7
+            }
+          ],
+          "priceAffecting": true
+        },
+        {
+          "key": "image_url",
+          "label": "Изображение (URL, для режима редактирования)",
+          "type": "text",
+          "default": "",
+          "options": [],
+          "required": false
+        }
+      ],
+      "inputSchema": {
+        "prompt": {
+          "type": "string",
+          "required": true,
+          "description": "Text prompt describing the desired output"
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "enum": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "3:2",
+            "2:3",
+            "21:9"
+          ],
+          "default": "1:1",
+          "description": "Aspect ratio of the output"
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            "1K",
+            "2K",
+            "4K"
+          ],
+          "default": "1K",
+          "description": "Output resolution"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "text-to-image",
+            "image-to-image"
+          ],
+          "default": "text-to-image",
+          "description": "Generation mode"
+        },
+        "image_url": {
+          "type": "string",
+          "format": "url",
+          "required": false,
+          "description": "Public HTTPS URL of the input image"
+        },
+        "input_urls": {
+          "type": "array",
+          "required": false,
+          "description": "Array of 1-16 public HTTPS image URLs",
+          "max": 16,
+          "items": {
+            "type": "string",
+            "description": "",
+            "format": "url"
+          }
+        }
+      },
+      "requiredInputs": {
+        "allOf": [
+          "prompt"
+        ],
+        "anyOf": [],
+        "exactlyOneOf": [],
+        "source": "catalog",
+        "additionalFormsPossible": true,
+        "operations": [
+          {
+            "id": "gpt-image-2-text-to-image",
+            "when": {
+              "mode": "text-to-image"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [],
+            "exactlyOneOf": [],
+            "source": "catalog"
+          },
+          {
+            "id": "gpt-image-2-image-to-image",
+            "when": {
+              "mode": "image-to-image"
+            },
+            "allOf": [
+              "prompt"
+            ],
+            "anyOf": [
+              [
+                "opts.image_url",
+                "opts.image_file_id",
+                "opts.image_base64",
+                "opts.input_urls",
+                "opts.input_file_ids",
+                "opts.input_base64"
+              ]
+            ],
+            "exactlyOneOf": [],
+            "source": "builder_contract"
+          }
+        ]
+      },
+      "priceUnavailable": false,
+      "pricesAreEstimate": false,
+      "priceStatus": "exact",
+      "priceProvenance": "exact",
+      "priceLabelRu": "точная",
+      "priceLabel": "exact",
+      "honestFromRub": 0.53,
+      "priceTableUrl": "/api/media/price-table?model=gpt-image-2",
+      "priceUnit": "request"
+    }
+  ]
+}
