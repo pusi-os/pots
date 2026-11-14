@@ -6,6 +6,7 @@ import com.pusios.pots.data.AppSettings.Companion.KEY_CURRENT_SERVICE_ID
 import com.pusios.pots.data.AppSettings.Companion.KEY_CUSTOM_MODEL_MIGRATION_COMPLETE
 import com.pusios.pots.data.AppSettings.Companion.KEY_INSTANCE_MIGRATION_COMPLETE
 import com.pusios.pots.data.AppSettings.Companion.KEY_MIGRATION_COMPLETE
+import com.pusios.pots.data.AppSettings.Companion.KEY_OPENCODE_REMOVAL_MIGRATION_COMPLETE
 import com.pusios.pots.data.AppSettings.Companion.KEY_SERVICES_MIGRATION_COMPLETE
 import com.russhwolf.settings.Settings
 
@@ -17,6 +18,7 @@ fun AppSettings.runMigrations(legacySettings: Settings?) {
     migrateInstanceSettingsIfNeeded()
     migrateBaseUrlsToV1PathIfNeeded()
     migrateCustomModelSettingsIfNeeded()
+    migrateRemovedOpencodeIfNeeded()
 }
 
 fun AppSettings.migrateFromLegacyIfNeeded(legacySettings: Settings?) {
@@ -57,14 +59,13 @@ fun AppSettings.migrateConfiguredServicesIfNeeded() {
     val existingServiceIds = existing.map { it.serviceId }.toSet()
     val instances = existing.toMutableList()
 
-    val currentServiceId = settings.getString(KEY_CURRENT_SERVICE_ID, Service.OpenCodeFree.id)
+    val currentServiceId = settings.getString(KEY_CURRENT_SERVICE_ID, "")
     val currentService = Service.fromId(currentServiceId)
-    if (currentService != Service.OpenCodeFree && currentService.id !in existingServiceIds) {
+    if (currentService != null && currentService.id !in existingServiceIds) {
         instances.add(ServiceInstance(instanceId = currentService.id, serviceId = currentService.id))
     }
 
     for (service in Service.all) {
-        if (service == Service.OpenCodeFree) continue
         if (service.id in existingServiceIds) continue
         if (instances.any { it.serviceId == service.id }) continue
         val apiKey = getApiKey(service)
@@ -81,6 +82,38 @@ fun AppSettings.migrateConfiguredServicesIfNeeded() {
 }
 
 /**
+ * The built-in free provider (`opencode-free`) was removed from the app. Older installs may
+ * still hold its keys, flags, a configured instance, or a `current_service_id` pointing at it.
+ * Clean all of it up so nothing stale surfaces in the service list, and reset the current
+ * service to the first remaining configured instance (blank when none is left).
+ */
+fun AppSettings.migrateRemovedOpencodeIfNeeded() {
+    if (settings.getBoolean(KEY_OPENCODE_REMOVAL_MIGRATION_COMPLETE, false)) return
+
+    val removedServiceId = "opencode-free"
+    val removedPrefix = "service_$removedServiceId"
+
+    val instances = getConfiguredServiceInstances()
+    if (instances.any { it.serviceId == removedServiceId }) {
+        setConfiguredServiceInstances(instances.filterNot { it.serviceId == removedServiceId })
+    }
+
+    if (settings.getString(KEY_CURRENT_SERVICE_ID, "") == removedServiceId) {
+        val fallback = getConfiguredServiceInstances().firstOrNull()?.serviceId ?: ""
+        settings.putString(KEY_CURRENT_SERVICE_ID, fallback)
+    }
+
+    settings.remove("${removedPrefix}_api_key")
+    settings.remove("${removedPrefix}_model_id")
+    settings.remove("instance_${removedServiceId}_api_key")
+    settings.remove("instance_${removedServiceId}_model_id")
+    settings.remove("free_mode")
+    settings.remove("free_service_primary")
+
+    settings.putBoolean(KEY_OPENCODE_REMOVAL_MIGRATION_COMPLETE, true)
+}
+
+/**
  * Migrate per-service settings to per-instance settings.
  * For existing users, the first instance of each service type uses the service's
  * legacy key prefix. This copies those values to the new instance_ keys.
@@ -90,7 +123,7 @@ fun AppSettings.migrateInstanceSettingsIfNeeded() {
 
     val instances = getConfiguredServiceInstances()
     for (instance in instances) {
-        val service = Service.fromId(instance.serviceId)
+        val service = Service.fromId(instance.serviceId) ?: continue
         val legacyApiKey = getApiKey(service)
         if (legacyApiKey.isNotBlank() && getInstanceApiKey(instance.instanceId).isBlank()) {
             setInstanceApiKey(instance.instanceId, legacyApiKey)
@@ -120,7 +153,7 @@ fun AppSettings.migrateBaseUrlsToV1PathIfNeeded() {
 
     val instances = getConfiguredServiceInstances()
     for (instance in instances) {
-        val service = Service.fromId(instance.serviceId)
+        val service = Service.fromId(instance.serviceId) ?: continue
         if (service != Service.OpenAICompatible) continue
         val baseUrl = getInstanceBaseUrl(instance.instanceId)
         if (baseUrl.isNotBlank()) {

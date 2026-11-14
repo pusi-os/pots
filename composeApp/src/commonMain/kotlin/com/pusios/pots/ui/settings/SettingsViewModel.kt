@@ -145,7 +145,6 @@ class SettingsViewModel(
             notificationListenerAccessGranted = dataRepository.isNotificationListenerAccessGranted(),
             notificationListenerBound = dataRepository.getNotificationSyncState().listenerBound,
             notificationPendingCount = dataRepository.getPendingNotificationCount(),
-            isFreeFallbackEnabled = dataRepository.isFreeFallbackEnabled(),
             uiScale = dataRepository.getUiScale(),
             showUiScale = currentPlatform is Platform.Desktop,
             ttsEngine = dataRepository.getTtsEngine(),
@@ -231,7 +230,6 @@ class SettingsViewModel(
         onOpenAppPermissionSettings = ::onOpenAppPermissionSettings,
         onRecheckLocalNetworkPermission = ::onRecheckLocalNetworkPermission,
         onClearPendingNotifications = ::onClearPendingNotifications,
-        onToggleFreeFallback = ::onToggleFreeFallback,
         onChangeUiScale = ::onChangeUiScale,
         onChangeTtsEngine = ::onChangeTtsEngine,
         onChangeTtsSystemVoice = ::onChangeTtsSystemVoice,
@@ -384,8 +382,8 @@ class SettingsViewModel(
         }
     }
 
-    private fun buildConfiguredServiceEntries(): List<ConfiguredServiceEntry> = dataRepository.getConfiguredServiceInstances().map { instance ->
-        val service = Service.fromId(instance.serviceId)
+    private fun buildConfiguredServiceEntries(): List<ConfiguredServiceEntry> = dataRepository.getConfiguredServiceInstances().mapNotNull { instance ->
+        val service = Service.fromId(instance.serviceId) ?: return@mapNotNull null
         val models = dataRepository.getInstanceModels(instance.instanceId, service).value
         ConfiguredServiceEntry(
             instanceId = instance.instanceId,
@@ -400,11 +398,10 @@ class SettingsViewModel(
     }
 
     private fun computeAvailableServices(): List<Service> {
-        // Allow every non-free service (multiple instances of one provider are allowed).
+        // Allow every built-in service (multiple instances of one provider are allowed).
         // Pin the generic OpenAI-compatible adapter and the on-device engine to the top,
         // hide services unsupported on this platform, then sort alphabetically.
         return Service.all
-            .filter { !it.isFreeTier }
             .sortedWith(
                 compareBy<Service> {
                     if (it is Service.OpenAICompatible || it.isOnDevice) 0 else 1
@@ -882,7 +879,7 @@ class SettingsViewModel(
     private fun onRecheckLocalNetworkPermission(instanceId: String) {
         if (!localNetworkPermissionController.hasPermission()) return
         val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.instanceId == instanceId } ?: return
-        validateConnectionWithStatus(instanceId, Service.fromId(instance.serviceId))
+        validateConnectionWithStatus(instanceId, Service.fromId(instance.serviceId) ?: return)
     }
 
     private fun onClearPendingNotifications() {
@@ -890,11 +887,6 @@ class SettingsViewModel(
             dataRepository.clearPendingNotifications()
             _state.update { it.copy(notificationPendingCount = 0) }
         }
-    }
-
-    private fun onToggleFreeFallback(enabled: Boolean) {
-        dataRepository.setFreeFallbackEnabled(enabled)
-        _state.update { it.copy(isFreeFallbackEnabled = enabled) }
     }
 
     private fun onDownloadLocalModel(model: LocalModel) {
@@ -1333,7 +1325,7 @@ class SettingsViewModel(
                 // If removing the last on-device service, delete all downloaded models
                 if (service?.isOnDevice == true) {
                     val hasOtherOnDevice = dataRepository.getConfiguredServiceInstances().any {
-                        Service.fromId(it.serviceId).isOnDevice
+                        Service.fromId(it.serviceId)?.isOnDevice == true
                     }
                     if (!hasOtherOnDevice) {
                         dataRepository.getLocalDownloadedModels().forEach {

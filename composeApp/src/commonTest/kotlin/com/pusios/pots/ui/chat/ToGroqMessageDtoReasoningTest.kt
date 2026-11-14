@@ -10,7 +10,7 @@ import kotlin.test.assertNull
  * Guards the per-service gating of `reasoning_content` on outgoing assistant messages.
  *
  * Groq and Cerebras return HTTP 400 when this field is included; providers like DeepSeek
- * thinking-mode, Fireworks, LongCat, MiniMax, Moonshot, Venice, Z.AI and OpenCode Zen
+ * thinking-mode, Fireworks, LongCat, MiniMax, Moonshot, Venice and Z.AI
  * require it for multi-turn tool calling with reasoning models.
  */
 class ToGroqMessageDtoReasoningTest {

@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.data.Conversation
 import com.pusios.pots.data.DataRepository
-import com.pusios.pots.data.FreeMode
 import com.pusios.pots.data.ScheduledTask
 import com.pusios.pots.data.Service
 import com.pusios.pots.data.ServiceEntry
@@ -19,6 +18,11 @@ import com.pusios.pots.data.miniapp.MiniAppRepository
 import com.pusios.pots.data.miniapp.MiniAppScreen
 import com.pusios.pots.data.miniapp.MiniAppSummary
 import com.pusios.pots.getBackgroundDispatcher
+import com.pusios.pots.network.AnthropicInsufficientCreditsException
+import com.pusios.pots.network.AnthropicInvalidApiKeyException
+import com.pusios.pots.network.GeminiInvalidApiKeyException
+import com.pusios.pots.network.OpenAICompatibleInvalidApiKeyException
+import com.pusios.pots.network.OpenAICompatibleQuotaExhaustedException
 import com.pusios.pots.network.UiError
 import com.pusios.pots.network.shouldShowFreeProviderSuggestions
 import com.pusios.pots.network.toUiError
@@ -60,6 +64,10 @@ import pots.composeapp.generated.resources.litert_no_model_warning
 import pots.composeapp.generated.resources.mini_app_nothing_to_save
 import pots.composeapp.generated.resources.mini_app_saved
 import pots.composeapp.generated.resources.mini_app_saved_not_verified_offline
+import pots.composeapp.generated.resources.onboarding_error_empty_key
+import pots.composeapp.generated.resources.onboarding_error_invalid_key
+import pots.composeapp.generated.resources.onboarding_error_network
+import pots.composeapp.generated.resources.onboarding_error_no_balance
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -134,18 +142,42 @@ class ChatViewModel(
         editMiniApp = ::editMiniApp,
         runMiniAppAutomation = ::runMiniAppAutomation,
         runMiniAppPrompt = ::runMiniAppPrompt,
+        onboardingOpenSite = ::onboardingOpenSite,
+        onboardingSaveKey = ::onboardingSaveKey,
+        onboardingTopUp = ::onboardingTopUp,
+        onboardingCheck = ::onboardingCheck,
+        onboardingSkip = ::onboardingSkip,
+        onboardingResume = ::onboardingResume,
+        onboardingChooseLocal = ::onboardingChooseLocal,
+        onboardingDismiss = ::onboardingDismiss,
     )
     private var currentJob: Job? = null
     private var pendingConversationDeleteJob: Job? = null
     private val _state = MutableStateFlow(
         ChatUiState(
             actions = actions,
-            showPrivacyInfo = dataRepository.isUsingSharedKey(),
+            onboarding = initialOnboardingState(),
             potsikLook = dataRepository.getPotsikLook(),
             agentProfiles = dataRepository.agentProfiles.value.toImmutableList(),
             activeAgentProfileId = dataRepository.activeAgentProfileId.value,
         ),
     )
+
+    /**
+     * Restores the first-launch wizard from its persisted flags:
+     * done+finished → skipped card, finished only → aborted card, nothing configured → active.
+     */
+    private fun initialOnboardingState(): OnboardingState {
+        val step = dataRepository.getOnboardingStep()
+        val done = dataRepository.isOnboardingDone()
+        val finishedWithoutSuccess = dataRepository.isOnboardingFinishedStep()
+        return when {
+            done && finishedWithoutSuccess -> OnboardingState(phase = OnboardingPhase.Skipped, step = step)
+            finishedWithoutSuccess -> OnboardingState(phase = OnboardingPhase.Aborted, step = step)
+            done || dataRepository.getConfiguredServiceInstances().isNotEmpty() -> OnboardingState()
+            else -> OnboardingState(phase = OnboardingPhase.Active, step = step)
+        }
+    }
 
     init {
         updateAvailableServices()
@@ -368,7 +400,8 @@ class ChatViewModel(
      */
     private suspend fun ensureLocalNetworkPermission(): Boolean {
         val instance = dataRepository.getConfiguredServiceInstances().firstOrNull() ?: return true
-        val baseUrl = dataRepository.getInstanceBaseUrl(instance.instanceId, Service.fromId(instance.serviceId))
+        val service = Service.fromId(instance.serviceId) ?: return true
+        val baseUrl = dataRepository.getInstanceBaseUrl(instance.instanceId, service)
         if (!isLocalNetworkUrl(baseUrl)) return true
         return localNetworkPermissionController.requestPermission()
     }
@@ -714,15 +747,6 @@ class ChatViewModel(
     }
 
     private fun selectService(instanceId: String) {
-        val freeMode = FREE_MODE_INSTANCE_IDS[instanceId]
-        if (freeMode != null) {
-            dataRepository.setFreeMode(freeMode)
-            dataRepository.setFreeServicePrimary(true)
-            updateAvailableServices()
-            return
-        }
-
-        dataRepository.setFreeServicePrimary(false)
         val instances = dataRepository.getConfiguredServiceInstances()
         val currentIds = instances.map { it.instanceId }
         if (instanceId !in currentIds) return
@@ -740,11 +764,104 @@ class ChatViewModel(
         } else {
             null
         }
-        _state.update { it.copy(availableServices = entries, warning = warning, showPrivacyInfo = dataRepository.isUsingSharedKey()) }
+        _state.update { it.copy(availableServices = entries, warning = warning) }
     }
 
-    companion object {
-        private val FREE_MODE_INSTANCE_IDS = FreeMode.entries.associateBy { it.instanceId }
+    // ---- First-launch onboarding wizard (§2 spec: joni UX + stiv copy) ----
+    //
+    // Persistence mirrors AppSettings KEY_ONBOARDING_*: DONE (success), STEP ("1".."4"),
+    // FINISHED_STEP (skipped or aborted without success).
+
+    private fun onboardingOpenSite() {
+        _state.update { state ->
+            val onboarding = state.onboarding
+            if (onboarding.phase != OnboardingPhase.Active || onboarding.step >= 4) return@update state
+            val nextStep = onboarding.step + 1
+            dataRepository.setOnboardingStep(nextStep)
+            state.copy(onboarding = onboarding.copy(step = nextStep, error = null))
+        }
+    }
+
+    private fun onboardingSaveKey(apiKey: String) {
+        if (apiKey.isBlank()) {
+            _state.update { it.copy(onboarding = it.onboarding.copy(error = Res.string.onboarding_error_empty_key)) }
+            return
+        }
+        // Reuse an existing PlusVibe instance so an interrupted-then-resumed wizard
+        // never stacks a duplicate — same add+key mechanism as Settings → Services.
+        val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.serviceId == Service.PlusVibe.id }
+            ?: dataRepository.addConfiguredService(Service.PlusVibe.id)
+        dataRepository.updateInstanceApiKey(instance.instanceId, apiKey.trim())
+        dataRepository.setOnboardingStep(4)
+        _state.update { it.copy(onboarding = it.onboarding.copy(step = 4, error = null)) }
+        updateAvailableServices()
+    }
+
+    /** The balance URL is opened by the UI layer (UriHandler lives in Compose); nothing to persist. */
+    private fun onboardingTopUp() = Unit
+
+    private fun onboardingCheck() {
+        val onboarding = _state.value.onboarding
+        if (onboarding.phase != OnboardingPhase.Active || onboarding.isChecking) return
+        val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.serviceId == Service.PlusVibe.id } ?: return
+        _state.update { it.copy(onboarding = it.onboarding.copy(isChecking = true, error = null)) }
+        viewModelScope.launch(backgroundDispatcher) {
+            val errorRes = try {
+                dataRepository.validateConnection(Service.PlusVibe, instance.instanceId)
+                null
+            } catch (e: Exception) {
+                when (e) {
+                    is OpenAICompatibleInvalidApiKeyException, is GeminiInvalidApiKeyException, is AnthropicInvalidApiKeyException ->
+                        Res.string.onboarding_error_invalid_key
+
+                    is OpenAICompatibleQuotaExhaustedException, is AnthropicInsufficientCreditsException ->
+                        Res.string.onboarding_error_no_balance
+
+                    else -> Res.string.onboarding_error_network
+                }
+            }
+            if (errorRes == null) {
+                dataRepository.setOnboardingDone(true)
+                dataRepository.setOnboardingFinishedStep(false)
+                _state.update { it.copy(onboarding = it.onboarding.copy(phase = OnboardingPhase.Finished, isChecking = false, error = null)) }
+                updateAvailableServices()
+            } else {
+                _state.update { it.copy(onboarding = it.onboarding.copy(isChecking = false, error = errorRes)) }
+            }
+        }
+    }
+
+    private fun onboardingSkip() {
+        dataRepository.setOnboardingDone(true)
+        dataRepository.setOnboardingFinishedStep(true)
+        _state.update { it.copy(onboarding = it.onboarding.copy(phase = OnboardingPhase.Skipped, isChecking = false, error = null)) }
+    }
+
+    private fun onboardingResume() {
+        dataRepository.setOnboardingDone(false)
+        dataRepository.setOnboardingFinishedStep(false)
+        _state.update { it.copy(onboarding = it.onboarding.copy(phase = OnboardingPhase.Active, error = null)) }
+    }
+
+    private fun onboardingChooseLocal() {
+        val onboarding = _state.value.onboarding
+        if (onboarding.phase != OnboardingPhase.Active) return
+        if (!onboarding.showLocalLimits) {
+            // First press only reveals the honest limits; the second confirms.
+            _state.update { it.copy(onboarding = onboarding.copy(showLocalLimits = true)) }
+            return
+        }
+        if (dataRepository.getConfiguredServiceInstances().none { it.serviceId == Service.LiteRT.id }) {
+            dataRepository.addConfiguredService(Service.LiteRT.id)
+        }
+        dataRepository.setOnboardingDone(true)
+        dataRepository.setOnboardingFinishedStep(false)
+        _state.update { it.copy(onboarding = it.onboarding.copy(phase = OnboardingPhase.Finished, error = null)) }
+        updateAvailableServices()
+    }
+
+    private fun onboardingDismiss() {
+        _state.update { it.copy(onboarding = it.onboarding.copy(phase = OnboardingPhase.Hidden)) }
     }
 
     private fun regenerate() {
@@ -798,6 +915,11 @@ class ChatViewModel(
 
     override fun onCleared() {
         commitPendingConversationDeletion()
+        // An active wizard the user walked away from counts as interrupted: the next
+        // launch shows the final card instead of restarting the whole flow (§5.5).
+        if (_state.value.onboarding.phase == OnboardingPhase.Active) {
+            dataRepository.setOnboardingFinishedStep(true)
+        }
         // The scheduler lives longer than this ViewModel (it's a singleton driving the
         // Android foreground service). Reset the predicate so the daemon path keeps
         // running without a stale reference to a dead state flow. The foreground-visible

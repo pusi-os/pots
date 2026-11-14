@@ -33,12 +33,14 @@ interface DataRepository {
     fun removeConfiguredService(instanceId: String)
     fun reorderConfiguredServices(orderedInstanceIds: List<String>)
     fun getServiceEntries(): List<ServiceEntry>
-    fun isFreeFallbackEnabled(): Boolean
-    fun setFreeFallbackEnabled(enabled: Boolean)
-    fun getFreeMode(): FreeMode
-    fun setFreeMode(mode: FreeMode)
-    fun isFreeServicePrimary(): Boolean
-    fun setFreeServicePrimary(primary: Boolean)
+
+    // Onboarding — persisted state of the first-launch setup wizard
+    fun isOnboardingDone(): Boolean
+    fun setOnboardingDone(done: Boolean)
+    fun getOnboardingStep(): Int
+    fun setOnboardingStep(step: Int)
+    fun isOnboardingFinishedStep(): Boolean
+    fun setOnboardingFinishedStep(finished: Boolean)
 
     // Per-instance settings
     fun getInstanceApiKey(instanceId: String): String
@@ -61,8 +63,7 @@ interface DataRepository {
         activeSkillId: String? = null,
     )
     fun clearHistory()
-    fun currentService(): Service
-    fun isUsingSharedKey(): Boolean
+    fun currentService(): Service?
     fun supportedFileExtensions(): List<String>
 
     // Conversation management

@@ -34,8 +34,8 @@ internal fun buildOpenAIMessages(
 }
 
 /**
- * Enforces the tool-call pairing invariant that strict OpenAI-compatible providers (DeepSeek via
- * OpenCode Zen, etc.) require:
+ * Enforces the tool-call pairing invariant that strict OpenAI-compatible providers (strict
+ * DeepSeek endpoints, etc.) require:
  *
  * 1. An `assistant` message carrying `tool_calls` must be immediately followed by one `tool`
  *    message answering each `tool_call_id`.

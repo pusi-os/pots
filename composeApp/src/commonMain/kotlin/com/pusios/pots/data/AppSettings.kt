@@ -535,26 +535,32 @@ class AppSettings(internal val settings: Settings) {
         }
     }
 
-    // Free fallback
+    // Free fallback (the toggle is retired with the free tier; the stored value survives import/export)
     fun isFreeFallbackEnabled(): Boolean = settings.getBoolean(KEY_FREE_FALLBACK_ENABLED, true)
 
     fun setFreeFallbackEnabled(enabled: Boolean) {
         settings.putBoolean(KEY_FREE_FALLBACK_ENABLED, enabled)
     }
 
-    fun getFreeMode(): FreeMode {
-        val stored = settings.getStringOrNull(KEY_FREE_MODE) ?: return FreeMode.FAST
-        return FreeMode.entries.find { it.name == stored } ?: FreeMode.FAST
+    // Onboarding — the first-launch setup wizard in the chat
+    fun isOnboardingDone(): Boolean = settings.getBoolean(KEY_ONBOARDING_DONE, false)
+
+    fun setOnboardingDone(done: Boolean) {
+        settings.putBoolean(KEY_ONBOARDING_DONE, done)
     }
 
-    fun setFreeMode(mode: FreeMode) {
-        settings.putString(KEY_FREE_MODE, mode.name)
+    /** The furthest wizard step reached, 1..4; resume opens the wizard here. */
+    fun getOnboardingStep(): Int = settings.getString(KEY_ONBOARDING_STEP, "1").toIntOrNull()?.coerceIn(1, 4) ?: 1
+
+    fun setOnboardingStep(step: Int) {
+        settings.putString(KEY_ONBOARDING_STEP, step.coerceIn(1, 4).toString())
     }
 
-    fun isFreeServicePrimary(): Boolean = settings.getBoolean(KEY_FREE_SERVICE_PRIMARY, false)
+    /** True when the wizard was skipped or interrupted without success — show the final card, not the wizard. */
+    fun isOnboardingFinishedStep(): Boolean = settings.getBoolean(KEY_ONBOARDING_FINISHED_STEP, false)
 
-    fun setFreeServicePrimary(primary: Boolean) {
-        settings.putBoolean(KEY_FREE_SERVICE_PRIMARY, primary)
+    fun setOnboardingFinishedStep(finished: Boolean) {
+        settings.putBoolean(KEY_ONBOARDING_FINISHED_STEP, finished)
     }
 
     // Soul (system prompt)
@@ -1195,9 +1201,11 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_NOTIFICATIONS_SYNC_STATE = "notifications_sync_state"
         const val KEY_CONFIGURED_SERVICES = "configured_services"
         const val KEY_FREE_FALLBACK_ENABLED = "free_fallback_enabled"
-        const val KEY_FREE_MODE = "free_mode"
-        const val KEY_FREE_SERVICE_PRIMARY = "free_service_primary"
+        const val KEY_ONBOARDING_DONE = "onboarding_done"
+        const val KEY_ONBOARDING_STEP = "onboarding_step"
+        const val KEY_ONBOARDING_FINISHED_STEP = "onboarding_finished_step"
         const val KEY_SERVICES_MIGRATION_COMPLETE = "services_migration_complete_v1"
+        const val KEY_OPENCODE_REMOVAL_MIGRATION_COMPLETE = "opencode_removal_migration_complete_v1"
         const val KEY_UI_SCALE = "ui_scale"
         const val KEY_POTSIK_VISIBLE = "potsik_visible"
         const val KEY_POTSIK_OUTFIT = "potsik_outfit"

@@ -30,9 +30,9 @@ internal object CoPhoneCloud {
         return try {
             val inst = repo.getConfiguredServiceInstances().firstOrNull {
                 val s = Service.fromId(it.serviceId)
-                !s.isOnDevice && repo.getInstanceApiKey(it.instanceId).isNotBlank()
+                s != null && !s.isOnDevice && repo.getInstanceApiKey(it.instanceId).isNotBlank()
             } ?: return null
-            val service = Service.fromId(inst.serviceId)
+            val service = Service.fromId(inst.serviceId) ?: return null
             val base = repo.getInstanceBaseUrl(inst.instanceId, service).trim().trimEnd('/')
             val key = repo.getInstanceApiKey(inst.instanceId).trim()
             if (base.isBlank() || key.isBlank()) null else Creds(base, key)

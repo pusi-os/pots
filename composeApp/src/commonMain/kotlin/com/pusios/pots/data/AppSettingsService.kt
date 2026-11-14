@@ -13,8 +13,8 @@ fun AppSettings.selectService(service: Service) {
     settings.putString(KEY_CURRENT_SERVICE_ID, service.id)
 }
 
-fun AppSettings.currentService(): Service {
-    val id = settings.getString(KEY_CURRENT_SERVICE_ID, Service.OpenCodeFree.id)
+fun AppSettings.currentService(): Service? {
+    val id = settings.getString(KEY_CURRENT_SERVICE_ID, "")
     return Service.fromId(id)
 }
 

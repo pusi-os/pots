@@ -4,14 +4,14 @@ import com.pusios.pots.testutil.FakeDataRepository
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ServiceCatalogTest {
     @Test
-    fun `RF catalog exposes only built-in and Russian-accessible providers`() {
+    fun `RF catalog exposes only Russian-accessible providers`() {
         assertEquals(
             listOf(
-                "opencode-free",
                 "polza",
                 "gptunnel",
                 "aitunnel",
@@ -26,20 +26,21 @@ class ServiceCatalogTest {
     }
 
     @Test
-    fun `free presets pin the expected services and models`() {
-        assertEquals(OPENCODE_FREE_MODEL_ID, FreeMode.FAST.modelId)
-        assertEquals(Service.OpenCodeFree, FreeMode.FAST.service)
-        assertTrue(FreeMode.entries.all { it.service.isFreeTier })
+    fun `the built-in free provider is gone and unknown ids resolve to nothing`() {
+        assertFalse(Service.all.any { it.id == "opencode-free" })
+        assertNull(Service.fromId("opencode-free"))
+        assertNull(Service.fromId("no-such-service"))
+        assertEquals(Service.PlusVibe, Service.fromId("plusvibe"))
+        assertEquals(Service.LiteRT, Service.fromId("litert"))
     }
 
     @Test
-    fun `free preset picker hides the internal model id`() {
-        val repository = FakeDataRepository().apply { setFreeServicePrimary(true) }
+    fun `available service entries list only configured instances`() {
+        val repository = FakeDataRepository().apply { setConfiguredServices(Service.PlusVibe, Service.Gptunnel) }
 
-        val freeEntries = repository.getAvailableServiceEntries().filter { it.instanceId.startsWith("free-") }
+        val entries = repository.getAvailableServiceEntries()
 
-        assertEquals(FreeMode.entries.size, freeEntries.size)
-        assertTrue(freeEntries.all { !it.showModelId })
+        assertEquals(listOf("plusvibe", "gptunnel"), entries.map { it.instanceId })
     }
 
     @Test
@@ -63,7 +64,6 @@ class ServiceCatalogTest {
     @Test
     fun `added gateways have chat models and key pages`() {
         for (service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter)) {
-            assertFalse(service.isFreeTier, service.id)
             assertTrue(service.requiresApiKey, service.id)
             assertTrue(service.chatUrl.startsWith("https://"), service.id)
             assertTrue(service.modelsUrl?.startsWith("https://") == true, service.id)

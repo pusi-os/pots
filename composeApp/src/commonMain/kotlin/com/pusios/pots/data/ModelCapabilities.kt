@@ -106,7 +106,7 @@ internal fun modelSupportsImages(modelId: String): Boolean {
  *
  * Pulse uses [supportsPulseModel] instead, because the on-device engine owns its tool loop.
  */
-internal fun supportsAgenticFlows(serviceId: String, modelId: String): Boolean = !Service.fromId(serviceId).isOnDevice && supportsTools(modelId)
+internal fun supportsAgenticFlows(serviceId: String, modelId: String): Boolean = Service.fromId(serviceId)?.isOnDevice == false && supportsTools(modelId)
 
 /**
  * Whether a service/model can run a background agent such as Pulse.
@@ -115,7 +115,7 @@ internal fun supportsAgenticFlows(serviceId: String, modelId: String): Boolean =
  * user-selected tool/MCP subset, so a local model is eligible even though its id may not appear in
  * the remote tool-capability table. The screen supplies only local models that are fully downloaded.
  */
-internal fun supportsPulseModel(serviceId: String, modelId: String): Boolean = Service.fromId(serviceId).isOnDevice || supportsAgenticFlows(serviceId, modelId)
+internal fun supportsPulseModel(serviceId: String, modelId: String): Boolean = Service.fromId(serviceId)?.isOnDevice == true || supportsAgenticFlows(serviceId, modelId)
 
 /**
  * OpenAI GPT families from 5.6 on only support function calling on the Responses API

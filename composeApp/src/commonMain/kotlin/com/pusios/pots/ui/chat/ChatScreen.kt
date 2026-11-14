@@ -112,6 +112,9 @@ import com.pusios.pots.ui.chat.composables.EmptyState
 import com.pusios.pots.ui.chat.composables.ErrorMessage
 import com.pusios.pots.ui.chat.composables.FreeProviderSuggestionsPanel
 import com.pusios.pots.ui.chat.composables.HeartbeatBanner
+import com.pusios.pots.ui.chat.composables.OnboardingFinalCard
+import com.pusios.pots.ui.chat.composables.OnboardingSuccessCard
+import com.pusios.pots.ui.chat.composables.OnboardingWizardCard
 import com.pusios.pots.ui.chat.composables.PendingSmsBanners
 import com.pusios.pots.ui.chat.composables.QuestionInput
 import com.pusios.pots.ui.chat.composables.ServiceSelector
@@ -1165,15 +1168,49 @@ private fun ChatModeScreen(
                             ),
                     ) {
                         if (uiState.history.isEmpty()) {
-                            EmptyState(
-                                modifier = Modifier.fillMaxWidth().weight(1f),
-                                onStartHandsFree = {
-                                    textToSpeech?.stop()
-                                    uiState.actions.setIsSpeaking(false, "")
-                                    handsFree.toggle()
-                                }.takeIf { handsFree.isSupported && handsFreeStatus == HandsFreeStatus.Idle },
-                                onOpenMedia = { isMediaOpen = true },
-                            )
+                            // First-launch surface: the onboarding wizard (or its final cards)
+                            // takes the slot while nothing can answer; plain EmptyState otherwise.
+                            val onboarding = uiState.onboarding
+                            when {
+                                onboarding.phase == OnboardingPhase.Active -> Box(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    OnboardingWizardCard(
+                                        state = onboarding,
+                                        actions = uiState.actions,
+                                        onLocalConfirmed = onNavigateToSettings,
+                                    )
+                                }
+
+                                onboarding.phase == OnboardingPhase.Skipped || onboarding.phase == OnboardingPhase.Aborted -> Box(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    contentAlignment = Alignment.TopCenter,
+                                ) {
+                                    OnboardingFinalCard(
+                                        phase = onboarding.phase,
+                                        actions = uiState.actions,
+                                        modifier = Modifier.padding(top = 24.dp),
+                                    )
+                                }
+
+                                onboarding.phase == OnboardingPhase.Finished -> Box(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    OnboardingSuccessCard()
+                                }
+
+                                else -> EmptyState(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    onStartHandsFree = {
+                                        textToSpeech?.stop()
+                                        uiState.actions.setIsSpeaking(false, "")
+                                        handsFree.toggle()
+                                    }.takeIf { handsFree.isSupported && handsFreeStatus == HandsFreeStatus.Idle },
+                                    onOpenMedia = { isMediaOpen = true },
+                                )
+                            }
                         } else {
                             val listState = rememberLazyListState()
                             val componentScope = rememberCoroutineScope()

@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 
 /**
  * Guards the tool-call pairing invariant required by strict OpenAI-compatible providers
- * (DeepSeek via OpenCode Zen). A violation produces a 400:
+ * (strict DeepSeek endpoints). A violation produces a 400:
  * "An assistant message with 'tool_calls' must be followed by tool messages responding to each
  * 'tool_call_id'."
  */

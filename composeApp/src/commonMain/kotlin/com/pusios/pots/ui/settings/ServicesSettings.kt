@@ -2,6 +2,7 @@
 
 package com.pusios.pots.ui.settings
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -53,7 +54,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -82,7 +85,11 @@ import com.pusios.pots.ui.PotsClearableTextField
 import com.pusios.pots.ui.components.PotsSlider
 import com.pusios.pots.ui.components.VerticalScrollbarForScroll
 import com.pusios.pots.ui.handCursor
+import com.pusios.pots.ui.icons.ClubCloud
+import com.pusios.pots.ui.icons.ClubKey
 import com.pusios.pots.ui.icons.DragIndicator
+import com.pusios.pots.ui.icons.PotsDevice
+import com.pusios.pots.ui.icons.PotsGame
 import com.pusios.pots.ui.potsAdaptiveCardBorder
 import com.pusios.pots.ui.potsAdaptiveCardColors
 import com.pusios.pots.ui.potsAdaptiveCardSurface
@@ -128,13 +135,14 @@ import pots.composeapp.generated.resources.settings_base_url_label
 import pots.composeapp.generated.resources.settings_custom_model_hint
 import pots.composeapp.generated.resources.settings_custom_model_label
 import pots.composeapp.generated.resources.settings_free_fallback
-import pots.composeapp.generated.resources.settings_free_tier_description
-import pots.composeapp.generated.resources.settings_free_tier_title
 import pots.composeapp.generated.resources.settings_model_label
 import pots.composeapp.generated.resources.settings_open_app_settings
 import pots.composeapp.generated.resources.settings_openai_compatible_or_other_service
 import pots.composeapp.generated.resources.settings_openai_compatible_providers
 import pots.composeapp.generated.resources.settings_openai_compatible_setup_ollama
+import pots.composeapp.generated.resources.settings_potsgame_description
+import pots.composeapp.generated.resources.settings_potsgame_fallback_note
+import pots.composeapp.generated.resources.settings_potsgame_title
 import pots.composeapp.generated.resources.settings_remove_service
 import pots.composeapp.generated.resources.settings_reorder_content_description
 import pots.composeapp.generated.resources.settings_sign_in_copy_api_key_from
@@ -152,10 +160,7 @@ import sh.calvin.reorderable.ReorderableColumn
 import kotlin.math.roundToInt
 
 @Composable
-internal fun FreeSettings(
-    showFallbackToggle: Boolean = false,
-    isFreeFallbackEnabled: Boolean = true,
-    onToggleFreeFallback: (Boolean) -> Unit = {},
+internal fun PotsGameSection(
     currentSponsors: ImmutableList<SponsorsResponseDto.Sponsor> = persistentListOf(),
     pastSponsors: ImmutableList<SponsorsResponseDto.Sponsor> = persistentListOf(),
 ) {
@@ -165,39 +170,53 @@ internal fun FreeSettings(
         border = potsAdaptiveCardBorder(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(Res.string.settings_free_tier_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-
-            if (showFallbackToggle) {
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onToggleFreeFallback(!isFreeFallbackEnabled) }
-                        .handCursor(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(Res.string.settings_free_fallback),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Switch(
-                        checked = isFreeFallbackEnabled,
-                        onCheckedChange = onToggleFreeFallback,
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.PotsGame,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(Res.string.settings_potsgame_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
+
+            PotsGameInfographic()
+
+            Text(
+                text = stringResource(Res.string.settings_potsgame_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Spacer(Modifier.height(6.dp))
 
+            // The fallback flag is retired with the free tier: visible but disabled,
+            // without a clickable row, so the option doesn't disappear silently.
+            val disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(Res.string.settings_free_fallback),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = disabledContentColor,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = false,
+                    onCheckedChange = null,
+                    enabled = false,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
             Text(
-                text = stringResource(Res.string.settings_free_tier_description),
+                text = stringResource(Res.string.settings_potsgame_fallback_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -234,6 +253,60 @@ internal fun FreeSettings(
                 )
             }
         }
+    }
+}
+
+/**
+ * «устройство → ключ → облако»: the device (neutral) connects through the club key
+ * (accent) to the pots.guru cloud (primary). A Compose composition instead of a
+ * monolithic asset, so it inherits the theme colors and stays vector-crisp.
+ */
+@Composable
+private fun PotsGameInfographic() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.PotsDevice,
+            contentDescription = null,
+            modifier = Modifier.size(28.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Box(modifier = Modifier.weight(1f).height(28.dp)) {
+            val dashColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+            Canvas(Modifier.fillMaxWidth().height(2.dp).align(Alignment.Center)) {
+                val stroke = 2.dp.toPx()
+                drawLine(
+                    color = dashColor,
+                    start = Offset(0f, size.height / 2f),
+                    end = Offset(size.width, size.height / 2f),
+                    strokeWidth = stroke,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())),
+                )
+            }
+            // The round backing breaks the dashes under the glyph so the key stays readable.
+            Surface(
+                modifier = Modifier.align(Alignment.Center).size(24.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Filled.ClubKey,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+        Icon(
+            imageVector = Icons.Filled.ClubCloud,
+            contentDescription = null,
+            modifier = Modifier.size(28.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
@@ -348,12 +421,9 @@ internal fun ServicesContent(uiState: SettingsUiState, actions: SettingsActions)
         }
     }
 
-    // Free tier card (always at bottom)
+    // PotsGame club card (always at bottom)
     Spacer(Modifier.height(16.dp))
-    FreeSettings(
-        showFallbackToggle = entries.isNotEmpty(),
-        isFreeFallbackEnabled = uiState.isFreeFallbackEnabled,
-        onToggleFreeFallback = actions.onToggleFreeFallback,
+    PotsGameSection(
         currentSponsors = uiState.currentSponsors,
         pastSponsors = uiState.pastSponsors,
     )

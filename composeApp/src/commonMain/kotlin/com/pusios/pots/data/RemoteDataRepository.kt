@@ -289,14 +289,9 @@ class RemoteDataRepository(
         service: Service,
         modelIdOverride: String? = null,
     ): ServiceCredentials = ServiceCredentials(
-        // A key the user entered always wins over the one shipped with the build.
-        apiKey = appSettings.getInstanceApiKey(instanceId).ifEmpty { service.defaultApiKey },
-        modelId = modelIdOverride?.takeIf { it.isNotBlank() } ?: when (service) {
-            // Each free preset pins its own model, independent of per-instance settings.
-            Service.OpenCodeFree -> OPENCODE_FREE_MODEL_ID
-
-            else -> appSettings.getInstanceEffectiveModelId(instanceId).ifEmpty { appSettings.getSelectedModelId(service) }
-        },
+        apiKey = appSettings.getInstanceApiKey(instanceId),
+        modelId = modelIdOverride?.takeIf { it.isNotBlank() }
+            ?: appSettings.getInstanceEffectiveModelId(instanceId).ifEmpty { appSettings.getSelectedModelId(service) },
         baseUrl = getInstanceBaseUrl(instanceId, service),
     )
 
@@ -311,7 +306,7 @@ class RemoteDataRepository(
     override val savedConversations: StateFlow<List<Conversation>> = conversationStorage.conversations
 
     override fun getConfiguredServiceInstances(): List<ServiceInstance> = appSettings.getConfiguredServiceInstances()
-        .filter { !Service.fromId(it.serviceId).isFreeTier }
+        .filter { Service.fromId(it.serviceId) != null }
 
     override fun addConfiguredService(serviceId: String): ServiceInstance {
         val instanceId = appSettings.generateInstanceId(serviceId)
@@ -319,7 +314,6 @@ class RemoteDataRepository(
         val current = appSettings.getConfiguredServiceInstances().toMutableList()
         current.add(instance)
         appSettings.setConfiguredServiceInstances(current)
-        appSettings.setFreeServicePrimary(false)
         return instance
     }
 
@@ -338,8 +332,8 @@ class RemoteDataRepository(
         appSettings.setConfiguredServiceInstances(reordered)
     }
 
-    override fun getServiceEntries(): List<ServiceEntry> = getConfiguredServiceInstances().map { instance ->
-        val service = Service.fromId(instance.serviceId)
+    override fun getServiceEntries(): List<ServiceEntry> = getConfiguredServiceInstances().mapNotNull { instance ->
+        val service = Service.fromId(instance.serviceId) ?: return@mapNotNull null
         val modelId = appSettings.getInstanceEffectiveModelId(instance.instanceId).ifEmpty {
             appSettings.getSelectedModelId(service)
         }
@@ -352,23 +346,17 @@ class RemoteDataRepository(
         )
     }
 
-    override fun isFreeFallbackEnabled(): Boolean = appSettings.isFreeFallbackEnabled()
+    override fun isOnboardingDone(): Boolean = appSettings.isOnboardingDone()
 
-    override fun setFreeFallbackEnabled(enabled: Boolean) {
-        appSettings.setFreeFallbackEnabled(enabled)
-    }
+    override fun setOnboardingDone(done: Boolean) = appSettings.setOnboardingDone(done)
 
-    override fun getFreeMode(): FreeMode = appSettings.getFreeMode()
+    override fun getOnboardingStep(): Int = appSettings.getOnboardingStep()
 
-    override fun setFreeMode(mode: FreeMode) {
-        appSettings.setFreeMode(mode)
-    }
+    override fun setOnboardingStep(step: Int) = appSettings.setOnboardingStep(step)
 
-    override fun isFreeServicePrimary(): Boolean = appSettings.isFreeServicePrimary()
+    override fun isOnboardingFinishedStep(): Boolean = appSettings.isOnboardingFinishedStep()
 
-    override fun setFreeServicePrimary(primary: Boolean) {
-        appSettings.setFreeServicePrimary(primary)
-    }
+    override fun setOnboardingFinishedStep(finished: Boolean) = appSettings.setOnboardingFinishedStep(finished)
 
     // Per-instance settings
     override fun getInstanceApiKey(instanceId: String): String = appSettings.getInstanceApiKey(instanceId)
@@ -452,17 +440,11 @@ class RemoteDataRepository(
             fetchInstanceModels(service, instanceId)
             return
         }
-        val creds = instanceCredentials(instanceId, service)
-        when (service) {
-            Service.OpenCodeFree -> { /* Built-in free plans are always valid. */ }
-            else -> fetchInstanceModels(service, instanceId)
-        }
+        fetchInstanceModels(service, instanceId)
     }
 
     private suspend fun fetchInstanceModels(service: Service, instanceId: String) {
         when (service) {
-            Service.OpenCodeFree -> { /* The preset defines its only model. */ }
-
             Service.LiteRT -> {
                 val engine = localInferenceEngine ?: return
                 val selectedModelId = appSettings.getInstanceModelId(instanceId)
@@ -862,7 +844,6 @@ class RemoteDataRepository(
     }
 
     private fun hasValidInstanceApiKey(instanceId: String, service: Service): Boolean {
-        if (service.isFreeTier) return true
         if (service.isOnDevice) return true
         if (!service.requiresApiKey && !service.supportsOptionalApiKey) return true
         if (service.requiresApiKey) return appSettings.getInstanceApiKey(instanceId).isNotBlank()
@@ -873,25 +854,16 @@ class RemoteDataRepository(
 
     private fun getOrderedFallbackEntries(): List<FallbackEntry> {
         val instances = getConfiguredServiceInstances()
-        val entries = instances.map { FallbackEntry(instanceId = it.instanceId, service = Service.fromId(it.serviceId)) }
-            .filter { !it.service.isFreeTier }
-            .filter { !it.service.isOnDevice || localInferenceEngine != null }
-        val freeMode = appSettings.getFreeMode()
-        val freeEntry = FallbackEntry(instanceId = freeMode.instanceId, service = freeMode.service)
-        val ordered = if (entries.isEmpty()) {
-            listOf(freeEntry)
-        } else if (appSettings.isFreeServicePrimary()) {
-            listOf(freeEntry) + entries
-        } else if (appSettings.isFreeFallbackEnabled()) {
-            entries + freeEntry
-        } else {
-            entries
+        val entries = instances.mapNotNull { instance ->
+            val service = Service.fromId(instance.serviceId) ?: return@mapNotNull null
+            FallbackEntry(instanceId = instance.instanceId, service = service)
         }
+            .filter { !it.service.isOnDevice || localInferenceEngine != null }
         // On-device models are only tried as the primary service, never as a fallback
         // target — falling into one would silently start a heavy model load the user
         // didn't ask for (mirrors the guard that keeps on-device errors from silently
         // falling back to cloud services).
-        return ordered.filterIndexed { index, entry -> index == 0 || !entry.service.isOnDevice }
+        return entries.filterIndexed { index, entry -> index == 0 || !entry.service.isOnDevice }
     }
 
     override suspend fun ask(question: String?, files: List<PlatformFile>, uiSubmission: UiSubmission?, activeSkillId: String?) {
@@ -1533,7 +1505,7 @@ class RemoteDataRepository(
 
         // Group each assistant tool-call turn together with the tool responses that follow it so
         // trimming never strands one without the other. Strict OpenAI-compatible providers (e.g.
-        // DeepSeek via OpenCode Zen) reject an assistant `tool_calls` message that isn't followed
+        // strict DeepSeek endpoints) reject an assistant `tool_calls` message that isn't followed
         // by its tool responses, and a `tool` message without a preceding `tool_calls`.
         val groups = mutableListOf<List<com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleChatRequestDto.Message>>()
         var index = 0
@@ -1610,7 +1582,7 @@ class RemoteDataRepository(
         if (!tuning.autoCompact) return
         // Use the primary service's context window for compaction decisions.
         val firstInstance = getConfiguredServiceInstances().firstOrNull() ?: return
-        val service = Service.fromId(firstInstance.serviceId)
+        val service = Service.fromId(firstInstance.serviceId) ?: return
         val modelId = appSettings.getSelectedModelId(service)
         val contextWindowTokens = ModelCatalog.estimateContextWindow(modelId)
 
@@ -1747,10 +1719,8 @@ class RemoteDataRepository(
         }
     }
 
-    override fun isUsingSharedKey(): Boolean = currentService().isFreeTier
-
     override fun supportedFileExtensions(): List<String> {
-        val service = currentService()
+        val service = currentService() ?: return supportedFileExtensions - imageExtensions
         if (service.isOnDevice) {
             val allowsImages = localInferenceEngine?.getAvailableModels()?.firstOrNull { it.id == currentModelId() }?.supportsImages == true ||
                 com.pusios.pots.inference.MODEL_CATALOG.firstOrNull { it.id == currentModelId() }?.supportsImages == true
@@ -1764,19 +1734,15 @@ class RemoteDataRepository(
         return if (service.supportsPdf) base + "pdf" else base
     }
 
-    override fun currentService(): Service {
-        if (appSettings.isFreeServicePrimary()) return appSettings.getFreeMode().service
+    override fun currentService(): Service? {
         val instances = getConfiguredServiceInstances()
-        return instances.firstOrNull()?.let { Service.fromId(it.serviceId) } ?: appSettings.getFreeMode().service
+        return instances.firstOrNull()?.let { Service.fromId(it.serviceId) }
     }
 
-    /** Model id of the active instance, including a free preset when that is primary. */
+    /** Model id of the active instance, blank when nothing is configured yet. */
     private fun currentModelId(): String {
-        if (appSettings.isFreeServicePrimary() || getConfiguredServiceInstances().isEmpty()) {
-            return appSettings.getFreeMode().modelId
-        }
         val instance = getConfiguredServiceInstances().firstOrNull() ?: return ""
-        val service = Service.fromId(instance.serviceId)
+        val service = Service.fromId(instance.serviceId) ?: return ""
         return appSettings.getInstanceEffectiveModelId(instance.instanceId).ifEmpty { appSettings.getSelectedModelId(service) }
     }
 
@@ -2041,14 +2007,18 @@ class RemoteDataRepository(
         // On-device services store the active model ID per-instance, not globally, so
         // `getSelectedModelId` comes back blank for LiteRT. Fall back to the first
         // configured on-device instance's model ID in that case.
-        val modelId = appSettings.getSelectedModelId(service).ifBlank {
-            if (service.isOnDevice) {
-                getConfiguredServiceInstances()
-                    .firstOrNull { Service.fromId(it.serviceId).isOnDevice }
-                    ?.let { appSettings.getInstanceModelId(it.instanceId) }
-                    .orEmpty()
-            } else {
-                ""
+        val modelId = if (service == null) {
+            ""
+        } else {
+            appSettings.getSelectedModelId(service).ifBlank {
+                if (service.isOnDevice) {
+                    getConfiguredServiceInstances()
+                        .firstOrNull { Service.fromId(it.serviceId)?.isOnDevice == true }
+                        ?.let { appSettings.getInstanceModelId(it.instanceId) }
+                        .orEmpty()
+                } else {
+                    ""
+                }
             }
         }
         val now = Clock.System.now()
@@ -2061,7 +2031,7 @@ class RemoteDataRepository(
             nowUtcIsoString = now.toString(),
             platform = currentPlatform.displayName,
             modelId = modelId,
-            providerName = service.displayName,
+            providerName = service?.displayName.orEmpty(),
         )
 
         val isLimited = !supportsTools(modelId)
@@ -2432,19 +2402,16 @@ class RemoteDataRepository(
         conversationIdOverride: String?,
         modelIdOverride: String?,
     ): String {
-        // Selection: explicit instance (including a free preset) > first remote >
-        // first on-device. The simple-tool allowlist works at any context size, so
-        // on-device is always eligible for fallback.
+        // Selection: explicit instance > first remote > first on-device. The simple-tool
+        // allowlist works at any context size, so on-device is always eligible. No
+        // configured instance means nothing can run — report that instead of guessing.
         val instances = getConfiguredServiceInstances()
-        val freeMode = appSettings.getFreeMode()
-        val requestedFreeMode = FreeMode.entries.firstOrNull { it.instanceId == instanceId }
-        val freeTarget = requestedFreeMode?.let { it to it.service }
-        val configuredTarget = instanceId?.let { id -> instances.find { it.instanceId == id } }
-        val targetInstance = configuredTarget
-            ?: instances.firstOrNull { !Service.fromId(it.serviceId).isOnDevice }
-            ?: instances.firstOrNull { Service.fromId(it.serviceId).isOnDevice }
-        val service = freeTarget?.second ?: targetInstance?.let { Service.fromId(it.serviceId) } ?: freeMode.service
-        val targetInstanceId = requestedFreeMode?.instanceId ?: targetInstance?.instanceId ?: freeMode.instanceId
+        val targetInstance = instanceId?.let { id -> instances.find { it.instanceId == id } }
+            ?: instances.firstOrNull { Service.fromId(it.serviceId)?.isOnDevice == false }
+            ?: instances.firstOrNull { Service.fromId(it.serviceId)?.isOnDevice == true }
+            ?: return ""
+        val service = Service.fromId(targetInstance.serviceId) ?: return ""
+        val targetInstanceId = targetInstance.instanceId
         val messages = listOf(History(role = History.Role.USER, content = prompt))
         val systemPrompt = getActiveSystemPrompt()
         // Use a local history to avoid polluting the current conversation's chatHistory
@@ -2486,7 +2453,7 @@ class RemoteDataRepository(
     override suspend fun askSilentlyWithInstance(instanceId: String, prompt: String, timeoutMs: Long): String {
         val instance = getConfiguredServiceInstances().find { it.instanceId == instanceId }
             ?: return askSilently(prompt)
-        val service = Service.fromId(instance.serviceId)
+        val service = Service.fromId(instance.serviceId) ?: return ""
         val messages = listOf(History(role = History.Role.USER, content = prompt))
 
         if (service.isOnDevice) {

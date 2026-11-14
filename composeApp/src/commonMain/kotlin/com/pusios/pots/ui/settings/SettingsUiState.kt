@@ -126,7 +126,6 @@ data class SettingsUiState(
     val notificationListenerAccessGranted: Boolean = false,
     val notificationListenerBound: Boolean = false,
     val notificationPendingCount: Int = 0,
-    val isFreeFallbackEnabled: Boolean = true,
     val uiScale: Float = 1.0f,
     val showUiScale: Boolean = false,
     val ttsEngine: com.pusios.pots.data.TtsEngine = com.pusios.pots.data.TtsEngine.Native,

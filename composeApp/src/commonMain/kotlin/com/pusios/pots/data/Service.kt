@@ -1,6 +1,5 @@
 package com.pusios.pots.data
 
-import com.pusios.pots.BuildSecrets
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
 import pots.composeapp.generated.resources.Res
@@ -14,7 +13,6 @@ import pots.composeapp.generated.resources.ic_service_cerebras
 import pots.composeapp.generated.resources.ic_service_deepinfra
 import pots.composeapp.generated.resources.ic_service_deepseek
 import pots.composeapp.generated.resources.ic_service_fireworksai
-import pots.composeapp.generated.resources.ic_service_free_fast
 import pots.composeapp.generated.resources.ic_service_gemini
 import pots.composeapp.generated.resources.ic_service_gptunnel
 import pots.composeapp.generated.resources.ic_service_groqcloud
@@ -29,7 +27,6 @@ import pots.composeapp.generated.resources.ic_service_nvidia
 import pots.composeapp.generated.resources.ic_service_ollamacloud
 import pots.composeapp.generated.resources.ic_service_openai
 import pots.composeapp.generated.resources.ic_service_openai_compatible
-import pots.composeapp.generated.resources.ic_service_opencode
 import pots.composeapp.generated.resources.ic_service_openrouter
 import pots.composeapp.generated.resources.ic_service_perplexity
 import pots.composeapp.generated.resources.ic_service_plusvibe
@@ -40,26 +37,6 @@ import pots.composeapp.generated.resources.ic_service_together
 import pots.composeapp.generated.resources.ic_service_venice
 import pots.composeapp.generated.resources.ic_service_xai
 import pots.composeapp.generated.resources.ic_service_zai
-import pots.composeapp.generated.resources.service_free_fast
-
-/** OpenCode Zen's free model used by the Trial Flash preset. */
-const val OPENCODE_FREE_MODEL_ID = "big-pickle"
-
-const val OPENCODE_CHAT_URL = "https://opencode.ai/zen/v1/chat/completions"
-const val OPENCODE_MODELS_URL = "https://opencode.ai/zen/v1/models"
-
-enum class FreeMode(
-    val modelId: String,
-    val nameRes: StringResource,
-    val icon: DrawableResource,
-    val service: Service,
-    val displayName: String,
-) {
-    FAST(OPENCODE_FREE_MODEL_ID, Res.string.service_free_fast, Res.drawable.ic_service_free_fast, Service.OpenCodeFree, "Trial Flash"),
-    ;
-
-    val instanceId: String get() = "free-$modelId"
-}
 
 data class ModelDefinition(
     val id: String,
@@ -82,10 +59,10 @@ enum class ReasoningRequestMode {
 
     /**
      * Echo `reasoning_content` back on assistant turns that previously produced
-     * `tool_calls`. Truly required by Z.AI Coding Plan, OpenCode Zen (DeepSeek
-     * route), and Moonshot kimi-k2.6 with `thinking.keep="all"`. Accepted as a
-     * documented field by Fireworks, Z.AI standard, and OpenRouter (as an alias
-     * for `reasoning`). Tolerated as an unknown field by LongCat, Venice, MiniMax.
+     * `tool_calls`. Truly required by Z.AI Coding Plan and Moonshot kimi-k2.6 with
+     * `thinking.keep="all"`. Accepted as a documented field by Fireworks, Z.AI standard,
+     * and OpenRouter (as an alias for `reasoning`). Tolerated as an unknown field by
+     * LongCat, Venice, MiniMax.
      *
      * See `docs/features/reasoning.md` for the authoritative per-provider matrix
      * and known fidelity gaps (`reasoning_details`, `<think>`-in-content, paired
@@ -122,40 +99,7 @@ sealed class Service(
     val supportsImages: Boolean = true,
     val reasoningRequestMode: ReasoningRequestMode = ReasoningRequestMode.NONE,
     val apiKeyAuthStyle: ApiKeyAuthStyle = ApiKeyAuthStyle.BEARER,
-    /** A built-in free plan that must never be added as an ordinary configured service. */
-    val isFreeTier: Boolean = false,
-    /**
-     * API key shipped with the build and used when the user has not entered one.
-     *
-     * Only meaningful for services that accept a key without requiring one; see
-     * [supportsOptionalApiKey]. The value comes from the generated `BuildSecrets` object and
-     * is therefore never part of the repository.
-     */
-    val defaultApiKey: String = "",
 ) {
-    /**
-     * OpenCode Zen's free tier. The official client authenticates its free models with the
-     * literal key `public` and identifies itself with the `x-opencode-*` harness headers.
-     * A user-supplied key still wins, so a personal OpenCode key can be used here too.
-     */
-    data object OpenCodeFree : Service(
-        id = "opencode-free",
-        displayName = "OpenCode Free",
-        icon = Res.drawable.ic_service_opencode,
-        requiresApiKey = false,
-        supportsOptionalApiKey = true,
-        defaultModel = OPENCODE_FREE_MODEL_ID,
-        settingsKeyPrefix = "opencode-free",
-        defaultModels = listOf(ModelDefinition(id = OPENCODE_FREE_MODEL_ID, subtitle = "OpenCode Zen")),
-        chatUrl = OPENCODE_CHAT_URL,
-        modelsUrl = OPENCODE_MODELS_URL,
-        apiKeyUrl = "https://opencode.ai/docs/zen/",
-        apiKeyUrlDisplay = "opencode.ai/docs/zen",
-        reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
-        defaultApiKey = "public",
-        isFreeTier = true,
-    )
-
     data object Polza : Service(
         id = "polza",
         displayName = "Polza.ai",
@@ -268,7 +212,6 @@ sealed class Service(
     companion object {
         /** Providers offered in the RF build. */
         val all: List<Service> get() = listOf(
-            OpenCodeFree,
             Polza,
             Gptunnel,
             AiTunnel,
@@ -292,7 +235,8 @@ sealed class Service(
             .let { url -> if (url.endsWith(OpenAICompatible.chatUrl, ignoreCase = true)) url.dropLast(OpenAICompatible.chatUrl.length) else url }
             .trimEnd('/')
 
-        fun fromId(id: String): Service = all.find { it.id == id } ?: OpenCodeFree
+        /** Resolves a stored provider id; ids of removed or unknown providers yield null. */
+        fun fromId(id: String): Service? = all.find { it.id == id }
 
         // Compatibility aliases for possible naming variants.
         val PlusVibePrimary = PlusVibe

@@ -158,7 +158,7 @@ private fun ServiceMenuItem(
                 style = MaterialTheme.typography.bodyMedium,
                 color = textColor,
             )
-            if (entry.showModelId && entry.modelId.isNotEmpty()) {
+            if (entry.modelId.isNotEmpty()) {
                 Text(
                     text = entry.modelId,
                     style = MaterialTheme.typography.bodySmall,

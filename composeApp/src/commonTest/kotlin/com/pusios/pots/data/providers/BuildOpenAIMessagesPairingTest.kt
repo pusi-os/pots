@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * End-to-end guard for the OpenCode/DeepSeek tool-call crash:
+ * End-to-end guard for the DeepSeek-style tool-call crash:
  * "An assistant message with 'tool_calls' must be followed by tool messages responding to each
  * 'tool_call_id'."
  *
@@ -40,9 +40,9 @@ class BuildOpenAIMessagesPairingTest {
 
     @Test
     fun `orphaned assistant tool-call turn from a prior interrupted run is repaired`() {
-        // History as it would be left after OpenCode produced tool calls but the loop never
-        // appended the results (e.g. it failed over to OpenRouter mid-turn), then the user sends
-        // another message.
+        // History as it would be left after a provider produced tool calls but the loop never
+        // appended the results (e.g. it failed over to another service mid-turn), then the user
+        // sends another message.
         val history = listOf(
             History(role = History.Role.USER, content = "make me an image"),
             History(
@@ -57,7 +57,7 @@ class BuildOpenAIMessagesPairingTest {
             History(role = History.Role.USER, content = "try to make tool_calls"),
         )
 
-        val messages = buildOpenAIMessages(Service.OpenCodeFree, history, systemPrompt = "be helpful", modelId = "test-model")
+        val messages = buildOpenAIMessages(Service.Polza, history, systemPrompt = "be helpful", modelId = "test-model")
 
         assertNoDanglingToolCalls(messages)
         // The dangling tool_calls are stripped; the assistant text survives.
@@ -82,7 +82,7 @@ class BuildOpenAIMessagesPairingTest {
             History(role = History.Role.ASSISTANT, content = "Done, pushed to your device."),
         )
 
-        val messages = buildOpenAIMessages(Service.OpenCodeFree, history, systemPrompt = null, modelId = "test-model")
+        val messages = buildOpenAIMessages(Service.Polza, history, systemPrompt = null, modelId = "test-model")
 
         assertNoDanglingToolCalls(messages)
         val toolCallTurn = messages.single { it.role == "assistant" && !it.tool_calls.isNullOrEmpty() }

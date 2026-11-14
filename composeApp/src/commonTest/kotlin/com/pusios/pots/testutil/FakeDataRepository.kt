@@ -8,7 +8,6 @@ import com.pusios.pots.data.DataRepository
 import com.pusios.pots.data.EmailAccount
 import com.pusios.pots.data.EmailSyncState
 import com.pusios.pots.data.FallbackStatus
-import com.pusios.pots.data.FreeMode
 import com.pusios.pots.data.HeartbeatConfig
 import com.pusios.pots.data.HeartbeatLogEntry
 import com.pusios.pots.data.ImportSection
@@ -45,7 +44,7 @@ import kotlinx.coroutines.flow.update
 
 class FakeDataRepository : DataRepository {
 
-    private var currentService: Service = Service.OpenCodeFree
+    private var currentService: Service? = null
 
     override val chatHistory: MutableStateFlow<List<History>> = MutableStateFlow(emptyList())
     override val agentProfiles: MutableStateFlow<List<AgentProfile>> = MutableStateFlow(listOf(AgentProfile(id = "default", name = "Потсик")))
@@ -89,7 +88,6 @@ class FakeDataRepository : DataRepository {
         }
         val instance = ServiceInstance(instanceId = instanceId, serviceId = serviceId)
         configuredInstances.add(instance)
-        freeServicePrimary = false
         return instance
     }
 
@@ -107,31 +105,43 @@ class FakeDataRepository : DataRepository {
         configuredInstances.addAll(reordered)
     }
 
-    var fakeServiceEntries: List<ServiceEntry> = emptyList()
+    /** Explicit override; null derives entries from [configuredInstances] like the real repository. */
+    var fakeServiceEntries: List<ServiceEntry>? = null
+
     override fun getServiceEntries(): List<ServiceEntry> = fakeServiceEntries
+        ?: configuredInstances.mapNotNull { instance ->
+            val service = Service.fromId(instance.serviceId) ?: return@mapNotNull null
+            ServiceEntry(
+                instanceId = instance.instanceId,
+                serviceId = service.id,
+                serviceName = service.displayName,
+                modelId = instanceModels[instance.instanceId]?.value?.firstOrNull { it.isSelected }?.id.orEmpty(),
+                icon = service.icon,
+            )
+        }
 
-    private var freeFallbackEnabled = true
+    private var onboardingDone = false
 
-    override fun isFreeFallbackEnabled(): Boolean = freeFallbackEnabled
+    override fun isOnboardingDone(): Boolean = onboardingDone
 
-    override fun setFreeFallbackEnabled(enabled: Boolean) {
-        freeFallbackEnabled = enabled
+    override fun setOnboardingDone(done: Boolean) {
+        onboardingDone = done
     }
 
-    private var freeMode = FreeMode.FAST
+    private var onboardingStep = 1
 
-    override fun getFreeMode(): FreeMode = freeMode
+    override fun getOnboardingStep(): Int = onboardingStep
 
-    override fun setFreeMode(mode: FreeMode) {
-        freeMode = mode
+    override fun setOnboardingStep(step: Int) {
+        onboardingStep = step
     }
 
-    private var freeServicePrimary = false
+    private var onboardingFinishedStep = false
 
-    override fun isFreeServicePrimary(): Boolean = freeServicePrimary
+    override fun isOnboardingFinishedStep(): Boolean = onboardingFinishedStep
 
-    override fun setFreeServicePrimary(primary: Boolean) {
-        freeServicePrimary = primary
+    override fun setOnboardingFinishedStep(finished: Boolean) {
+        onboardingFinishedStep = finished
     }
 
     // Per-instance settings
@@ -188,8 +198,10 @@ class FakeDataRepository : DataRepository {
         instanceModels[instanceId]?.value = emptyList()
     }
 
+    var validateConnectionException: Exception? = null
+
     override suspend fun validateConnection(service: Service, instanceId: String) {
-        // No-op in tests
+        validateConnectionException?.let { throw it }
     }
 
     fun setConfiguredServices(vararg services: Service) {
@@ -241,9 +253,8 @@ class FakeDataRepository : DataRepository {
         chatHistory.value = emptyList()
     }
 
-    override fun currentService(): Service = currentService
+    override fun currentService(): Service? = currentService
 
-    override fun isUsingSharedKey(): Boolean = currentService.isFreeTier
     override fun supportedFileExtensions(): List<String> = if (fileAttachmentSupported) listOf("txt", "pdf", "png") else emptyList()
 
     var fileAttachmentSupported = true

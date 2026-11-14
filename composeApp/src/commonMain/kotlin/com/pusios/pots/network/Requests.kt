@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalUuidApi::class)
-
 package com.pusios.pots.network
 
 import com.pusios.pots.Version
@@ -56,8 +54,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration.Companion.seconds
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 data class ServiceCredentials(
     val apiKey: String = "",
@@ -75,36 +71,6 @@ private fun HttpRequestBuilder.applyTimeout(requestTimeoutMs: Long?) {
 }
 
 /**
- * Session id for provider requests that belong to no conversation — the model list, and the
- * silent asks that run before a chat exists. Stable for the lifetime of the process.
- */
-private val processSessionId: String by lazy { Uuid.random().toString() }
-
-/**
- * OpenCode identifies the calling client by an `x-opencode-session` header and rejects
- * requests that omit it. One id per conversation, so a whole chat reads as a single session
- * upstream; [sessionId] is the conversation id, or null for requests outside any conversation.
- * An OpenAI-Compatible instance pointed at `opencode.ai` (e.g. the OpenCode Go gateway) gets the
- * header too. No other provider is sent a session header.
- */
-internal fun sessionHeadersFor(service: Service, sessionId: String?, baseUrl: String = ""): Map<String, String> = if (
-    service == Service.OpenCodeFree ||
-    (service == Service.OpenAICompatible && baseUrl.contains("opencode.ai", ignoreCase = true))
-) {
-    // Mirror the official OpenCode harness. Zen requires the session id; the remaining
-    // headers identify the client/project and keep free-tier accounting consistent.
-    mapOf(
-        "x-opencode-session" to (sessionId?.takeIf { it.isNotBlank() } ?: processSessionId),
-        "x-opencode-client" to "cli",
-        "x-opencode-project" to "global",
-        "HTTP-Referer" to "https://opencode.ai/",
-        "X-Title" to "opencode",
-    )
-} else {
-    emptyMap()
-}
-
-/**
  * 413 is also how token-per-minute caps reject an oversized prompt (Groq's free tier answers
  * "Request too large for model … on tokens per minute"), so the provider's own message is shown
  * unless it is missing or actually about an image.
@@ -113,10 +79,6 @@ internal fun requestTooLargeException(service: Service, detail: String?): OpenAI
     OpenAICompatibleRequestTooLargeException()
 } else {
     OpenAICompatibleGenericException("${service.displayName}: $detail")
-}
-
-private fun HttpRequestBuilder.applySessionHeader(service: Service, credentials: ServiceCredentials, sessionId: String?) {
-    sessionHeadersFor(service, sessionId, credentials.baseUrl).forEach { (k, v) -> header(k, v) }
 }
 
 private fun HttpRequestBuilder.applyApiKey(service: Service, apiKey: String?) {
@@ -208,7 +170,6 @@ class Requests {
                 applyTimeout(requestTimeoutMs)
                 contentType(ContentType.Application.Json)
                 applyApiKey(service, apiKey)
-                applySessionHeader(service, credentials, sessionId)
                 customHeaders.forEach { (k, v) -> header(k, v) }
                 setBody(
                     OpenAICompatibleChatRequestDto(
@@ -290,7 +251,6 @@ class Requests {
         val apiKey = getOptionalApiKey(service, credentials)
         val response: HttpResponse = defaultClient.get(url) {
             applyApiKey(service, apiKey)
-            applySessionHeader(service, credentials, sessionId = null)
         }
         if (response.status.isSuccess()) {
             if (service.modelsResponseIsArray) {
