@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -41,8 +42,9 @@ import com.pusios.pots.media.AudioFlow
 import com.pusios.pots.ui.handCursor
 
 /**
- * The studio's top overlay: a glass capsule with four compact icon buttons
- * (recenter canvas, import a file, pick a model, generation journal),
+ * The studio's top overlay: a glass capsule with compact icon buttons
+ * (recenter canvas, import a file, pick a model, generation journal, and —
+ * where local video processing exists — the sequence assembly sheet),
  * and a second row beneath it with the image/video switch, the current model,
  * the aspect ratio (images) and the generation parameters such as resolution.
  *
@@ -67,6 +69,8 @@ internal fun MediaStudioTopBar(
     currentModelLabel: String?,
     audioFlow: AudioFlow = AudioFlow.Tts,
     onSelectAudioFlow: (AudioFlow) -> Unit = {},
+    showSequence: Boolean = false,
+    onOpenSequence: () -> Unit = {},
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
@@ -84,6 +88,9 @@ internal fun MediaStudioTopBar(
                 TopBarIconButton(Icons.Filled.Brush, "Рисовать на канвасе", onDraw)
                 TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)
                 TopBarIconButton(Icons.Filled.History, "Журнал генераций", onOpenHistory, badge = historyBadge)
+                if (showSequence) {
+                    TopBarIconButton(Icons.Filled.Theaters, "Собрать видео из последовательности", onOpenSequence)
+                }
             }
         }
 

@@ -24,6 +24,8 @@ import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.MediaVoice
 import com.pusios.pots.media.PlusVibeMediaProvider
 import com.pusios.pots.media.PromptEnhancer
+import com.pusios.pots.media.SequenceClip
+import com.pusios.pots.media.SequenceTransition
 import com.pusios.pots.media.VoiceException
 import com.pusios.pots.media.VoiceLevel
 import com.pusios.pots.media.applyMediaOptDefaults
@@ -44,6 +46,9 @@ import com.pusios.pots.media.getMediaQuality
 import com.pusios.pots.media.isKnownLocalTtsId
 import com.pusios.pots.media.isLocalTts
 import com.pusios.pots.media.isLocalTtsId
+import com.pusios.pots.media.sequenceAdd
+import com.pusios.pots.media.sequenceMove
+import com.pusios.pots.media.sequenceRemoveAt
 import com.pusios.pots.media.setInstanceMediaAudioMusicModelId
 import com.pusios.pots.media.setInstanceMediaAudioTtsModelId
 import com.pusios.pots.media.setInstanceMediaImageModelId
@@ -161,6 +166,10 @@ class MediaStudioViewModel(
     /** True while `POST /api/media/voices` is in flight. */
     private val _isCreatingVoice = MutableStateFlow(false)
     val isCreatingVoice: StateFlow<Boolean> = _isCreatingVoice.asStateFlow()
+
+    /** Assembly sequence (spec §7): in-memory, rebuilt by the sequence sheet. */
+    private val _sequence = MutableStateFlow(MediaSequenceState())
+    val sequence: StateFlow<MediaSequenceState> = _sequence.asStateFlow()
 
     fun consumeFinished() {
         _justFinished.value = null
@@ -927,6 +936,108 @@ class MediaStudioViewModel(
         importFromGallery(relativePath, isVideo = true)
         MediaLog.d("Video edit saved: $relativePath")
         return true
+    }
+
+    // -- Video sequence assembly (spec §7) -----------------------------------
+
+    /** Appends a canvas element to the sequence; video durations are probed by the sheet. */
+    fun addSequenceClip(element: CanvasElement, durationMs: Long): Boolean {
+        val relPath = element.localPath ?: return false
+        if (element.isAudio) return false
+        val clip = SequenceClip(elementId = element.id, relPath = relPath, isVideo = element.isVideo, durationMs = durationMs)
+        _sequence.update { state ->
+            val (clips, transitions) = sequenceAdd(state.clips, state.transitions, clip)
+            MediaSequenceState(clips, transitions)
+        }
+        return true
+    }
+
+    fun removeSequenceClip(index: Int) = _sequence.update { state ->
+        val (clips, transitions) = sequenceRemoveAt(state.clips, state.transitions, index)
+        MediaSequenceState(clips, transitions)
+    }
+
+    fun moveSequenceClip(from: Int, to: Int) = _sequence.update { state ->
+        val (clips, transitions) = sequenceMove(state.clips, state.transitions, from, to)
+        MediaSequenceState(clips, transitions)
+    }
+
+    /** Image clips change screen time; video clips always play full length. */
+    fun setSequenceClipDuration(index: Int, durationMs: Long) = _sequence.update { state ->
+        state.copy(
+            clips = state.clips.mapIndexed { i, clip ->
+                if (i == index && !clip.isVideo) clip.copy(durationMs = durationMs) else clip
+            },
+        )
+    }
+
+    fun setSequenceTransition(index: Int, transition: SequenceTransition) = _sequence.update { state ->
+        state.copy(transitions = state.transitions.mapIndexed { i, current -> if (i == index) transition else current })
+    }
+
+    fun clearSequence() {
+        _sequence.value = MediaSequenceState()
+    }
+
+    /**
+     * Result of a local assembly (the §7 export): the file is already under
+     * `media/edits/`, the journal gets a «локально» 0 ₽ entry persisted once
+     * in its terminal state (the local-TTS precedent), and the clip lands on
+     * the canvas. Returns false when the path is unexpected.
+     */
+    fun addAssembledVideoElement(
+        relPath: String,
+        clipCount: Int,
+        durationMs: Long,
+        withAudio: Boolean,
+        withSubtitles: Boolean,
+    ): Boolean {
+        if (!relPath.startsWith("media/edits/")) {
+            MediaLog.e("Sequence export refused: unexpected path $relPath")
+            return false
+        }
+        val localId = Uuid.random().toString()
+        history.upsert(
+            MediaHistoryEntry(
+                localId = localId,
+                createdAtMs = kotlin.time.Clock.System.now().toEpochMilliseconds(),
+                isVideo = true,
+                model = "video-assembly",
+                provider = LOCAL_TTS_PROVIDER_MARK,
+                prompt = "Сборка видео из $clipCount клипов · ${durationMs / 1000} с" +
+                    (if (withSubtitles) " · субтитры" else "") +
+                    (if (withAudio) " · звук" else ""),
+                opts = mapOf(
+                    "clips" to clipCount.toString(),
+                    "duration_ms" to durationMs.toString(),
+                    "audio" to withAudio.toString(),
+                    "subtitles" to withSubtitles.toString(),
+                ),
+                status = MediaHistoryStatus.Success,
+                localPath = relPath,
+                priceRub = 0.0,
+            ),
+        )
+        importFromGallery(relPath, isVideo = true)
+        MediaLog.d("Video sequence assembled: $relPath ($clipCount clips)")
+        return true
+    }
+
+    /** Failed assemblies also land in the journal — the local-TTS honesty precedent. */
+    fun recordAssemblyFailure(clipCount: Int, reason: String) {
+        history.upsert(
+            MediaHistoryEntry(
+                localId = Uuid.random().toString(),
+                createdAtMs = kotlin.time.Clock.System.now().toEpochMilliseconds(),
+                isVideo = true,
+                model = "video-assembly",
+                provider = LOCAL_TTS_PROVIDER_MARK,
+                prompt = "Сборка видео из $clipCount клипов",
+                status = MediaHistoryStatus.Failed,
+                failMsg = "Не удалось собрать видео. $reason",
+                priceRub = 0.0,
+            ),
+        )
     }
 
     /** Save a canvas element to the device gallery via platform writer. */

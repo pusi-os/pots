@@ -79,15 +79,15 @@ fun atempoChain(factor: Float): List<Float> {
     return chain
 }
 
-/** Encode settings shared by every re-encoding command (trim, speed). */
-private fun videoEncodeFlags(hasAudio: Boolean): List<String> = buildList {
+/** Encode settings shared by every re-encoding command (trim, speed, sequence). */
+internal fun videoEncodeFlags(hasAudio: Boolean): List<String> = buildList {
     addAll(listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"))
     if (hasAudio) addAll(listOf("-c:a", "aac", "-b:a", "192k")) else add("-an")
     addAll(listOf("-movflags", "+faststart"))
 }
 
 /** Quiet, overwrite-friendly prefix shared by every ffmpeg command. */
-private val FFMPEG_PREFIX = listOf("ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats", "-y")
+internal val FFMPEG_PREFIX = listOf("ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats", "-y")
 
 /**
  * Frame-accurate trim: fast seek before `-i`, re-encode, cut exactly
@@ -198,6 +198,9 @@ interface VideoProcessor {
 
     /** Swaps the soundtrack for [audioRelPath]; returns the new file's relative path. */
     suspend fun replaceAudio(inputRelPath: String, audioRelPath: String, info: VideoFileInfo, onProgress: VideoEditProgress): String
+
+    /** Assembles the sequence into one clip; returns the new file's relative path. */
+    suspend fun assembleSequence(request: SequenceAssemblyRequest, onProgress: VideoEditProgress): String
 }
 
 expect fun createVideoProcessor(): VideoProcessor
@@ -255,6 +258,13 @@ sealed class VideoEditException(
             "Пустой диапазон",
             "Сдвиньте ручки начала и конца так, чтобы между ними остался отрезок, — тогда обрезке будет что вырезать.",
             "Изменить выделение",
+        )
+
+    class EmptySequence :
+        VideoEditException(
+            "Пустая последовательность",
+            "Добавьте хотя бы один фото- или видео-элемент — тогда сборке будет из чего монтировать ролик.",
+            "Добавить элементы",
         )
 
     class BadSpeed(factor: Float) :

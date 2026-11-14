@@ -494,7 +494,7 @@ private fun BoxScope.VideoTrimHandle(
 
 /** §8 error card: Russian title, human detail, rescue button. */
 @Composable
-private fun VideoEditErrorCard(
+internal fun VideoEditErrorCard(
     error: VideoEditException,
     onFix: (() -> Unit)?,
     fixLabel: String?,

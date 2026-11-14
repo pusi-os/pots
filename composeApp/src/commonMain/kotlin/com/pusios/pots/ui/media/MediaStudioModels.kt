@@ -2,6 +2,8 @@ package com.pusios.pots.ui.media
 
 import androidx.compose.runtime.Immutable
 import com.pusios.pots.media.AudioFlow
+import com.pusios.pots.media.SequenceClip
+import com.pusios.pots.media.SequenceTransition
 
 /** Studio generation mode; drives chips, the model sheet and the dock. */
 enum class MediaMode {
@@ -51,3 +53,14 @@ enum class CanvasAction {
     UseAsReference,
     ClearSelection,
 }
+
+/**
+ * The assembly sequence (spec §7): clips in playback order plus one
+ * transition per gap. Lives in memory — the §12 project autosave is a
+ * later version, the same honesty as the other editors.
+ */
+@Immutable
+data class MediaSequenceState(
+    val clips: List<SequenceClip> = emptyList(),
+    val transitions: List<SequenceTransition> = emptyList(),
+)

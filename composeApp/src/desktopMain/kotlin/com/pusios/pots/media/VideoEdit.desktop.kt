@@ -155,6 +155,63 @@ private class DesktopVideoProcessor : VideoProcessor {
         if (!input.isFile) throw VideoEditException.SourceMissing()
         val args = withBinary(buildArgs(input.path, output.path), ffmpeg)
 
+        executeFfmpeg(args, expectedDurationMs, onProgress, output)
+        MediaLog.d("Video edit rendered: $outputRel (${output.length()} bytes)")
+        outputRel
+    }
+
+    override suspend fun assembleSequence(request: SequenceAssemblyRequest, onProgress: VideoEditProgress): String = withContext(Dispatchers.IO) {
+        val ffmpeg = findFfmpeg() ?: throw VideoEditException.ToolMissing()
+        if (request.clips.isEmpty()) throw VideoEditException.EmptySequence()
+
+        val inputs = request.clips.map { clip ->
+            val file = absoluteStoragePath(clip.relPath)
+            if (!file.isFile) throw VideoEditException.SourceMissing()
+            SequenceInput(file.path, clip.isVideo, clip.durationMs)
+        }
+        val audioFile = request.audioRelPath?.let { rel ->
+            val file = absoluteStoragePath(rel)
+            if (!file.isFile) throw VideoEditException.SourceMissing()
+            file
+        }
+
+        val junctions = resolveSequenceJunctions(request.clips, request.transitions)
+        val totalMs = sequenceDurationMs(request.clips, request.transitions)
+        val cues = request.subtitleText?.let { splitSubtitleCues(it, totalMs) }.orEmpty()
+        val srtFile = if (cues.isNotEmpty()) File.createTempFile("pots-sequence", ".srt") else null
+        srtFile?.writeText(subtitleCuesToSrt(cues))
+
+        @OptIn(ExperimentalUuidApi::class)
+        val outputRel = "media/edits/${Uuid.random()}.mp4"
+        val output = absoluteStoragePath(outputRel)
+        output.parentFile?.mkdirs()
+
+        val spec = SequenceRenderSpec(
+            inputs = inputs,
+            junctions = junctions,
+            totalDurationMs = totalMs,
+            width = request.width,
+            height = request.height,
+            fps = request.fps,
+            audioPath = audioFile?.path,
+            srtPath = srtFile?.path,
+        )
+        try {
+            executeFfmpeg(withBinary(ffmpegSequenceArgs(spec, output.path), ffmpeg), totalMs, onProgress, output)
+            MediaLog.d("Sequence assembled: $outputRel (${output.length()} bytes, ${request.clips.size} clips)")
+            outputRel
+        } finally {
+            srtFile?.delete()
+        }
+    }
+
+    /**
+     * Runs one prepared ffmpeg command: `-progress pipe:1` lines stream
+     * through [onProgress] (false cancels by destroying the process), stderr
+     * lands in a temp file whose tail feeds the §8 card. Verifies the output
+     * file exists and is non-empty.
+     */
+    private fun executeFfmpeg(args: List<String>, expectedDurationMs: Long, onProgress: VideoEditProgress, output: File) {
         val stderrFile = File.createTempFile("pots-video-edit", ".stderr")
         val process = ProcessBuilder(args).redirectError(stderrFile).start()
         try {
@@ -178,8 +235,6 @@ private class DesktopVideoProcessor : VideoProcessor {
             if (!output.isFile || output.length() == 0L) {
                 throw VideoEditException.ExportFailed("итоговый файл не появился")
             }
-            MediaLog.d("Video edit rendered: $outputRel (${output.length()} bytes)")
-            outputRel
         } catch (e: CancellationException) {
             process.destroy()
             throw e

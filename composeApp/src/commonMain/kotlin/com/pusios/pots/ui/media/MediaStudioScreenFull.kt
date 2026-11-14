@@ -55,6 +55,7 @@ import com.pusios.pots.media.mediaToolbarParams
 import com.pusios.pots.media.qualityOptionLabel
 import com.pusios.pots.media.qualityPriceInfo
 import com.pusios.pots.media.qualitySelectorAxis
+import com.pusios.pots.media.videoEditingPlatformSupported
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.saveFileToDevice
 import com.pusios.pots.ui.handCursor
@@ -148,6 +149,8 @@ fun MediaStudioScreenFull(
     var drawElement by remember { mutableStateOf<CanvasElement?>(null) }
     var editImageElement by remember { mutableStateOf<CanvasElement?>(null) }
     var editVideoElement by remember { mutableStateOf<CanvasElement?>(null) }
+    var sequenceOpen by remember { mutableStateOf(false) }
+    val sequenceState by viewModel.sequence.collectAsState()
 
     val pending = jobs.values.filter { !it.isTerminal }
     val imageModels = models.filter { it.kind == MediaKind.Image }
@@ -363,6 +366,8 @@ fun MediaStudioScreenFull(
                 },
                 onOpenModels = { showModelSheet = true },
                 onOpenHistory = { showHistory = true },
+                showSequence = videoEditingPlatformSupported(),
+                onOpenSequence = { sequenceOpen = true },
                 historyBadge = historyEntries.count { it.isActive },
                 mode = mode,
                 onSelectMode = { mode = it },
@@ -607,6 +612,24 @@ fun MediaStudioScreenFull(
             audioElements = elements.filter { it.isAudio },
             onDismiss = { editVideoElement = null },
             onResult = { editedRelPath -> viewModel.addEditedVideoElement(editedRelPath) },
+        )
+    }
+
+    // Video assembly from a sequence (spec §7): desktop-only like the video editor.
+    if (sequenceOpen) {
+        MediaSequenceSheet(
+            state = sequenceState,
+            canvasElements = elements,
+            onAddClip = { element, durationMs -> viewModel.addSequenceClip(element, durationMs) },
+            onRemoveClip = viewModel::removeSequenceClip,
+            onMoveClip = viewModel::moveSequenceClip,
+            onClipDuration = viewModel::setSequenceClipDuration,
+            onTransition = viewModel::setSequenceTransition,
+            onResult = { relPath, clipCount, durationMs, withAudio, withSubtitles ->
+                viewModel.addAssembledVideoElement(relPath, clipCount, durationMs, withAudio, withSubtitles)
+            },
+            onFailure = { clipCount, reason -> viewModel.recordAssemblyFailure(clipCount, reason) },
+            onDismiss = { sequenceOpen = false },
         )
     }
 }
