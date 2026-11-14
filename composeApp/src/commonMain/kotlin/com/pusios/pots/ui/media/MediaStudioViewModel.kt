@@ -914,6 +914,21 @@ class MediaStudioViewModel(
         return true
     }
 
+    /**
+     * Places an edited video result as a new canvas element. The file was
+     * already written by the video processor under `media/edits/`; the source
+     * element is never touched. Returns false when the file is missing.
+     */
+    fun addEditedVideoElement(relativePath: String): Boolean {
+        if (!relativePath.startsWith("media/edits/")) {
+            MediaLog.e("Video edit export refused: unexpected path $relativePath")
+            return false
+        }
+        importFromGallery(relativePath, isVideo = true)
+        MediaLog.d("Video edit saved: $relativePath")
+        return true
+    }
+
     /** Save a canvas element to the device gallery via platform writer. */
     fun exportToGallery(elementId: String) {
         val element = _elements.value.firstOrNull { it.id == elementId } ?: return

@@ -147,6 +147,7 @@ fun MediaStudioScreenFull(
     var drawOpen by remember { mutableStateOf(false) }
     var drawElement by remember { mutableStateOf<CanvasElement?>(null) }
     var editImageElement by remember { mutableStateOf<CanvasElement?>(null) }
+    var editVideoElement by remember { mutableStateOf<CanvasElement?>(null) }
 
     val pending = jobs.values.filter { !it.isTerminal }
     val imageModels = models.filter { it.kind == MediaKind.Image }
@@ -346,6 +347,7 @@ fun MediaStudioScreenFull(
                     drawOpen = true
                 },
                 onEditImage = { element -> editImageElement = element },
+                onEditVideo = { element -> editVideoElement = element },
             )
 
             MediaStudioTopBar(
@@ -596,6 +598,15 @@ fun MediaStudioScreenFull(
             imageElements = elements.filter { !it.isAudio && !it.isVideo && it.id != element.id },
             onDismiss = { editImageElement = null },
             onResult = { pngBytes -> viewModel.addEditedImageElement(pngBytes) },
+        )
+    }
+
+    editVideoElement?.let { element ->
+        MediaVideoEditorSheet(
+            element = element,
+            audioElements = elements.filter { it.isAudio },
+            onDismiss = { editVideoElement = null },
+            onResult = { editedRelPath -> viewModel.addEditedVideoElement(editedRelPath) },
         )
     }
 }

@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.pusios.pots.media.MediaJobState
+import com.pusios.pots.media.videoEditingPlatformSupported
 import com.pusios.pots.ui.handCursor
 import kotlin.math.roundToInt
 
@@ -95,6 +96,7 @@ internal fun MediaCanvas(
     onEditAudio: (CanvasElement) -> Unit,
     onDrawImage: (CanvasElement) -> Unit,
     onEditImage: (CanvasElement) -> Unit,
+    onEditVideo: (CanvasElement) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sorted = elements.sortedBy { it.zIndex }
@@ -129,6 +131,7 @@ internal fun MediaCanvas(
                 onEditAudio = onEditAudio,
                 onDrawImage = onDrawImage,
                 onEditImage = onEditImage,
+                onEditVideo = onEditVideo,
             )
         }
 
@@ -203,6 +206,7 @@ private fun CanvasElementView(
     onEditAudio: (CanvasElement) -> Unit,
     onDrawImage: (CanvasElement) -> Unit,
     onEditImage: (CanvasElement) -> Unit,
+    onEditVideo: (CanvasElement) -> Unit,
 ) {
     val url = element.url
     val local = element.localPath
@@ -293,6 +297,10 @@ private fun CanvasElementView(
                                 // decoded for annotation or pixel editing.
                                 ElementChip(Icons.Filled.Brush, "Карандаш") { onDrawImage(element) }
                                 ElementChip(Icons.Filled.Edit, "Редактировать") { onEditImage(element) }
+                            } else if (videoEditingPlatformSupported()) {
+                                // Video editor (trim/speed/audio track) runs on
+                                // the desktop ffmpeg; other targets never show it.
+                                ElementChip(Icons.Filled.Edit, "Редактировать") { onEditVideo(element) }
                             }
                             ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }
                             ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
