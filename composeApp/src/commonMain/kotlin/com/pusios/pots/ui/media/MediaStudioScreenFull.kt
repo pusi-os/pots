@@ -64,6 +64,7 @@ import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -128,12 +129,15 @@ fun MediaStudioScreenFull(
 
     // Drafts live in the view model (MediaSettings), keyed per mode and audio
     // flow: switching modes/flows or an error never erases them (spec §13, §17).
-    var mode by remember { mutableStateOf(MediaMode.Image) }
+    // Mode and parameter chips live in the view model too (spec §12): the
+    // project snapshot writes the actually selected values, and opening or
+    // importing a project switches them right here in the UI.
+    val mode by viewModel.mode.collectAsState()
     val promptKey = mediaDraftKey(mode, audioFlow)
     val prompt = drafts[promptKey].orEmpty()
     var canvasScale by remember { mutableFloatStateOf(1f) }
     var canvasOffset by remember { mutableStateOf(Offset.Zero) }
-    var params by remember { mutableStateOf(mapOf<String, String>()) }
+    val params by viewModel.params.collectAsState()
     var showModelSheet by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     var showAspectRatio by remember { mutableStateOf(false) }
@@ -150,6 +154,16 @@ fun MediaStudioScreenFull(
     var editImageElement by remember { mutableStateOf<CanvasElement?>(null) }
     var editVideoElement by remember { mutableStateOf<CanvasElement?>(null) }
     var sequenceOpen by remember { mutableStateOf(false) }
+    var showProjects by remember { mutableStateOf(false) }
+    val projects by viewModel.projects.collectAsState()
+    // The «Сохранено» mark (spec §12): appears after any save and fades away
+    // on its own — no user action required.
+    val projectSaved by viewModel.projectSaved.collectAsState()
+    LaunchedEffect(projectSaved) {
+        if (!projectSaved) return@LaunchedEffect
+        delay(2500)
+        viewModel.acknowledgeProjectSaved()
+    }
     var clipTrackElement by remember { mutableStateOf<CanvasElement?>(null) }
     val sequenceState by viewModel.sequence.collectAsState()
 
@@ -203,10 +217,7 @@ fun MediaStudioScreenFull(
     // (stale choice silently rolls back, spec §19.4).
     LaunchedEffect(currentModel?.id, mode) {
         val model = currentModel ?: return@LaunchedEffect
-        val accepted = model.params.map { it.key }.toSet()
-        if (params.keys.any { it !in accepted }) {
-            params = params.filterKeys { it in accepted }
-        }
+        viewModel.pruneParams(model.params.map { it.key }.toSet())
     }
     val aspectRatioDef: MediaParamDef? = if (mode == MediaMode.Image) {
         currentModel
@@ -274,6 +285,15 @@ fun MediaStudioScreenFull(
             if (com.pusios.pots.writeAppStorageBytes(path, bytes)) {
                 viewModel.addReference(MediaReference(localPath = path, isVideo = isVideo))
             }
+        }
+    }
+
+    // Project import (spec §12): a `.potsproj` opens as a new project.
+    val projectPicker = rememberFilePickerLauncher(type = FileKitType.File(extensions = listOf("potsproj"))) { file: PlatformFile? ->
+        file ?: return@rememberFilePickerLauncher
+        scope.launch {
+            val bytes = runCatching { file.readBytes() }.getOrNull()
+            if (bytes == null) viewModel.reportProjectFileUnreadable() else viewModel.importProject(bytes)
         }
     }
 
@@ -368,11 +388,13 @@ fun MediaStudioScreenFull(
                 },
                 onOpenModels = { showModelSheet = true },
                 onOpenHistory = { showHistory = true },
+                onOpenProjects = { showProjects = true },
                 showSequence = videoEditingPlatformSupported(),
                 onOpenSequence = { sequenceOpen = true },
                 historyBadge = historyEntries.count { it.isActive },
                 mode = mode,
-                onSelectMode = { mode = it },
+                onSelectMode = viewModel::selectMode,
+                projectSaved = projectSaved,
                 currentModelLabel = modelChipLabel,
                 aspectRatioLabel = if (mode == MediaMode.Image) aspectRatioDef?.let { def -> params[def.key] ?: def.defaultValue } else null,
                 onOpenAspectRatio = { showAspectRatio = true },
@@ -405,7 +427,7 @@ fun MediaStudioScreenFull(
                                 },
                                 footerNote = priceInfo?.footerNote,
                                 onSelect = { value ->
-                                    params = params + (chip.def.key to value)
+                                    viewModel.setParam(chip.def.key, value)
                                     currentModel?.let { viewModel.selectQuality(it.id, value) }
                                 },
                             )
@@ -414,7 +436,7 @@ fun MediaStudioScreenFull(
                         MediaToolbarChip.Kind.AudioToggle -> {
                             val withSound = (effectiveParams[chip.def.key] ?: chip.def.defaultValue) == "true"
                             MediaChipUi.AudioToggle(chip.def.key, withSound = withSound) {
-                                params = params + (chip.def.key to if (withSound) "false" else "true")
+                                viewModel.setParam(chip.def.key, if (withSound) "false" else "true")
                             }
                         }
                     }
@@ -423,7 +445,7 @@ fun MediaStudioScreenFull(
                 audioFlow = audioFlow,
                 onSelectAudioFlow = { flow ->
                     viewModel.selectAudioFlow(flow)
-                    params = emptyMap()
+                    viewModel.resetParams()
                 },
             )
         }
@@ -440,7 +462,7 @@ fun MediaStudioScreenFull(
             builtInOptions = openCloneAxis.options,
             selected = params[openCloneAxis.key].orEmpty(),
             myVoices = myVoices,
-            onSelect = { params = params + (openCloneAxis.key to it) },
+            onSelect = { viewModel.setParam(openCloneAxis.key, it) },
             onOpenCreate = {
                 openParam = null
                 showVoiceCloneSheet = true
@@ -453,7 +475,7 @@ fun MediaStudioScreenFull(
             title = openSheetDef.label,
             options = openSheetDef.options,
             selected = params[openSheetDef.key] ?: openSheetDef.defaultValue.orEmpty(),
-            onSelect = { params = params + (openSheetDef.key to it) },
+            onSelect = { viewModel.setParam(openSheetDef.key, it) },
             onDismiss = { openParam = null },
         )
     }
@@ -477,7 +499,7 @@ fun MediaStudioScreenFull(
         MediaAspectRatioSheet(
             options = aspectRatioDef.options,
             selected = params[aspectRatioDef.key] ?: aspectRatioDef.defaultValue.orEmpty(),
-            onSelect = { params = params + (aspectRatioDef.key to it) },
+            onSelect = { viewModel.setParam(aspectRatioDef.key, it) },
             onDismiss = { showAspectRatio = false },
         )
     }
@@ -499,15 +521,15 @@ fun MediaStudioScreenFull(
             selectedMusicModelId = selectedMusicModelId,
             onSelectImage = {
                 viewModel.selectImageModel(it)
-                params = emptyMap()
+                viewModel.resetParams()
             },
             onSelectVideo = {
                 viewModel.selectVideoModel(it)
-                params = emptyMap()
+                viewModel.resetParams()
             },
             onSelectAudio = {
                 viewModel.selectAudioModel(it, audioFlow)
-                params = emptyMap()
+                viewModel.resetParams()
             },
             onDismiss = { showModelSheet = false },
         )
@@ -556,6 +578,34 @@ fun MediaStudioScreenFull(
             onPlaceOnCanvas = viewModel::placeOnCanvas,
             onDelete = viewModel::deleteFromHistory,
             onClearFinished = viewModel::clearFinishedHistory,
+        )
+    }
+
+    // Projects (spec §12): save/open/export/import `.potsproj`, local only.
+    if (showProjects) {
+        MediaProjectSheet(
+            projects = projects,
+            onSaveNow = { viewModel.saveProjectNow() },
+            onImport = { projectPicker.launch() },
+            onOpen = { id ->
+                viewModel.openProject(id)
+                showProjects = false
+            },
+            onExport = { id ->
+                scope.launch {
+                    viewModel.exportProject(id)?.let { (name, bytes) ->
+                        saveFileToDevice(bytes, name, "potsproj")
+                    }
+                }
+            },
+            onDelete = { id -> viewModel.deleteProject(id) },
+            onExportCurrent = {
+                scope.launch {
+                    val (name, bytes) = viewModel.exportActiveProject()
+                    saveFileToDevice(bytes, name, "potsproj")
+                }
+            },
+            onDismiss = { showProjects = false },
         )
     }
 

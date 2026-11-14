@@ -9,6 +9,9 @@ import com.pusios.pots.media.AudioFlow
 import com.pusios.pots.media.LOCAL_TTS_PROVIDER_MARK
 import com.pusios.pots.media.LocalTtsSynthesizer
 import com.pusios.pots.media.MAX_INLINE_REFERENCE_BYTES
+import com.pusios.pots.media.MEDIA_PROJECT_SCHEMA_VERSION
+import com.pusios.pots.media.MediaErrorCategory
+import com.pusios.pots.media.MediaErrorInfo
 import com.pusios.pots.media.MediaException
 import com.pusios.pots.media.MediaGenerationRepository
 import com.pusios.pots.media.MediaHistoryEntry
@@ -21,6 +24,14 @@ import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaLog
 import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.MediaPriceTable
+import com.pusios.pots.media.MediaProjectElement
+import com.pusios.pots.media.MediaProjectException
+import com.pusios.pots.media.MediaProjectFile
+import com.pusios.pots.media.MediaProjectMeta
+import com.pusios.pots.media.MediaProjectSequence
+import com.pusios.pots.media.MediaProjectSequenceClip
+import com.pusios.pots.media.MediaProjectSettings
+import com.pusios.pots.media.MediaProjectStore
 import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.MediaVoice
 import com.pusios.pots.media.PlusVibeMediaProvider
@@ -35,7 +46,9 @@ import com.pusios.pots.media.audioFlowModels
 import com.pusios.pots.media.audioFlowModelsWithLocal
 import com.pusios.pots.media.compressReferenceToLimit
 import com.pusios.pots.media.createLocalTtsSynthesizer
+import com.pusios.pots.media.decodeMediaProject
 import com.pusios.pots.media.defaultAudioModel
+import com.pusios.pots.media.encodeMediaProject
 import com.pusios.pots.media.getInstanceMediaAudioModelId
 import com.pusios.pots.media.getInstanceMediaAudioMusicModelId
 import com.pusios.pots.media.getInstanceMediaAudioTtsModelId
@@ -47,6 +60,11 @@ import com.pusios.pots.media.getMediaQuality
 import com.pusios.pots.media.isKnownLocalTtsId
 import com.pusios.pots.media.isLocalTts
 import com.pusios.pots.media.isLocalTtsId
+import com.pusios.pots.media.isNetworkFailure
+import com.pusios.pots.media.mediaErrorInfo
+import com.pusios.pots.media.mediaMissingKeyError
+import com.pusios.pots.media.mediaStorageError
+import com.pusios.pots.media.projectSequenceToClips
 import com.pusios.pots.media.sequenceAdd
 import com.pusios.pots.media.sequenceMove
 import com.pusios.pots.media.sequenceRemoveAt
@@ -62,27 +80,45 @@ import com.pusios.pots.media.userMessageRu
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.saveFileToDevice
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
- * Error shown in the studio snackbar. [isKeyProblem] offers a settings shortcut;
- * [oversizedReferenceIndex] offers compressing that reference in place.
+ * The studio error in the unified §8 shape: [title] is the essence, [detail]
+ * one human sentence of cause, [category] the failure bucket — all built by
+ * `mediaErrorInfo` / its siblings, so the snackbar, the journal and the
+ * editor cards share one pattern (spec §8). [isKeyProblem] offers a settings
+ * shortcut; [oversizedReferenceIndex] offers compressing that reference.
  */
 @Immutable
 data class MediaStudioError(
-    val message: String,
+    val title: String,
+    val detail: String = "",
+    val category: MediaErrorCategory = MediaErrorCategory.Other,
     val isKeyProblem: Boolean = false,
     val oversizedReferenceIndex: Int? = null,
-)
+) {
+    /** The snackbar line: essence plus cause. */
+    val message: String get() = if (detail.isBlank()) title else "$title. $detail"
+
+    companion object {
+        fun fromInfo(info: MediaErrorInfo): MediaStudioError = MediaStudioError(info.title, info.detail, info.category, info.keyProblem)
+    }
+}
 
 private data class PendingGeneration(val prompt: String, val opts: Map<String, String>, val kind: MediaKind)
 
@@ -168,9 +204,53 @@ class MediaStudioViewModel(
     private val _isCreatingVoice = MutableStateFlow(false)
     val isCreatingVoice: StateFlow<Boolean> = _isCreatingVoice.asStateFlow()
 
-    /** Assembly sequence (spec §7): in-memory, rebuilt by the sequence sheet. */
+    /** Assembly sequence (spec §7): persisted by the project autosave (§12). */
     private val _sequence = MutableStateFlow(MediaSequenceState())
     val sequence: StateFlow<MediaSequenceState> = _sequence.asStateFlow()
+
+    /** Studio mode: drives chips and the dock; part of the project snapshot (spec §12). */
+    private val _mode = MutableStateFlow(MediaMode.Image)
+    val mode: StateFlow<MediaMode> = _mode.asStateFlow()
+
+    fun selectMode(newMode: MediaMode) {
+        _mode.value = newMode
+    }
+
+    /** Current parameter chips; part of the project snapshot (spec §12). */
+    private val _params = MutableStateFlow<Map<String, String>>(emptyMap())
+    val params: StateFlow<Map<String, String>> = _params.asStateFlow()
+
+    fun setParam(key: String, value: String) = _params.update { it + (key to value) }
+
+    fun resetParams() {
+        _params.value = emptyMap()
+    }
+
+    /** Drops selections the current model does not accept (spec §19.4 silent rollback). */
+    fun pruneParams(acceptedKeys: Set<String>) = _params.update { current ->
+        if (current.keys.any { it !in acceptedKeys }) current.filterKeys { it in acceptedKeys } else current
+    }
+
+    // -- Projects (spec §12): autosave, manual save, import, export ------------
+
+    private val projectStore = MediaProjectStore()
+
+    /** Named projects for the «Проекты» sheet, newest first. */
+    private val _projects = MutableStateFlow<List<MediaProjectMeta>>(emptyList())
+    val projects: StateFlow<List<MediaProjectMeta>> = _projects.asStateFlow()
+
+    /** «Сохранено» mark in the top capsule: on after a write, off on the next change. */
+    private val _projectSaved = MutableStateFlow(false)
+    val projectSaved: StateFlow<Boolean> = _projectSaved.asStateFlow()
+
+    /** The UI fades the «Сохранено» mark a moment after it appears. */
+    fun acknowledgeProjectSaved() {
+        _projectSaved.value = false
+    }
+
+    private var activeProjectName = defaultProjectName(nowMs())
+    private var activeProjectCreatedAtMs = nowMs()
+    private var autosaveStarted = false
 
     fun consumeFinished() {
         _justFinished.value = null
@@ -192,6 +272,9 @@ class MediaStudioViewModel(
             }
         }
         loadModels()
+        refreshProjects()
+        restoreActiveProject()
+        startAutosave()
     }
 
     fun loadModels() {
@@ -269,11 +352,13 @@ class MediaStudioViewModel(
         val model = resolveModel(kind, instanceId)
         if (model == null) {
             _error.value = MediaStudioError(
+                "Нет доступной модели",
                 when (kind) {
-                    MediaKind.Image -> "Нет доступной модели изображения — обнови каталог"
-                    MediaKind.Video -> "Нет доступной модели видео — обнови каталог"
-                    else -> "Нет доступной аудио-модели — обнови каталог"
+                    MediaKind.Image -> "Каталог не вернул модель изображения. Обновите каталог и попробуйте снова."
+                    MediaKind.Video -> "Каталог не вернул модель видео. Обновите каталог и попробуйте снова."
+                    else -> "Каталог не вернул аудио-модель. Обновите каталог и попробуйте снова."
                 },
+                MediaErrorCategory.Provider,
             )
             MediaLog.w("Generate refused: no $kind model available")
             return
@@ -285,10 +370,7 @@ class MediaStudioViewModel(
         }
         val key = apiKeyProvider()
         if (key.isBlank()) {
-            _error.value = MediaStudioError(
-                "Нет API-ключа сервиса — добавь его в настройках сервисов",
-                isKeyProblem = true,
-            )
+            _error.value = MediaStudioError.fromInfo(mediaMissingKeyError())
             MediaLog.w("Generate refused: no API key configured")
             return
         }
@@ -336,7 +418,9 @@ class MediaStudioViewModel(
             MediaLog.w("Reference ${oversized + 1} exceeds $MAX_INLINE_REFERENCE_BYTES bytes")
             history.remove(localId)
             _error.value = MediaStudioError(
-                "Референс ${oversized + 1} больше 8 МБ — сожми его, чтобы отправить",
+                "Референс слишком большой",
+                "Референс ${oversized + 1} больше 8 МБ. Сожмите его, чтобы отправить.",
+                MediaErrorCategory.File,
                 oversizedReferenceIndex = oversized,
             )
             return
@@ -369,9 +453,9 @@ class MediaStudioViewModel(
         }
     }
 
-    private fun journalFailureText(error: Throwable): String = when (error) {
-        is MediaException -> error.userMessageRu()
-        else -> "Не удалось отправить запрос. Повтори — ключ защищает от двойного списания."
+    private fun journalFailureText(error: Throwable): String {
+        val info = mediaErrorInfo(error)
+        return "${info.title}. ${info.detail}"
     }
 
     /**
@@ -384,7 +468,11 @@ class MediaStudioViewModel(
         if (_isLocalSynthesizing.value) return
         val synthesizer = createLocalTtsSynthesizer(model.id)
         if (synthesizer == null) {
-            _error.value = MediaStudioError("Локальный синтез недоступен на этой платформе")
+            _error.value = MediaStudioError(
+                "Локальный синтез недоступен",
+                "Эта платформа не умеет синтезировать речь в файл.",
+                MediaErrorCategory.Other,
+            )
             return
         }
         val speed = opts["speed"]?.toFloatOrNull() ?: 1f
@@ -413,7 +501,11 @@ class MediaStudioViewModel(
                         failMsg = "Не удалось синтезировать речь локально. Проверь голоса устройства и попробуй ещё раз.",
                     ),
                 )
-                _error.value = MediaStudioError("Не удалось синтезировать речь локально")
+                _error.value = MediaStudioError(
+                    "Не удалось синтезировать речь",
+                    "Проверьте голоса устройства и попробуйте ещё раз.",
+                    MediaErrorCategory.Other,
+                )
                 return@launch
             }
             history.upsert(
@@ -451,7 +543,7 @@ class MediaStudioViewModel(
         }
         val key = apiKeyProvider()
         if (key.isBlank()) {
-            _error.value = MediaStudioError("Нет API-ключа сервиса — добавь его в настройках сервисов", isKeyProblem = true)
+            _error.value = MediaStudioError.fromInfo(mediaMissingKeyError())
             return
         }
         val reuseKey = source.canRetrySubmit
@@ -487,7 +579,11 @@ class MediaStudioViewModel(
             val bytes = entry.localPath?.let { withContext(Dispatchers.Default) { readAppStorageBytes(it) } }
                 ?: entry.resultUrl?.let { runCatching { repository.download(apiKeyProvider(), it) }.getOrNull() }
             if (bytes == null) {
-                _error.value = MediaStudioError("Файл ещё не скачан — попробуй через минуту")
+                _error.value = MediaStudioError(
+                    "Файл ещё не скачан",
+                    "Результат не сохранился локально. Попробуйте через минуту.",
+                    MediaErrorCategory.File,
+                )
                 return@launch
             }
             saveFileToDevice(bytes, "pots-${entry.localId.take(8)}", galleryExtension(entry.localPath, entry.isVideo, entry.isAudio))
@@ -541,12 +637,16 @@ class MediaStudioViewModel(
             val compressed = source?.let { withContext(Dispatchers.Default) { compressReferenceToLimit(it) } }
             if (source == null || compressed == null) {
                 MediaLog.w("Reference ${index + 1} compression failed")
-                _error.value = MediaStudioError("Не удалось сжать референс до 8 МБ — выбери файл поменьше")
+                _error.value = MediaStudioError(
+                    "Не удалось сжать референс",
+                    "Файл всё ещё больше 8 МБ. Выберите файл поменьше.",
+                    MediaErrorCategory.File,
+                )
                 return@launch
             }
             val newPath = "media/refs/${Uuid.random()}.jpg"
             if (!com.pusios.pots.writeAppStorageBytes(newPath, compressed)) {
-                _error.value = MediaStudioError("Не удалось сохранить сжатый референс")
+                _error.value = MediaStudioError.fromInfo(mediaStorageError())
                 return@launch
             }
             _references.update { list ->
@@ -640,7 +740,7 @@ class MediaStudioViewModel(
     fun loadMyVoices() {
         val key = apiKeyProvider()
         if (key.isBlank()) {
-            _error.value = MediaStudioError("Нет API-ключа сервиса — добавь его в настройках сервисов", isKeyProblem = true)
+            _error.value = MediaStudioError.fromInfo(mediaMissingKeyError())
             return
         }
         viewModelScope.launch {
@@ -664,26 +764,38 @@ class MediaStudioViewModel(
     fun createMyVoice(name: String, level: VoiceLevel, samplePath: String, consent: Boolean, onDone: (Boolean) -> Unit) {
         if (_isCreatingVoice.value) return
         if (!consent) {
-            _error.value = MediaStudioError("Подтверди, что это твой голос или у тебя есть право его использовать")
+            _error.value = MediaStudioError(
+                "Нужно согласие",
+                "Подтвердите, что это ваш голос или у вас есть право его использовать.",
+                MediaErrorCategory.Other,
+            )
             onDone(false)
             return
         }
         val engine = level.engine
         if (engine == null) {
-            _error.value = MediaStudioError("Этот уровень пока недоступен: провайдер не задокументировал движок создания")
+            _error.value = MediaStudioError(
+                "Уровень пока недоступен",
+                "Провайдер не задокументировал движок создания для этого уровня.",
+                MediaErrorCategory.Provider,
+            )
             onDone(false)
             return
         }
         val key = apiKeyProvider()
         if (key.isBlank()) {
-            _error.value = MediaStudioError("Нет API-ключа сервиса — добавь его в настройках сервисов", isKeyProblem = true)
+            _error.value = MediaStudioError.fromInfo(mediaMissingKeyError())
             onDone(false)
             return
         }
         viewModelScope.launch {
             val bytes = withContext(Dispatchers.Default) { readAppStorageBytes(samplePath) }
             if (bytes == null) {
-                _error.value = MediaStudioError("Файл сэмпла не найден — выбери запись заново")
+                _error.value = MediaStudioError(
+                    "Файл сэмпла не найден",
+                    "Выберите запись заново.",
+                    MediaErrorCategory.File,
+                )
                 onDone(false)
                 return@launch
             }
@@ -716,7 +828,7 @@ class MediaStudioViewModel(
     fun deleteMyVoice(voiceId: String) {
         val key = apiKeyProvider()
         if (key.isBlank()) {
-            _error.value = MediaStudioError("Нет API-ключа сервиса — добавь его в настройках сервисов", isKeyProblem = true)
+            _error.value = MediaStudioError.fromInfo(mediaMissingKeyError())
             return
         }
         viewModelScope.launch {
@@ -730,8 +842,17 @@ class MediaStudioViewModel(
     }
 
     private fun voiceErrorUi(e: Throwable): MediaStudioError = when (e) {
-        is VoiceException -> MediaStudioError(e.userMessageRu(), isKeyProblem = e is VoiceException.KeyProblem)
-        else -> MediaStudioError("Не удалось выполнить операцию с голосом. Проверь связь и попробуй ещё раз.")
+        is VoiceException -> MediaStudioError(
+            e.userMessageRu(),
+            category = if (e is VoiceException.KeyProblem) MediaErrorCategory.Key else MediaErrorCategory.Provider,
+            isKeyProblem = e is VoiceException.KeyProblem,
+        )
+
+        else -> MediaStudioError(
+            "Не удалось выполнить операцию с голосом",
+            "Проверьте связь и попробуйте ещё раз.",
+            MediaErrorCategory.Network.takeIf { isNetworkFailure(e) } ?: MediaErrorCategory.Provider,
+        )
     }
 
     /** Cached price tables for the quality dropdown; null means the note mode (spec §19.1). */
@@ -759,6 +880,164 @@ class MediaStudioViewModel(
         _drafts.update { it + (key to text) }
         appSettings.setMediaDraft(key, text)
     }
+
+    // -- Projects (spec §12): autosave, manual save, import, export ------------
+
+    /** Autosave (spec §12): ~2 s after the last change, into the active snapshot, no modals. */
+    @OptIn(FlowPreview::class)
+    private fun startAutosave() {
+        if (autosaveStarted) return
+        autosaveStarted = true
+        val canvasSide = combine(_elements, _sequence, _mode, _params, _audioFlow) { _, _, _, _, _ -> 0 }
+        val settingsSide = combine(_drafts, _selectedImageModelId, _selectedVideoModelId, _selectedTtsModelId, _selectedMusicModelId) { _, _, _, _, _ -> 0 }
+        viewModelScope.launch {
+            combine(canvasSide, settingsSide) { _, _ -> 0 }
+                .drop(1)
+                .debounce(AUTOSAVE_DEBOUNCE_MS)
+                .collect { saveActiveSnapshot() }
+        }
+    }
+
+    private fun saveActiveSnapshot() {
+        val saved = projectStore.save(MediaProjectStore.ACTIVE_ID, snapshotProject(activeProjectName, activeProjectCreatedAtMs))
+        _projectSaved.value = saved
+        if (!saved) MediaLog.w("Project autosave failed: storage write refused")
+    }
+
+    /** The full studio state as one serializable file (spec §12). */
+    private fun snapshotProject(name: String, createdAtMs: Long): MediaProjectFile {
+        val sequenceState = _sequence.value
+        return MediaProjectFile(
+            schemaVersion = MEDIA_PROJECT_SCHEMA_VERSION,
+            name = name,
+            createdAtMs = createdAtMs,
+            updatedAtMs = nowMs(),
+            elements = _elements.value.map { it.toProjectElement() },
+            sequence = MediaProjectSequence(
+                clips = sequenceState.clips.map { clip ->
+                    MediaProjectSequenceClip(clip.elementId, clip.relPath, clip.isVideo, clip.durationMs)
+                },
+                transitions = sequenceState.transitions.map { it.name },
+            ),
+            settings = MediaProjectSettings(
+                mode = _mode.value.name,
+                audioFlow = _audioFlow.value.storageKey,
+                imageModelId = _selectedImageModelId.value,
+                videoModelId = _selectedVideoModelId.value,
+                ttsModelId = _selectedTtsModelId.value,
+                musicModelId = _selectedMusicModelId.value,
+                params = _params.value,
+                drafts = _drafts.value.filterValues { it.isNotBlank() },
+            ),
+        )
+    }
+
+    /** Restores the last session from the active snapshot. */
+    private fun restoreActiveProject() {
+        val project = projectStore.load(MediaProjectStore.ACTIVE_ID) ?: return
+        applyProject(project)
+        MediaLog.i("Active project restored: elements=${project.elements.size} clips=${project.sequence.clips.size}")
+    }
+
+    /** Applies a project to the studio state; open and import share this path. */
+    private fun applyProject(project: MediaProjectFile) {
+        val settings = project.settings
+        _selectedId.value = null
+        _elements.value = project.elements.map { it.toCanvasElement() }
+        val (clips, transitions) = projectSequenceToClips(project.sequence)
+        _sequence.value = MediaSequenceState(clips, transitions)
+        _mode.value = mediaModeFromProject(settings.mode)
+        val flow = AudioFlow.fromStorage(settings.audioFlow)
+        appSettings.setMediaAudioFlow(flow)
+        _audioFlow.value = flow
+        _params.value = settings.params
+        settings.drafts.forEach { (key, text) -> appSettings.setMediaDraft(key, text) }
+        _drafts.value = loadDrafts()
+        // Model selections ride the project; the catalog load prunes ids that no longer exist.
+        val instanceId = instanceIdProvider()
+        _selectedImageModelId.value = settings.imageModelId
+        appSettings.setInstanceMediaImageModelId(instanceId, settings.imageModelId)
+        _selectedVideoModelId.value = settings.videoModelId
+        appSettings.setInstanceMediaVideoModelId(instanceId, settings.videoModelId)
+        _selectedTtsModelId.value = settings.ttsModelId
+        appSettings.setInstanceMediaAudioTtsModelId(instanceId, settings.ttsModelId)
+        _selectedMusicModelId.value = settings.musicModelId
+        appSettings.setInstanceMediaAudioMusicModelId(instanceId, settings.musicModelId)
+        activeProjectName = project.name
+        activeProjectCreatedAtMs = project.createdAtMs
+    }
+
+    /** Manual save (spec §12): a named copy of the current state appears in «Проекты». */
+    fun saveProjectNow(): Boolean {
+        val project = snapshotProject(activeProjectName, activeProjectCreatedAtMs)
+        val id = Uuid.random().toString()
+        val saved = projectStore.save(id, project)
+        if (saved) {
+            _projectSaved.value = true
+            refreshProjects()
+            MediaLog.i("Project saved: $id (${project.elements.size} elements)")
+        } else {
+            _error.value = MediaStudioError.fromInfo(mediaStorageError())
+        }
+        return saved
+    }
+
+    fun openProject(id: String) {
+        val project = projectStore.load(id) ?: return
+        applyProject(project)
+        MediaLog.i("Project opened: $id (${project.elements.size} elements)")
+    }
+
+    fun deleteProject(id: String) {
+        if (projectStore.delete(id)) refreshProjects()
+    }
+
+    private fun refreshProjects() {
+        _projects.value = projectStore.list()
+    }
+
+    /** The `.potsproj` bytes of a saved project for the platform file saver. */
+    fun exportProject(id: String): Pair<String, ByteArray>? {
+        val project = projectStore.load(id) ?: return null
+        return project.name to encodeMediaProject(project).encodeToByteArray()
+    }
+
+    /** The `.potsproj` bytes of the current state (export without a manual save). */
+    fun exportActiveProject(): Pair<String, ByteArray> {
+        val project = snapshotProject(activeProjectName, activeProjectCreatedAtMs)
+        return project.name to encodeMediaProject(project).encodeToByteArray()
+    }
+
+    /** Import (spec §12): opens as a new project; existing projects stay untouched. */
+    fun importProject(bytes: ByteArray): Boolean {
+        val project = try {
+            decodeMediaProject(bytes.decodeToString())
+        } catch (e: MediaProjectException) {
+            MediaLog.w("Project import refused: ${e.message}")
+            _error.value = MediaStudioError(e.title, e.detail, MediaErrorCategory.File)
+            return false
+        }
+        val id = Uuid.random().toString()
+        if (!projectStore.save(id, project)) {
+            _error.value = MediaStudioError.fromInfo(mediaStorageError())
+            return false
+        }
+        applyProject(project)
+        refreshProjects()
+        MediaLog.i("Project imported: $id (${project.elements.size} elements)")
+        return true
+    }
+
+    /** The picked file could not be read at all (before the project codec sees it). */
+    fun reportProjectFileUnreadable() {
+        _error.value = MediaStudioError(
+            "Файл не читается",
+            "Не удалось прочитать выбранный файл. Попробуйте ещё раз.",
+            MediaErrorCategory.File,
+        )
+    }
+
+    private fun nowMs(): Long = kotlin.time.Clock.System.now().toEpochMilliseconds()
 
     fun addElement(state: MediaJobState) {
         val url = state.resultUrls.firstOrNull() ?: return
@@ -864,13 +1143,8 @@ class MediaStudioViewModel(
     }
 
     private fun showError(prefix: String, cause: Throwable) {
-        val isKeyProblem = cause is MediaException.InvalidKey
-        val message = when (cause) {
-            is MediaException -> cause.userMessageRu()
-            else -> "$prefix: ${cause.message ?: cause::class.simpleName}"
-        }
         MediaLog.e(prefix, cause)
-        _error.value = MediaStudioError(message, isKeyProblem)
+        _error.value = MediaStudioError.fromInfo(mediaErrorInfo(cause))
     }
 
     /** Add an imported gallery asset straight to the canvas (bytes already cached). */
@@ -1119,6 +1393,15 @@ class MediaStudioViewModel(
     }
 
     companion object {
+        private const val AUTOSAVE_DEBOUNCE_MS = 2000L
         private val AUDIO_EXTENSIONS = listOf(".mp3", ".wav", ".opus", ".flac", ".m4a", ".aac", ".ogg")
+        private val RU_MONTHS_SHORT = listOf("янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+
+        /** «Проект, 14 ноя» — the spec §12 auto name for a new project. */
+        fun defaultProjectName(epochMs: Long): String {
+            val date = kotlinx.datetime.Instant.fromEpochMilliseconds(epochMs)
+                .toLocalDateTime(TimeZone.currentSystemDefault())
+            return "Проект, ${date.dayOfMonth} ${RU_MONTHS_SHORT[date.monthNumber - 1]}"
+        }
     }
 }

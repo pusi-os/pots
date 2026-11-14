@@ -470,7 +470,7 @@ class PlusVibeMediaProvider(
         }
     }
 
-    private fun mapError(code: Int, body: String): MediaException {
+    internal fun mapError(code: Int, body: String): MediaException {
         val detail = runCatching {
             val o = json.parseToJsonElement(body).jsonObject
             (o["error"] as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
@@ -479,13 +479,24 @@ class PlusVibeMediaProvider(
         }.getOrNull()
         return when (code) {
             400 -> MediaException.BadRequest(detail)
+
             401, 403 -> MediaException.InvalidKey(detail)
+
             402 -> MediaException.InsufficientBalance(detail)
-            404, 422 -> MediaException.ModelNotFound(detail)
+
+            404 -> MediaException.ModelNotFound(detail)
+
+            // 422 = server-side validation (unknown parameter or combination, spec §19.4).
+            422 -> MediaException.BadRequest(detail)
+
             429 -> MediaException.RateLimited(detail = detail)
+
             410 -> MediaException.Expired(detail)
+
             503 -> MediaException.Unavailable(detail)
+
             502 -> MediaException.UpstreamFailed(detail)
+
             else -> MediaException.Unknown(detail ?: "HTTP $code")
         }
     }

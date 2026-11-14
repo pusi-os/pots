@@ -2,6 +2,7 @@ package com.pusios.pots.ui.media
 
 import androidx.compose.runtime.Immutable
 import com.pusios.pots.media.AudioFlow
+import com.pusios.pots.media.MediaProjectElement
 import com.pusios.pots.media.SequenceClip
 import com.pusios.pots.media.SequenceTransition
 
@@ -56,11 +57,43 @@ enum class CanvasAction {
 
 /**
  * The assembly sequence (spec §7): clips in playback order plus one
- * transition per gap. Lives in memory — the §12 project autosave is a
- * later version, the same honesty as the other editors.
+ * transition per gap. Persisted by the §12 project autosave.
  */
 @Immutable
 data class MediaSequenceState(
     val clips: List<SequenceClip> = emptyList(),
     val transitions: List<SequenceTransition> = emptyList(),
 )
+
+/** Project serialization (spec §12): canvas element → project DTO. */
+fun CanvasElement.toProjectElement(): MediaProjectElement = MediaProjectElement(
+    id = id,
+    jobId = jobId,
+    url = url,
+    localPath = localPath,
+    isVideo = isVideo,
+    isAudio = isAudio,
+    x = x,
+    y = y,
+    scale = scale,
+    rotation = rotation,
+    zIndex = zIndex,
+)
+
+/** Project import (spec §12): project DTO → canvas element. */
+fun MediaProjectElement.toCanvasElement(): CanvasElement = CanvasElement(
+    id = id,
+    jobId = jobId,
+    url = url,
+    localPath = localPath,
+    isVideo = isVideo,
+    isAudio = isAudio,
+    x = x,
+    y = y,
+    scale = scale,
+    rotation = rotation,
+    zIndex = zIndex,
+)
+
+/** Tolerant mode restore from a project file: an unknown name degrades to Image. */
+fun mediaModeFromProject(raw: String): MediaMode = MediaMode.entries.firstOrNull { it.name == raw } ?: MediaMode.Image

@@ -1,5 +1,9 @@
 package com.pusios.pots.ui.media
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +18,7 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.RecordVoiceOver
@@ -58,8 +63,11 @@ internal fun MediaStudioTopBar(
     onImport: () -> Unit,
     onOpenModels: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenProjects: () -> Unit,
     onDraw: () -> Unit,
     historyBadge: Int,
+    /** The «Сохранено» mark (spec §12): appears after a save and fades away. */
+    projectSaved: Boolean = false,
     aspectRatioLabel: String?,
     onOpenAspectRatio: () -> Unit,
     paramChips: List<MediaChipUi>,
@@ -88,6 +96,20 @@ internal fun MediaStudioTopBar(
                 TopBarIconButton(Icons.Filled.Brush, "Рисовать на канвасе", onDraw)
                 TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)
                 TopBarIconButton(Icons.Filled.History, "Журнал генераций", onOpenHistory, badge = historyBadge)
+                TopBarIconButton(Icons.Filled.FolderOpen, "Проекты медиа-студии", onOpenProjects)
+                // The §12 save mark: an unobtrusive note that appears and fades.
+                AnimatedVisibility(
+                    visible = projectSaved,
+                    enter = fadeIn(tween(150)),
+                    exit = fadeOut(tween(600)),
+                ) {
+                    Text(
+                        "Сохранено",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, end = 8.dp),
+                    )
+                }
                 if (showSequence) {
                     TopBarIconButton(Icons.Filled.Theaters, "Собрать видео из последовательности", onOpenSequence)
                 }

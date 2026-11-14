@@ -100,7 +100,7 @@ Entry: the capsule button with the film-strip icon, shown only where local video
 * **Subtitles** — optional plain text from existing sources only (a manual text or a transcript the user already has; no STT runs here). The text splits into phrases of at most 4 words (a sentence boundary closes a phrase early) and the phrases are spread evenly over the whole clip duration — the even split stands in while per-word timecodes are absent; a future STT `resultText` plugs into the same cue model unchanged. Phrases burn into the frame (v1 hardsub) via SRT + libass: white text on a 60 % dark box, bottom-centered, font size scaled off the frame height so 720p and 1080p read alike.
 * **Output** — 720p or 1080p, 24 or 30 fps (default 1080p/30). Every input is normalized to the output resolution/fps/SAR (letterbox pad, black) before the junction chain.
 
-Rendering rides the video editor's ffmpeg contract: a progress bar fed by `-progress`, «Отмена» destroys the process, failures show the §8 card (title, human detail, rescue action) with a retry, and the missing-binary gate offers the install steps with «Проверить снова». The result is a NEW mp4 under `media/edits/` placed as a new canvas element plus a journal entry («локально», 0 ₽, persisted once in its terminal state — the local-TTS precedent); failed assemblies are journaled too. Source elements are never touched. The sequence lives in memory — the §12 project autosave is a later version.
+Rendering rides the video editor's ffmpeg contract: a progress bar fed by `-progress`, «Отмена» destroys the process, failures show the §8 card (title, human detail, rescue action) with a retry, and the missing-binary gate offers the install steps with «Проверить снова». The result is a NEW mp4 under `media/edits/` placed as a new canvas element plus a journal entry («локально», 0 ₽, persisted once in its terminal state — the local-TTS precedent); failed assemblies are journaled too. Source elements are never touched. The sequence is persisted by the project autosave (below).
 
 ### Audio-reactive clip (one button, no LLM)
 
@@ -114,6 +114,19 @@ The track is analyzed ONCE when the sheet opens, locally: per-frame band envelop
 * **Duration** — equals the track, not editable: the clip is cut to the music. Output is one fixed 720p30 target.
 
 Preview and render: the sheet renders a fast preview of the first 10 s for a look before the commit; «Собрать клип» runs the full render with the standard progress bar and «Отмена». Failures show the §8 card («Рендер видео» row, retry) and land in the journal; a track ffmpeg cannot decode (anything but MP3/WAV on desktop) shows its own «Не удалось разобрать трек» card. The result is a NEW mp4 under `media/edits/` placed as a canvas video element plus the «клип, 0 ₽» journal entry. Sources are never touched.
+
+### Media projects (save / import / export)
+
+Everything the studio builds is a project: a versioned local `.potsproj` JSON file (format mark `pots-media-studio`, `schemaVersion` 1). A project captures the canvas elements with their transforms (position, scale, rotation, layer order), the assembly sequence (clips plus transitions), the active mode and audio flow, the per-flow model selections, the parameter choices and the prompt drafts. Media files themselves are not part of the file — elements reference files in app storage.
+
+* **Autosave** — about two seconds after the last change the studio silently writes the active snapshot (`media/projects/active.potsproj`); reopening the studio restores it. No modals, no prompts. A discreet «Сохранено» mark appears in the top capsule and fades away on its own after a moment (spec §12) — no action required.
+* **Manual save** — the projects sheet («Проекты» button in the top capsule) saves the current state as a named project (auto-name «Проект, 14 ноя»). Named projects list newest first with their element count and date, and each can be opened (replaces the canvas state), exported or deleted.
+* **Export** — any saved project, or the current state, is exported as a `.potsproj` file through the system file saver.
+* **Import** — picking a `.potsproj` opens it as a new project; existing projects are never touched. An unknown schema version, malformed JSON or an unreadable file is refused with a §8 Russian error card; an import never leaves partial state behind.
+
+The mode segment and the parameter chips are view-model state (`selectMode` / `setParam`), so the snapshot always carries the actually selected mode and chips, and opening or importing a project switches them on screen. The wiring is covered end to end by `MediaStudioProjectWiringTest` (desktop): snapshot and autosave write the selected values to disk, open/import flip the observed flows, and the «Сохранено» mark is set by a save and cleared by the UI acknowledge.
+
+The store sits over the platform app-storage primitives under `media/projects/`, so the logic is unit-tested without the filesystem. Projects are local — no cloud sync in v1.
 
 ### Local TTS (offline)
 
@@ -170,7 +183,7 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 * Generation lock: while a submit is starting or any journal entry is active, the create button is disabled.
 * Model sheet: image, video and audio models from the provider catalog, each with a price badge; audio rows are filtered by the active flow (TTS / music+SFX) and also show the billing unit and the tier badge for price-range models. The selected row uses the theme’s container colors, so its text stays readable. When no model is saved, the first catalog model of the mode is picked and persisted (audio uses the research defaults per flow). The selected model is never changed by the app during generation.
 * Canvas import accepts image, video and audio files; an imported audio file lands on the canvas as a playable audio element.
-* Errors appear as a snackbar with a Russian message. A missing key offers a “Настройки” action.
+* Errors follow one unified pattern (spec §8): every failure — studio snackbar, journal fail text or editor card — shows a Russian essence plus one human sentence of cause and a rescue action, from the single `MediaErrors.kt` model. Covered: missing API key («Настройки» shortcut), insufficient balance (HTTP 402), refused parameters (HTTP 400/422), model or upstream unavailable (HTTP 502/503), timeout and connection loss, corrupt or unsupported files, oversized references, missing ffmpeg/ffprobe («Проверить снова»), and storage writes that fail. An error never clears the input.
 * Every catalog load, quote, submit, poll, download and reference mapping is logged under the `PotsMedia` tag (logcat on Android, stdout on desktop).
 * Chat history and canvas stay independent: generating in the studio does not write into the conversation.
 
@@ -218,7 +231,11 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 | `composeApp/src/commonMain/.../ui/media/MediaModelSheet.kt` | Model picker sheet with price badges; local group with friendly engine names |
 | `composeApp/src/commonMain/.../ui/media/MediaVoiceSheet.kt` | «Мой голос» picker: built-in voices, cloned voices with status and mic mark, delete confirmation |
 | `composeApp/src/commonMain/.../ui/media/MediaVoiceCloneSheet.kt` | Voice creation sheet: file picker, pre-upload validation, preview player, levels, consent |
-| `composeApp/src/commonMain/.../ui/media/MediaStudioViewModel.kt` | Studio state: jobs, elements, references, model selection, generation lock, typed errors |
+| `composeApp/src/commonMain/.../media/MediaProject.kt` | Project format (versioned `.potsproj` JSON, schema mark, codec, sequence/mode restore) and `MediaProjectStore` (`media/projects/`, autosave target) |
+| `composeApp/src/commonMain/.../media/MediaErrors.kt` | Unified §8 error pattern: categories, `MediaErrorInfo`, exception→card mapping, missing-key and storage helpers |
+| `composeApp/src/commonMain/.../ui/media/MediaProjectSheet.kt` | Projects sheet: manual save, open, export/import `.potsproj`, delete |
+| `composeApp/src/commonMain/.../ui/media/MediaStudioViewModel.kt` | Studio state: jobs, elements, references, model selection, generation lock, mode and parameter chips (part of the snapshot), project autosave/restore, «Сохранено» mark, typed errors |
+| `composeApp/src/desktopTest/.../ui/media/MediaStudioProjectWiringTest.kt` | §12 wiring end to end: snapshot/autosave carry the selected mode+chips, open/import switch them, «Сохранено» set/acknowledge |
 | `composeApp/src/commonMain/.../ui/settings/MediaModelsSettings.kt` | Media model picker in Settings → Services → Media |
 | `composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt` | Main top bar: media icon opens the studio, chat icon returns from it |
 | `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | `isMediaOpen` state and the top bar wiring |
