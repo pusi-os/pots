@@ -1,6 +1,6 @@
 pkgbase = pots-bin
 	pkgdesc = Pots — AI assistant by Pusi with persistent memory and local models
-	pkgver = 3.3.0
+	pkgver = 3.12.0
 	pkgrel = 1
 	url = https://github.com/pusi-os/pots
 	arch = x86_64
@@ -9,7 +9,7 @@ pkgbase = pots-bin
 	provides = pots
 	conflicts = pots
 	options = !strip
-	source = Pots-3.3.0-linux-x86_64.tar.gz::https://github.com/pusi-os/pots/releases/download/v3.3.0/Pots-3.3.0-linux-x86_64.tar.gz
-	sha256sums = aaf111532900f674a75c963721d027179d07faace520e6a02a23c33ead2d7330
+	source = Pots-3.12.0-linux-x86_64.tar.gz::https://github.com/pusi-os/pots/releases/download/v3.12.0/Pots-3.12.0-linux-x86_64.tar.gz
+	sha256sums = baa422b5348aa00e205e0d722e5389a44ebcfed289d98ba6dff6cf52edc641f0
 
 pkgname = pots-bin
