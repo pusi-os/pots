@@ -141,6 +141,39 @@ class PotsikStageTest {
     }
 
     @Test
+    fun `the studio anchor wins over the chat anchors`() {
+        val stage = stage()
+        stage.setAnchor(
+            PotsikAnchorKind.WORKING,
+            PotsikAnchorSpec(centerX = 500f, feetY = 900f, sizePx = 300f),
+        )
+        // The media studio's own place: left of the top toolbar, twice a
+        // toolbar button tall — smaller than the chat's sizes on purpose.
+        stage.setAnchor(
+            PotsikAnchorKind.STUDIO,
+            PotsikAnchorSpec(centerX = 200f, feetY = 400f, sizePx = 144f),
+        )
+        val placement = stage.placement.value
+        assertEquals(0.2f, placement.x, 0.001f)
+        assertEquals(0.2f, placement.y, 0.001f)
+        assertEquals(144f / characterSize, placement.scale, 0.001f)
+    }
+
+    @Test
+    fun `leaving the studio puts him back where the chat wants him`() {
+        val stage = stage()
+        stage.setAnchor(
+            PotsikAnchorKind.STUDIO,
+            PotsikAnchorSpec(centerX = 200f, feetY = 400f, sizePx = 144f),
+        )
+        stage.setAnchor(PotsikAnchorKind.STUDIO, null)
+        // The footer anchor of the stage() helper is in force again.
+        val placement = stage.placement.value
+        assertEquals(0.5f, placement.x, 0.001f)
+        assertEquals(0.8f, placement.y, 0.001f)
+    }
+
+    @Test
     fun `an anchor that goes away stops holding the character`() {
         val stage = stage()
         stage.setAnchor(PotsikAnchorKind.FOOTER, null)

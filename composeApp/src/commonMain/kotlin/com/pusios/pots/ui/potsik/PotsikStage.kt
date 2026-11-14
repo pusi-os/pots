@@ -82,10 +82,11 @@ data class PotsikAnchorSpec(
 /**
  * The places the character can be in the chat layout.
  *
- * The order is the priority: the tile that shows while a request is running
- * wins over the footer under the last answer, which wins over the empty
- * screen. That is the order the character appears in — he leaves the footer
- * when the next request starts and comes back when it is done.
+ * The order is the priority: the media studio's own place wins over the
+ * tile that shows while a request is running, which wins over the footer
+ * under the last answer, which wins over the empty screen. That is the
+ * order the character appears in — he leaves the footer when the next
+ * request starts and comes back when it is done.
  */
 enum class PotsikAnchorKind(val priority: Int) {
     /** The empty screen, before anything has been said. */
@@ -96,6 +97,9 @@ enum class PotsikAnchorKind(val priority: Int) {
 
     /** The tile shown while a request is running. */
     WORKING(2),
+
+    /** The media studio: left of the top toolbar, out of the canvas's way. */
+    STUDIO(3),
 }
 
 /**

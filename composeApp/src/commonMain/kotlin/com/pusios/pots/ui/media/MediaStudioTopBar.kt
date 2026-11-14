@@ -46,6 +46,16 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.media.AudioFlow
 import com.pusios.pots.ui.handCursor
 
+/** One compact icon button of the studio's top bar. */
+internal val MediaStudioToolbarButtonSize = 36.dp
+
+/**
+ * Потсик's size in the studio: twice a toolbar button. He stands left of the
+ * top toolbar (the [MediaStudioScreenFull] anchor reports the spot), so he
+ * does not cover the canvas.
+ */
+internal val MediaStudioPotsikSize = MediaStudioToolbarButtonSize * 2
+
 /**
  * The studio's top overlay: a glass capsule with compact icon buttons
  * (recenter canvas, import a file, pick a model, generation journal, and —
@@ -309,10 +319,10 @@ private fun TopBarIconButton(
     onClick: () -> Unit,
     badge: Int = 0,
 ) {
-    Box(modifier = Modifier.size(36.dp)) {
+    Box(modifier = Modifier.size(MediaStudioToolbarButtonSize)) {
         IconButton(
             onClick = onClick,
-            modifier = Modifier.size(36.dp).handCursor(),
+            modifier = Modifier.size(MediaStudioToolbarButtonSize).handCursor(),
         ) {
             Icon(
                 imageVector = icon,

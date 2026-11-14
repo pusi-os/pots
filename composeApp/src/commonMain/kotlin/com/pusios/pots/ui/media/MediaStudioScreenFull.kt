@@ -59,6 +59,8 @@ import com.pusios.pots.media.videoEditingPlatformSupported
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.saveFileToDevice
 import com.pusios.pots.ui.handCursor
+import com.pusios.pots.ui.potsik.PotsikAnchor
+import com.pusios.pots.ui.potsik.PotsikAnchorKind
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
@@ -373,6 +375,15 @@ fun MediaStudioScreenFull(
                 },
                 onEditImage = { element -> editImageElement = element },
                 onEditVideo = { element -> editVideoElement = element },
+            )
+
+            // Потсик's place in the studio: left of the top toolbar, twice a
+            // toolbar button tall, out of the canvas's way. The anchor only
+            // reports the spot — the one overlay in the chat draws him.
+            PotsikAnchor(
+                kind = PotsikAnchorKind.STUDIO,
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 10.dp),
+                size = MediaStudioPotsikSize,
             )
 
             MediaStudioTopBar(
