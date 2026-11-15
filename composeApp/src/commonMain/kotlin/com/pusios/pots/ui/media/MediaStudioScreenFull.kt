@@ -354,6 +354,10 @@ fun MediaStudioScreenFull(
                 onTapBackground = {
                     viewModel.select(null)
                 },
+                onRecenter = {
+                    canvasScale = 1f
+                    canvasOffset = Offset.Zero
+                },
                 onSelect = { id ->
                     viewModel.select(id)
                 },
@@ -388,10 +392,6 @@ fun MediaStudioScreenFull(
 
             MediaStudioTopBar(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp),
-                onRecenter = {
-                    canvasScale = 1f
-                    canvasOffset = Offset.Zero
-                },
                 onImport = { importPicker.launch() },
                 onDraw = {
                     drawElement = null

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FolderOpen
@@ -58,10 +57,11 @@ internal val MediaStudioPotsikSize = MediaStudioToolbarButtonSize * 2
 
 /**
  * The studio's top overlay: a glass capsule with compact icon buttons
- * (recenter canvas, import a file, pick a model, generation journal, and —
+ * (import a file, draw, pick a model, generation journal, projects, and —
  * where local video processing exists — the sequence assembly sheet),
  * and a second row beneath it with the image/video switch, the current model,
  * the aspect ratio (images) and the generation parameters such as resolution.
+ * Recentering the canvas is a double-tap/double-click on its empty space.
  *
  * In audio mode a re-tap of the active segment opens the two-flow picker
  * («Озвучить текст» / «Создать музыку», spec §13).
@@ -69,7 +69,6 @@ internal val MediaStudioPotsikSize = MediaStudioToolbarButtonSize * 2
 @Composable
 internal fun MediaStudioTopBar(
     modifier: Modifier = Modifier,
-    onRecenter: () -> Unit,
     onImport: () -> Unit,
     onOpenModels: () -> Unit,
     onOpenHistory: () -> Unit,
@@ -101,7 +100,6 @@ internal fun MediaStudioTopBar(
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TopBarIconButton(Icons.Filled.AutoAwesome, "Медиа-канвас: в центр", onRecenter)
                 TopBarIconButton(Icons.Filled.AddPhotoAlternate, "Импортировать файл", onImport)
                 TopBarIconButton(Icons.Filled.Brush, "Рисовать на канвасе", onDraw)
                 TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)

@@ -9,6 +9,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -87,6 +88,8 @@ internal fun MediaCanvas(
     canvasOffset: Offset,
     onTransform: (zoomChange: Float, panChange: Offset) -> Unit,
     onTapBackground: () -> Unit,
+    /** Double-tap/double-click on the empty canvas recenters the view (moved off the toolbar). */
+    onRecenter: () -> Unit,
     onSelect: (String) -> Unit,
     onMove: (String, Float, Float) -> Unit,
     onRotate: (String, Float) -> Unit,
@@ -113,7 +116,12 @@ internal fun MediaCanvas(
                     onTransform(zoomChange, panChange)
                 },
             )
-            .clickable(onClick = onTapBackground),
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = { onRecenter() },
+                    onTap = { onTapBackground() },
+                )
+            },
     ) {
         CanvasDotGrid(canvasOffset)
 
