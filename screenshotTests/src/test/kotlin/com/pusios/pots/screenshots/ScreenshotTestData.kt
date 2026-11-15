@@ -59,12 +59,19 @@ object ScreenshotTestData {
         editMiniApp = { },
         runMiniAppAutomation = { _, _ -> },
         runMiniAppPrompt = { _, _ -> },
+        onboardingOpenSite = {},
+        onboardingSaveKey = { _ -> },
+        onboardingTopUp = {},
+        onboardingCheck = {},
+        onboardingSkip = {},
+        onboardingResume = {},
+        onboardingChooseLocal = {},
+        onboardingDismiss = {},
     )
 
     val chatEmptyState = ChatUiState(
         actions = noOpChatActions,
         history = persistentListOf(),
-        showPrivacyInfo = false,
         agentProfiles = persistentListOf(AgentProfile(id = "default", name = "Потсик")),
         activeAgentProfileId = "default",
     )
