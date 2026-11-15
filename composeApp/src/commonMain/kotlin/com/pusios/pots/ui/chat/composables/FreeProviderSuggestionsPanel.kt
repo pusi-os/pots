@@ -29,12 +29,22 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.freeProviderSuggestions
 import com.pusios.pots.network.UiError
 import com.pusios.pots.ui.handCursor
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import pots.composeapp.generated.resources.Res
-import pots.composeapp.generated.resources.error_free_limit_body
-import pots.composeapp.generated.resources.error_free_limit_title
+import pots.composeapp.generated.resources.error_no_service_body
+import pots.composeapp.generated.resources.error_no_service_title
 import pots.composeapp.generated.resources.ic_refresh
+
+/**
+ * The panel has a single honest state — inference is not configured
+ * (t_eaa0f8f6): the free-tier copy is gone together with the free tier,
+ * so every error that reaches the panel resolves to the same pair of keys.
+ */
+internal fun freeProviderSuggestionsPanelCopy(
+    @Suppress("UNUSED_PARAMETER") error: UiError,
+): Pair<StringResource, StringResource> = Res.string.error_no_service_title to Res.string.error_no_service_body
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -44,6 +54,7 @@ internal fun FreeProviderSuggestionsPanel(
     modifier: Modifier = Modifier,
 ) {
     val uriHandler = LocalUriHandler.current
+    val (titleKey, bodyKey) = freeProviderSuggestionsPanelCopy(error)
     // No verticalScroll — this panel is often a LazyColumn item.
     Column(
         modifier = modifier
@@ -52,14 +63,14 @@ internal fun FreeProviderSuggestionsPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = stringResource(Res.string.error_free_limit_title),
+            text = stringResource(titleKey),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = stringResource(Res.string.error_free_limit_body),
+            text = stringResource(bodyKey),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

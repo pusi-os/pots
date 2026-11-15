@@ -3,8 +3,8 @@
     <string name="prompt_ask_question">Задать вопрос</string>
     <string name="error_invalid_api_key">Недействительный ключ API. Пожалуйста, проверьте настройки.</string>
     <string name="error_rate_limit_exceeded">Превышен лимит запросов. Пожалуйста, попробуйте позже.</string>
-    <string name="error_free_limit_title">Достигнут лимит бесплатного уровня</string>
-    <string name="error_free_limit_body">Free FAST и Free EXPERT ограничены по частоте. Создайте бесплатный API-ключ у одного из этих провайдеров для более высоких лимитов, затем добавьте его в Настройки → Сервисы.</string>
+    <string name="error_no_service_title">Сервис для ответов ещё не настроен</string>
+    <string name="error_no_service_body">Чтобы я смог отвечать, получите бесплатный API-ключ у одного из провайдеров ниже и добавьте его в Настройки → Сервисы. Это займёт пару минут.</string>
     <string name="error_unknown">Произошла неизвестная ошибка.</string>
     <string name="settings_ai_mistakes_warning">ИИ может ошибаться, перепроверяйте и не делитесь конфиденциальной информацией.</string>
     <string name="settings_version">Версия: %1$s</string>

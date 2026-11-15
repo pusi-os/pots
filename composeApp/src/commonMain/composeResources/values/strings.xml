@@ -3,8 +3,8 @@
     <string name="prompt_ask_question">Ask a question</string>
     <string name="error_invalid_api_key">Invalid API Key. Please check your settings.</string>
     <string name="error_rate_limit_exceeded">Rate limit exceeded. Please try again later.</string>
-    <string name="error_free_limit_title">Free tier limit reached</string>
-    <string name="error_free_limit_body">Free FAST and Free EXPERT are rate-limited. Create a free API key with one of these providers for higher limits, then add it under Settings → Services.</string>
+    <string name="error_no_service_title">No answer service is set up yet</string>
+    <string name="error_no_service_body">For me to answer, get a free API key from one of the providers below and add it in Settings → Services. It takes a couple of minutes.</string>
     <string name="error_empty_response">No response received. Try starting a new chat or shortening your message.</string>
     <string name="error_unknown">An unknown error occurred.</string>
     <string name="settings_ai_mistakes_warning">AI makes mistakes, double check and don't share sensitive information.</string>
