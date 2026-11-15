@@ -369,7 +369,9 @@ fun MediaStudioScreenFull(
                 onOpenLightbox = { element ->
                     lightboxIsVideo = element.isVideo
                     lightboxIsAudio = element.isAudio
-                    lightboxUrl = element.url ?: element.localPath
+                    // Local copy first: it carries the real extension (the
+                    // signed URL has none and expires).
+                    lightboxUrl = element.localPath ?: element.url
                 },
                 onEditAudio = { element -> editAudioElement = element },
                 onMakeClip = { element -> clipTrackElement = element },
@@ -597,6 +599,10 @@ fun MediaStudioScreenFull(
         MediaProjectSheet(
             projects = projects,
             onSaveNow = { viewModel.saveProjectNow() },
+            onNewProject = {
+                viewModel.newProject()
+                showProjects = false
+            },
             onImport = { projectPicker.launch() },
             onOpen = { id ->
                 viewModel.openProject(id)
@@ -631,11 +637,16 @@ fun MediaStudioScreenFull(
                     val bytes = readAppStorageBytes(url)
                         ?: runCatching { com.pusios.pots.media.PlusVibeMediaProvider().downloadResult("", url) }.getOrNull()
                     if (bytes != null) {
-                        val ext = when {
-                            lightboxIsAudio -> url.substringAfterLast('.', "mp3").takeIf { it.length <= 4 } ?: "mp3"
-                            lightboxIsVideo -> "mp4"
-                            else -> "png"
-                        }
+                        // Extension from the cached file name (block 4: real
+                        // extension, not a guess); signed URLs carry none and
+                        // degrade to the type's default.
+                        val fromUrl = url.substringAfterLast('.', "").substringBefore('?').takeIf { it.length in 2..4 }
+                        val ext = fromUrl
+                            ?: when {
+                                lightboxIsAudio -> "mp3"
+                                lightboxIsVideo -> "mp4"
+                                else -> "png"
+                            }
                         saveFileToDevice(bytes, "pots-lightbox", ext)
                     }
                 }

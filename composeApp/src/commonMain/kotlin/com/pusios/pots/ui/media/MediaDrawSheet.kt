@@ -74,6 +74,7 @@ import com.pusios.pots.media.PixelGrid
 import com.pusios.pots.media.PlusVibeMediaProvider
 import com.pusios.pots.media.Stroke
 import com.pusios.pots.media.bakeStrokes
+import com.pusios.pots.media.captureVideoFrame
 import com.pusios.pots.media.decodeImageToGrid
 import com.pusios.pots.media.encodeGridToPng
 import com.pusios.pots.media.trimToContent
@@ -127,7 +128,9 @@ internal fun MediaDrawSheet(
 
     // Target decode: pixels are needed up front so strokes bake at native
     // resolution and the pointer maps display -> image coordinates exactly.
+    // For a video node the source is a still frame off the track (block 7).
     var targetGrid by remember { mutableStateOf<PixelGrid?>(null) }
+    var targetBytes by remember { mutableStateOf<ByteArray?>(null) }
     var loadError by remember { mutableStateOf<ImageEditException?>(null) }
     LaunchedEffect(target) {
         val element = target ?: return@LaunchedEffect
@@ -142,6 +145,7 @@ internal fun MediaDrawSheet(
             loadError = e
             null
         }
+        if (targetGrid != null) targetBytes = bytes
     }
 
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
@@ -202,7 +206,9 @@ internal fun MediaDrawSheet(
                             currentPoints = currentPoints,
                             background = {
                                 AsyncImage(
-                                    model = rememberImageModel(target.url ?: target.localPath),
+                                    // The exact decoded source (image file or video
+                                    // still): what the strokes bake onto, pixel for pixel.
+                                    model = targetBytes ?: rememberImageModel(target.url ?: target.localPath),
                                     contentDescription = "Изображение для аннотации",
                                     contentScale = ContentScale.FillBounds,
                                     modifier = Modifier.fillMaxSize(),
@@ -511,7 +517,14 @@ private fun DrawScope.drawStrokePath(
 }
 
 private suspend fun readDrawTargetBytes(element: CanvasElement): ByteArray? = when {
+    // Video node (block 7): the pencil draws over a still frame off the
+    // track, at native resolution; targets without ffmpeg yield null and
+    // the sheet shows the decode-failed card.
+    element.isVideo -> captureVideoFrame(element.localPath ?: element.url ?: return null)
+
     element.localPath != null -> readAppStorageBytes(element.localPath!!)
+
     element.url != null -> runCatching { PlusVibeMediaProvider().downloadResult("", element.url!!) }.getOrNull()
+
     else -> null
 }

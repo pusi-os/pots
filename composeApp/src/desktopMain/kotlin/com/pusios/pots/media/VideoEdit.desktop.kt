@@ -330,3 +330,52 @@ private class DesktopVideoProcessor : VideoProcessor {
 actual fun createVideoProcessor(): VideoProcessor = DesktopVideoProcessor()
 
 actual fun videoEditingPlatformSupported(): Boolean = true
+
+/**
+ * Desktop actual: ffprobe prints `width,height` of the first video stream.
+ * Remote https sources are probed directly (ffprobe speaks the protocols);
+ * a missing binary or an unreadable source degrades to null — the canvas
+ * falls back to its default box instead of failing.
+ */
+actual suspend fun probeVideoAspect(source: String): Float? = withContext(Dispatchers.IO) {
+    val ffprobe = findFfprobe() ?: return@withContext null
+    val input = if (source.contains("://")) source else absoluteStoragePath(source).path
+    val output = try {
+        val process = ProcessBuilder(withBinary(ffprobeVideoSizeArgs(input), ffprobe))
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start()
+        val text = process.inputStream.readBytes().decodeToString()
+        if (!process.waitFor(15, TimeUnit.SECONDS) || process.exitValue() != 0) return@withContext null
+        text
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: IOException) {
+        return@withContext null
+    }
+    parseVideoSizeCsv(output.lineSequence().firstOrNull { ',' in it })
+}
+
+/**
+ * Desktop actual: one PNG frame piped off the decoder at native resolution.
+ * No ffmpeg, unreadable source or a broken pipe degrade to null — the pencil
+ * chip simply stays hidden on video elements.
+ */
+actual suspend fun captureVideoFrame(source: String, atMs: Long): ByteArray? = withContext(Dispatchers.IO) {
+    val ffmpeg = findFfmpeg() ?: return@withContext null
+    val input = if (source.contains("://")) source else absoluteStoragePath(source).path
+    try {
+        val process = ProcessBuilder(
+            ffmpeg,
+            "-ss", (atMs / 1000.0).toString(),
+            "-i", input,
+            "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1",
+        ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+        val bytes = process.inputStream.readBytes()
+        if (!process.waitFor(30, TimeUnit.SECONDS) || process.exitValue() != 0) return@withContext null
+        bytes.takeIf { it.isNotEmpty() }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: IOException) {
+        null
+    }
+}

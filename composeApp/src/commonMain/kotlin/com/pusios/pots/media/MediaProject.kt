@@ -42,6 +42,8 @@ data class MediaProjectElement(
     val scale: Float = 1f,
     val rotation: Float = 0f,
     val zIndex: Int = 0,
+    /** Probed video frame aspect (w/h); null when unknown. Absent in old files — decodes to null. */
+    val aspectRatio: Float? = null,
 )
 
 /** One clip of the saved assembly sequence (a canvas element resolved to its file). */

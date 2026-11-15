@@ -41,6 +41,12 @@ data class CanvasElement(
     val scale: Float = 1f,
     val rotation: Float = 0f,
     val zIndex: Int = 0,
+    /**
+     * Source frame aspect (width / height) when known — the element box is
+     * sized from it instead of a square crop. Videos: probed once on arrival;
+     * images: resolved at compose time from the decoded painter, never stored.
+     */
+    val aspectRatio: Float? = null,
 )
 
 enum class CanvasAction {
@@ -78,6 +84,7 @@ fun CanvasElement.toProjectElement(): MediaProjectElement = MediaProjectElement(
     scale = scale,
     rotation = rotation,
     zIndex = zIndex,
+    aspectRatio = aspectRatio,
 )
 
 /** Project import (spec §12): project DTO → canvas element. */
@@ -93,6 +100,7 @@ fun MediaProjectElement.toCanvasElement(): CanvasElement = CanvasElement(
     scale = scale,
     rotation = rotation,
     zIndex = zIndex,
+    aspectRatio = aspectRatio,
 )
 
 /** Tolerant mode restore from a project file: an unknown name degrades to Image. */

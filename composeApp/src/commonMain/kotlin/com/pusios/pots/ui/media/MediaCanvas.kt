@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -50,6 +51,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,16 +67,36 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import com.pusios.pots.media.MediaJobState
 import com.pusios.pots.media.videoEditingPlatformSupported
 import com.pusios.pots.ui.handCursor
 import kotlin.math.roundToInt
 
-/** Element footprint on the canvas (dp); also the menu anchor height. */
+/** Element footprint on the canvas (dp): the fixed WIDTH; also the menu anchor height. */
 internal const val CANVAS_ELEMENT_SIZE_DP = 232f
+
+/** Fallback frame for a video whose aspect is not probed yet: the common 16:9 generation output. */
+internal const val DEFAULT_VIDEO_ASPECT_RATIO = 16f / 9f
+
+/**
+ * Element box height from the source aspect (width / height), @joni's block-4
+ * contract: the width stays 232.dp, the height follows the ratio, clamped to
+ * 16:9…9:16 — beyond the clamp the content renders Fit inside the clamped
+ * frame. Unknown or junk ratios fall back to the old square, so a remote
+ * image does not jump before its painter arrives.
+ */
+internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
+    val ratio = aspectRatio?.takeIf { it.isFinite() && it > 0f } ?: 1f
+    return (CANVAS_ELEMENT_SIZE_DP / ratio).coerceIn(
+        CANVAS_ELEMENT_SIZE_DP * 9f / 16f,
+        CANVAS_ELEMENT_SIZE_DP * 16f / 9f,
+    )
+}
 
 /**
  * The creative surface: a dotted-grid canvas with pan/zoom, draggable rounded
@@ -222,10 +246,21 @@ private fun CanvasElementView(
 ) {
     val url = element.url
     val local = element.localPath
+    // The image aspect arrives with the decoded painter (a remote URL is only
+    // known after the load); a video carries its probed frame aspect on the
+    // element. Audio keeps the fixed square card (@joni: unchanged).
+    var imageAspect by remember(url, local) { mutableStateOf<Float?>(null) }
+    val aspect = when {
+        element.isAudio -> null
+        element.isVideo -> element.aspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO
+        else -> imageAspect
+    }
+    val heightDp = if (element.isAudio) CANVAS_ELEMENT_SIZE_DP else canvasElementHeightDp(aspect)
     Box(
         Modifier
             .offset { IntOffset((element.x + canvasOffset.x).roundToInt(), (element.y + canvasOffset.y).roundToInt()) }
-            .size(CANVAS_ELEMENT_SIZE_DP.dp)
+            .width(CANVAS_ELEMENT_SIZE_DP.dp)
+            .height(heightDp.dp)
             .graphicsLayer(
                 scaleX = element.scale * canvasScale,
                 scaleY = element.scale * canvasScale,
@@ -263,13 +298,24 @@ private fun CanvasElementView(
                 modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
             )
 
-            element.isVideo -> MediaVideoPlayer(url = url ?: local ?: "", autoplay = false, fullControls = true, modifier = Modifier.fillMaxSize())
+            element.isVideo -> MediaVideoPlayer(
+                url = url ?: local ?: "",
+                autoplay = false,
+                fullControls = true,
+                // The surface fills the proportional element box instead of a fixed height.
+                surfaceHeight = Dp.Unspecified,
+                modifier = Modifier.fillMaxSize(),
+            )
 
             else -> AsyncImage(
                 model = rememberImageModel(url ?: local),
                 contentDescription = "Изображение на канвасе",
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
+                onState = { state ->
+                    val size = (state as? AsyncImagePainter.State.Success)?.painter?.intrinsicSize
+                    if (size != null && size.height > 0f) imageAspect = size.width / size.height
+                },
             )
         }
 
@@ -311,12 +357,15 @@ private fun CanvasElementView(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (!element.isVideo) {
                                 // Image-only actions: video elements cannot be
-                                // decoded for annotation or pixel editing.
+                                // decoded for pixel editing.
                                 ElementChip(Icons.Filled.Brush, "Карандаш") { onDrawImage(element) }
                                 ElementChip(Icons.Filled.Edit, "Редактировать") { onEditImage(element) }
                             } else if (videoEditingPlatformSupported()) {
-                                // Video editor (trim/speed/audio track) runs on
-                                // the desktop ffmpeg; other targets never show it.
+                                // Video editor (trim/speed/audio track) and the pencil
+                                // capture run on the desktop ffmpeg; other targets never
+                                // show them. Block 7: the pencil draws over a still frame
+                                // taken off the track at native resolution.
+                                ElementChip(Icons.Filled.Brush, "Кадр с карандашом") { onDrawImage(element) }
                                 ElementChip(Icons.Filled.Edit, "Редактировать") { onEditVideo(element) }
                             }
                             ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }

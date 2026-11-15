@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.pusios.pots.openUrl
@@ -43,6 +44,8 @@ fun MediaVideoPlayer(
     modifier: Modifier = Modifier,
     autoplay: Boolean = false,
     fullControls: Boolean = true,
+    /** Fixed surface height; [Dp.Unspecified] lets the surface fill the rest of the box (canvas element). */
+    surfaceHeight: Dp = 180.dp,
 ) {
     var playing by remember(url) { mutableStateOf(autoplay) }
     var positionMs by remember(url) { mutableStateOf(0L) }
@@ -50,7 +53,14 @@ fun MediaVideoPlayer(
 
     Column(modifier.semantics { contentDescription = "Видеоплеер" }) {
         Box(
-            Modifier.fillMaxWidth().weight(1f, fill = false).height(180.dp)
+            Modifier.fillMaxWidth()
+                .then(
+                    if (surfaceHeight == Dp.Unspecified) {
+                        Modifier.weight(1f)
+                    } else {
+                        Modifier.weight(1f, fill = false).height(surfaceHeight)
+                    },
+                )
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center,
         ) {
@@ -66,7 +76,7 @@ fun MediaVideoPlayer(
                         model = url,
                         contentDescription = "Постер видео",
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Fit,
                     )
                 }
             }

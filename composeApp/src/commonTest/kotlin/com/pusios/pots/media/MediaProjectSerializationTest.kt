@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -35,6 +36,7 @@ class MediaProjectSerializationTest {
                 scale = 1.25f,
                 rotation = 90f,
                 zIndex = 3,
+                aspectRatio = 1.5f,
             ),
             MediaProjectElement(
                 id = "el-2",
@@ -139,6 +141,18 @@ class MediaProjectSerializationTest {
         assertTrue(decoded.elements.isEmpty())
         assertTrue(decoded.sequence.clips.isEmpty())
         assertEquals("Image", decoded.settings.mode)
+    }
+
+    /** Element files without the block-4 aspect field decode with null, not with a failure. */
+    @Test
+    fun elementWithoutAspectRatioDecodesNull() {
+        val text = """
+            {"schemaVersion":$MEDIA_PROJECT_SCHEMA_VERSION,"app":"$MEDIA_PROJECT_MARK",
+             "name":"Пустой","createdAtMs":1,"updatedAtMs":2,
+             "elements":[{"id":"e1","localPath":"media/x.mp4","isVideo":true}]}
+        """.trimIndent()
+        val decoded = decodeMediaProject(text)
+        assertNull(decoded.elements.single().aspectRatio)
     }
 
     @Test

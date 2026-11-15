@@ -172,6 +172,43 @@ class MediaStudioProjectWiringTest {
         assertFalse(viewModel.projectSaved.value)
     }
 
+    /**
+     * Block 6 (owner): «+» creates a new empty project. The dirty canvas is
+     * saved by an EXPLICIT call, not the autosave timer (@linus, spec §12):
+     * no advanceTimeBy here — the debounce never fires — and the element must
+     * still survive in the listed project.
+     */
+    @Test
+    fun newProjectSavesDirtyCanvasAndResets() = runTest(testDispatcher) {
+        val viewModel = newViewModel()
+        runCurrent()
+        viewModel.importFromGallery("media/imports/pic.png", isVideo = false)
+
+        viewModel.newProject()
+        runCurrent()
+
+        assertTrue(viewModel.elements.value.isEmpty(), "canvas must be empty after «+»")
+        val saved = viewModel.projects.value.single()
+        assertEquals(1, saved.elementCount, "the dirty element must survive in the saved project")
+
+        // Reopening brings the element back — nothing was lost silently.
+        viewModel.openProject(saved.id)
+        assertEquals("media/imports/pic.png", viewModel.elements.value.single().localPath)
+    }
+
+    /** «+» on a pristine empty canvas must not litter the project list. */
+    @Test
+    fun newProjectOnEmptyCanvasDoesNotListJunk() = runTest(testDispatcher) {
+        val viewModel = newViewModel()
+        runCurrent()
+
+        viewModel.newProject()
+        runCurrent()
+
+        assertTrue(viewModel.projects.value.isEmpty())
+        assertTrue(viewModel.elements.value.isEmpty())
+    }
+
     /** Every network method refuses: the suite must never reach a provider. */
     private class OfflineMediaProvider : MediaProvider {
         override suspend fun listModels(key: String): List<MediaModel> = emptyList()

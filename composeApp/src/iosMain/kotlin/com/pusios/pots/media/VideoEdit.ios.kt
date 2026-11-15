@@ -44,3 +44,13 @@ private object UnsupportedVideoProcessor : VideoProcessor {
 actual fun createVideoProcessor(): VideoProcessor = UnsupportedVideoProcessor
 
 actual fun videoEditingPlatformSupported(): Boolean = false
+
+/**
+ * No frame probe on iOS in v1 (AVFoundation interop is not wired): canvas
+ * video elements fall back to the default 16:9 box with Fit inside — an
+ * honest degradation, never a crop.
+ */
+actual suspend fun probeVideoAspect(source: String): Float? = null
+
+/** No still capture on iOS in v1: the pencil stays image-only (honest degradation). */
+actual suspend fun captureVideoFrame(source: String, atMs: Long): ByteArray? = null

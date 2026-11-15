@@ -171,6 +171,37 @@ fun videoProgressFraction(line: String, expectedDurationMs: Long): Float? {
     return (us / 1000f / expectedDurationMs).coerceIn(0f, 1f)
 }
 
+/** ffprobe args printing `width,height` of the first video stream (csv, no header). */
+fun ffprobeVideoSizeArgs(input: String): List<String> = listOf(
+    "ffprobe", "-v", "error", "-select_streams", "v:0",
+    "-show_entries", "stream=width,height", "-of", "csv=p=0", input,
+)
+
+/** Parses the ffprobe csv answer (`1280,720`, extra columns tolerated) into width/height; null on junk. */
+fun parseVideoSizeCsv(raw: String?): Float? {
+    val parts = raw?.trim()?.split(',') ?: return null
+    if (parts.size < 2) return null
+    val w = parts[0].trim().toFloatOrNull() ?: return null
+    val h = parts[1].trim().toFloatOrNull() ?: return null
+    return if (w > 0f && h > 0f) w / h else null
+}
+
+/**
+ * Best-effort video frame aspect (width / height, rotation applied where the
+ * platform reports it); null when the target cannot probe or the source is
+ * unreadable. Canvas video elements size themselves from this — the height
+ * comes from the frame, never from a square crop.
+ */
+expect suspend fun probeVideoAspect(source: String): Float?
+
+/**
+ * One still frame of the video as PNG bytes at the track's native resolution
+ * (block 7: the pencil capture over a video node starts from the frame, not
+ * from the screen widget). Targets without a local ffmpeg path return null —
+ * an honest degradation: the pencil stays image-only there.
+ */
+expect suspend fun captureVideoFrame(source: String, atMs: Long = 0): ByteArray?
+
 /**
  * Runs video operations against the local toolchain. Implementations work on
  * app-storage-relative paths and return the relative path of the new `.mp4`.

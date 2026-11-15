@@ -66,6 +66,7 @@ import com.pusios.pots.media.mediaErrorInfo
 import com.pusios.pots.media.mediaKind
 import com.pusios.pots.media.mediaMissingKeyError
 import com.pusios.pots.media.mediaStorageError
+import com.pusios.pots.media.probeVideoAspect
 import com.pusios.pots.media.projectSequenceToClips
 import com.pusios.pots.media.sequenceAdd
 import com.pusios.pots.media.sequenceMove
@@ -132,6 +133,12 @@ class MediaStudioViewModel(
     private val repository: MediaGenerationRepository,
     private val history: MediaHistoryStore,
     private val enhancer: suspend (String) -> String,
+    /**
+     * Probes the frame aspect (width / height) of a video landing on the
+     * canvas. Injectable for tests; the real probe is platform code (ffprobe
+     * on desktop, MediaMetadataRetriever on Android, null elsewhere).
+     */
+    private val videoAspectProber: suspend (String) -> Float? = { probeVideoAspect(it) },
 ) : ViewModel() {
 
     /** Journal of generations, newest first. Survives app restarts. */
@@ -1008,6 +1015,26 @@ class MediaStudioViewModel(
         MediaLog.i("Project opened: $id (${project.elements.size} elements)")
     }
 
+    /**
+     * Block 6 (owner): «+» in the project sheet — start a new empty project.
+     * The current one is saved first with an EXPLICIT call, not the autosave
+     * timer (@linus, spec §12): a dirty canvas whose debounce never fired must
+     * not be lost silently. A failed save aborts the reset (the error card is
+     * already up); a pristine empty canvas saves nothing to avoid junk entries.
+     */
+    fun newProject() {
+        val dirty = _elements.value.isNotEmpty() || _sequence.value.clips.isNotEmpty()
+        if (dirty && !saveProjectNow()) return
+        _selectedId.value = null
+        _elements.value = emptyList()
+        _sequence.value = MediaSequenceState()
+        activeProjectName = defaultProjectName(nowMs())
+        activeProjectCreatedAtMs = nowMs()
+        saveActiveSnapshot()
+        refreshProjects()
+        MediaLog.i("New project started (canvas cleared)")
+    }
+
     fun deleteProject(id: String) {
         if (projectStore.delete(id)) refreshProjects()
     }
@@ -1076,6 +1103,23 @@ class MediaStudioViewModel(
                 y = (it.size * 32f),
                 zIndex = (it.maxOfOrNull { e -> e.zIndex } ?: 0) + 1,
             )
+        }
+        if (isVideo) probeAspectFor(id, state.localPath ?: url)
+    }
+
+    /**
+     * Block 4: a video element's box keeps the frame proportions (@joni's
+     * contract) — probe the source once when the element lands and patch the
+     * element on success. Off the calling thread, failure degrades to null
+     * (the canvas falls back to its default box); never blocks the landing.
+     */
+    private fun probeAspectFor(elementId: String, source: String?) {
+        if (source.isNullOrBlank()) return
+        viewModelScope.launch {
+            val aspect = runCatching { videoAspectProber(source) }.getOrNull() ?: return@launch
+            _elements.update { list ->
+                list.map { if (it.id == elementId && it.aspectRatio == null) it.copy(aspectRatio = aspect) else it }
+            }
         }
     }
 
@@ -1184,6 +1228,7 @@ class MediaStudioViewModel(
                 zIndex = (it.maxOfOrNull { e -> e.zIndex } ?: 0) + 1,
             )
         }
+        if (isVideo) probeAspectFor(id, localPath)
     }
 
     /**

@@ -94,6 +94,9 @@ class MediaStudioKindWiringTest {
             repository = repository,
             history = history,
             enhancer = { it },
+            // No ffprobe spawns during the suite: aspect probing is covered
+            // by MediaStudioAspectWiringTest with a fake prober.
+            videoAspectProber = { null },
         )
     }
 
@@ -171,5 +174,52 @@ class MediaStudioKindWiringTest {
         val element = viewModel.elements.value.single()
         assertTrue(element.isAudio, "resumed music job must land as an audio element")
         assertEquals("media/jobs/job-9/0.mp3", element.localPath)
+    }
+
+    /** Block 4: every flow types its element and caches with the right extension. */
+    @Test
+    fun videoResultIsVideoElementCachedAsMp4() = runTest(testDispatcher) {
+        val provider = ScriptedProvider(
+            catalog = listOf(MediaModel(id = "veo-3.1", kind = MediaKind.Video)),
+            polls = ArrayDeque(listOf(success("job-1"))),
+        )
+        val viewModel = viewModel(provider)
+        runCurrent()
+
+        viewModel.generateVideo("дрон над городом")
+        runCurrent()
+        advanceTimeBy(3_000)
+        runCurrent()
+
+        val element = viewModel.elements.value.single()
+        assertTrue(element.isVideo, "video result must be a video element")
+        assertFalse(element.isAudio)
+        assertEquals("media/jobs/job-1/0.mp4", element.localPath)
+        assertTrue(File(fakeHome, ".pots/media/jobs/job-1/0.mp4").exists())
+        assertTrue(viewModel.historyEntries.value.single().isVideo)
+    }
+
+    /** Block 4: the TTS flow («Озвучить текст») lands as an audio element, not an image. */
+    @Test
+    fun ttsFlowResultIsAudioElementCachedAsMp3() = runTest(testDispatcher) {
+        val provider = ScriptedProvider(
+            catalog = listOf(MediaModel(id = "kokoro-tts", kind = MediaKind.Audio, task = "tts")),
+            polls = ArrayDeque(listOf(success("job-1"))),
+        )
+        val viewModel = viewModel(provider)
+        runCurrent()
+        viewModel.selectMode(MediaMode.Audio)
+        viewModel.selectAudioFlow(AudioFlow.Tts)
+
+        viewModel.generateAudio("Привет, мир")
+        runCurrent()
+        advanceTimeBy(3_000)
+        runCurrent()
+
+        val element = viewModel.elements.value.single()
+        assertTrue(element.isAudio, "TTS result must be an audio element")
+        assertFalse(element.isVideo)
+        assertEquals("media/jobs/job-1/0.mp3", element.localPath)
+        assertTrue(File(fakeHome, ".pots/media/jobs/job-1/0.mp3").exists())
     }
 }

@@ -44,3 +44,9 @@ private object UnsupportedVideoProcessor : VideoProcessor {
 actual fun createVideoProcessor(): VideoProcessor = UnsupportedVideoProcessor
 
 actual fun videoEditingPlatformSupported(): Boolean = false
+
+/** No frame probe on the web target: canvas video elements fall back to the default 16:9 box with Fit inside. */
+actual suspend fun probeVideoAspect(source: String): Float? = null
+
+/** No still capture on the web target: the pencil stays image-only. */
+actual suspend fun captureVideoFrame(source: String, atMs: Long): ByteArray? = null

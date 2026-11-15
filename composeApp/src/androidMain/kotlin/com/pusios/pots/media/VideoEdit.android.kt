@@ -1,5 +1,11 @@
 package com.pusios.pots.media
 
+import android.media.MediaMetadataRetriever
+import com.pusios.pots.getAppFilesDirectory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+
 /**
  * Android has no local video transcoder in the app: the editor chip is
  * never shown ([videoEditingPlatformSupported] = false), and the processor
@@ -48,3 +54,37 @@ private object UnsupportedVideoProcessor : VideoProcessor {
 actual fun createVideoProcessor(): VideoProcessor = UnsupportedVideoProcessor
 
 actual fun videoEditingPlatformSupported(): Boolean = false
+
+/**
+ * Android actual: MediaMetadataRetriever reads the track's dimensions and
+ * rotation without ffmpeg. An unreadable source degrades to null — the
+ * canvas falls back to its default box instead of failing.
+ */
+actual suspend fun probeVideoAspect(source: String): Float? = withContext(Dispatchers.IO) {
+    val retriever = MediaMetadataRetriever()
+    try {
+        if (source.contains("://")) {
+            retriever.setDataSource(source, emptyMap())
+        } else {
+            retriever.setDataSource(File(getAppFilesDirectory(), source).absolutePath)
+        }
+        val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+        val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+        val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+        when {
+            width <= 0 || height <= 0 -> null
+
+            // Portrait phone videos store landscape frames plus a rotation.
+            rotation % 180 != 0 -> height.toFloat() / width
+
+            else -> width.toFloat() / height
+        }
+    } catch (e: Exception) {
+        null
+    } finally {
+        runCatching { retriever.release() }
+    }
+}
+
+/** No local ffmpeg path on Android: no still capture, the pencil stays image-only (honest degradation). */
+actual suspend fun captureVideoFrame(source: String, atMs: Long): ByteArray? = null

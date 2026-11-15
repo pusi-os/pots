@@ -18,6 +18,6 @@ actual fun PlatformVideoView(
 ) {
     // Desktop has no embedded player dependency in KMP: poster + system player.
     Box(modifier.background(Color.Black.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-        AsyncImage(model = url, contentDescription = "Постер видео", modifier = Modifier, contentScale = ContentScale.FillHeight)
+        AsyncImage(model = url, contentDescription = "Постер видео", modifier = Modifier, contentScale = ContentScale.Fit)
     }
 }

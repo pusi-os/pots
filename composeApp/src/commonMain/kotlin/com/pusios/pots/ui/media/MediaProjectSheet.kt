@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.IosShare
@@ -42,6 +43,7 @@ import kotlinx.datetime.toLocalDateTime
 internal fun MediaProjectSheet(
     projects: List<MediaProjectMeta>,
     onSaveNow: () -> Unit,
+    onNewProject: () -> Unit,
     onImport: () -> Unit,
     onOpen: (String) -> Unit,
     onExport: (String) -> Unit,
@@ -59,6 +61,10 @@ internal fun MediaProjectSheet(
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Проекты", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                // Block 6 (owner): «+» saves the current project and clears the canvas.
+                IconButton(onClick = onNewProject, modifier = Modifier.handCursor()) {
+                    Icon(Icons.Filled.Add, contentDescription = "Новый проект")
+                }
                 IconButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
                     Icon(Icons.Filled.Close, contentDescription = "Закрыть")
                 }
