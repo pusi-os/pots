@@ -6,6 +6,7 @@ import com.pusios.pots.ui.tts.PotsTextToSpeech
 import com.pusios.pots.ui.tts.sayChunked
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,9 +71,21 @@ class HandsFreeController(
     val error: StateFlow<SpeechToTextError?> = _error.asStateFlow()
 
     private var speakJob: Job? = null
+    private var listenWatchdog: Job? = null
     private var spokenMessageId: String? = null
     private var stopAfterReply: Boolean = false
     private var sessionId = 0
+
+    companion object {
+        /**
+         * How long a recognition session may stay silent before it counts as
+         * hung. A healthy system service reports a result or an error within
+         * seconds; a dead one never calls back at all and the loop would sit
+         * in Listening forever with a closed microphone (block 8, confirmed
+         * by device logs).
+         */
+        internal const val LISTEN_TIMEOUT_MS = 15_000L
+    }
 
     /**
      * Whether replies are read out loud. The loop follows the chat's speech
@@ -117,8 +130,12 @@ class HandsFreeController(
     fun stop() {
         speakJob?.cancel()
         speakJob = null
+        listenWatchdog?.cancel()
+        listenWatchdog = null
         sessionId++
-        speechToText?.cancel()
+        // A dead recognition service throws from cancel() (block 8: the mode
+        // could not be switched off) — reaching Idle must not depend on it.
+        runCatching { speechToText?.cancel() }
         _transcript.value = ""
         _error.value = null
         _status.value = HandsFreeStatus.Idle
@@ -234,7 +251,8 @@ class HandsFreeController(
         val recognizer = speechToText ?: return
         // A new id invalidates the callbacks of the session that is being replaced.
         val id = ++sessionId
-        recognizer.cancel()
+        runCatching { recognizer.cancel() }
+        startListenWatchdog(id)
         recognizer.start(
             onPartial = { partial ->
                 if (id == sessionId) _transcript.value = partial
@@ -244,6 +262,8 @@ class HandsFreeController(
             },
             onError = { error ->
                 if (id != sessionId) return@start
+                listenWatchdog?.cancel()
+                listenWatchdog = null
                 _error.value = error
                 // "No match" is a normal part of a hands-free dialogue — the loop waits for
                 // the next attempt instead of dropping into an error state.
@@ -257,7 +277,26 @@ class HandsFreeController(
         )
     }
 
+    /**
+     * Fails a silent recognition session visibly (block 8): when neither a
+     * result nor an error arrives within [LISTEN_TIMEOUT_MS], the hung session
+     * is cancelled and the loop drops to Error, where the button offers a
+     * retry instead of pretending to listen.
+     */
+    private fun startListenWatchdog(id: Int) {
+        listenWatchdog?.cancel()
+        listenWatchdog = scope.launch {
+            delay(LISTEN_TIMEOUT_MS)
+            if (id != sessionId || _status.value != HandsFreeStatus.Listening) return@launch
+            runCatching { speechToText?.cancel() }
+            _error.value = SpeechToTextError.Failed
+            _status.value = HandsFreeStatus.Error
+        }
+    }
+
     private fun submit(text: String) {
+        listenWatchdog?.cancel()
+        listenWatchdog = null
         val trimmed = text.trim()
         if (trimmed.isEmpty()) {
             _status.value = HandsFreeStatus.Listening

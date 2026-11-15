@@ -114,16 +114,18 @@ class AndroidSpeechToText(
     }
 
     override fun stop() {
-        recognizer?.stopListening()
+        runCatching { recognizer?.stopListening() }
     }
 
     override fun cancel() {
-        recognizer?.cancel()
+        // A dead recognition service throws from cancel() (DeadObjectException,
+        // block 8) — the controller must always be able to reach Idle.
+        runCatching { recognizer?.cancel() }
     }
 
     /** Releases the underlying recognizer. */
     override fun release() {
-        recognizer?.destroy()
+        runCatching { recognizer?.destroy() }
         recognizer = null
     }
 
