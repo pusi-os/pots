@@ -430,7 +430,9 @@ class MediaStudioViewModel(
         kind: MediaKind,
         savedQuoteId: String? = null,
     ) {
-        val oversized = withContext(Dispatchers.Default) { oversizedReferenceIndex(references) }
+        // An empty list measures nothing: skipping the hop keeps the whole submit on the
+        // caller's dispatcher, so nothing has to wait on the real-time pool.
+        val oversized = if (references.isEmpty()) null else withContext(Dispatchers.Default) { oversizedReferenceIndex(references) }
         if (oversized != null) {
             MediaLog.w("Reference ${oversized + 1} exceeds $MAX_INLINE_REFERENCE_BYTES bytes")
             history.remove(localId)
