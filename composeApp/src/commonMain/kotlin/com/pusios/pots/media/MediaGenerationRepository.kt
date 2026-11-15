@@ -34,6 +34,9 @@ class MediaGenerationRepository(
 
     private val active = mutableMapOf<String, Job>()
 
+    /** Providers omit `kind` in poll answers; each job remembers the kind it was submitted with. */
+    private val jobKinds = mutableMapOf<String, MediaKind>()
+
     /** Catalog cache per api-key fingerprint (key is never stored). */
     private val catalogCache = mutableMapOf<String, List<MediaModel>>()
 
@@ -79,6 +82,7 @@ class MediaGenerationRepository(
     suspend fun generate(
         apiKey: String,
         request: MediaJobRequest,
+        kind: MediaKind? = null,
         onQuote: ((MediaPriceQuote) -> Unit)? = null,
         onUpdate: ((MediaJobState) -> Unit)? = null,
     ): MediaJobState {
@@ -104,10 +108,12 @@ class MediaGenerationRepository(
             idempotencyKey = request.idempotencyKey ?: newKey(),
         )
         val created = provider.submitJob(apiKey, submit)
-        _jobs.update { it + (created.jobId to created) }
-        onUpdate?.invoke(created)
-        startPolling(apiKey, created.jobId, onUpdate)
-        return created
+        if (kind != null) jobKinds[created.jobId] = kind
+        val submitted = withKnownKind(created)
+        _jobs.update { it + (submitted.jobId to submitted) }
+        onUpdate?.invoke(submitted)
+        startPolling(apiKey, submitted.jobId, onUpdate)
+        return submitted
     }
 
     fun startPolling(apiKey: String, jobId: String, onUpdate: ((MediaJobState) -> Unit)? = null) {
@@ -117,7 +123,7 @@ class MediaGenerationRepository(
             var waitMs = 3000L
             while (true) {
                 delay(waitMs)
-                val state = try {
+                val polled = try {
                     provider.pollJob(apiKey, jobId)
                 } catch (e: CancellationException) {
                     throw e
@@ -127,6 +133,7 @@ class MediaGenerationRepository(
                     waitMs = min(waitMs * 2, 30_000L)
                     continue
                 }
+                val state = withKnownKind(polled)
                 _jobs.update { it + (state.jobId to state) }
                 onUpdate?.invoke(state)
                 if (state.isTerminal) {
@@ -142,9 +149,15 @@ class MediaGenerationRepository(
         }
     }
 
-    /** Re-poll a known job (e.g. after reopening the studio). */
-    suspend fun resume(apiKey: String, jobId: String, onUpdate: ((MediaJobState) -> Unit)? = null) {
-        val state = provider.pollJob(apiKey, jobId)
+    /** Re-poll a known job (e.g. after reopening the studio). [kind] restores what the journal remembered. */
+    suspend fun resume(
+        apiKey: String,
+        jobId: String,
+        onUpdate: ((MediaJobState) -> Unit)? = null,
+        kind: MediaKind? = null,
+    ) {
+        if (kind != null) jobKinds[jobId] = kind
+        val state = withKnownKind(provider.pollJob(apiKey, jobId))
         _jobs.update { it + (state.jobId to state) }
         onUpdate?.invoke(state)
         if (!state.isTerminal) {
@@ -156,6 +169,12 @@ class MediaGenerationRepository(
 
     fun cancelPolling(jobId: String) {
         active.remove(jobId)?.cancel()
+    }
+
+    /** Poll answers carry no kind; fill it from what the job was submitted with. An explicit provider kind wins. */
+    private fun withKnownKind(state: MediaJobState): MediaJobState {
+        val known = state.kind ?: jobKinds[state.jobId] ?: return state
+        return state.copy(kind = known)
     }
 
     suspend fun download(apiKey: String, url: String): ByteArray = provider.downloadResult(apiKey, url)

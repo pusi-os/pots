@@ -36,6 +36,7 @@ import com.pusios.pots.media.MediaReference
 import com.pusios.pots.media.MediaVoice
 import com.pusios.pots.media.PlusVibeMediaProvider
 import com.pusios.pots.media.PromptEnhancer
+import com.pusios.pots.media.PromptTarget
 import com.pusios.pots.media.SequenceClip
 import com.pusios.pots.media.SequenceTransition
 import com.pusios.pots.media.VoiceException
@@ -62,6 +63,7 @@ import com.pusios.pots.media.isLocalTts
 import com.pusios.pots.media.isLocalTtsId
 import com.pusios.pots.media.isNetworkFailure
 import com.pusios.pots.media.mediaErrorInfo
+import com.pusios.pots.media.mediaKind
 import com.pusios.pots.media.mediaMissingKeyError
 import com.pusios.pots.media.mediaStorageError
 import com.pusios.pots.media.projectSequenceToClips
@@ -334,7 +336,7 @@ class MediaStudioViewModel(
         _isEnhancing.value = true
         viewModelScope.launch {
             try {
-                runCatching { enhancer(PromptEnhancer.buildPrompt(prompt)) }
+                runCatching { enhancer(PromptEnhancer.buildPrompt(prompt, currentPromptTarget())) }
                     .onSuccess { result ->
                         PromptEnhancer.clean(result).takeIf { it.isNotBlank() }?.let(onResult)
                             ?: showError("Не удалось улучшить промпт", IllegalStateException("empty answer"))
@@ -344,6 +346,13 @@ class MediaStudioViewModel(
                 _isEnhancing.value = false
             }
         }
+    }
+
+    /** The enhancement target follows the toolbar mode and the remembered audio flow (spec §13). */
+    private fun currentPromptTarget(): PromptTarget = when (_mode.value) {
+        MediaMode.Image -> PromptTarget.Image
+        MediaMode.Video -> PromptTarget.Video
+        MediaMode.Audio -> if (_audioFlow.value == AudioFlow.Tts) PromptTarget.Tts else PromptTarget.Music
     }
 
     private fun generate(prompt: String, opts: Map<String, String>, kind: MediaKind) {
@@ -397,7 +406,7 @@ class MediaStudioViewModel(
         _isStarting.value = true
         viewModelScope.launch {
             try {
-                submitGeneration(key, entry.localId, model.id, prompt, finalOpts, references)
+                submitGeneration(key, entry.localId, model.id, prompt, finalOpts, references, kind)
             } finally {
                 _isStarting.value = false
             }
@@ -411,6 +420,7 @@ class MediaStudioViewModel(
         prompt: String,
         opts: Map<String, String>,
         references: List<MediaReference>,
+        kind: MediaKind,
         savedQuoteId: String? = null,
     ) {
         val oversized = withContext(Dispatchers.Default) { oversizedReferenceIndex(references) }
@@ -436,6 +446,7 @@ class MediaStudioViewModel(
                     quoteId = savedQuoteId,
                     idempotencyKey = localId,
                 ),
+                kind = kind,
                 onQuote = { quote ->
                     history.modify(localId) {
                         it.copy(estimateRub = quote.priceRub, quoteId = quote.quoteId, maxPriceRub = quote.priceRub)
@@ -565,7 +576,16 @@ class MediaStudioViewModel(
         _isStarting.value = true
         viewModelScope.launch {
             try {
-                submitGeneration(key, newEntry.localId, source.model, source.prompt, source.opts, references, newEntry.quoteId)
+                submitGeneration(
+                    key,
+                    newEntry.localId,
+                    source.model,
+                    source.prompt,
+                    source.opts,
+                    references,
+                    kind = source.mediaKind(),
+                    savedQuoteId = newEntry.quoteId,
+                )
             } finally {
                 _isStarting.value = false
             }

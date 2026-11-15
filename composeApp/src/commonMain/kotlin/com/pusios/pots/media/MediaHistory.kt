@@ -76,6 +76,13 @@ fun MediaReference.toHistoryReference(): MediaHistoryReference? {
     return MediaHistoryReference(url = url, localPath = localPath, isVideo = isVideo)
 }
 
+/** Poll answers carry no kind; the journal flags are the surviving source of truth on resume/repeat. */
+fun MediaHistoryEntry.mediaKind(): MediaKind = when {
+    isVideo -> MediaKind.Video
+    isAudio -> MediaKind.Audio
+    else -> MediaKind.Image
+}
+
 /**
  * Journal of generations, persisted as JSON in app storage. Follows
  * [MediaGenerationRepository.jobs], so entries update while the studio is closed.
@@ -118,7 +125,7 @@ class MediaHistoryStore(
         persist()
         restored.filter { it.isActive && it.jobId != null }.forEach { entry ->
             scope.launch {
-                runCatching { repository.resume(apiKeyProvider(), entry.jobId!!) }
+                runCatching { repository.resume(apiKeyProvider(), entry.jobId!!, kind = entry.mediaKind()) }
                     .onFailure { error ->
                         MediaLog.w("Resume failed: jobId=${entry.jobId} ${error.message}")
                         if (error is MediaException.ModelNotFound) {
