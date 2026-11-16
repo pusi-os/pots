@@ -17,9 +17,9 @@ import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.LocalAppLanguageCode
-import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
+import kotlin.time.TimeSource
 
 /**
  * Потсик on his own, in a box.

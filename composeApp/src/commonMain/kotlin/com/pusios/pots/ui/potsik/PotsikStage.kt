@@ -150,7 +150,7 @@ class PotsikStage {
      * frame clock that has parked on the old engine's motion signal knows
      * to wake up and pick up the new one.
      */
-    internal val engineWake: StateFlow<Int> = _engineWake.asStateFlow()
+    val engineWake: StateFlow<Int> = _engineWake.asStateFlow()
 
     /** The size of the area the character moves in, in pixels. */
     val area: StateFlow<IntSize> = _area.asStateFlow()

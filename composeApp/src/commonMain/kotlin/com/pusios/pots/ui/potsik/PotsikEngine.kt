@@ -1,11 +1,11 @@
 package com.pusios.pots.ui.potsik
 
 import androidx.compose.runtime.Immutable
-import kotlin.math.abs
-import kotlin.math.sin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.abs
+import kotlin.math.sin
 
 /**
  * Where the character is, for the purposes of a touch.

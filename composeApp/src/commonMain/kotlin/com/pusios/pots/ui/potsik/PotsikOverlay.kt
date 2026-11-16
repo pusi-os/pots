@@ -36,11 +36,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pusios.pots.LocalAppLanguageCode
-import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.merge
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * The character's stage, for the parts of the chat that hold a place for him.
