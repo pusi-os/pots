@@ -48,7 +48,7 @@ class StaticScreenFrameTest {
     }
 
     @Test
-    fun `the character overlay is static at rest`() = runComposeUiTest {
+    fun `the character overlay only breathes at rest`() = runComposeUiTest {
         mainClock.autoAdvance = false
         setContent {
             MaterialTheme {
@@ -59,7 +59,7 @@ class StaticScreenFrameTest {
                 )
             }
         }
-        assertStaticAtRest("the character overlay")
+        assertBreathingAtRest("the character overlay")
     }
 
     @Test
@@ -104,6 +104,18 @@ private const val SETTLE_MS = 1_000L
 /** The measured window of pumped frames — a minute of them would be ~3750 applies. */
 private const val WINDOW_MS = 2_000L
 
+/** The measured window for the breathing character: long enough for a dozen breathing ticks. */
+private const val BREATH_WINDOW_MS = 4_000L
+
+/**
+ * The ceiling for a breathing character: the breathing tick wakes his clock
+ * at most every [PotsikEngine.BREATHE_MIN_MS], so the window holds at most
+ * `BREATH_WINDOW_MS / BREATHE_MIN_MS` wakes, with room to spare for the
+ * states one wake writes. A full-rate clock writes on every frame — some
+ * 240 applies in the same window.
+ */
+private val BREATH_APPLY_CEILING = 2 * (BREATH_WINDOW_MS / PotsikEngine.BREATHE_MIN_MS) + 8
+
 /** Settles the screen, then counts the snapshot applies a [WINDOW_MS] window of frames produces. */
 @OptIn(ExperimentalTestApi::class)
 private fun ComposeUiTest.assertStaticAtRest(what: String) {
@@ -116,6 +128,26 @@ private fun ComposeUiTest.assertStaticAtRest(what: String) {
         applies <= APPLY_BUDGET,
         "$what keeps writing state on every frame ($applies snapshot applies in ${WINDOW_MS}ms of frames) — " +
             "a screen at rest must not request new frames",
+    )
+}
+
+/**
+ * The character at rest is not static: his breathing deadline wakes the
+ * clock a few times a second. Dead quiet means the deadlines stopped
+ * reaching the clock — the regression that killed his autonomous life;
+ * every frame means the old full-rate redraw is back.
+ */
+@OptIn(ExperimentalTestApi::class)
+private fun ComposeUiTest.assertBreathingAtRest(what: String) {
+    mainClock.advanceTimeBy(SETTLE_MS)
+    var applies = 0
+    val subscription = Snapshot.registerApplyObserver { changes, _ -> applies += changes.size }
+    mainClock.advanceTimeBy(BREATH_WINDOW_MS)
+    subscription.dispose()
+    assertTrue(
+        applies in 1..BREATH_APPLY_CEILING,
+        "$what must breathe at rest — a few frames a second, not none and not every frame " +
+            "($applies snapshot applies in ${BREATH_WINDOW_MS}ms of frames, ceiling $BREATH_APPLY_CEILING)",
     )
 }
 

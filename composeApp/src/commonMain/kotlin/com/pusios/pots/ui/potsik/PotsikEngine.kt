@@ -158,10 +158,11 @@ internal class PotsikEngine(
      * screen nobody touched.
      *
      * The idle bob of the IDLE mood deliberately does not count: it is the
-     * decoration of a character at rest, and freezing it is what lets a
-     * quiet screen stop asking for frames at all. Everything with a
-     * duration of its own — a mood, a pose, a line, a throw, a carry, a
-     * gesture — keeps the clock turning until it is over.
+     * decoration of a character at rest, and it is drawn on the breathing
+     * deadline of [nextEventAt] — a few frames a second — instead of a
+     * full-rate clock. Everything with a duration of its own — a mood, a
+     * pose, a line, a throw, a carry, a gesture — keeps the clock turning
+     * until it is over.
      */
     fun isAnimating(now: Long): Boolean {
         if (phase == PotsikPhase.WORKING) return true
@@ -175,6 +176,41 @@ internal class PotsikEngine(
         if (actionOverride != null && now < actionUntil) return true
         if (binoc && now < binocUntil) return true
         return flickStart != 0L && now - flickStart < FLICK_OUT_MS + FLICK_HOLD_MS + FLICK_BACK_MS
+    }
+
+    /**
+     * When the engine itself has something scheduled next, or null when
+     * there is nothing to wait for but the outside world.
+     *
+     * A parked frame clock sleeps until this moment. The idle roll, an
+     * expiring mood, the rest of a chain, a landing — they are all
+     * deadlines the engine already stores, and a clock that sees none of
+     * them is a character that never wakes on its own: no touch, no banter.
+     *
+     * At rest the breathing tick keeps the deadline close — [BREATHE_MIN_MS]
+     * to [BREATHE_MAX_MS] out — so a quiet screen shows him at a few frames
+     * a second: alive, but nothing like the full-rate redraw that kept the
+     * phone warm. The throw needs no deadline here: while it runs,
+     * [isAnimating] is true and the clock does not park at all.
+     */
+    fun nextEventAt(now: Long): Long? {
+        var next: Long? = null
+        fun consider(deadline: Long) {
+            if (deadline > now) next = minOf(next ?: deadline, deadline)
+        }
+        if (nextIdleAt != 0L) consider(nextIdleAt)
+        if (mood != PotsikMood.IDLE) consider(moodUntil)
+        if (bubbleText != null) consider(bubbleUntil)
+        if (actPose != PotsikVisitPose.NONE) consider(actPoseUntil)
+        if (actionOverride != null) consider(actionUntil)
+        if (binoc) consider(binocUntil)
+        if (phase == PotsikPhase.WORKING) consider(workUntil)
+        if (dropStart != 0L) consider(dropStart + DROP_MS + LAND_MS)
+        if (flickStart != 0L) consider(flickStart + FLICK_OUT_MS + FLICK_HOLD_MS + FLICK_BACK_MS)
+        if (mood == PotsikMood.IDLE && !isAnimating(now)) {
+            consider(now + BREATHE_MIN_MS + random.nextInt((BREATHE_MAX_MS - BREATHE_MIN_MS).toInt() + 1))
+        }
+        return next
     }
 
     private val _motion = MutableStateFlow(0)
@@ -1247,6 +1283,15 @@ internal class PotsikEngine(
     companion object {
         /** The floor on every bubble's life. */
         const val MIN_BUBBLE_MS = 5000L
+
+        /**
+         * The breathing tick at rest: how far the next quiet frame is out.
+         * Four to eight frames a second — enough for the bob to read as
+         * breathing, and nothing like the full-rate redraw that kept the
+         * phone warm.
+         */
+        const val BREATHE_MIN_MS = 125L
+        const val BREATHE_MAX_MS = 250L
 
         /** A chain: the chance it is picked for a chainable event, and its size cap. */
         const val CHAIN_CHANCE_PERCENT = 35

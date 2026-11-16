@@ -39,6 +39,7 @@ import com.pusios.pots.LocalAppLanguageCode
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -158,13 +159,25 @@ fun PotsikOverlay(
                 engine.isAnimating(now)
             }
             if (!animating) {
-                // Parked: no frames are requested until something starts him
-                // moving again — a tap, a drag, a phase change, the agent's
-                // tool — or the engine itself is rebuilt around new settings.
-                merge(
-                    engine.motion.dropWhile { it == seenMotion },
-                    stage.engineWake.dropWhile { it == seenWake },
-                ).first()
+                // Parked — but not for good. The engine's own deadlines wake
+                // the clock: the breathing tick while he is at rest, the idle
+                // roll at its appointed moment. The motion signal wakes him
+                // the instant something starts from the outside — a tap, a
+                // drag, a phase change, the agent's tool — and so does the
+                // engine being rebuilt around new settings. A park without
+                // the deadlines is a character that never speaks on his own.
+                val parkedAt = stage.currentTimeMs()
+                val deadline = engine.nextEventAt(parkedAt)
+                withTimeoutOrNull(
+                    deadline?.let { (it - parkedAt).coerceAtLeast(1L) } ?: Long.MAX_VALUE,
+                ) {
+                    merge(
+                        engine.motion.dropWhile { it == seenMotion },
+                        stage.engineWake.dropWhile { it == seenWake },
+                    ).first()
+                }
+                // Timed out or signalled, the loop asks for one more frame:
+                // that frame's tick is what fires the deadline that woke it.
             }
         }
     }
