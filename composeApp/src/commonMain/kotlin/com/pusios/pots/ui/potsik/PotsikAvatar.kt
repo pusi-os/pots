@@ -17,6 +17,9 @@ import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.LocalAppLanguageCode
+import kotlin.time.TimeSource
+import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.flow.first
 
 /**
  * Потсик on his own, in a box.
@@ -43,23 +46,36 @@ fun PotsikAvatar(
 ) {
     if (!look.isVisible) return
 
-    var nowMs by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        val start = withFrameNanos { it }
-        while (true) {
-            withFrameNanos { frame -> nowMs = (frame - start) / 1_000_000f }
-        }
-    }
-
     val density = LocalDensity.current
     val boxPx = with(density) { size.toPx() }
 
     val isRussian = LocalAppLanguageCode.current.lowercase().startsWith("ru")
     val behaviour = look.behaviour()
     val engine = remember(behaviour, isRussian) { PotsikEngine(behaviour, { isRussian }) }
+
+    // The character's own clock. It runs on the wall, not on the frames, so
+    // an animation that starts while the frame clock is parked still gets
+    // its full duration from the moment it was asked for.
+    val timeBase = remember(engine) { TimeSource.Monotonic.markNow() }
+
+    var nowMs by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(engine) {
+        while (true) {
+            val seen = engine.motion.value
+            withFrameNanos { }
+            nowMs = timeBase.elapsedNow().inWholeMilliseconds.toFloat()
+            // At rest no frames are requested until something starts him
+            // moving again — a new phase, the preview's animation.
+            if (!engine.isAnimating(timeBase.elapsedNow().inWholeMilliseconds)) {
+                engine.motion.dropWhile { it == seen }.first()
+            }
+        }
+    }
+
     LaunchedEffect(phase, toolName, animationOverride, animationKey) {
-        engine.setPhase(phase, toolName, nowMs.toLong())
-        animationOverride?.let { engine.playAction(it, durationMs = 2_600L, now = nowMs.toLong()) }
+        val now = timeBase.elapsedNow().inWholeMilliseconds
+        engine.setPhase(phase, toolName, now)
+        animationOverride?.let { engine.playAction(it, durationMs = 2_600L, now = now) }
     }
 
     Box(modifier = modifier.size(size)) {

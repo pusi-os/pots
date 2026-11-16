@@ -38,6 +38,9 @@ import androidx.compose.ui.unit.sp
 import com.pusios.pots.LocalAppLanguageCode
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
 
 /**
  * The character's stage, for the parts of the chat that hold a place for him.
@@ -103,13 +106,21 @@ fun PotsikOverlay(
     // so the character is drawn again every frame. A canvas that is only
     // redrawn when something else on the screen changes would leave him
     // frozen in one pose, with a bubble that never goes away.
+    //
+    // The clock only turns while the engine says something is actually
+    // moving; at rest it parks on the motion signal and asks for no frames
+    // at all. A clock that never parked is what kept the whole window
+    // redrawing — and the phone warm — on a screen nobody touched.
     var nowMs by remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) {
         // The last landing the app has taken note of, so the character is
         // only put where he came down once.
         var landedAt = 0L
         while (true) {
-            withFrameNanos {
+            val engine = stage.engine
+            val seenMotion = engine.motion.value
+            val seenWake = stage.engineWake.value
+            val animating = withFrameNanos {
                 val now = stage.currentTimeMs()
                 // The room he is in: the width, the line his feet stand on
                 // and how big he is. The throw needs all three, and they are
@@ -120,7 +131,6 @@ fun PotsikOverlay(
                 // drawing, the touch and the bounds all agree on how big he is.
                 val characterPx = basePx * here.scale
                 val unit = characterPx / CHARACTER_HEIGHT_UNITS
-                val engine = stage.engine
                 engine.setRoom(
                     width = area.width.toFloat(),
                     floorY = here.y * area.height,
@@ -145,6 +155,16 @@ fun PotsikOverlay(
                     }
                     engine.clearThrow()
                 }
+                engine.isAnimating(now)
+            }
+            if (!animating) {
+                // Parked: no frames are requested until something starts him
+                // moving again — a tap, a drag, a phase change, the agent's
+                // tool — or the engine itself is rebuilt around new settings.
+                merge(
+                    engine.motion.dropWhile { it == seenMotion },
+                    stage.engineWake.dropWhile { it == seenWake },
+                ).first()
             }
         }
     }

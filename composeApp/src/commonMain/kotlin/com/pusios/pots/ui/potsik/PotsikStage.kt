@@ -143,6 +143,15 @@ class PotsikStage {
     private var engineIsRussian: Boolean = false
         private set
 
+    private val _engineWake = MutableStateFlow(0)
+
+    /**
+     * Bumped every time the engine is rebuilt around new settings, so a
+     * frame clock that has parked on the old engine's motion signal knows
+     * to wake up and pick up the new one.
+     */
+    internal val engineWake: StateFlow<Int> = _engineWake.asStateFlow()
+
     /** The size of the area the character moves in, in pixels. */
     val area: StateFlow<IntSize> = _area.asStateFlow()
 
@@ -296,6 +305,7 @@ class PotsikStage {
         if (changed || languageChanged) {
             engine = PotsikEngine(settings) { isRussian }
             engineIsRussian = isRussian
+            _engineWake.value++
         }
         // The system mode says the chat puts him where it wants, so a move
         // is forgotten as soon as the mode says so.

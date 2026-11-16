@@ -1,11 +1,5 @@
 package com.pusios.pots.ui.chat.composables
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +12,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,12 +60,13 @@ internal fun EmptyState(
     }
 }
 
-/** One animated canvas keeps the decorative particles out of the composition tree. */
+/** One canvas keeps the decorative particles out of the composition tree. */
 @Composable
 private fun VoiceButton(onClick: () -> Unit) {
     val description = stringResource(Res.string.handsfree_content_description)
-    val transition = rememberInfiniteTransition()
-    val phase by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Restart))
+    // A still frame of what used to be an endless pulse: an animation that
+    // never ends kept the whole window redrawing on a screen nobody touched.
+    val phase = 0f
     Canvas(
         Modifier.size(104.dp).handCursor().clip(CircleShape)
             .semantics { contentDescription = description }
