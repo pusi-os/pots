@@ -169,6 +169,11 @@ kotlin {
                 implementation("com.github.csukuangfj.piper-phonemize:piper-phonemize:v1.5.9")
             }
         }
+        getByName("desktopTest") {
+            dependencies {
+                implementation(compose.desktop.uiTestJUnit4)
+            }
+        }
         getByName("desktopMain") {
             kotlin.srcDir("src/jvmShared/kotlin")
             dependencies {

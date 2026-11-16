@@ -3,6 +3,9 @@ package com.pusios.pots.ui.potsik
 import androidx.compose.runtime.Immutable
 import kotlin.math.abs
 import kotlin.math.sin
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Where the character is, for the purposes of a touch.
@@ -148,6 +151,46 @@ internal class PotsikEngine(
     // ---- the clock ---------------------------------------------------
 
     /**
+     * True while anything he does actually changes from frame to frame.
+     *
+     * The screens run their frame clock only while this says he is moving;
+     * a clock that never parks is what kept the whole window redrawing on a
+     * screen nobody touched.
+     *
+     * The idle bob of the IDLE mood deliberately does not count: it is the
+     * decoration of a character at rest, and freezing it is what lets a
+     * quiet screen stop asking for frames at all. Everything with a
+     * duration of its own — a mood, a pose, a line, a throw, a carry, a
+     * gesture — keeps the clock turning until it is over.
+     */
+    fun isAnimating(now: Long): Boolean {
+        if (phase == PotsikPhase.WORKING) return true
+        if (throwPhase != ThrowPhase.NONE) return true
+        if (grabbed || dangle) return true
+        if (dropStart != 0L && now - dropStart < DROP_MS + LAND_MS) return true
+        if (bubbleText != null && now < bubbleUntil) return true
+        if (chainNext < chainQueue.size) return true
+        if (mood != PotsikMood.IDLE && now < moodUntil) return true
+        if (actPose != PotsikVisitPose.NONE && now < actPoseUntil) return true
+        if (actionOverride != null && now < actionUntil) return true
+        if (binoc && now < binocUntil) return true
+        return flickStart != 0L && now - flickStart < FLICK_OUT_MS + FLICK_HOLD_MS + FLICK_BACK_MS
+    }
+
+    private val _motion = MutableStateFlow(0)
+
+    /**
+     * Bumped every time he starts moving from the outside — a tap, a drag,
+     * a phase change, the agent's tool, a line the app makes him say — so a
+     * frame clock that has parked in the stillness knows to wake up.
+     */
+    val motion: StateFlow<Int> = _motion.asStateFlow()
+
+    private fun kick() {
+        _motion.value++
+    }
+
+    /**
      * Advances the engine.
      *
      * The firmware only advances its state when the screen is redrawn, and
@@ -207,6 +250,12 @@ internal class PotsikEngine(
         // idle roll would only fight it.
         if (phase == PotsikPhase.WORKING) return
         if (mood != PotsikMood.IDLE) return
+        if (nextIdleAt == 0L) {
+            // His clock starts when he does: the first quiet moment is
+            // scheduled, not taken the instant the app opens.
+            nextIdleAt = now + tempo(9000) + random.nextInt(13000)
+            return
+        }
         if (now < nextIdleAt) return
         if (now < bubbleUntil) return
 
@@ -583,6 +632,7 @@ internal class PotsikEngine(
         bubbleText = text
         bubbleStart = now
         bubbleUntil = now + tempo(ms.coerceAtLeast(MIN_BUBBLE_MS))
+        kick()
     }
 
     /** Clears the bubble, the way the firmware does when a new line replaces it. */
@@ -641,6 +691,7 @@ internal class PotsikEngine(
         bubbleStart = now
         val span = CHAIN_LINE_MAX_MS - CHAIN_LINE_MIN_MS
         bubbleUntil = now + tempo(CHAIN_LINE_MIN_MS + random.nextInt(span.toInt() + 1))
+        kick()
     }
 
     // ---- the app driving him --------------------------------------------
@@ -666,6 +717,7 @@ internal class PotsikEngine(
                 // moment later.
                 workUntil = now + firstDelayMs()
             }
+            kick()
         }
         when (phase) {
             PotsikPhase.IDLE -> {
@@ -795,6 +847,7 @@ internal class PotsikEngine(
         moodUntil = now + durationMs
         lastInteraction = now
         interacted = true
+        kick()
     }
 
     /** Plays one of the plain moods, by name — the tool's `play_animation`. */
@@ -803,6 +856,7 @@ internal class PotsikEngine(
         moodUntil = now + durationMs
         lastInteraction = now
         interacted = true
+        kick()
         when (mood) {
             PotsikMood.STRETCH -> stretchStart = now
 
@@ -861,6 +915,7 @@ internal class PotsikEngine(
         lastInteraction = now
         interacted = true
         lastTapAt = now
+        kick()
         when (tapZone) {
             1 -> if (random.nextInt(2) == 0) {
                 mood = PotsikMood.IDLE
@@ -891,6 +946,7 @@ internal class PotsikEngine(
     fun onHeld(now: Long) {
         lastInteraction = now
         interacted = true
+        kick()
         mood = PotsikMood.BOUNCE
         moodUntil = now + tempo(1500)
         speakFrom(PotsikBanter.held, MIN_BUBBLE_MS, now, chainable = true)
@@ -900,6 +956,7 @@ internal class PotsikEngine(
     fun onPetting(now: Long) {
         lastInteraction = now
         interacted = true
+        kick()
         mood = PotsikMood.BOUNCE
         moodUntil = now + tempo(900)
         if (now - lastTapAt > 2000) {
@@ -930,6 +987,7 @@ internal class PotsikEngine(
         }
         grabbed = true
         dropStart = 0
+        kick()
         // Caught in mid-air: a finger that reaches him while he is still
         // flying takes him out of the throw.
         throwPhase = ThrowPhase.NONE
@@ -963,6 +1021,7 @@ internal class PotsikEngine(
         dropY = grabY
         lastInteraction = now
         interacted = true
+        kick()
     }
 
     /**
@@ -1126,6 +1185,7 @@ internal class PotsikEngine(
         flickDir = if (dir >= 0) 1 else -1
         lastInteraction = now
         interacted = true
+        kick()
         speakFrom(PotsikBanter.flick, MIN_BUBBLE_MS, now, chainable = true)
     }
 
