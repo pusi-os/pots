@@ -9,4 +9,6 @@
     <string name="mini_app_server_channel_name">Сервер мини-приложений</string>
     <string name="mini_app_server_channel_description">Держит сохранённые мини-приложения доступными в браузере</string>
     <string name="mini_app_server_notification_text">Сервер мини-приложений работает</string>
+    <string name="potsik_overlay_channel_name">Питомец на рабочем столе</string>
+    <string name="potsik_overlay_notification">Потсик стоит на рабочем столе</string>
 </resources>

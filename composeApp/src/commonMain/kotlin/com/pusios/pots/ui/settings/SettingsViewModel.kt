@@ -40,6 +40,7 @@ import com.pusios.pots.tools.AppPermission
 import com.pusios.pots.tools.PermissionController
 import com.pusios.pots.tools.isLocalNetworkUrl
 import com.pusios.pots.ui.potsik.PotsikLook
+import com.pusios.pots.ui.potsik.syncDesktopPetService
 import com.pusios.pots.ui.tts.DEFAULT_PIPER_VOICE_ID
 import com.pusios.pots.ui.tts.PIPER_TEST_PHRASE
 import io.github.vinceglb.filekit.PlatformFile
@@ -655,12 +656,18 @@ class SettingsViewModel(
     private fun onChangePotsikLook(look: PotsikLook) {
         dataRepository.setPotsikLook(look)
         _state.update { it.copy(potsikLook = look) }
+        // The desktop-pet service follows the flag: started once the write is
+        // in (reconcile reads the stored look, not this parameter), stopped
+        // the moment the mode goes off. A no-op everywhere but Android.
+        syncDesktopPetService()
     }
 
     private fun onResetPotsikLook() {
         val look = PotsikLook.Default
         dataRepository.setPotsikLook(look)
         _state.update { it.copy(potsikLook = look) }
+        // The reset clears the overlay mode too — take the window down with it.
+        syncDesktopPetService()
     }
 
     private fun onToggleMemory(enabled: Boolean) {

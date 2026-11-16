@@ -9,4 +9,6 @@
     <string name="mini_app_server_channel_name">Mini-app server</string>
     <string name="mini_app_server_channel_description">Keeps saved mini-apps reachable in the browser</string>
     <string name="mini_app_server_notification_text">Mini-app server is running</string>
+    <string name="potsik_overlay_channel_name">Desktop pet</string>
+    <string name="potsik_overlay_notification">Potsik is standing on the desktop</string>
 </resources>

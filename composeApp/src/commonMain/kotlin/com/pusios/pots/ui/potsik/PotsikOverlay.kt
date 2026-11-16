@@ -39,7 +39,6 @@ import com.pusios.pots.LocalAppLanguageCode
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -87,6 +86,12 @@ fun PotsikOverlay(
     val isRussian = LocalAppLanguageCode.current.lowercase().startsWith("ru")
 
     if (!look.isVisible) return
+
+    // One character at a time: while the system overlay window shows him on
+    // the desktop, the in-app overlay stands down (the PixelTag rule — two
+    // surfaces drawing him at once double the character and stutter both).
+    val desktopPetShowing by DesktopPetWindow.showing.collectAsState()
+    if (desktopPetShowing) return
 
     val placement by stage.placement.collectAsState()
     val area by stage.area.collectAsState()
@@ -166,11 +171,13 @@ fun PotsikOverlay(
                 // drag, a phase change, the agent's tool — and so does the
                 // engine being rebuilt around new settings. A park without
                 // the deadlines is a character that never speaks on his own.
+                //
+                // parkUntil and not withTimeoutOrNull: the timeout schedules
+                // on the wall clock under the test's virtual one and the
+                // character freezes — see parkUntil's own note.
                 val parkedAt = stage.currentTimeMs()
                 val deadline = engine.nextEventAt(parkedAt)
-                withTimeoutOrNull(
-                    deadline?.let { (it - parkedAt).coerceAtLeast(1L) } ?: Long.MAX_VALUE,
-                ) {
+                parkUntil(deadline?.minus(parkedAt)?.coerceAtLeast(1L)) {
                     merge(
                         engine.motion.dropWhile { it == seenMotion },
                         stage.engineWake.dropWhile { it == seenWake },

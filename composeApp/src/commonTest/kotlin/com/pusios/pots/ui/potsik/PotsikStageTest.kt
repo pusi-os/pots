@@ -209,6 +209,18 @@ class PotsikStageTest {
     }
 
     @Test
+    fun `currentTimeMs follows the injected clock`() {
+        // The frame tests drive Compose's virtual clock; a stage that read
+        // the system monotonic behind their back would park its deadlines on
+        // one clock and wake on another.
+        var virtualNow = 1_234L
+        val stage = PotsikStage(clock = { virtualNow })
+        assertEquals(1_234L, stage.currentTimeMs())
+        virtualNow = 5_678L
+        assertEquals(5_678L, stage.currentTimeMs(), "the stage must read the clock it was given")
+    }
+
+    @Test
     fun `an animation the agent asked for runs and then stops`() {
         val stage = stage()
         stage.playAnimation(PotsikAction.IDLE_WAVE, durationMs = 50)

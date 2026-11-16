@@ -18,6 +18,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +41,9 @@ import com.pusios.pots.ui.potsik.PotsikOutfit
 import com.pusios.pots.ui.potsik.PotsikPhase
 import com.pusios.pots.ui.potsik.PotsikPlacementMode
 import com.pusios.pots.ui.potsik.PotsikShadeTint
+import com.pusios.pots.ui.potsik.canDrawDesktopPetOverlay
+import com.pusios.pots.ui.potsik.isDesktopPetSupported
+import com.pusios.pots.ui.potsik.openDesktopPetPermissionSettings
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.potsiki_banter
@@ -61,6 +65,10 @@ import pots.composeapp.generated.resources.potsiki_glasses_hood
 import pots.composeapp.generated.resources.potsiki_lashes
 import pots.composeapp.generated.resources.potsiki_lashes_description
 import pots.composeapp.generated.resources.potsiki_outfit
+import pots.composeapp.generated.resources.potsiki_overlay
+import pots.composeapp.generated.resources.potsiki_overlay_description
+import pots.composeapp.generated.resources.potsiki_overlay_permission_button
+import pots.composeapp.generated.resources.potsiki_overlay_permission_needed
 import pots.composeapp.generated.resources.potsiki_placement
 import pots.composeapp.generated.resources.potsiki_placement_persistent
 import pots.composeapp.generated.resources.potsiki_placement_session
@@ -136,6 +144,40 @@ internal fun PotsikiContent(uiState: SettingsUiState, actions: SettingsActions) 
                         checked = look.isVisible,
                         onCheckedChange = { actions.onChangePotsikLook(look.copy(isVisible = it)) },
                     )
+
+                    // The desktop pet (Android only): a system overlay window
+                    // keeps the character on the desktop while the app is
+                    // minimized, and opening the app brings him back inside —
+                    // never both at once. Where the platform has no such
+                    // window, there is no toggle either.
+                    if (isDesktopPetSupported()) {
+                        var needsOverlayPermission by remember { mutableStateOf(false) }
+                        ToggleableHeadline(
+                            title = stringResource(Res.string.potsiki_overlay),
+                            description = stringResource(Res.string.potsiki_overlay_description),
+                            checked = look.overlayEnabled,
+                            onCheckedChange = { enabled ->
+                                if (enabled && !canDrawDesktopPetOverlay()) {
+                                    // Refusal is never silent: say why and
+                                    // give the way to grant it.
+                                    needsOverlayPermission = true
+                                } else {
+                                    needsOverlayPermission = false
+                                    actions.onChangePotsikLook(look.copy(overlayEnabled = enabled))
+                                }
+                            },
+                        )
+                        if (needsOverlayPermission) {
+                            Text(
+                                text = stringResource(Res.string.potsiki_overlay_permission_needed),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            TextButton(onClick = { openDesktopPetPermissionSettings() }) {
+                                Text(stringResource(Res.string.potsiki_overlay_permission_button))
+                            }
+                        }
+                    }
 
                     PotsikOptionRow(
                         title = stringResource(Res.string.potsiki_outfit),

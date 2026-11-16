@@ -18,6 +18,10 @@
    <uses-permission android:name="com.android.alarm.permission.SET_ALARM"/>
    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+   <!-- Desktop pet: the character standing on the desktop in a system overlay
+        window while the app is in the background (opt-in, off by default). -->
+   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
 
    <!-- Bluetooth for companion pairing. CONNECT/ADVERTISE/SCAN are runtime permission on Android 12+. -->
    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
@@ -91,6 +95,17 @@
             android:name="com.pusios.pots.inference.ModelDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- The desktop pet window. specialUse and not dataSync: dataSync is
+             capped at six hours a day on Android 15+, and a pet standing on
+             the desktop is not a sync. -->
+        <service
+            android:name="com.pusios.pots.overlay.PotsOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the user's desktop pet character visible in a system overlay window while the app is in the background" />
+        </service>
         <uses-native-library android:name="libvndksupport.so" android:required="false"/>
         <uses-native-library android:name="libOpenCL.so" android:required="false"/>
     </application>

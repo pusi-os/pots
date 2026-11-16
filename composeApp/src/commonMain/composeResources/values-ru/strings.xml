@@ -134,6 +134,10 @@
     <string name="potsiki_description">Маленький персонаж, который развлекает, пока Потс работает. Нажимайте на параметры, чтобы менять внешний вид.</string>
     <string name="potsiki_show">Показывать персонажа</string>
     <string name="potsiki_show_description">Разместить Потсика на экране чата. Когда выключено, чат остаётся обычным.</string>
+    <string name="potsiki_overlay">Поверх окон</string>
+    <string name="potsiki_overlay_description">Оставить Потсика на рабочем столе, когда приложение свёрнуто; при открытии приложения он снова внутри. Только Android.</string>
+    <string name="potsiki_overlay_permission_needed">Чтобы Потсик стоял на рабочем столе и не мешал нажимать остальное, разрешите отображение поверх других окон.</string>
+    <string name="potsiki_overlay_permission_button">Открыть настройки</string>
     <string name="potsiki_outfit">Костюм</string>
     <string name="potsiki_shirt">Футболка</string>
     <string name="potsiki_shorts">Шорты</string>

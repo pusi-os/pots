@@ -111,6 +111,10 @@
     <string name="potsiki_description">The little character who keeps you company while Pots works. Tap an option to change how he looks.</string>
     <string name="potsiki_show">Show the character</string>
     <string name="potsiki_show_description">Put Potsik on the chat screen. When off, the chat keeps its plain layout.</string>
+    <string name="potsiki_overlay">Above other windows</string>
+    <string name="potsiki_overlay_description">Keep Potsik on the desktop while the app is minimized; opening the app brings him back inside. Android only.</string>
+    <string name="potsiki_overlay_permission_needed">For Potsik to stand on the desktop and not get in the way of everything else, let the app draw over other windows.</string>
+    <string name="potsiki_overlay_permission_button">Open settings</string>
     <string name="potsiki_outfit">Outfit</string>
     <string name="potsiki_shirt">T-shirt</string>
     <string name="potsiki_shorts">Shorts</string>

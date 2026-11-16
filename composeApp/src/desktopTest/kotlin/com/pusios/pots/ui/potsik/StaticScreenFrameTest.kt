@@ -50,10 +50,14 @@ class StaticScreenFrameTest {
     @Test
     fun `the character overlay only breathes at rest`() = runComposeUiTest {
         mainClock.autoAdvance = false
+        val stage = PotsikStage(clock = { mainClock.currentTime })
         setContent {
             MaterialTheme {
                 PotsikOverlay(
-                    stage = PotsikStage(),
+                    // The stage runs on the test's own clock: its park
+                    // deadlines and the scheduler that wakes them have to be
+                    // the same time, or the character wakes by accident.
+                    stage = stage,
                     look = PotsikLook(),
                     phase = PotsikPhase.IDLE,
                 )

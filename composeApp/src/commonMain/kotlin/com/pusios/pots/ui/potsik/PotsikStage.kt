@@ -118,7 +118,18 @@ enum class PotsikAnchorKind(val priority: Int) {
  * off the screen. [clampPlacement] is the single place that decides what "on
  * the screen" means.
  */
-class PotsikStage {
+class PotsikStage(
+    /**
+     * Where [currentTimeMs] reads the time from.
+     *
+     * Production runs on the monotonic clock below; the frame tests inject
+     * Compose's virtual clock instead, so the deadlines the engine stores and
+     * the delays the test scheduler runs are on the same clock — a stage that
+     * read the system time behind a virtual test parked on one clock and woke
+     * on another.
+     */
+    private val clock: () -> Long = systemClock,
+) {
 
     private val _area = MutableStateFlow(IntSize.Zero)
     private val _areaOrigin = MutableStateFlow(Offset.Zero)
@@ -487,15 +498,16 @@ class PotsikStage {
     fun activeAnimation(nowMs: Long): PotsikAction? = engine.activeAction(nowMs)
 
     /**
-     * Milliseconds on the monotonic clock the animation deadlines are on.
+     * Milliseconds on the clock this stage was given — the monotonic one by
+     * default — which is the clock the animation deadlines are on.
      *
-     * The clock is measured from [MONOTONIC_BASE] — the moment the stage was
-     * made — so the numbers it hands out go up. A mark taken on every call
-     * would measure the time between taking the mark and reading it, which is
-     * always zero: every deadline would be in the past and every pose would
-     * freeze where it was drawn.
+     * The default clock is measured from [MONOTONIC_BASE] — the moment the
+     * stage was made — so the numbers it hands out go up. A mark taken on
+     * every call would measure the time between taking the mark and reading
+     * it, which is always zero: every deadline would be in the past and every
+     * pose would freeze where it was drawn.
      */
-    fun currentTimeMs(): Long = MONOTONIC_BASE.elapsedNow().inWholeMilliseconds
+    fun currentTimeMs(): Long = clock()
 
     private fun currentPoint(): PotsikPoint {
         val placement = _placement.value
@@ -585,6 +597,9 @@ class PotsikStage {
 
         /** The moment the clock starts, so the times it hands out go up. */
         private val MONOTONIC_BASE = MONOTONIC.markNow()
+
+        /** The production clock: monotonic milliseconds since [MONOTONIC_BASE]. */
+        private val systemClock: () -> Long = { MONOTONIC_BASE.elapsedNow().inWholeMilliseconds }
     }
 }
 

@@ -87,6 +87,18 @@ data class PotsikLook(
 
     /** Where he was left, vertically. See [pinnedX]. */
     val pinnedY: Float? = null,
+
+    /**
+     * «Поверх окон»: whether he stays on the desktop in a system overlay
+     * window while the app is in the background, and returns into the app
+     * when it is opened again. Android only — the other platforms hide the
+     * toggle and ignore the flag.
+     *
+     * Separate from [isVisible]: whether the character is on the chat screen
+     * at all and whether he keeps standing on the desktop are two different
+     * questions.
+     */
+    val overlayEnabled: Boolean = false,
 ) {
     /**
      * The behaviour settings, as the engine wants them.
