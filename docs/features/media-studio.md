@@ -1,6 +1,6 @@
 # Media Studio
 
-**Last verified:** 2026-11-14
+**Last verified:** 2026-11-17
 
 Media Studio is the in-app creative surface for generating and editing images, video and audio with the currently active cloud media provider (PlusVibeAPI first). The main chat top bar switches to it: the media icon opens the studio, and while the studio is open the same slot shows a chat icon that returns to chat. The studio takes over the chat area. While it is open, the chat input is hidden: the studio has its own single prompt field in the dock. Speech output, if on, announces “генерация готова” in Russian when a job finishes.
 
@@ -162,7 +162,7 @@ The toolbar appears over the selected element in icon rows. The first row holds 
 
 The dock shows a strip of reference thumbnails for the next generation. References come from three places: the file picker in the strip, the “Как референс” action on a canvas element, or the agent. A reference is either a public `https://` URL, which the provider downloads itself, or app-storage bytes, which are sent inline as `data:<mime>;base64,…` in the matching `*_base64` field. Inline bytes are capped at 8 MB; larger files are refused with a Russian message asking the user to compress them, and the journal entry is removed so that a compressed retry does not create a duplicate. Models that do not accept an image reference refuse the request before submit.
 
-When references are attached and the model declares a `mode` parameter, the request sends `mode = "image-to-image"`. Without references the mode is left at the model's default.
+When references are attached, the request carries a `mode` only if the model declares one of its own kind family — `image-to-image` for image models, `image-to-video` for video, `image-to-3d` for 3d. The value is taken from the model's own catalog options, never from a fixed list: a value the model does not declare is rejected by the provider (422), which is what broke the reference flow on the 22 models of the live catalog that ship `mode` without `image-to-image` (nano-banana, nano-banana-pro and others). A model whose `mode` values name no family (`std`, `pro`, `4K`, `edit`, `remove-bg`) has no route Pots can select: the key is left out, the provider default stands, and the dock says so in Russian under the reference strip («Модель … не переключается в режим референса»). Without references the mode is always left at the model's default. The price dropdown looks its row up under the same mode the request will carry.
 
 ### Agent photo edits
 
@@ -194,6 +194,7 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 | `composeApp/src/commonMain/.../media/MediaModels.kt` | Media kinds, catalog items, references, job requests and results |
 | `composeApp/src/commonMain/.../media/MediaProvider.kt` | Provider interface (catalog, price table, quote, submit, poll, download) |
 | `composeApp/src/commonMain/.../media/PlusVibeMediaProvider.kt` | PlusVibeAPI adapter; body building, `mode` injection, reference mapping, `HttpTimeout` |
+| `composeApp/src/commonMain/.../media/MediaModeOptions.kt` | `mode` policy: the model's own family route (`modeForReferences`), the no-route case (`modeHasNoReferenceRoute`) |
 | `composeApp/src/commonMain/.../media/MediaGenerationRepository.kt` | Async queue, submit reconcile, polling with backoff, dedup, quote reuse, download-and-cache, resume |
 | `composeApp/src/commonMain/.../media/MediaHistory.kt` | Journal model and `MediaHistoryStore` (`media/history.json`) |
 | `composeApp/src/commonMain/.../media/AudioModels.kt` | Generative audio filter, flows (TTS / music), flow filtering, price label with unit, tier parsing, voice/speed axis aliases, quote policy, toolbar chips, clone-voice axis |

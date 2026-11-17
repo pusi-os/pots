@@ -1,7 +1,7 @@
 ---
 okf_version: "0.2"
 providers: [plusvibe]
-last_verified: 2026-11-14
+last_verified: 2026-11-17
 base_urls: [https://plusvibeapi.ru, https://gw.plusvibeapi.ru]
 ---
 
@@ -109,7 +109,7 @@ stage: generating | completed | failed | submission_unknown
 | `negative_prompt` | string | Что исключить (qwen-image, wan-2-7) |
 | `guidance` / `seed` / `stability` | number | Guidance scale / seed / стабильность 0–1 |
 | `camera` | string | Движение камеры (`pan left`) |
-| `mode` | string | `text-to-image` \| `image-to-image`. У `gpt-image-2` и `gpt-image-2-6` есть в схеме. Pots отправляет `image-to-image`, когда прикреплены референсы и модель объявляет `mode`. Проверка на живом API ещё не выполнена (требует платного запроса) |
+| `mode` | string | Маршрут **per-model**, значения у каждой модели свои. На снимке 2026-11-17 `mode` объявляют 38 моделей, 22 из них без `image-to-image` (`nano-banana`/`nano-banana-pro` — `[text-to-image, edit]`; `kling-v3.0` — `[std, pro, 4K]`). Чужое значение → 422. Pots отправляет только значение, объявленное самой моделью и принадлежащее её семейству (`image-to-image`, `image-to-video`, `image-to-3d`); если у модели нет маршрута своего семейства — ключ `mode` не отправляется вообще, действует default провайдера. Проверка на живом generate не выполнена (требует платного запроса) |
 
 Неизвестный параметр игнорируется (в `strict` — 422). Машиночитаемый контракт: `GET /api/model-capabilities` / `GET /api/model-capabilities/{model}` и `GET /v1/model-capabilities/{model}` (`operations[].requestJsonSchema`).
 

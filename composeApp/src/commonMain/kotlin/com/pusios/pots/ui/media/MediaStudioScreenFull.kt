@@ -22,6 +22,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -52,6 +53,8 @@ import com.pusios.pots.media.audioToolbarParams
 import com.pusios.pots.media.cloneVoiceAxis
 import com.pusios.pots.media.formatRub
 import com.pusios.pots.media.mediaToolbarParams
+import com.pusios.pots.media.modeForReferences
+import com.pusios.pots.media.modeHasNoReferenceRoute
 import com.pusios.pots.media.qualityOptionLabel
 import com.pusios.pots.media.qualityPriceInfo
 import com.pusios.pots.media.qualitySelectorAxis
@@ -198,16 +201,16 @@ fun MediaStudioScreenFull(
     val savedQuality = currentModel?.let { viewModel.savedQuality(it.id) }
     val effectiveParams = applyMediaOptDefaults(params, currentModel, savedQuality)
     val qualityAxis = if (mode != MediaMode.Audio) currentModel?.qualitySelectorAxis() else null
+    // The price row is looked up under the mode the request will carry: the
+    // model's own reference route, or its default when it has none.
+    val referenceMode = if (references.isEmpty()) null else currentModel?.modeForReferences()
+    val priceMode = if (currentModel?.kind == MediaKind.Image) referenceMode ?: "text-to-image" else null
     val priceInfo = qualityAxis?.let { axis ->
         qualityPriceInfo(
             priceTables[currentModel?.id],
             axis,
             effectiveParams,
-            mode = if (currentModel?.kind == MediaKind.Image) {
-                if (references.isNotEmpty()) "image-to-image" else "text-to-image"
-            } else {
-                null
-            },
+            mode = priceMode,
         )
     }
     // The dropdown's price table is fetched once per model; failures degrade
@@ -312,6 +315,17 @@ fun MediaStudioScreenFull(
                         onAddReference = { referencePicker.launch() },
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
+                    // Honest reference support: the model declares `mode` but no
+                    // route of its own family, so the request carries no mode and
+                    // the provider default applies (see MediaModeOptions.kt).
+                    if (currentModel != null && currentModel.modeHasNoReferenceRoute()) {
+                        Text(
+                            text = "Модель ${currentModel.id} не переключается в режим референса — запрос уйдёт без него",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                        )
+                    }
                 }
                 MediaDock(
                     prompt = prompt,

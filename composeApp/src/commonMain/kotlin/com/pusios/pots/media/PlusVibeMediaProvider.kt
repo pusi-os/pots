@@ -55,7 +55,6 @@ class PlusVibeMediaProvider(
     override suspend fun listModels(apiKey: String): List<MediaModel> {
         val body = client.get("$baseUrl/api/media-catalog") { authed(apiKey) }.bodyAsText()
         val parsed = parseCatalog(body)
-        parsed.forEach { modelsById[it.id] = it }
         MediaLog.i(
             "Catalog loaded: ${parsed.size} usable models (" +
                 "${parsed.count { it.kind == MediaKind.Image }} image, " +
@@ -66,7 +65,10 @@ class PlusVibeMediaProvider(
         return parsed
     }
 
-    /** Parses the catalog payload and keeps only models usable for generation. */
+    /**
+     * Parses the catalog payload and keeps only models usable for generation.
+     * The result is also cached by id for reference mapping ([buildGenerateBody]).
+     */
     internal fun parseCatalog(body: String): List<MediaModel> {
         val root = json.parseToJsonElement(body).jsonObject
         val models = root["models"]?.jsonArray ?: return emptyList()
@@ -81,6 +83,7 @@ class PlusVibeMediaProvider(
                     .getOrNull()
             }
             .filter { it.id.isNotBlank() && it.generationAvailable && !it.priceUnavailable }
+            .also { usable -> usable.forEach { modelsById[it.id] = it } }
     }
 
     /** Public per-model price table (spec §19.1); null on any HTTP/parse failure. */
@@ -244,9 +247,13 @@ class PlusVibeMediaProvider(
         val optsMap = mutableMapOf<String, JsonElement>()
         request.opts.forEach { (k, v) -> optsMap[k] = JsonPrimitive(v) }
         appendReferences(optsMap, request)
-        val modeKey = modelsById[request.model]?.params?.firstOrNull { it.key == "mode" }
-        if (modeKey != null && request.references.isNotEmpty() && "mode" !in request.opts) {
-            optsMap["mode"] = JsonPrimitive("image-to-image")
+        // Only a route the model itself declares, and only one of its own
+        // family: a foreign value (image-to-image on nano-banana) is a hard
+        // 422. No route of that family → no key at all, the provider default
+        // stands (see MediaModeOptions.kt).
+        val mode = modelsById[request.model]?.modeForReferences()
+        if (mode != null && request.references.isNotEmpty() && "mode" !in request.opts) {
+            optsMap["mode"] = JsonPrimitive(mode)
         }
         val map = mutableMapOf<String, JsonElement>()
         map["model"] = JsonPrimitive(request.model)
