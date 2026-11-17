@@ -1359,7 +1359,7 @@
 
 
 <h1 id="media-studio">Media Studio</h1>
-<p><strong>Last verified:</strong> 2026-11-14</p>
+<p><strong>Last verified:</strong> 2026-11-17</p>
 <p>Media Studio is the in-app creative surface for generating and editing images, video and audio with the currently active cloud media provider (PlusVibeAPI first). The main chat top bar switches to it: the media icon opens the studio, and while the studio is open the same slot shows a chat icon that returns to chat. The studio takes over the chat area. While it is open, the chat input is hidden: the studio has its own single prompt field in the dock. Speech output, if on, announces “генерация готова” in Russian when a job finishes.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="media-provider">Media provider</h3>
@@ -1466,7 +1466,7 @@
 <p>The toolbar appears over the selected element in icon rows. The first row holds the quick transform actions. For image elements the second row holds «Карандаш», «Редактировать», layers and duplicate; for video elements it holds «Редактировать» (desktop only, where ffmpeg runs), layers and duplicate. The last row holds use as reference, save to gallery and delete. Audio elements render rows without the transform/drawing/edit-image actions. The old text menu was removed, so the toolbar never overlaps another menu.</p>
 <h3 id="references">References</h3>
 <p>The dock shows a strip of reference thumbnails for the next generation. References come from three places: the file picker in the strip, the “Как референс” action on a canvas element, or the agent. A reference is either a public <code>https://</code> URL, which the provider downloads itself, or app-storage bytes, which are sent inline as <code>data:&lt;mime&gt;;base64,…</code> in the matching <code>*_base64</code> field. Inline bytes are capped at 8 MB; larger files are refused with a Russian message asking the user to compress them, and the journal entry is removed so that a compressed retry does not create a duplicate. Models that do not accept an image reference refuse the request before submit.</p>
-<p>When references are attached and the model declares a <code>mode</code> parameter, the request sends <code>mode = "image-to-image"</code>. Without references the mode is left at the model's default.</p>
+<p>When references are attached, the request carries a <code>mode</code> only if the model declares one of its own kind family — <code>image-to-image</code> for image models, <code>image-to-video</code> for video, <code>image-to-3d</code> for 3d. The value is taken from the model's own catalog options, never from a fixed list: a value the model does not declare is rejected by the provider (422), which is what broke the reference flow on the 22 models of the live catalog that ship <code>mode</code> without <code>image-to-image</code> (nano-banana, nano-banana-pro and others). <code>edit</code> names no family, but the provider documents it as an image-input route: it counts as an image route <strong>only</strong> for a model that declares it <em>and</em> whose catalog operation documents <code>edit</code> with a mandatory image input (<code>requiredInputs.operations[]</code>, <code>anyOf</code> with <code>opts.image_url</code> / <code>opts.image_file_id</code> / <code>opts.image_base64</code>) — that is how nano-banana, nano-banana-pro, ideogram-v3 and ideogram-character take references. The alias is never a global synonym and never applies to video or 3d (wan-2-7 declares <code>edit</code> too, but its operation takes a video, so it keeps <code>image-to-video</code>). A model whose <code>mode</code> values offer neither a family route nor a qualified <code>edit</code> (<code>recraft</code>, <code>grok-imagine-2.0-ext</code>, the service values <code>std</code> / <code>pro</code> / <code>4K</code> / <code>remove-bg</code>) has no route Pots can select: the key is left out, the provider default stands, and the dock says so in Russian under the reference strip («Модель … не переключается в режим референса»). Without references the mode is always left at the model's default. The price dropdown looks its row up under the same mode the request will carry.</p>
 <h3 id="agent-photo-edits">Agent photo edits</h3>
 <p>When the user attaches a photo in chat and asks the agent to improve it or place the person somewhere, the agent calls <code>generate_image</code> with <code>reference_image="attachment"</code>. The tool takes the last image attached to a user message in the active chat. The tool does not switch models. If the selected model cannot take a reference, the tool returns a clear error that names the model, so the user can pick a suitable one.</p>
 <h2 id="behaviour">Behaviour</h2>
@@ -1508,6 +1508,10 @@
 <tr>
 <td><code>composeApp/src/commonMain/.../media/PlusVibeMediaProvider.kt</code></td>
 <td>PlusVibeAPI adapter; body building, <code>mode</code> injection, reference mapping, <code>HttpTimeout</code></td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../media/MediaModeOptions.kt</code></td>
+<td><code>mode</code> policy: the model's own family route and the catalog-qualified <code>edit</code> image alias (<code>modeForReferences</code>), the no-route case (<code>modeHasNoReferenceRoute</code>)</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../media/MediaGenerationRepository.kt</code></td>
