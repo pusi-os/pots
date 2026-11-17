@@ -399,7 +399,27 @@ class PlusVibeMediaProvider(
             acceptsImageReference = acceptsImage,
             acceptsVideoReference = acceptsVideo,
             acceptsAudioReference = acceptsAudio,
+            imageInputModes = parseImageInputModes(obj),
         )
+    }
+
+    /**
+     * Modes the catalog documents with a mandatory image input, read from
+     * `requiredInputs.operations[]` (`when.mode` + `anyOf` groups). Every step
+     * is a safe cast: a drifted shape drops the alias, never the model.
+     */
+    private fun parseImageInputModes(obj: JsonObject): Set<String> {
+        val operations = ((obj["requiredInputs"] as? JsonObject)?.get("operations") as? JsonArray) ?: return emptySet()
+        return operations.mapNotNull { el ->
+            val op = el as? JsonObject ?: return@mapNotNull null
+            val mode = ((op["when"] as? JsonObject)?.get("mode") as? JsonPrimitive)?.contentOrNull
+                ?: return@mapNotNull null
+            val anyOf = op["anyOf"] as? JsonArray ?: return@mapNotNull null
+            val hasImageInput = anyOf.any { group ->
+                (group as? JsonArray)?.any { (it as? JsonPrimitive)?.contentOrNull in IMAGE_INPUT_FIELDS } == true
+            }
+            if (hasImageInput) mode else null
+        }.toSet()
     }
 
     private fun parseVariants(obj: JsonObject): List<MediaVariantPrice> {
@@ -547,6 +567,13 @@ class PlusVibeMediaProvider(
             "audio_url",
             "audio_base64",
             "audio_file_id",
+        )
+
+        /** `anyOf` members that mean «this mode needs an input image». */
+        private val IMAGE_INPUT_FIELDS = setOf(
+            "opts.image_url",
+            "opts.image_file_id",
+            "opts.image_base64",
         )
 
         /** «До 4096 символов за запрос» in catalog notes. */

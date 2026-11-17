@@ -43,10 +43,63 @@ class MediaModeFamilyTest {
 
     @Test
     fun imageModelWithoutAnImageRouteSendsNothing() {
-        // nano-banana / nano-banana-pro on the live catalog: [text-to-image, edit].
+        // recraft / grok-imagine-2.0-ext on the live catalog: `mode` names no
+        // image input route, so the key stays out of the request.
         val model = model(MediaKind.Image, "text-to-image", "edit")
         assertNull(model.modeForReferences())
         assertTrue(model.modeHasNoReferenceRoute())
+    }
+
+    @Test
+    fun imageModelWithADocumentedEditInputSendsTheEditAlias() {
+        // nano-banana / nano-banana-pro / ideogram-*: [text-to-image, edit] and
+        // the catalog documents `edit` with a mandatory image input.
+        val model = model(MediaKind.Image, "text-to-image", "edit", imageInputModes = setOf("edit"))
+        assertEquals("edit", model.modeForReferences())
+        assertFalse(model.modeHasNoReferenceRoute())
+    }
+
+    @Test
+    fun editAliasNeedsBothADeclaredEditAndADocumentedImageInput() {
+        // Declared but not documented as an image route.
+        assertNull(model(MediaKind.Image, "text-to-image", "edit").modeForReferences())
+        // Documented but not declared by this model.
+        assertNull(model(MediaKind.Image, "text-to-image", imageInputModes = setOf("edit")).modeForReferences())
+        // A different documented mode does not unlock the alias.
+        assertNull(
+            model(MediaKind.Image, "text-to-image", "edit", imageInputModes = setOf("remix")).modeForReferences(),
+        )
+    }
+
+    @Test
+    fun baseFamilyRouteWinsOverTheEditAlias() {
+        val model = model(
+            MediaKind.Image,
+            "text-to-image",
+            "edit",
+            "image-to-image",
+            imageInputModes = setOf("edit"),
+        )
+        assertEquals("image-to-image", model.modeForReferences())
+    }
+
+    @Test
+    fun editAliasNeverLeaksIntoVideoOr3d() {
+        // wan-2-7: `edit` there documents a *video* input, so the alias must
+        // not apply — the base family route stands.
+        val video = model(
+            MediaKind.Video,
+            "text-to-video",
+            "image-to-video",
+            "edit",
+            imageInputModes = setOf("edit"),
+        )
+        assertEquals("image-to-video", video.modeForReferences())
+        // No family route at all → no mode, even though `edit` is documented.
+        val videoOnlyEdit = model(MediaKind.Video, "text-to-video", "edit", imageInputModes = setOf("edit"))
+        assertNull(videoOnlyEdit.modeForReferences())
+        assertTrue(videoOnlyEdit.modeHasNoReferenceRoute())
+        assertNull(model(MediaKind.Other3d, "text-to-3d", "edit", imageInputModes = setOf("edit")).modeForReferences())
     }
 
     @Test
@@ -97,9 +150,14 @@ class MediaModeFamilyTest {
         assertFalse(model.modeHasNoReferenceRoute())
     }
 
-    private fun model(kind: MediaKind, vararg options: String) = MediaModel(
+    private fun model(
+        kind: MediaKind,
+        vararg options: String,
+        imageInputModes: Set<String> = emptySet(),
+    ) = MediaModel(
         id = "m",
         kind = kind,
         params = listOf(MediaParamDef(key = "mode", label = "mode", options = options.map { MediaCapValue(it) })),
+        imageInputModes = imageInputModes,
     )
 }

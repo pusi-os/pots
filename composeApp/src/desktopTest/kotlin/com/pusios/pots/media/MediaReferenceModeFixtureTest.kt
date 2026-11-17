@@ -7,6 +7,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -17,7 +18,10 @@ import kotlin.test.assertTrue
  * (`docs/design/media-expansion/pots-media-catalog-live-2026-11-17.json`,
  * fetched 2026-11-17 from the public `GET /api/media-catalog`): for every
  * model, with and without references, the `mode` field is either absent or a
- * value that model declares *and* that belongs to its own kind family.
+ * value that model declares *and* that routes its own kind family — either by
+ * naming the family (`image-to-image`, `image-to-video`, …) or through the
+ * `edit` alias, which counts only for image models whose catalog operation
+ * documents `edit` with a mandatory image input.
  *
  * The snapshot is committed as-is — never hand-edited — so catalog drift shows
  * up here instead of on a paid request.
@@ -41,21 +45,55 @@ class MediaReferenceModeFixtureTest {
             val withRefs = body(model, listOf(imageReference())) ?: return@forEach
             val mode = opts(withRefs)["mode"]?.jsonPrimitive?.contentOrNull ?: return@forEach
             assertTrue(mode in modeOptions(model), "${model.id} declares no «$mode»")
-            assertEquals("image", mode.modeFamily, "${model.id}: «$mode» is not an image route")
+            assertTrue(isImageRoute(model, mode), "${model.id}: «$mode» is not an image route")
         }
     }
 
     // --- the reported regression: nano-banana family ---
 
     @Test
-    fun nanoBananaFamilyGetsNoForeignModeButKeepsTheReference() {
+    fun nanoBananaFamilyRoutesItsReferenceThroughTheEditAlias() {
         listOf("nano-banana", "nano-banana-pro").forEach { id ->
             val model = catalog.first { it.id == id }
             assertTrue(modeOptions(model).none { it == "image-to-image" }, "$id must not declare image-to-image")
+            assertTrue("edit" in model.imageInputModes, "$id documents edit with an image input")
             val body = assertNotNull(body(model, listOf(imageReference())), id)
-            assertNull(opts(body)["mode"], "$id must not get a foreign mode")
+            assertEquals("edit", opts(body)["mode"]?.jsonPrimitive?.contentOrNull, "$id routes the reference via edit")
             assertTrue(carriesImageReference(opts(body)), "$id still carries the reference")
+            assertFalse(model.modeHasNoReferenceRoute(), "$id does support references")
         }
+    }
+
+    @Test
+    fun ideogramModelsAlsoRouteThroughTheEditAlias() {
+        listOf("ideogram-v3", "ideogram-character").forEach { id ->
+            val model = catalog.first { it.id == id }
+            assertEquals("edit", model.modeForReferences(), id)
+            assertFalse(model.modeHasNoReferenceRoute(), id)
+        }
+    }
+
+    @Test
+    fun modelsWithNoDocumentedImageRouteStillSendNothing() {
+        // `edit` is not declared here, or documents no image input — the alias
+        // must not spread beyond the models the catalog qualifies.
+        listOf("recraft", "grok-imagine-2.0-ext").forEach { id ->
+            val model = catalog.first { it.id == id }
+            assertNull(model.modeForReferences(), id)
+            assertTrue(model.modeHasNoReferenceRoute(), id)
+            val body = assertNotNull(body(model, listOf(imageReference())), id)
+            assertNull(opts(body)["mode"], "$id must keep the provider default")
+        }
+    }
+
+    @Test
+    fun editAliasNeverLeaksIntoVideoModels() {
+        // wan-2-7 declares `edit` too, but its operation documents a *video*
+        // input — the video family route must stand.
+        val model = catalog.first { it.id == "wan-2-7" }
+        assertFalse("edit" in model.imageInputModes, "wan-2-7 edit takes a video, not an image")
+        val body = assertNotNull(body(model, listOf(imageReference())), "wan-2-7")
+        assertEquals("image-to-video", opts(body)["mode"]?.jsonPrimitive?.contentOrNull)
     }
 
     @Test
@@ -80,7 +118,14 @@ class MediaReferenceModeFixtureTest {
             val body = body(model, references) ?: return@forEach
             val mode = opts(body)["mode"]?.jsonPrimitive?.contentOrNull ?: return@forEach
             assertTrue(mode in modeOptions(model), "${model.id} declares no «$mode»")
-            assertEquals(familyOf(model.kind), mode.modeFamily, "${model.id}: «$mode» is not a ${model.kind} route")
+            if (mode.modeFamily == null) {
+                // Only the qualified `edit` alias may name no family.
+                assertEquals("edit", mode, "${model.id}: «$mode» is not a route")
+                assertEquals(MediaKind.Image, model.kind, "${model.id}: the edit alias is image-only")
+                assertTrue("edit" in model.imageInputModes, "${model.id}: edit has no documented image input")
+            } else {
+                assertEquals(familyOf(model.kind), mode.modeFamily, "${model.id}: «$mode» is not a ${model.kind} route")
+            }
         }
     }
 
@@ -117,6 +162,9 @@ class MediaReferenceModeFixtureTest {
     private fun opts(body: JsonObject): JsonObject = body["opts"]?.jsonObject ?: JsonObject(emptyMap())
 
     private fun modeOptions(model: MediaModel): Set<String> = model.params.firstOrNull { it.key == "mode" }?.options?.map { it.value }?.toSet().orEmpty()
+
+    /** A family route, or the `edit` alias the catalog qualifies for this model. */
+    private fun isImageRoute(model: MediaModel, mode: String): Boolean = mode.modeFamily == "image" || (mode == "edit" && mode in model.imageInputModes)
 
     private fun familyOf(kind: MediaKind): String? = when (kind) {
         MediaKind.Image -> "image"

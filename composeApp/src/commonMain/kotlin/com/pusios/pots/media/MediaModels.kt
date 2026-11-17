@@ -91,6 +91,14 @@ data class MediaModel(
     val acceptsVideoReference: Boolean = false,
     /** Model consumes audio input (STT / transforms) — excluded from the audio sheet. */
     val acceptsAudioReference: Boolean = false,
+    /**
+     * Modes the catalog documents with a mandatory image input:
+     * `requiredInputs.operations[]` whose `when.mode` is this value and whose
+     * `anyOf` offers `opts.image_url` / `opts.image_file_id` /
+     * `opts.image_base64`. Feeds the `edit` image-route alias in
+     * [modeForReferences]; empty when the shape is absent or drifts.
+     */
+    val imageInputModes: Set<String> = emptySet(),
 )
 
 @Immutable
