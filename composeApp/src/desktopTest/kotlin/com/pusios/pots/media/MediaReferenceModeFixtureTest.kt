@@ -28,10 +28,6 @@ import kotlin.test.assertTrue
  */
 class MediaReferenceModeFixtureTest {
 
-    private val provider = PlusVibeMediaProvider()
-
-    private val catalog: List<MediaModel> by lazy { provider.parseCatalog(loadFixture()) }
-
     // --- acceptance: all image models × {no references, references} ---
 
     @Test
@@ -179,19 +175,24 @@ class MediaReferenceModeFixtureTest {
 
     private fun videoReference() = MediaReference(base64DataUri = "data:video/mp4;base64,AAAAIGZ0eXA=", isVideo = true)
 
-    private fun loadFixture(): String {
-        // Test working dir is the module dir; fall back to the repo root.
-        val candidates = listOf(
-            File("../docs/design/media-expansion/$FIXTURE"),
-            File("docs/design/media-expansion/$FIXTURE"),
-            File("../../docs/design/media-expansion/$FIXTURE"),
-        )
-        val found = candidates.firstOrNull { it.isFile }
-        assertNotNull(found, "fixture $FIXTURE not found; tried: " + candidates.joinToString { it.absolutePath })
-        return found.readText()
-    }
-
     private companion object {
         const val FIXTURE = "pots-media-catalog-live-2026-11-17.json"
+
+        // JUnit builds a fresh instance per test method: read and parse the
+        // 1.27 MB snapshot once per class instead of nine times.
+        val provider = PlusVibeMediaProvider()
+        val catalog: List<MediaModel> by lazy { provider.parseCatalog(loadFixture()) }
+
+        fun loadFixture(): String {
+            // Test working dir is the module dir; fall back to the repo root.
+            val candidates = listOf(
+                File("../docs/design/media-expansion/$FIXTURE"),
+                File("docs/design/media-expansion/$FIXTURE"),
+                File("../../docs/design/media-expansion/$FIXTURE"),
+            )
+            val found = candidates.firstOrNull { it.isFile }
+            assertNotNull(found, "fixture $FIXTURE not found; tried: " + candidates.joinToString { it.absolutePath })
+            return found.readText()
+        }
     }
 }

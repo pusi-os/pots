@@ -2,6 +2,7 @@ package com.pusios.pots.media
 
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.writeAppStorageFile
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -90,6 +91,12 @@ fun MediaHistoryEntry.mediaKind(): MediaKind = when {
 class MediaHistoryStore(
     private val repository: MediaGenerationRepository,
     private val scope: CoroutineScope,
+    /**
+     * Where journal writes run. Defaults to [Dispatchers.Default] in the app;
+     * tests pass their own test dispatcher so a background write cannot outlive
+     * the test and land in the next test's (or the real) home directory.
+     */
+    private val persistDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val apiKeyProvider: () -> String,
 ) {
     private val _entries = MutableStateFlow<List<MediaHistoryEntry>>(emptyList())
@@ -169,7 +176,7 @@ class MediaHistoryStore(
     }
 
     private fun persist() {
-        scope.launch(Dispatchers.Default) {
+        scope.launch(persistDispatcher) {
             writeLock.withLock {
                 // Writes the latest snapshot, so out-of-order coroutines cannot leave stale data on disk.
                 val text = json.encodeToString(_entries.value)

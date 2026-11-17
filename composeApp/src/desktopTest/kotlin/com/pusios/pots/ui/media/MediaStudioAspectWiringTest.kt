@@ -58,7 +58,7 @@ class MediaStudioAspectWiringTest {
     private fun newViewModel(prober: suspend (String) -> Float?): MediaStudioViewModel {
         val scope = CoroutineScope(SupervisorJob() + testDispatcher)
         val repository = MediaGenerationRepository(OfflineProvider(), scope)
-        val history = MediaHistoryStore(repository, scope) { "" }
+        val history = MediaHistoryStore(repository, scope, persistDispatcher = testDispatcher) { "" }
         return MediaStudioViewModel(
             appSettings = AppSettings(MapSettings()),
             apiKeyProvider = { "" },

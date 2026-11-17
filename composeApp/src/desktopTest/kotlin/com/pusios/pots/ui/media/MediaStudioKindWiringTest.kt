@@ -86,7 +86,7 @@ class MediaStudioKindWiringTest {
     private fun TestScope.viewModel(provider: MediaProvider): MediaStudioViewModel {
         val scope = CoroutineScope(SupervisorJob() + testDispatcher)
         val repository = MediaGenerationRepository(provider, scope)
-        val history = MediaHistoryStore(repository, scope) { "key" }
+        val history = MediaHistoryStore(repository, scope, persistDispatcher = testDispatcher) { "key" }
         return MediaStudioViewModel(
             appSettings = AppSettings(MapSettings()),
             apiKeyProvider = { "key" },
