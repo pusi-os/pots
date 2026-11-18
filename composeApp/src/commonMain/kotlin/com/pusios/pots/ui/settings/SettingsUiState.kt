@@ -162,6 +162,7 @@ data class SettingsUiState(
     val modelContextTokens: ImmutableMap<String, Int> = persistentMapOf(),
     val currentSponsors: ImmutableList<SponsorsResponseDto.Sponsor> = persistentListOf(),
     val pastSponsors: ImmutableList<SponsorsResponseDto.Sponsor> = persistentListOf(),
+    val update: AppUpdateUiState = AppUpdateUiState(),
     val pendingDeletion: PendingDeletion? = null,
 )
 

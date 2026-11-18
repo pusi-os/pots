@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.DaemonController
 import com.pusios.pots.Platform
+import com.pusios.pots.Version
 import com.pusios.pots.currentPlatform
 import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.AppLanguage
@@ -43,6 +44,14 @@ import com.pusios.pots.ui.potsik.PotsikLook
 import com.pusios.pots.ui.potsik.syncDesktopPetService
 import com.pusios.pots.ui.tts.DEFAULT_PIPER_VOICE_ID
 import com.pusios.pots.ui.tts.PIPER_TEST_PHRASE
+import com.pusios.pots.update.AppUpdateManager
+import com.pusios.pots.update.UpdateCheck
+import com.pusios.pots.update.UpdateDownload
+import com.pusios.pots.update.UpdateError
+import com.pusios.pots.update.UpdateEvent
+import com.pusios.pots.update.UpdateOs
+import com.pusios.pots.update.hostArchitecture
+import com.pusios.pots.update.openDownloadedUpdate
 import io.github.vinceglb.filekit.PlatformFile
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -260,9 +269,16 @@ class SettingsViewModel(
         onPrepareExport = ::onPrepareExport,
         onImportSettings = ::onImportSettings,
         onUndoDelete = ::onUndoDelete,
+        onUpdateApp = ::onUpdateApp,
+        onCancelUpdate = ::onCancelUpdate,
     )
 
-    private val _state = MutableStateFlow(buildFullState())
+    private var updateManager: AppUpdateManager? = null
+    private var updateJob: Job? = null
+
+    private val _state = MutableStateFlow(
+        buildFullState().copy(update = AppUpdateUiState(isSupported = updateOs() != null)),
+    )
 
     val state = _state.stateIn(
         scope = viewModelScope,
@@ -357,6 +373,110 @@ class SettingsViewModel(
                 )
             }
         }
+    }
+
+    // ---- Self-update (Настройки → Сервисы) ----
+    //
+    // Nothing is fetched until the user presses the button: the release check and the transfer
+    // both hang off that one action, so an idle settings screen never touches the network.
+
+    private fun updateOs(): UpdateOs? = when (val platform = currentPlatform) {
+        is Platform.Mobile.Android -> UpdateOs.Android
+        is Platform.Desktop.Mac -> UpdateOs.MacOS
+        is Platform.Desktop.Windows -> UpdateOs.Windows
+        is Platform.Desktop.Linux -> UpdateOs.Linux
+        else -> null
+    }
+
+    fun onUpdateApp() {
+        if (_state.value.update.isBusy) return
+        val os = updateOs()
+        if (os == null) {
+            _state.update {
+                it.copy(update = it.update.copy(phase = UpdatePhase.Failed, error = UpdateError.UnsupportedPlatform))
+            }
+            return
+        }
+        val manager = updateManager ?: AppUpdateManager(
+            client = httpClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            },
+            currentVersionName = Version.appVersion,
+            os = os,
+            arch = hostArchitecture,
+        ).also { updateManager = it }
+
+        _state.update {
+            it.copy(
+                update = it.update.copy(
+                    phase = UpdatePhase.Checking,
+                    versionName = null,
+                    progress = null,
+                    error = null,
+                    fileName = null,
+                ),
+            )
+        }
+        updateJob = viewModelScope.launch(backgroundDispatcher) {
+            when (val check = manager.check()) {
+                is UpdateCheck.UpToDate -> _state.update {
+                    it.copy(update = it.update.copy(phase = UpdatePhase.UpToDate, versionName = check.versionName, error = null))
+                }
+
+                is UpdateCheck.Failed -> _state.update {
+                    it.copy(update = it.update.copy(phase = UpdatePhase.Failed, error = check.error))
+                }
+
+                is UpdateCheck.Available -> {
+                    _state.update {
+                        it.copy(
+                            update = it.update.copy(
+                                phase = UpdatePhase.Downloading,
+                                versionName = check.release.versionName,
+                                error = null,
+                            ),
+                        )
+                    }
+                    val download = manager.download(check.asset) { event ->
+                        _state.update { state ->
+                            state.copy(
+                                update = when (event) {
+                                    is UpdateEvent.Progress -> state.update.copy(progress = event.progress)
+                                    UpdateEvent.Unpacking -> state.update.copy(phase = UpdatePhase.Unpacking)
+                                },
+                            )
+                        }
+                    }
+                    when (download) {
+                        is UpdateDownload.Failed -> _state.update {
+                            it.copy(update = it.update.copy(phase = UpdatePhase.Failed, error = download.error, progress = null))
+                        }
+
+                        is UpdateDownload.Ready -> {
+                            _state.update {
+                                it.copy(update = it.update.copy(phase = UpdatePhase.Installing, progress = null))
+                            }
+                            val installerOpened = openDownloadedUpdate(download.fileName)
+                            _state.update {
+                                it.copy(
+                                    update = it.update.copy(
+                                        phase = UpdatePhase.Done,
+                                        fileName = download.fileName,
+                                        installerOpened = installerOpened,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun onCancelUpdate() {
+        updateJob?.cancel()
+        updateJob = null
+        _state.update { it.copy(update = it.update.copy(phase = UpdatePhase.Idle, progress = null, error = null)) }
     }
 
     private fun fetchSponsors() {

@@ -317,6 +317,13 @@ private fun AppContent(
                                         navController.navigateUp()
                                     },
                                     navigationTabBar = if (showTabBar) navigationTabBar else null,
+                                    onRestartOnboarding = {
+                                        chatViewModel.restartOnboarding()
+                                        navController.navigate(Home) {
+                                            popUpTo(Home) { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
                                 )
                             }
                         }

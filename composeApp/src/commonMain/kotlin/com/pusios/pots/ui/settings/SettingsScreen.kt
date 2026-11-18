@@ -119,6 +119,7 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     navigationTabBar: (@Composable () -> Unit)? = null,
     isPotsBuildAvailable: Boolean = false,
+    onRestartOnboarding: () -> Unit = {},
 ) {
     var isPotsBuildOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val uiState by viewModel.state.collectAsStateWithLifecycle()
@@ -152,6 +153,7 @@ fun SettingsScreen(
             onNavigateBack = onNavigateBack,
             navigationTabBar = navigationTabBar,
             onOpenPotsBuild = { isPotsBuildOpen = true }.takeIf { isPotsBuildAvailable },
+            onRestartOnboarding = onRestartOnboarding,
         )
     }
 }
@@ -171,6 +173,7 @@ fun SettingsScreenContent(
     onNavigateBack: () -> Unit = {},
     navigationTabBar: (@Composable () -> Unit)? = null,
     onOpenPotsBuild: (() -> Unit)? = null,
+    onRestartOnboarding: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val undoLabel = stringResource(Res.string.snackbar_undo)
@@ -283,7 +286,11 @@ fun SettingsScreenContent(
                             }
 
                             SettingsTab.Services -> {
-                                ServicesContent(uiState = filteredUiState, actions = actions)
+                                ServicesContent(
+                                    uiState = filteredUiState,
+                                    actions = actions,
+                                    onRestartOnboarding = onRestartOnboarding,
+                                )
                             }
 
                             SettingsTab.Integrations -> {

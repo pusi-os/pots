@@ -1,6 +1,6 @@
 # Multi-Service
 
-**Last verified:** 2026-11-11
+**Last verified:** 2026-11-17
 
 The RF build supports the built-in Trial Flash preset plus five Russian-accessible gateways: Polza.ai, GPTunnel, AITUNNEL, ProxyAPI and VseGPT. All of them use the **OpenAI-compatible** chat-completions format; the remaining choices are the generic **OpenAI-Compatible API** adapter and **LiteRT on-device** inference. A handful of OpenAI models additionally require OpenAI's **Responses API**; Pots switches to it per model when an OpenAI-compatible base URL points at `api.openai.com`. Users can configure multiple service instances, reorder them, and Pots automatically falls back through the chain on failure.
 
@@ -157,6 +157,7 @@ Users manage services through the settings screen:
 - **Configure** — per-instance API key, model selection, base URL (OpenAI-Compatible only; optional custom model id via checkbox)
 - **Media models** — per-instance image/video model pickers loaded from the provider catalog with prices, under the expanded service card
 - **Trial fallback toggle** — controls whether the active trial preset is appended as last resort
+- **App card** — under the PotsGame card: «Онбординг» replays the first-launch wizard, «Обновить приложение» updates Pots from its own GitHub releases. See [app-update.md](app-update.md)
 
 ## Key Files
 

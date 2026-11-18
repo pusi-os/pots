@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -90,9 +91,11 @@ import com.pusios.pots.ui.icons.ClubKey
 import com.pusios.pots.ui.icons.DragIndicator
 import com.pusios.pots.ui.icons.PotsDevice
 import com.pusios.pots.ui.icons.PotsGame
+import com.pusios.pots.ui.icons.Replay
 import com.pusios.pots.ui.potsAdaptiveCardBorder
 import com.pusios.pots.ui.potsAdaptiveCardColors
 import com.pusios.pots.ui.potsAdaptiveCardSurface
+import com.pusios.pots.update.UpdateError
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
@@ -135,6 +138,8 @@ import pots.composeapp.generated.resources.settings_base_url_label
 import pots.composeapp.generated.resources.settings_custom_model_hint
 import pots.composeapp.generated.resources.settings_custom_model_label
 import pots.composeapp.generated.resources.settings_free_fallback
+import pots.composeapp.generated.resources.settings_maintenance_description
+import pots.composeapp.generated.resources.settings_maintenance_title
 import pots.composeapp.generated.resources.settings_model_label
 import pots.composeapp.generated.resources.settings_open_app_settings
 import pots.composeapp.generated.resources.settings_openai_compatible_or_other_service
@@ -145,6 +150,8 @@ import pots.composeapp.generated.resources.settings_potsgame_fallback_note
 import pots.composeapp.generated.resources.settings_potsgame_title
 import pots.composeapp.generated.resources.settings_remove_service
 import pots.composeapp.generated.resources.settings_reorder_content_description
+import pots.composeapp.generated.resources.settings_restart_onboarding
+import pots.composeapp.generated.resources.settings_restart_onboarding_hint
 import pots.composeapp.generated.resources.settings_sign_in_copy_api_key_from
 import pots.composeapp.generated.resources.settings_sponsors
 import pots.composeapp.generated.resources.settings_status_checking
@@ -156,6 +163,28 @@ import pots.composeapp.generated.resources.settings_status_error_local_network
 import pots.composeapp.generated.resources.settings_status_error_quota_exhausted
 import pots.composeapp.generated.resources.settings_status_error_rate_limited
 import pots.composeapp.generated.resources.settings_telegram_nerosekta
+import pots.composeapp.generated.resources.settings_update_app
+import pots.composeapp.generated.resources.settings_update_cancel
+import pots.composeapp.generated.resources.settings_update_checking
+import pots.composeapp.generated.resources.settings_update_done
+import pots.composeapp.generated.resources.settings_update_done_manual
+import pots.composeapp.generated.resources.settings_update_done_restart
+import pots.composeapp.generated.resources.settings_update_downloading
+import pots.composeapp.generated.resources.settings_update_error_corrupt
+import pots.composeapp.generated.resources.settings_update_error_incomplete
+import pots.composeapp.generated.resources.settings_update_error_invalid_response
+import pots.composeapp.generated.resources.settings_update_error_network
+import pots.composeapp.generated.resources.settings_update_error_no_asset
+import pots.composeapp.generated.resources.settings_update_error_not_enough_space
+import pots.composeapp.generated.resources.settings_update_error_not_found
+import pots.composeapp.generated.resources.settings_update_error_rate_limited
+import pots.composeapp.generated.resources.settings_update_error_server
+import pots.composeapp.generated.resources.settings_update_error_unsupported
+import pots.composeapp.generated.resources.settings_update_installing
+import pots.composeapp.generated.resources.settings_update_retry
+import pots.composeapp.generated.resources.settings_update_unpacking
+import pots.composeapp.generated.resources.settings_update_unsupported
+import pots.composeapp.generated.resources.settings_update_up_to_date
 import sh.calvin.reorderable.ReorderableColumn
 import kotlin.math.roundToInt
 
@@ -254,6 +283,227 @@ internal fun PotsGameSection(
             }
         }
     }
+}
+
+/**
+ * Onboarding replay plus the self-update, right under the PotsGame club card.
+ *
+ * Both buttons are deliberate, one-shot actions: nothing is downloaded until «Обновить
+ * приложение» is pressed, and the onboarding restart only rewrites the persisted wizard flags.
+ */
+@Composable
+internal fun AppMaintenanceSection(
+    update: AppUpdateUiState,
+    onRestartOnboarding: () -> Unit,
+    onUpdateApp: () -> Unit,
+    onCancelUpdate: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = potsAdaptiveCardColors(),
+        border = potsAdaptiveCardBorder(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.PotsDevice,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(Res.string.settings_maintenance_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = stringResource(Res.string.settings_maintenance_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = onRestartOnboarding,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .handCursor(),
+            ) {
+                Icon(Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(Res.string.settings_restart_onboarding))
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(Res.string.settings_restart_onboarding_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Button(
+                onClick = onUpdateApp,
+                enabled = update.isSupported && !update.isBusy,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .handCursor(),
+            ) {
+                Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(Res.string.settings_update_app))
+            }
+
+            UpdateStatusContent(
+                update = update,
+                onUpdateApp = onUpdateApp,
+                onCancelUpdate = onCancelUpdate,
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpdateStatusContent(
+    update: AppUpdateUiState,
+    onUpdateApp: () -> Unit,
+    onCancelUpdate: () -> Unit,
+) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    when (update.phase) {
+        UpdatePhase.Idle -> if (!update.isSupported) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(Res.string.settings_update_unsupported),
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+            )
+        }
+
+        UpdatePhase.Checking -> {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(Res.string.settings_update_checking),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted,
+                )
+            }
+        }
+
+        UpdatePhase.Downloading -> {
+            Spacer(Modifier.height(8.dp))
+            val progress = update.progress
+            LinearProgressIndicator(
+                progress = { progress?.fraction ?: 0f },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(
+                    Res.string.settings_update_downloading,
+                    "${((progress?.fraction ?: 0f) * 100).roundToInt()} %",
+                    formatFileSize(progress?.bytesPerSecond ?: 0L),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+            )
+            TextButton(onClick = onCancelUpdate, modifier = Modifier.handCursor()) {
+                Text(stringResource(Res.string.settings_update_cancel))
+            }
+        }
+
+        UpdatePhase.Unpacking -> {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(Res.string.settings_update_unpacking),
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+            )
+        }
+
+        UpdatePhase.Installing -> {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(Res.string.settings_update_installing),
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+            )
+        }
+
+        UpdatePhase.UpToDate -> {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(Res.string.settings_update_up_to_date, update.versionName.orEmpty()),
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+            )
+        }
+
+        UpdatePhase.Done -> {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(Res.string.settings_update_done, update.fileName.orEmpty()),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(
+                    if (update.installerOpened) {
+                        Res.string.settings_update_done_restart
+                    } else {
+                        Res.string.settings_update_done_manual
+                    },
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+            )
+        }
+
+        UpdatePhase.Failed -> {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    imageVector = Icons.Filled.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = updateErrorText(update.error),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            TextButton(onClick = onUpdateApp, modifier = Modifier.handCursor()) {
+                Text(stringResource(Res.string.settings_update_retry))
+            }
+        }
+    }
+}
+
+/** Every failure ends with what the user can do about it, never with a bare exception name. */
+@Composable
+private fun updateErrorText(error: UpdateError?): String = when (error) {
+    UpdateError.NetworkError -> stringResource(Res.string.settings_update_error_network)
+    UpdateError.RateLimited -> stringResource(Res.string.settings_update_error_rate_limited)
+    UpdateError.NotFound -> stringResource(Res.string.settings_update_error_not_found)
+    UpdateError.ServerError -> stringResource(Res.string.settings_update_error_server)
+    UpdateError.InvalidResponse -> stringResource(Res.string.settings_update_error_invalid_response)
+    UpdateError.NotEnoughSpace -> stringResource(Res.string.settings_update_error_not_enough_space)
+    UpdateError.IncompleteDownload -> stringResource(Res.string.settings_update_error_incomplete)
+    UpdateError.CorruptArchive -> stringResource(Res.string.settings_update_error_corrupt)
+    UpdateError.NoAssetForPlatform -> stringResource(Res.string.settings_update_error_no_asset)
+    UpdateError.UnsupportedPlatform, null -> stringResource(Res.string.settings_update_error_unsupported)
 }
 
 /**
@@ -362,7 +612,11 @@ private fun SponsorList(
 }
 
 @Composable
-internal fun ServicesContent(uiState: SettingsUiState, actions: SettingsActions) {
+internal fun ServicesContent(
+    uiState: SettingsUiState,
+    actions: SettingsActions,
+    onRestartOnboarding: () -> Unit = {},
+) {
     var showAddServiceSheet by remember { mutableStateOf(false) }
 
     // Configured services list
@@ -426,6 +680,15 @@ internal fun ServicesContent(uiState: SettingsUiState, actions: SettingsActions)
     PotsGameSection(
         currentSponsors = uiState.currentSponsors,
         pastSponsors = uiState.pastSponsors,
+    )
+
+    // Onboarding replay and the GitHub self-update, right after the club card.
+    Spacer(Modifier.height(16.dp))
+    AppMaintenanceSection(
+        update = uiState.update,
+        onRestartOnboarding = onRestartOnboarding,
+        onUpdateApp = actions.onUpdateApp,
+        onCancelUpdate = actions.onCancelUpdate,
     )
 
     // Add service bottom sheet

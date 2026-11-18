@@ -1047,6 +1047,17 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Settings → «Онбординг»: reopens the first-launch wizard.
+     *
+     * The wizard renders in the empty-chat slot, so the chat is reset first; the flags are the
+     * same ones the «продолжить» card writes, no new state is involved.
+     */
+    fun restartOnboarding() {
+        startNewChat()
+        onboardingResume()
+    }
+
     fun refreshSettings() {
         updateAvailableServices()
         viewModelScope.launch(backgroundDispatcher) {

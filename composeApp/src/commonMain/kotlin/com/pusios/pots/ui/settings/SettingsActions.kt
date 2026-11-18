@@ -95,6 +95,9 @@ data class SettingsActions(
     val onPrepareExport: () -> Map<ImportSection, String?>,
     val onImportSettings: (ByteArray, Set<ImportSection>, Boolean) -> ImportResult,
     val onUndoDelete: () -> Unit,
+    /** Checks GitHub for a newer build and, when there is one, downloads and hands it over. */
+    val onUpdateApp: () -> Unit,
+    val onCancelUpdate: () -> Unit,
 ) {
     companion object {
         val NoOp = SettingsActions(
@@ -181,6 +184,8 @@ data class SettingsActions(
             onPrepareExport = { emptyMap() },
             onImportSettings = { _, _, _ -> ImportResult.Failure },
             onUndoDelete = {},
+            onUpdateApp = {},
+            onCancelUpdate = {},
         )
     }
 }
