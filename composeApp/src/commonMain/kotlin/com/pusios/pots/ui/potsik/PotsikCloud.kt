@@ -1,0 +1,355 @@
+package com.pusios.pots.ui.potsik
+
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.roundToInt
+
+/*
+ * The «облачко» — the capsule that opens on a double tap on Потсик while he
+ * stands on somebody else's screen.
+ *
+ * Everything here is pure: the measurements, where the capsule goes, what the
+ * pill says and how a double tap is counted. The window that draws it lives in
+ * androidMain (`PotsikCloudWindow`), and the reason the arithmetic is here and
+ * not there is the same as for [clampWindowOffset]: it can be tested without a
+ * device, and a placement rule that is only checked by eye is a placement rule
+ * that ends up half off the screen.
+ */
+
+/** The capsule's width: three 48 dp buttons, two 8 dp gaps, two 8 dp paddings. */
+const val POTSIK_CLOUD_WIDTH_DP = 176f
+
+/** The capsule's height: a 48 dp row inside an 8 dp padding. */
+const val POTSIK_CLOUD_HEIGHT_DP = 64f
+
+/** The tail that points at his head, drawn under the capsule. */
+const val POTSIK_CLOUD_TAIL_WIDTH_DP = 12f
+const val POTSIK_CLOUD_TAIL_HEIGHT_DP = 8f
+
+/** The window is exactly the capsule plus the tail — no empty area to eat taps. */
+const val POTSIK_CLOUD_WINDOW_HEIGHT_DP = POTSIK_CLOUD_HEIGHT_DP + POTSIK_CLOUD_TAIL_HEIGHT_DP
+
+/** One action: the accessibility minimum, and what the layout is built from. */
+const val POTSIK_CLOUD_BUTTON_DP = 48f
+
+/** The gap between two buttons and the padding inside the capsule. */
+const val POTSIK_CLOUD_GAP_DP = 8f
+
+/** The capsule's corner radius, from the Pots canon (22/20/16/14/12/11). */
+const val POTSIK_CLOUD_RADIUS_DP = 22f
+
+/** How far the capsule keeps from the edges of the screen. */
+const val POTSIK_CLOUD_EDGE_MARGIN_DP = 8f
+
+/** The capsule's bottom sits this far above the top of his head. */
+const val POTSIK_CLOUD_GAP_ABOVE_HEAD_DP = 8f
+
+/** The gap between the capsule and his body when it opens to the side. */
+const val POTSIK_CLOUD_SIDE_GAP_DP = 8f
+
+/**
+ * What the pill shows, and therefore what the capsule is: the menu, one of the
+ * three voice states, the text field, or the reason something did not work.
+ *
+ * [Menu] and [TextInput] are static — the frame clock must stay parked while
+ * they are on screen (the overlay's battery invariant); only the three voice
+ * states ask for frames.
+ */
+enum class PotsikCloudPhase {
+    Menu,
+    Listening,
+    Thinking,
+    Speaking,
+    TextInput,
+    Error,
+}
+
+/** Why the pill went into [PotsikCloudPhase.Error]. */
+enum class PotsikCloudTrouble {
+    /** No recognizer on this device: the voice button is dead, not the cloud. */
+    NoRecognizer,
+
+    /** Nothing was heard: not an error, the loop simply listens again. */
+    NoMatch,
+
+    /** The recognizer never called back within its watchdog. */
+    ListenTimeout,
+
+    /** The request could not be sent: the transcript is kept, not thrown away. */
+    NoNetwork,
+
+    /** The microphone permission was refused. */
+    PermissionDenied,
+
+    /** The screen went off — a background microphone is not allowed. */
+    ScreenOff,
+
+    /** The voice loop owns the microphone: the text field's speech waits for it. */
+    MicBusy,
+
+    /** No chat is loaded to answer: the app has to be opened once. */
+    NoChat,
+}
+
+/**
+ * What the cloud is doing right now.
+ *
+ * [transcript] and [reply] are what the pill shows; [unsent] marks a question
+ * that never left the device, so the pill can offer [Повторить] instead of
+ * pretending it was sent (the rule from the spec: nothing is lost).
+ */
+data class PotsikCloudState(
+    val phase: PotsikCloudPhase = PotsikCloudPhase.Menu,
+    val transcript: String = "",
+    val reply: String = "",
+    val trouble: PotsikCloudTrouble? = null,
+    /** The [Отмена] affordance of the thinking pill appears after three seconds. */
+    val cancelOffered: Boolean = false,
+    /** True when the text that failed to send is still there to be sent again. */
+    val unsent: Boolean = false,
+)
+
+/** The voice button is dead without a recognizer — and says so, rather than failing at the tap. */
+fun potsikCloudVoiceEnabled(recognizerAvailable: Boolean): Boolean = recognizerAvailable
+
+/** An empty field sends nothing. */
+fun potsikCloudSendEnabled(text: String): Boolean = text.isNotBlank()
+
+/**
+ * A tap on the pill while he is talking is the barge-in: the speech stops first
+ * and only then does the microphone open. In every other state the pill has
+ * nothing to interrupt.
+ */
+fun potsikCloudPillInterrupts(phase: PotsikCloudPhase): Boolean = phase == PotsikCloudPhase.Speaking
+
+/** The character's own look for each cloud state: the phases the app already has. */
+data class PotsikPetLook(
+    val phase: PotsikPhase,
+    val toolName: String?,
+    /** Tips his head as if listening — the idle roll's own lean. */
+    val leaning: Boolean,
+)
+
+/**
+ * What the character does while the cloud is open.
+ *
+ * The mapping is the app's own — the same phases the chat hands the engine —
+ * because a second, cloud-only set of poses would be a second character. The
+ * menu and the text field leave him breathing; thinking is the work phase the
+ * chat uses for a running request; speaking is the speaking phase.
+ */
+fun potsikPetLook(cloud: PotsikCloudPhase?): PotsikPetLook = when (cloud) {
+    null -> PotsikPetLook(PotsikPhase.IDLE, null, leaning = false)
+    PotsikCloudPhase.Menu, PotsikCloudPhase.TextInput -> PotsikPetLook(PotsikPhase.IDLE, null, leaning = false)
+    PotsikCloudPhase.Listening -> PotsikPetLook(PotsikPhase.IDLE, null, leaning = true)
+    PotsikCloudPhase.Thinking -> PotsikPetLook(PotsikPhase.WORKING, null, leaning = false)
+    PotsikCloudPhase.Speaking -> PotsikPetLook(PotsikPhase.SPEAKING, null, leaning = false)
+    PotsikCloudPhase.Error -> PotsikPetLook(PotsikPhase.ERROR, null, leaning = false)
+}
+
+/** Which side of the character the capsule ended up on. */
+enum class PotsikCloudSide { Above, Right, Left }
+
+/** Where the capsule's window goes, and why. */
+data class PotsikCloudPlacement(val x: Int, val y: Int, val side: PotsikCloudSide)
+
+/**
+ * Where the capsule goes: over his head, or beside him when the head is too
+ * close to the top edge to fit.
+ *
+ * The rules, in the order they are asked:
+ *
+ * 1. above — centred on his head, its bottom [POTSIK_CLOUD_GAP_ABOVE_HEAD_DP]
+ *    above the top of it;
+ * 2. not enough room above → to the right, if the capsule plus its gap fits
+ *    between him and the right edge;
+ * 3. otherwise to the left, if it fits there;
+ * 4. otherwise back above, clamped: there is nowhere else to go, and half a
+ *    capsule on the screen beats a capsule off it.
+ *
+ * Never below him: from below the capsule covers his body and his own speech
+ * bubble, which is the one thing he needs to be seen with.
+ *
+ * The final position is clamped on both axes with [POTSIK_CLOUD_EDGE_MARGIN_DP]
+ * of room at every edge — he can be dragged past the edge of the screen
+ * (`FLAG_LAYOUT_NO_LIMITS`), the capsule cannot.
+ *
+ * All arguments are pixels; [density] only turns the dp margins into them.
+ */
+fun potsikCloudPlacement(
+    petX: Int,
+    petY: Int,
+    petWidth: Int,
+    petHeight: Int,
+    characterPx: Int,
+    screenWidth: Int,
+    screenHeight: Int,
+    density: Float,
+    cloudWidthPx: Int,
+    cloudHeightPx: Int,
+): PotsikCloudPlacement {
+    val margin = (POTSIK_CLOUD_EDGE_MARGIN_DP * density).roundToInt()
+    val aboveGap = (POTSIK_CLOUD_GAP_ABOVE_HEAD_DP * density).roundToInt()
+    val sideGap = (POTSIK_CLOUD_SIDE_GAP_DP * density).roundToInt()
+
+    // His head is the top of the character inside the window: the band above
+    // it belongs to the speech bubble.
+    val headTop = petY + (petHeight - characterPx)
+    val headCentreX = petX + petWidth / 2
+
+    val aboveX = headCentreX - cloudWidthPx / 2
+    val aboveY = headTop - aboveGap - cloudHeightPx
+    if (aboveY >= margin) {
+        return clampCloud(aboveX, aboveY, cloudWidthPx, cloudHeightPx, screenWidth, screenHeight, margin, PotsikCloudSide.Above)
+    }
+
+    // Beside him: the capsule's middle lines up with the middle of his head.
+    val sideY = headTop + characterPx / 2 - cloudHeightPx / 2
+    val rightX = petX + petWidth + sideGap
+    if (rightX + cloudWidthPx <= screenWidth - margin) {
+        return clampCloud(rightX, sideY, cloudWidthPx, cloudHeightPx, screenWidth, screenHeight, margin, PotsikCloudSide.Right)
+    }
+    val leftX = petX - sideGap - cloudWidthPx
+    if (leftX >= margin) {
+        return clampCloud(leftX, sideY, cloudWidthPx, cloudHeightPx, screenWidth, screenHeight, margin, PotsikCloudSide.Left)
+    }
+
+    return clampCloud(aboveX, aboveY, cloudWidthPx, cloudHeightPx, screenWidth, screenHeight, margin, PotsikCloudSide.Above)
+}
+
+/**
+ * Keeps the capsule on the screen with [margin] of room at every edge.
+ *
+ * The clamping itself is [clampWindowOffset] — the same rule the character's
+ * window obeys — applied to the screen shrunk by the margin, so there is one
+ * implementation of "stay inside" in the project and not two.
+ */
+private fun clampCloud(
+    x: Int,
+    y: Int,
+    width: Int,
+    height: Int,
+    screenWidth: Int,
+    screenHeight: Int,
+    margin: Int,
+    side: PotsikCloudSide,
+): PotsikCloudPlacement {
+    val inner = clampWindowOffset(
+        x = x - margin,
+        y = y - margin,
+        windowWidth = width,
+        windowHeight = height,
+        screenWidth = (screenWidth - 2 * margin).coerceAtLeast(1),
+        screenHeight = (screenHeight - 2 * margin).coerceAtLeast(1),
+    )
+    return PotsikCloudPlacement(inner.x + margin, inner.y + margin, side)
+}
+
+/** The size the capsule's window takes, in dp. */
+data class PotsikCloudSize(val widthDp: Float, val heightDp: Float)
+
+/**
+ * How big the cloud's window is for a state.
+ *
+ * The menu is the fixed three-slot capsule; the pill is one row of text with
+ * the same tail, so it is shorter and wider. The window is resized between the
+ * two without animating the size — an overlay window that animates its own
+ * bounds stutters, so the content crossfades inside a window that has already
+ * jumped ([POTSIK_CLOUD_PILL_WIDTH_DP] wide).
+ *
+ * The text field is not a window at all: it is a translucent activity, because
+ * a `TYPE_APPLICATION_OVERLAY` window is always below the keyboard.
+ */
+fun potsikCloudWindowSize(state: PotsikCloudState): PotsikCloudSize = when (state.phase) {
+    PotsikCloudPhase.Menu -> PotsikCloudSize(POTSIK_CLOUD_WIDTH_DP, POTSIK_CLOUD_WINDOW_HEIGHT_DP)
+
+    PotsikCloudPhase.Listening,
+    PotsikCloudPhase.Thinking,
+    PotsikCloudPhase.Speaking,
+    PotsikCloudPhase.Error,
+    -> PotsikCloudSize(POTSIK_CLOUD_PILL_WIDTH_DP, POTSIK_CLOUD_PILL_HEIGHT_DP + POTSIK_CLOUD_TAIL_HEIGHT_DP)
+
+    // Not drawn in a window at all; the menu's size keeps the caller honest.
+    PotsikCloudPhase.TextInput -> PotsikCloudSize(POTSIK_CLOUD_WIDTH_DP, POTSIK_CLOUD_WINDOW_HEIGHT_DP)
+}
+
+/** The pill's fixed width: wide enough for two lines of an answer, not the whole screen. */
+const val POTSIK_CLOUD_PILL_WIDTH_DP = 240f
+
+/** The pill's height: one 48 dp row, the same as the capsule's. */
+const val POTSIK_CLOUD_PILL_HEIGHT_DP = 48f
+
+/**
+ * The text that has not been sent yet.
+ *
+ * Process-wide on purpose: the text field is an activity that the user closes
+ * with back or by tapping away, and the spec is explicit that the draft is not
+ * thrown away — opening the field again restores what was typed.
+ */
+object PotsikCloudDraft {
+
+    private val _text = MutableStateFlow("")
+
+    val text: StateFlow<String> = _text.asStateFlow()
+
+    fun set(value: String) {
+        _text.value = value
+    }
+
+    fun clear() {
+        _text.value = ""
+    }
+}
+
+/**
+ * True while the cloud's voice loop owns the microphone.
+ *
+ * The microphone has exactly one owner at a time — the Pots invariant — and
+ * the two surfaces that can take it are the voice pill and the text field's
+ * «Озвучить». This flag is how the second one knows to say
+ * «Сначала остановите голосовой режим» instead of talking over the first.
+ */
+object PotsikCloudVoice {
+
+    private val _active = MutableStateFlow(false)
+
+    val active: StateFlow<Boolean> = _active.asStateFlow()
+
+    fun setActive(value: Boolean) {
+        _active.value = value
+    }
+}
+
+/** What a tap on the character turned out to be. */
+enum class PotsikTap { Single, Double }
+
+/**
+ * Counts taps on the character by hand.
+ *
+ * Compose's `onDoubleTap` cannot be used here: with it, `detectTapGestures`
+ * holds every single tap for the whole double-tap window before answering, and
+ * petting him — the behaviour that already exists — would answer with up to
+ * 300 ms of lag. So the single tap is answered at once, and the second tap
+ * inside [doubleTapTimeoutMs] is what opens the cloud.
+ *
+ * The window comes from the platform (`ViewConfiguration.getDoubleTapTimeout()`),
+ * not from a constant of our own.
+ */
+class PotsikTapCounter(private val doubleTapTimeoutMs: Long) {
+
+    private var lastTapAt: Long? = null
+
+    fun onTap(now: Long): PotsikTap {
+        val previous = lastTapAt
+        if (previous != null && now - previous in 0..doubleTapTimeoutMs) {
+            // The pair is spent: a third tap starts counting from scratch,
+            // otherwise three quick taps would be two opens.
+            lastTapAt = null
+            return PotsikTap.Double
+        }
+        lastTapAt = now
+        return PotsikTap.Single
+    }
+}

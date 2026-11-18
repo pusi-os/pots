@@ -39,11 +39,23 @@ import kotlin.time.TimeSource
  * A tap pets him; the window itself is dragged by the platform shell around
  * this composable, which is where the finger's movement belongs (the window
  * moves in raw screen coordinates, and only the shell can see those).
+ *
+ * The double tap is counted by hand, in the same [androidx.compose.foundation.gestures.detectTapGestures]
+ * block the petting uses. Compose's own `onDoubleTap` would hold *every* tap
+ * for the whole double-tap window before answering, so petting him — the
+ * behaviour that already exists — would start answering with up to 300 ms of
+ * lag. Here the first tap pets him at once, and the second one inside the
+ * platform's window opens the cloud and takes the line back.
  */
 @Composable
 fun PotsikOverlayPet(
     look: PotsikLook,
     modifier: Modifier = Modifier,
+    /** Which state the cloud is in, or null while it is closed. */
+    cloud: PotsikCloudPhase? = null,
+    /** `ViewConfiguration.getDoubleTapTimeout()`, handed in by the platform. */
+    doubleTapTimeoutMs: Long = DEFAULT_DOUBLE_TAP_TIMEOUT_MS,
+    onDoubleTap: (() -> Unit)? = null,
 ) {
     val isRussian = LocalAppLanguageCode.current.lowercase().startsWith("ru")
     val behaviour = look.behaviour()
@@ -65,6 +77,9 @@ fun PotsikOverlayPet(
     val bubbleStyle = potsikBubbleTextStyle(12.sp)
 
     var nowMs by remember { mutableLongStateOf(0L) }
+
+    // What the cloud asks of him: the same phases the chat hands the engine.
+    val petLook = potsikPetLook(cloud)
 
     LaunchedEffect(engine) {
         while (true) {
@@ -88,12 +103,15 @@ fun PotsikOverlayPet(
         }
     }
 
-    LaunchedEffect(engine) {
-        engine.setPhase(
-            PotsikPhase.IDLE,
-            null,
-            timeBase.elapsedNow().inWholeMilliseconds,
-        )
+    LaunchedEffect(engine, petLook) {
+        val now = timeBase.elapsedNow().inWholeMilliseconds
+        engine.setPhase(petLook.phase, petLook.toolName, now)
+        // Listening is the idle phase with his head tipped towards the
+        // microphone — the idle roll's own lean, not a new pose.
+        if (petLook.leaning) engine.leanToListen(now)
+        // While the cloud is up he does not talk in bubbles: the pill carries
+        // the text, and the bubble would be drawn in the band the capsule sits in.
+        if (cloud != null) engine.hush()
     }
 
     // A finger on the window is carrying him.
@@ -124,9 +142,22 @@ fun PotsikOverlayPet(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(engine) {
+            .pointerInput(engine, doubleTapTimeoutMs, onDoubleTap) {
+                val counter = PotsikTapCounter(doubleTapTimeoutMs)
                 detectTapGestures {
-                    engine.onPetted(timeBase.elapsedNow().inWholeMilliseconds)
+                    val now = timeBase.elapsedNow().inWholeMilliseconds
+                    when (counter.onTap(now)) {
+                        // A single tap pets him at once — the way it always did.
+                        PotsikTap.Single -> engine.onPetted(now)
+
+                        // The second tap of a pair: the cloud opens and the
+                        // line the first tap brought up goes away, because the
+                        // pill is about to say something more useful.
+                        PotsikTap.Double -> {
+                            engine.hush()
+                            onDoubleTap?.invoke()
+                        }
+                    }
                 }
             },
     ) {
@@ -146,7 +177,7 @@ fun PotsikOverlayPet(
                 scale = scale,
             )
 
-            val bubble = engine.bubble(now)
+            val bubble = if (cloud == null) engine.bubble(now) else null
             if (bubble != null) {
                 val bubbleTop = (headTopY - 46.dp.toPx()).coerceAtLeast(0f)
                 val pop = ((now - engine.bubbleStartedAt()) / 220f).coerceIn(0f, 1f)
@@ -174,3 +205,11 @@ fun PotsikOverlayPet(
 
 /** How often a long drag re-reports itself to the engine, well inside its carry timeout. */
 private const val CARRY_REFRESH_MS = 1_000L
+
+/**
+ * The double-tap window used when the platform does not hand one in: the
+ * previews and the desktop build. On Android the real value comes from
+ * `ViewConfiguration.getDoubleTapTimeout()`, because the window belongs to the
+ * platform's own gesture detector, not to us.
+ */
+const val DEFAULT_DOUBLE_TAP_TIMEOUT_MS = 300L

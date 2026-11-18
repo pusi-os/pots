@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.PixelFormat
@@ -27,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -49,11 +52,13 @@ import com.pusios.pots.ui.LightColorScheme
 import com.pusios.pots.ui.potsik.DESKTOP_PET_BUBBLE_ROOM_DP
 import com.pusios.pots.ui.potsik.DesktopPetWindow
 import com.pusios.pots.ui.potsik.PotsikCarry
+import com.pusios.pots.ui.potsik.PotsikCloudPhase
 import com.pusios.pots.ui.potsik.PotsikOverlayPet
 import com.pusios.pots.ui.potsik.PotsikPinch
 import com.pusios.pots.ui.potsik.clampWindowOffset
 import com.pusios.pots.ui.potsik.desktopPetCharacterSize
 import com.pusios.pots.ui.potsik.pinchedPotsikSize
+import com.pusios.pots.ui.potsik.potsikSizeDp
 import com.pusios.pots.ui.potsik.potsikSizeScale
 import org.koin.android.ext.android.inject
 import org.koin.core.context.GlobalContext
@@ -116,6 +121,20 @@ class PotsOverlayService : Service() {
     private var pet: OverlayPetShell? = null
     private var windowOwner: OverlayWindowOwner? = null
 
+    /** The «облачко»: its own window, alive only while it is open. */
+    private var cloud: PotsikCloudOverlay? = null
+
+    /** What the cloud shows, as Compose state: the character's window redraws from it. */
+    private val cloudPhase = mutableStateOf<PotsikCloudPhase?>(null)
+
+    /** Screen off: the cloud closes and the microphone stops with it. */
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) closeCloud()
+        }
+    }
+    private var screenReceiverRegistered = false
+
     private val appSettings: AppSettings by inject()
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -129,6 +148,7 @@ class PotsOverlayService : Service() {
         // kills the process (ForegroundServiceDidNotStartInTime).
         startAsForeground()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        registerScreenReceiver()
         applyVisibility()
     }
 
@@ -162,6 +182,11 @@ class PotsOverlayService : Service() {
      */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // The cloud's window is placed from the character's, so a new screen
+        // size invalidates both: it goes down here rather than in an
+        // observer of its own, and the capsule is opened again on the new
+        // bounds by the next double tap.
+        closeCloud()
         val view = pet ?: return
         val params = view.windowParams ?: return
         clampToScreen(params, resources.displayMetrics)
@@ -170,6 +195,8 @@ class PotsOverlayService : Service() {
     }
 
     override fun onDestroy() {
+        closeCloud()
+        unregisterScreenReceiver()
         hidePet()
         stopForeground(STOP_FOREGROUND_REMOVE)
         isRunning = false
@@ -244,7 +271,13 @@ class PotsOverlayService : Service() {
         val owner = OverlayWindowOwner()
         val shell = OverlayPetShell(this)
         shell.windowParams = params
+        shell.onDragStart = {
+            // A drag with the cloud open would drag the capsule's window after
+            // it, frame by frame, and both would judder — it closes instead.
+            closeCloud()
+        }
         shell.onDragEnd = { nx, ny -> prefs.edit().putInt(KEY_X, nx).putInt(KEY_Y, ny).apply() }
+        shell.onDragMoved = { onPetMoved() }
         shell.onSizeChanged = { widthPx ->
             // The size a pinch ends on is the size he keeps: written into the
             // look, so it survives the app being closed and the window being
@@ -275,7 +308,12 @@ class PotsOverlayService : Service() {
             }
             CompositionLocalProvider(LocalAppLanguageCode provides languageCode) {
                 MaterialTheme(colorScheme = if (dark) DarkColorScheme else LightColorScheme) {
-                    PotsikOverlayPet(look = liveLook)
+                    PotsikOverlayPet(
+                        look = liveLook,
+                        cloud = cloudPhase.value,
+                        doubleTapTimeoutMs = ViewConfiguration.getDoubleTapTimeout().toLong(),
+                        onDoubleTap = { toggleCloud() },
+                    )
                 }
             }
         }
@@ -296,6 +334,10 @@ class PotsOverlayService : Service() {
 
     private fun hidePet() {
         val v = pet ?: return
+        // The app came back, or the mode went off: the cloud belongs to the
+        // window it was opened over, and goes down with it — the PixelTag rule
+        // says one Потсик, and the same rule says one surface of his.
+        closeCloud()
         pet = null
         // Whatever the shell was doing ended with the window: the character
         // is not being carried any more, and no pinch is half-done.
@@ -309,6 +351,72 @@ class PotsOverlayService : Service() {
         }
         windowOwner?.destroy()
         windowOwner = null
+    }
+
+    // ---- the cloud ----------------------------------------------------------
+
+    /**
+     * A double tap on the character: open the capsule, or close it when it is
+     * already up.
+     *
+     * The window is built fresh each time rather than hidden and shown: the
+     * capsule is placed from where the character is *now*, and a remembered
+     * window would open where he used to stand.
+     */
+    private fun toggleCloud() {
+        if (cloud != null) {
+            closeCloud()
+            return
+        }
+        val w = wm ?: return
+        val view = pet ?: return
+        val overlay = PotsikCloudOverlay(
+            context = this,
+            windowManager = w,
+            petParams = { pet?.windowParams },
+            characterPx = {
+                val look = appSettings.getPotsikLook()
+                val sizeDp = PotsikPinch.sizeDp.value ?: potsikSizeDp(look)
+                (sizeDp * resources.displayMetrics.density).toInt()
+            },
+            onOpenText = { startActivity(potsikTextInputIntent(this)) },
+            onClosed = { cloudPhase.value = null },
+            onPhase = { cloudPhase.value = it },
+        )
+        cloud = overlay
+        overlay.open()
+        // A window that refused to appear (permission revoked between the tap
+        // and now) leaves nothing behind.
+        if (!overlay.isOpen) cloud = null
+        // The character's window has to be told, or he would keep drawing the
+        // bubble band under a capsule that is already there.
+        view.invalidate()
+    }
+
+    private fun closeCloud() {
+        val overlay = cloud ?: return
+        cloud = null
+        overlay.close()
+        cloudPhase.value = null
+    }
+
+    /** The character moved under an open cloud: the capsule follows his head. */
+    private fun onPetMoved() {
+        cloud?.onPetMoved()
+    }
+
+    private fun registerScreenReceiver() {
+        if (screenReceiverRegistered) return
+        runCatching {
+            registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
+            screenReceiverRegistered = true
+        }
+    }
+
+    private fun unregisterScreenReceiver() {
+        if (!screenReceiverRegistered) return
+        runCatching { unregisterReceiver(screenReceiver) }
+        screenReceiverRegistered = false
     }
 
     // ---- foreground notification --------------------------------------------
@@ -421,7 +529,11 @@ class PotsOverlayService : Service() {
 private class OverlayPetShell(context: Context) : FrameLayout(context) {
 
     var windowParams: WindowManager.LayoutParams? = null
+    var onDragStart: (() -> Unit)? = null
     var onDragEnd: ((Int, Int) -> Unit)? = null
+
+    /** The window is moving: whoever follows it (the cloud) is told every frame. */
+    var onDragMoved: (() -> Unit)? = null
 
     /** The character's width in pixels, after a pinch. */
     var onSizeChanged: ((Float) -> Unit)? = null
@@ -491,6 +603,9 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
                         // The gesture declared itself a drag: take it over,
                         // the character inside sees a cancel, not a pet.
                         dragging = true
+                        // The cloud closes the moment a drag starts: a capsule
+                        // following a moving window frame by frame judders.
+                        onDragStart?.invoke()
                         // The common layer draws the carry — both arms up —
                         // so the desktop and the app show the same thing.
                         PotsikCarry.setCarried(true)
@@ -563,6 +678,7 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         // screen is a pet the user cannot get back.
         clampToScreen(params, resources.displayMetrics)
         runCatching { windowManager.updateViewLayout(this, params) }
+        onDragMoved?.invoke()
     }
 
     private fun finishDrag(params: WindowManager.LayoutParams, save: Boolean) {

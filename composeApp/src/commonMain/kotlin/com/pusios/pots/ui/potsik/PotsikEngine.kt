@@ -943,6 +943,23 @@ internal class PotsikEngine(
     }
 
     /**
+     * Tips his head as if listening to something.
+     *
+     * The idle roll's own lean ([PotsikMood.LEAN], [leanStart]), asked for from
+     * outside: the overlay's voice pill needs a "he is paying attention" look
+     * while the microphone is open, and a new pose for it would be a new
+     * animation nobody can check on a device. It expires on its own, so the
+     * caller asks again while it should last.
+     */
+    fun leanToListen(now: Long) {
+        mood = PotsikMood.LEAN
+        leanStart = now
+        leanDir = 1
+        moodUntil = now + tempo(LEAN_MS)
+        kick()
+    }
+
+    /**
      * A tap on him.
      *
      * He bounces, says something about it, and remembers that he was touched.

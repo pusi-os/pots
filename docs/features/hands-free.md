@@ -42,6 +42,17 @@ The agent can be interrupted while it is speaking. Tapping the voice button in t
 
 Recognizer and synthesizer never run at the same time. That is deliberate: with the microphone open while the agent talks, the recognizer transcribes the agent's own voice, and the agent then interrupts itself. Stopping the speech before opening the microphone is what makes the interruption predictable.
 
+### In the overlay (the cloud)
+
+The same controller drives the capsule that opens on a double tap on Потсик outside the app — see [The Cloud](potsik-cloud.md). What differs there:
+
+- A synthesizer is optional. The loop counts as supported when a recognizer exists (`isSupported` is `speechToText != null`): a device without a voice still listens and answers, the reply stays on the pill for six seconds and the microphone reopens. Without a recognizer the capsule's voice button is dead and says why.
+- The screen state is checked before the microphone opens. An overlay cannot raise the system permission dialog, and Android does not deliver recognition while the screen is off, so the pill says «Слушаю только при включённом экране» instead of pretending to listen.
+- The microphone has one owner. While the overlay's loop runs, the text field's [Озвучить] answers «Сначала остановите голосовой режим» instead of talking over it.
+- The screen going off closes the capsule, and the loop stops with it (`ACTION_SCREEN_OFF`, registered by `PotsOverlayService` for the lifetime of its window).
+- Barge-in is a tap on the pill in *Speaking*, in the same order as the app's voice button: the speech stops first, the microphone opens after.
+- Haptics only: a `CONFIRM` tick when the capsule opens and on a tap, a `SEGMENT_TICK` when a new recognition session starts. Nothing buzzes continuously.
+
 ## Behaviour
 
 - The transcript is sent as an ordinary chat message, so it lands in the conversation history like a typed one and can be re-read, regenerated or answered afterwards
@@ -69,6 +80,8 @@ Recognizer and synthesizer never run at the same time. That is deliberate: with 
 | `composeApp/src/iosMain/.../handsfree/SpeechToText.iosMain.kt` | No recognizer on iOS — the button is hidden |
 | `composeApp/src/wasmJsMain/.../handsfree/SpeechToText.wasmJsMain.kt` | No recognizer on the web — the button is hidden |
 | `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Creates the controller, feeds assistant replies into it, wires the top-bar button |
+| `composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt` | The same loop in the desktop capsule's overlay window (the voice pill) |
+| `composeApp/src/androidMain/.../overlay/PotsikTextInputActivity.kt` | The capsule's text field; the second owner of «Озвучить», which defers to the pill |
 | `composeApp/src/commonMain/.../ui/tts/PotsTextToSpeech.kt` | Engine-independent speaking interface the loop talks to |
 | `composeApp/src/commonMain/.../ui/tts/SpeechChunks.kt` | Splits long replies into platform-sized chunks |
 | `composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt` | The voice-mode button with its state icon and listening pulse |

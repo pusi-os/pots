@@ -6,4 +6,15 @@
         <item name="android:enforceNavigationBarContrast">false</item>
         <item name="android:enforceStatusBarContrast">false</item>
     </style>
+
+    <!-- The cloud's text field: a floating translucent screen with the field at
+         the bottom, so the keyboard lifts it instead of covering it. An overlay
+         window cannot do this — TYPE_APPLICATION_OVERLAY is always below the IME. -->
+    <style name="PotsikTextInputTheme" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

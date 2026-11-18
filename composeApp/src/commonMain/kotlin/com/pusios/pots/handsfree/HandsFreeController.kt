@@ -94,8 +94,14 @@ class HandsFreeController(
      */
     private var speechOutputEnabled: Boolean = true
 
-    /** True when the platform can run the loop at all. */
-    val isSupported: Boolean get() = speechToText != null && textToSpeech != null
+    /**
+     * True when the platform can run the loop at all.
+     *
+     * A synthesizer is not required: with one the reply is also read out
+     * loud, without one the loop still listens and answers and the reply
+     * stays on screen (the overlay pill relies on exactly this).
+     */
+    val isSupported: Boolean get() = speechToText != null
 
     /** True while the loop is running. */
     val isActive: Boolean get() = _status.value != HandsFreeStatus.Idle

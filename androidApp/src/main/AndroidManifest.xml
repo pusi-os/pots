@@ -87,6 +87,15 @@
                 android:name="android.service.quicksettings.ACTIVE_TILE"
                 android:value="false" />
         </service>
+        <!-- The cloud's text field: a floating translucent screen, so the
+             keyboard lifts the field instead of covering it. -->
+        <activity
+            android:name="com.pusios.pots.overlay.PotsikTextInputActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:theme="@style/PotsikTextInputTheme"
+            android:windowSoftInputMode="adjustResize" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

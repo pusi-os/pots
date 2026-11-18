@@ -839,4 +839,27 @@
     <string name="token_stats_requests">Requests</string>
     <string name="token_stats_per_request">Per request</string>
     <string name="token_stats_request_n">Request %1$d</string>
+    <!-- The «облачко»: the capsule that opens on a double tap on the character over other apps. -->
+    <string name="potsik_cloud_voice">Voice mode</string>
+    <string name="potsik_cloud_voice_unavailable">Voice mode is unavailable</string>
+    <string name="potsik_cloud_text">Text chat</string>
+    <string name="potsik_cloud_no_recognizer">This device has no speech recognition</string>
+    <string name="potsik_cloud_listening">Listening…</string>
+    <string name="potsik_cloud_thinking">Thinking…</string>
+    <string name="potsik_cloud_stop">Stop</string>
+    <string name="potsik_cloud_cancel">Cancel</string>
+    <string name="potsik_cloud_retry">Retry</string>
+    <string name="potsik_cloud_no_match">Didn\'t catch that — say it again</string>
+    <string name="potsik_cloud_timeout">Didn\'t catch that</string>
+    <string name="potsik_cloud_no_network">Not sent — no network</string>
+    <string name="potsik_cloud_permission_denied">No microphone access</string>
+    <string name="potsik_cloud_screen_off">Listening works only while the screen is on</string>
+    <string name="potsik_cloud_no_chat">Open Pots to answer</string>
+    <string name="potsik_cloud_input_placeholder">Ask Pots…</string>
+    <string name="potsik_cloud_send">Send</string>
+    <string name="potsik_cloud_close">Close</string>
+    <string name="potsik_cloud_open_in_chat">Open in chat</string>
+    <string name="potsik_cloud_speak_aloud">Read aloud</string>
+    <string name="potsik_cloud_mic_busy">Stop the voice mode first</string>
+    <string name="potsik_cloud_unsent">Not sent</string>
 </resources>

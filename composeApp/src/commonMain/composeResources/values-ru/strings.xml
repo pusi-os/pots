@@ -840,4 +840,27 @@
     <string name="mini_app_edit_description">Edit description</string>
     <string name="tool_mini_app_data_name">Mini-app data</string>
     <string name="tool_mini_app_data_description">Design and use the persistent data of the app being built</string>
+    <!-- «Облачко»: капсула на двойной тап по персонажу поверх других приложений. -->
+    <string name="potsik_cloud_voice">Голосовой режим</string>
+    <string name="potsik_cloud_voice_unavailable">Голосовой режим недоступен</string>
+    <string name="potsik_cloud_text">Текстовый чат</string>
+    <string name="potsik_cloud_no_recognizer">На этом устройстве нет распознавания речи</string>
+    <string name="potsik_cloud_listening">Слушаю…</string>
+    <string name="potsik_cloud_thinking">Думаю…</string>
+    <string name="potsik_cloud_stop">Стоп</string>
+    <string name="potsik_cloud_cancel">Отмена</string>
+    <string name="potsik_cloud_retry">Повторить</string>
+    <string name="potsik_cloud_no_match">Не расслышал, повторите</string>
+    <string name="potsik_cloud_timeout">Не расслышал</string>
+    <string name="potsik_cloud_no_network">Не отправлено — нет сети</string>
+    <string name="potsik_cloud_permission_denied">Нет доступа к микрофону</string>
+    <string name="potsik_cloud_screen_off">Слушаю только при включённом экране</string>
+    <string name="potsik_cloud_no_chat">Откройте Pots, чтобы ответить</string>
+    <string name="potsik_cloud_input_placeholder">Спросить Потса…</string>
+    <string name="potsik_cloud_send">Отправить</string>
+    <string name="potsik_cloud_close">Закрыть</string>
+    <string name="potsik_cloud_open_in_chat">Открыть в чате</string>
+    <string name="potsik_cloud_speak_aloud">Озвучить</string>
+    <string name="potsik_cloud_mic_busy">Сначала остановите голосовой режим</string>
+    <string name="potsik_cloud_unsent">Не отправлено</string>
 </resources>
