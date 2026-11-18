@@ -3,7 +3,8 @@ package com.pusios.pots.ui.potsik
 import androidx.compose.ui.unit.IntOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * The two gestures the character's size and place are made of, as pure
@@ -125,19 +126,51 @@ class DesktopPetGestureTest {
         assertEquals(IntOffset(0, 400), offset)
     }
 
+    @Test
+    fun `turning the phone from portrait to landscape pulls him back onto the new screen`() {
+        // He was put down low in portrait (1080×2400) and the phone turns:
+        // landscape is 2400×1080, so his absolute y is now past the bottom
+        // edge and the window would sit entirely off the screen — the one
+        // way `FLAG_LAYOUT_NO_LIMITS` really does lose him.
+        val offset = clampWindowOffset(
+            x = 700,
+            y = 2_000,
+            windowWidth = 300,
+            windowHeight = 420,
+            screenWidth = 2_400,
+            screenHeight = 1_080,
+        )
+        assertEquals(IntOffset(700, 660), offset)
+    }
+
     // ---- the carry -----------------------------------------------------------
 
     @Test
-    fun `a drag in progress is the carry, and it is the hands-up animation`() {
-        val effect = potsikDragEffect(dragging = true)
-        assertEquals(PotsikDragEffect.CARRY, effect)
-        assertEquals(PotsikAction.IDLE_HANDS_UP, effect.animation)
+    fun `a drag in progress is the carry, and the pose it draws is the hands-up one`() {
+        assertEquals(PotsikDragEffect.CARRY, potsikDragEffect(dragging = true))
+
+        // What the carry really does to him: the renderer's dangle pose — both
+        // arms thrown up, legs kicking — which the catalogue calls
+        // IDLE_HANDS_UP. No new animation was drawn, so this is the behaviour
+        // worth pinning: a finger on him hangs him by the arms.
+        val engine = PotsikEngine(PotsikSettings()) { false }
+        engine.grabTo(100f, 100f, now = 0L)
+        engine.tick(50L)
+        assertTrue(engine.frame(50L).dangle, "the finger on him hangs him by the arms")
     }
 
     @Test
-    fun `letting go is a release with no animation of its own`() {
-        val effect = potsikDragEffect(dragging = false)
-        assertEquals(PotsikDragEffect.RELEASE, effect)
-        assertNull(effect.animation, "letting go hands him back to the idle loop")
+    fun `letting go hands him back to the idle loop`() {
+        assertEquals(PotsikDragEffect.RELEASE, potsikDragEffect(dragging = false))
+
+        val engine = PotsikEngine(PotsikSettings()) { false }
+        engine.grabTo(100f, 100f, now = 0L)
+        engine.tick(50L)
+        assertTrue(engine.frame(50L).dangle)
+
+        // He falls and lands, and from there the pose is the idle one again.
+        engine.release(now = 100L)
+        engine.tick(900L)
+        assertFalse(engine.frame(900L).dangle, "the carry is over once the finger lifts")
     }
 }

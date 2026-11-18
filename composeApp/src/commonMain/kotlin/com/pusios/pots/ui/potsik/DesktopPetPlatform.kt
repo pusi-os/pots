@@ -76,6 +76,17 @@ fun desktopPetRow(
 }
 
 /**
+ * What the switch writes when it is tapped.
+ *
+ * The switch is drawn from the *effective* state ([DesktopPetRow.checked]),
+ * which is off whenever the permission is missing — so a tap always arrives as
+ * `true` there and reading the tap's own value would make the wish impossible
+ * to cancel. The tap flips the *wish* instead, which is right in all four
+ * states: off → on, on → off, and, with no permission, wish-on → wish-off.
+ */
+fun toggledDesktopPetWish(savedEnabled: Boolean): Boolean = !savedEnabled
+
+/**
  * Runs an overlay action only where the overlay actually exists.
  *
  * The row is already disabled on an Android too old for the mode, so this is

@@ -94,13 +94,6 @@ enum class PotsikDragEffect {
 /** The effect a drag in progress has, and the one letting go has. */
 fun potsikDragEffect(dragging: Boolean): PotsikDragEffect = if (dragging) PotsikDragEffect.CARRY else PotsikDragEffect.RELEASE
 
-/** The catalogue's name for the pose the carry draws. */
-val PotsikDragEffect.animation: PotsikAction?
-    get() = when (this) {
-        PotsikDragEffect.CARRY -> PotsikAction.IDLE_HANDS_UP
-        PotsikDragEffect.RELEASE -> null
-    }
-
 /**
  * How big the character stands.
  *

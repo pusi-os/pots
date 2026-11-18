@@ -229,7 +229,11 @@ composition); the size is computed from the distance between the fingers, so
 moving the window under them changes nothing, and the shell hands the second
 finger's stream to the pinch instead of eating it as a drag. Letting go
 clamps the window back into the screen, so the character cannot be dragged
-off an edge and lost.
+off an edge and lost — and a rotation or a display-size change goes through
+the same clamp (`onConfigurationChanged`), because the window keeps absolute
+coordinates and a character put down low in portrait would otherwise sit past
+the bottom edge in landscape. The new place is written to the prefs, so he
+comes back where he was left.
 
 ## The agent's tool
 

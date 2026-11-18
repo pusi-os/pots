@@ -50,6 +50,7 @@ import com.pusios.pots.ui.potsik.desktopPetAvailability
 import com.pusios.pots.ui.potsik.desktopPetRow
 import com.pusios.pots.ui.potsik.openDesktopPetPermissionSettings
 import com.pusios.pots.ui.potsik.syncDesktopPetService
+import com.pusios.pots.ui.potsik.toggledDesktopPetWish
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
@@ -395,7 +396,10 @@ private fun <T> PotsikOptionRow(
  * The switch shows the *effective* state, not the saved wish: with the mode
  * saved on but the permission missing it reads off, and the note under it says
  * what to do. A switch that claimed to be on would promise a character
- * standing on the desktop when there is none.
+ * standing on the desktop when there is none. Which is why the tap flips the
+ * saved wish instead of taking the value the switch reported — otherwise, with
+ * the permission missing, every tap would arrive as on and the wish could
+ * never be cancelled.
  *
  * [LifecycleResumeEffect] is the whole point of this row's shape: the user
  * leaves for the system's permission screen, grants the permission, comes
@@ -435,7 +439,11 @@ private fun PotsikOverlayRow(
         // The wish is saved even without the permission: that is what lets
         // the return from the system screen apply it on its own. Until the
         // permission is there the switch stays off and the note explains.
-        onCheckedChange = { enabled -> actions.onChangePotsikLook(look.copy(overlayEnabled = enabled)) },
+        //
+        // The tap flips the *saved* wish, never the drawn state: with the
+        // permission missing the switch reads off, so every tap would arrive
+        // as `true` and the saved wish could never be cancelled.
+        onCheckedChange = { actions.onChangePotsikLook(look.copy(overlayEnabled = toggledDesktopPetWish(look.overlayEnabled))) },
         enabled = row.enabled,
     )
 

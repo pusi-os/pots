@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
@@ -146,6 +147,25 @@ class PotsOverlayService : Service() {
     override fun onTimeout(startId: Int, fgsType: Int) {
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    /**
+     * A rotation, a fold or a display-size change happens under the window.
+     *
+     * The window keeps absolute x/y, so a character standing low in portrait
+     * would sit past the bottom edge in landscape and be gone — the one place
+     * `FLAG_LAYOUT_NO_LIMITS` really loses him. By the time this is called the
+     * new metrics are already on `resources`, so the same clamp the gestures
+     * use puts him back; the new place is written down, or the next start
+     * would read the old coordinates out of the prefs and jump him off again.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val view = pet ?: return
+        val params = view.windowParams ?: return
+        keepOnScreen(params)
+        runCatching { wm?.updateViewLayout(view, params) }
+        prefs().edit().putInt(KEY_X, params.x).putInt(KEY_Y, params.y).apply()
     }
 
     override fun onDestroy() {

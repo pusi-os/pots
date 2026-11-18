@@ -68,6 +68,31 @@ class DesktopPetAvailabilityTest {
     }
 
     @Test
+    fun `a tap flips the saved wish, never the drawn state`() {
+        fun checkedOf(saved: Boolean, granted: Boolean) = desktopPetRow(DesktopPetAvailability.Available, savedEnabled = saved, permissionGranted = granted).checked
+
+        // The four states the row can be in. What the tap writes is the flip
+        // of the saved wish, never of the drawn switch: without the permission
+        // the switch reads off whichever way the wish stands, so every tap
+        // arrives as `true` and reading it would make the wish impossible to
+        // cancel.
+        assertFalse(checkedOf(saved = false, granted = true))
+        assertTrue(toggledDesktopPetWish(savedEnabled = false), "off → on")
+
+        assertTrue(checkedOf(saved = true, granted = true))
+        assertFalse(toggledDesktopPetWish(savedEnabled = true), "on → off")
+
+        assertFalse(checkedOf(saved = false, granted = false))
+        assertTrue(toggledDesktopPetWish(savedEnabled = false), "wish on, no permission → on")
+
+        assertFalse(checkedOf(saved = true, granted = false))
+        assertFalse(
+            toggledDesktopPetWish(savedEnabled = true),
+            "wish on without the permission → the tap cancels the wish, though the switch reads off",
+        )
+    }
+
+    @Test
     fun `the overlay's own actions do nothing where the overlay cannot exist`() {
         var opened = 0
         var synced = 0
