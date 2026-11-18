@@ -606,7 +606,7 @@ class BuildEnvironmentManager(
         val executor = executor()
         executor.execute(
             "mkdir -p /root/.local/bin /root/.local/share/pi-node /root/.hermes " +
-                "/root/.pi/agent /usr/local/bin",
+                "/root/.pi/agent /root/.opencode/bin /usr/local/bin",
             timeoutSeconds = 30,
         )
         val result = executor.execute(agent.installCommand, timeoutSeconds = agent.installTimeoutSeconds)
@@ -621,7 +621,7 @@ class BuildEnvironmentManager(
             Log.w(TAG, "${agent.id} install failed (exit detail): ${result.failureDetail()}")
             val probeOutput = executor.execute(
                 "command -v ${agent.binary} 2>/dev/null; " +
-                    "ls -la /root/.local/bin /root/.local/share/pi-node/bin /usr/local/bin 2>/dev/null; " +
+                    "ls -la /root/.local/bin /root/.local/share/pi-node/bin /root/.opencode/bin /usr/local/bin 2>/dev/null; " +
                     "ls -la /root/.hermes/hermes-agent/.hermes/bin 2>/dev/null | tail -5; " +
                     "ls -la /root/.pi 2>/dev/null",
                 timeoutSeconds = 30,
@@ -802,7 +802,7 @@ class BuildEnvironmentManager(
         File(dir, "pots-build-path.sh").writeText(
             """
             |# Managed by Pots Build — keep coding-agent CLIs on PATH for login shells.
-            |export PATH="/root/.local/bin:/root/.local/share/pi-node/bin${'$'}{PATH:+:${'$'}PATH}"
+            |export PATH="/root/.local/bin:/root/.local/share/pi-node/bin:/root/.opencode/bin${'$'}{PATH:+:${'$'}PATH}"
             |
             """.trimMargin(),
         )
@@ -1020,7 +1020,7 @@ class BuildEnvironmentManager(
                 // mounted noexec.
                 binds = listOf(paths.projectsDir.absolutePath to "/root/projects"),
                 extraArgs = DebianSpec.prootArgs,
-                env = DebianSpec.env + agentEnv(columns, rows, openUrlPath),
+                env = DebianSpec.env + agentEnv(columns, rows, openUrlPath, session?.agentId),
             ),
             tmpPath = paths.tmpDir.absolutePath,
             columns = columns,
@@ -1030,20 +1030,33 @@ class BuildEnvironmentManager(
         )
     }
 
-    private fun agentEnv(columns: Int, rows: Int, openUrlPath: String) = mapOf(
-        "USER" to "root",
-        // Pi → ~/.local/bin (on ~/.local/share/pi-node), Hermes → ~/.local/bin link
-        // into ~/.hermes/venv/bin. Keep every agent dir on PATH; shell rc files are
-        // not sourced for non-login probes.
-        "PATH" to "/root/.local/bin:/root/.local/share/pi-node/bin:$DEFAULT_GUEST_PATH",
-        "COLORTERM" to "truecolor",
-        "COLUMNS" to columns.toString(),
-        "LINES" to rows.toString(),
-        // Same target for the pots-browser wrapper, so both hooks feed one session's link bar.
-        "POTS_OPEN_URL_FILE" to openUrlPath,
-        // webbrowser crate falls back to ${'$'}BROWSER when xdg-open is missing.
-        "BROWSER" to "/usr/local/bin/pots-browser",
-    )
+    private fun agentEnv(columns: Int, rows: Int, openUrlPath: String, agentId: String?): Map<String, String> {
+        val base = mapOf(
+            "USER" to "root",
+            // OpenCode → ~/.opencode/bin, Pi → ~/.local/bin (on
+            // ~/.local/share/pi-node), Hermes → ~/.local/bin link into
+            // ~/.hermes/venv/bin. Keep every agent dir on PATH; shell rc files are
+            // not sourced for non-login probes.
+            "PATH" to "/root/.local/bin:/root/.local/share/pi-node/bin:/root/.opencode/bin:$DEFAULT_GUEST_PATH",
+            "COLORTERM" to "truecolor",
+            "COLUMNS" to columns.toString(),
+            "LINES" to rows.toString(),
+            // Same target for the pots-browser wrapper, so both hooks feed one session's link bar.
+            "POTS_OPEN_URL_FILE" to openUrlPath,
+            // webbrowser crate falls back to ${'$'}BROWSER when xdg-open is missing.
+            "BROWSER" to "/usr/local/bin/pots-browser",
+        )
+        // Only the session's own agent gets the provider key, and only the agent
+        // that reads it from the process (OpenCode's `{env:...}`). Pi and Hermes
+        // carry it in their own config files, so their env stays key-free.
+        val credentials = activeCredentials?.invoke()
+        val providerKey: Map<String, String> = if (agentId != null && credentials != null) {
+            SandboxAgentConfig.envFor(agentId, credentials)
+        } else {
+            emptyMap()
+        }
+        return base + providerKey
+    }
 }
 
 private fun BuildProotExecutor.hasBinary(binary: String): Boolean =
@@ -1056,6 +1069,7 @@ private fun BuildProotExecutor.hasBinary(binary: String): Boolean =
  * of dirs still find every agent by name.
  *
  * Known layouts:
+ * - OpenCode: `~/.opencode/bin/opencode`, linked into `~/.local/bin`
  * - Pi: `~/.local/bin/pi` → the managed install's `~/.pi/agent/bin/pi`, Node runtime in `~/.local/share/pi-node/bin`
  * - Hermes: `~/.hermes/hermes-agent/.hermes/bin/hermes`, linked into `~/.local/bin`
  *
@@ -1082,6 +1096,7 @@ private fun BuildProotExecutor.ensureAgentBinary(binary: String): String? {
         for candidate in \
             "/root/.hermes/hermes-agent/.hermes/bin/${'$'}bin" \
             "/root/.local/share/pi-node/bin/${'$'}bin" \
+            "/root/.opencode/bin/${'$'}bin" \
             "/usr/local/bin/${'$'}bin"
         do
             if [ -x "${'$'}candidate" ] && [ ! -d "${'$'}candidate" ]; then

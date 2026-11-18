@@ -38,11 +38,13 @@ data class SandboxAgentFile(val path: String, val content: String)
 /**
  * Renders the active Pots provider into each sandbox agent's own configuration.
  *
- * Both agents read a file in their home rather than taking flags, so the
- * propagation is a file write: Pi takes `~/.pi/agent/models.json` (custom
- * providers) plus `~/.pi/agent/settings.json` (the startup model), Hermes takes
- * `~/.hermes/config.yaml` (a `providers:` entry and the `model:` block that points
- * at it) plus the key in `~/.hermes/.env`, which it loads as dotenv.
+ * Each agent reads a file in its home rather than taking flags, so the
+ * propagation is a file write: OpenCode takes `~/.config/opencode/opencode.json`
+ * (a `provider` entry plus the `model` it starts on), Pi takes
+ * `~/.pi/agent/models.json` (custom providers) plus `~/.pi/agent/settings.json`
+ * (the startup model), Hermes takes `~/.hermes/config.yaml` (a `providers:` entry
+ * and the `model:` block that points at it) plus the key in `~/.hermes/.env`,
+ * which it loads as dotenv.
  *
  * Everything here is pure: it takes the credentials and returns the bytes, so the
  * mapping is unit-tested without a sandbox, a network call, or a key.
@@ -57,7 +59,12 @@ object SandboxAgentConfig {
      */
     const val PLACEHOLDER_API_KEY = "pots-no-key"
 
-    /** Env var Hermes reads the API key from; `key_env` in its config points here. */
+    /**
+     * Env var Hermes reads the API key from; `key_env` in its config points here.
+     * OpenCode names the same variable in its own config (`{env:...}`) so the app
+     * keeps one namespace for provider keys instead of one per agent — the value
+     * is put into the agent process' environment either way.
+     */
     fun apiKeyEnv(providerId: String): String =
         "HERMES_CUSTOM_" + providerId.uppercase().map { if (it.isLetterOrDigit()) it else '_' }.joinToString("") + "_API_KEY"
 
@@ -87,13 +94,66 @@ object SandboxAgentConfig {
     fun filesFor(agentId: String, credentials: SandboxAgentCredentials?): List<SandboxAgentFile> {
         if (credentials == null) return emptyList()
         return when (agentId) {
+            BuildAgents.OPENCODE -> opencode(credentials)
             BuildAgents.PI -> pi(credentials)
             BuildAgents.HERMES -> hermes(credentials)
             else -> emptyList()
         }
     }
 
+    /**
+     * The environment [agentId] needs on top of its config file to reach the
+     * provider — the key itself, for the agents that read it from the process
+     * rather than from a file. Empty for the agents that carry it in their own
+     * config file, so nothing that does not need the key is handed it.
+     */
+    fun envFor(agentId: String, credentials: SandboxAgentCredentials): Map<String, String> = when (agentId) {
+        // OpenCode resolves `{env:...}` from the environment; a keyless provider
+        // still needs a value there, or OpenCode treats the provider as
+        // unconfigured and asks for an interactive `providers login`.
+        BuildAgents.OPENCODE -> mapOf(
+            apiKeyEnv(credentials.providerId) to credentials.apiKey.ifBlank { PLACEHOLDER_API_KEY },
+        )
+        else -> emptyMap()
+    }
+
     private val prettyJson = Json { prettyPrint = true }
+
+    /**
+     * OpenCode's config: `provider.<id>` is an OpenAI-compatible provider, and the
+     * top-level `model` is what it starts on. The key is not written here — the
+     * file only names the variable (`{env:...}`, which OpenCode substitutes at
+     * load time) and [envFor] puts the value into the agent's environment, so the
+     * key never sits in a config file. The same file is what `opencode serve`
+     * reads, so the web UI comes up on the same provider without its own setup.
+     */
+    private fun opencode(credentials: SandboxAgentCredentials): List<SandboxAgentFile> {
+        val keyEnv = apiKeyEnv(credentials.providerId)
+        val config = buildJsonObject {
+            putJsonObject("provider") {
+                putJsonObject(credentials.providerId) {
+                    put("npm", "@ai-sdk/openai-compatible")
+                    put("name", credentials.providerName)
+                    putJsonObject("options") {
+                        put("baseURL", credentials.endpoint)
+                        put("apiKey", "{env:$keyEnv}")
+                    }
+                    putJsonObject("models") {
+                        putJsonObject(credentials.model) {
+                            put("name", credentials.model)
+                        }
+                    }
+                }
+            }
+            put("model", "${credentials.providerId}/${credentials.model}")
+        }
+        return listOf(
+            SandboxAgentFile(
+                path = ".config/opencode/opencode.json",
+                content = prettyJson.encodeToString(config) + "\n",
+            ),
+        )
+    }
 
     /**
      * Pi's custom-provider file, and the startup model that points at it. The

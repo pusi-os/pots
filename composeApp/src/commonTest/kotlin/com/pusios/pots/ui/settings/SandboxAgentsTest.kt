@@ -63,6 +63,23 @@ class SandboxAgentsTest {
     }
 
     @Test
+    fun `the OpenCode card appears with the version its probe printed`() = runTest {
+        val build = FakePotsBuildController()
+        build.state.value = PotsBuildState(
+            installedAgents = persistentSetOf(BuildAgents.OPENCODE),
+            agentVersions = persistentMapOf(BuildAgents.OPENCODE to "1.19.6"),
+        )
+
+        val viewModel = SandboxViewModel(FakeDataRepository(), FakeSandboxController(), build)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf(SandboxAgentUi(BuildAgents.OPENCODE, "OpenCode", "1.19.6")),
+            viewModel.state.value.agents,
+        )
+    }
+
+    @Test
     fun `an agent that reported no version keeps a null one`() = runTest {
         val build = FakePotsBuildController()
         build.state.value = PotsBuildState(installedAgents = persistentSetOf(BuildAgents.PI))

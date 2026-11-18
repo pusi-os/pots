@@ -47,9 +47,11 @@ class SandboxAgentConfigTest {
     }
 
     @Test
-    fun `the sandbox agents are Pi and Hermes`() {
-        assertEquals(listOf("pi", "hermes"), BuildAgents.all.map { it.id })
-        assertEquals(listOf("Pi", "Hermes"), BuildAgents.all.map { it.title })
+    fun `the sandbox agents are OpenCode, Pi and Hermes`() {
+        // OpenCode leads: it is the only one of the three with a built-in web UI.
+        assertEquals(listOf("opencode", "pi", "hermes"), BuildAgents.all.map { it.id })
+        assertEquals(listOf("OpenCode", "Pi", "Hermes"), BuildAgents.all.map { it.title })
+        assertEquals("opencode", BuildAgents.get(BuildAgents.OPENCODE)!!.binary)
     }
 
     @Test
@@ -58,6 +60,93 @@ class SandboxAgentConfigTest {
         for (agent in BuildAgents.all) {
             assertTrue(SandboxAgentConfig.filesFor(agent.id, null).isEmpty())
         }
+    }
+
+    // --- OpenCode ---------------------------------------------------------
+
+    private fun opencodeConfig(from: SandboxAgentCredentials = credentials) =
+        Json.parseToJsonElement(
+            SandboxAgentConfig.filesFor(BuildAgents.OPENCODE, from).single().content,
+        ).jsonObject
+
+    private fun opencodeProvider(from: SandboxAgentCredentials = credentials) =
+        opencodeConfig(from)["provider"]!!.jsonObject.getValue(from.providerId).jsonObject
+
+    @Test
+    fun `OpenCode gets one config file with the provider and model Pots is on`() {
+        val files = SandboxAgentConfig.filesFor(BuildAgents.OPENCODE, credentials)
+
+        assertEquals(listOf(".config/opencode/opencode.json"), files.map { it.path })
+        val config = opencodeConfig()
+        val provider = opencodeProvider()
+        assertEquals("@ai-sdk/openai-compatible", provider["npm"]!!.jsonPrimitive.content)
+        assertEquals("PlusVibe", provider["name"]!!.jsonPrimitive.content)
+        assertEquals(
+            "https://plusvibeapi.ru/v1",
+            provider["options"]!!.jsonObject["baseURL"]!!.jsonPrimitive.content,
+        )
+        val models = provider["models"]!!.jsonObject
+        assertEquals(setOf("qwen3.8-flash"), models.keys)
+        assertEquals("qwen3.8-flash", models.getValue("qwen3.8-flash").jsonObject["name"]!!.jsonPrimitive.content)
+        assertEquals("plusvibe/qwen3.8-flash", config["model"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `OpenCode reads the key from the environment instead of the config`() {
+        val file = fileFor(BuildAgents.OPENCODE, ".config/opencode/opencode.json")
+
+        assertFalse(file.contains(credentials.apiKey), "the key leaked into opencode.json")
+        assertEquals(
+            "{env:HERMES_CUSTOM_PLUSVIBE_API_KEY}",
+            opencodeProvider()["options"]!!.jsonObject["apiKey"]!!.jsonPrimitive.content,
+        )
+        // The value travels in the agent process' environment, which is what
+        // `{env:...}` resolves against.
+        assertEquals(
+            mapOf("HERMES_CUSTOM_PLUSVIBE_API_KEY" to credentials.apiKey),
+            SandboxAgentConfig.envFor(BuildAgents.OPENCODE, credentials),
+        )
+    }
+
+    @Test
+    fun `a keyless provider still gives OpenCode a key to send`() {
+        // Without a value OpenCode treats the provider as unconfigured and asks
+        // for an interactive `providers login`, which a sandbox cannot answer.
+        val keyless = credentials.copy(providerId = "openai-compatible", model = "llama3", apiKey = "")
+
+        assertEquals(
+            "{env:HERMES_CUSTOM_OPENAI_COMPATIBLE_API_KEY}",
+            opencodeProvider(keyless)["options"]!!.jsonObject["apiKey"]!!.jsonPrimitive.content,
+        )
+        assertEquals(
+            mapOf("HERMES_CUSTOM_OPENAI_COMPATIBLE_API_KEY" to SandboxAgentConfig.PLACEHOLDER_API_KEY),
+            SandboxAgentConfig.envFor(BuildAgents.OPENCODE, keyless),
+        )
+        assertEquals("openai-compatible/llama3", opencodeConfig(keyless)["model"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a key with dollars and bangs reaches OpenCode untouched`() {
+        // OpenCode interpolates nothing in a JSON value, so unlike Pi's file the
+        // key needs no escaping — it never enters the file at all.
+        val odd = credentials.copy(apiKey = "sk-!weird\$HOME")
+
+        assertFalse(
+            fileFor(BuildAgents.OPENCODE, ".config/opencode/opencode.json").contains("weird"),
+            "the key leaked into opencode.json",
+        )
+        assertEquals(
+            "sk-!weird\$HOME",
+            SandboxAgentConfig.envFor(BuildAgents.OPENCODE, odd).getValue("HERMES_CUSTOM_PLUSVIBE_API_KEY"),
+        )
+    }
+
+    @Test
+    fun `only OpenCode is handed the key in its environment`() {
+        // Pi and Hermes read it out of their own config files, so nothing else in
+        // the sandbox gets the key in its process environment.
+        assertEquals(emptyMap<String, String>(), SandboxAgentConfig.envFor(BuildAgents.PI, credentials))
+        assertEquals(emptyMap<String, String>(), SandboxAgentConfig.envFor(BuildAgents.HERMES, credentials))
     }
 
     // --- Pi ---------------------------------------------------------------

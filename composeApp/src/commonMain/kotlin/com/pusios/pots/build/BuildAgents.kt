@@ -9,14 +9,15 @@ import kotlinx.collections.immutable.persistentListOf
  * self-contained installer, so the base system plus curl is all they need.
  *
  * Install locations (guest paths under `/root`):
+ * - OpenCode → `~/.opencode/bin/opencode`
  * - Pi → `~/.local/bin/pi`, a link into the managed install at `~/.pi/agent`
  * - Hermes → `~/.hermes/hermes-agent/.hermes/bin/hermes`, linked into `~/.local/bin/hermes`
  *
- * Proot injects both bin dirs into PATH for probes/installers. Login shells
+ * Proot injects all three bin dirs into PATH for probes/installers. Login shells
  * rebuild PATH from profile files, so Pots Build also writes a profile.d snippet
  * and launches agents by absolute path.
  *
- * Both agents are pointed at the provider Pots itself is using, by
+ * Every agent is pointed at the provider Pots itself is using, by
  * [SandboxAgentConfig] — nobody should have to log each CLI in separately.
  */
 @Immutable
@@ -36,8 +37,26 @@ data class BuildAgent(
 
 object BuildAgents {
 
+    const val OPENCODE = "opencode"
     const val PI = "pi"
     const val HERMES = "hermes"
+
+    /**
+     * OpenCode's own installer, fetched from its repository rather than from
+     * `https://opencode.ai/install`: that URL answers 307 through Cloudflare from
+     * a sandbox, while the script behind it is a plain file on GitHub. The script
+     * itself downloads the static release binary from GitHub Releases into
+     * `$HOME/.opencode/bin` and resolves the newest version on its own, so nothing
+     * here has to pin one.
+     */
+    private const val OPENCODE_INSTALL = """
+        set -e
+        mkdir -p /root/.opencode/bin
+        curl -fsSL https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/v1/install -o /tmp/pots-opencode-install.sh
+        # stdin closed: no answer is coming from a sandbox if the installer asks.
+        bash /tmp/pots-opencode-install.sh < /dev/null
+        rm -f /tmp/pots-opencode-install.sh
+    """
 
     /**
      * Node.js is unpacked into the home rather than installed from apt, because
@@ -99,6 +118,12 @@ object BuildAgents {
     """
 
     val all: ImmutableList<BuildAgent> = persistentListOf(
+        BuildAgent(
+            id = OPENCODE,
+            title = "OpenCode",
+            binary = "opencode",
+            installCommand = OPENCODE_INSTALL.trimIndent(),
+        ),
         BuildAgent(
             id = PI,
             title = "Pi",
