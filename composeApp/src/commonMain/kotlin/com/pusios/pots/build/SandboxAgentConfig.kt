@@ -49,9 +49,31 @@ data class SandboxAgentFile(val path: String, val content: String)
  */
 object SandboxAgentConfig {
 
+    /**
+     * What the agents send when Pots itself has no key: a keyless endpoint — a
+     * local Ollama, say — still needs a non-empty value, because Pi rejects the
+     * whole `models.json` on an empty `apiKey` and loses the provider, the model
+     * and the endpoint along with it.
+     */
+    const val PLACEHOLDER_API_KEY = "pots-no-key"
+
     /** Env var Hermes reads the API key from; `key_env` in its config points here. */
     fun apiKeyEnv(providerId: String): String =
         "HERMES_CUSTOM_" + providerId.uppercase().map { if (it.isLetterOrDigit()) it else '_' }.joinToString("") + "_API_KEY"
+
+    /**
+     * The key as Pi's `models.json` can hold it. Pi reads a leading `$` or `!` as
+     * an env reference or a command to run — inside a string — so a key that
+     * happens to start with one is written with Pi's own escape (`$$`, `$!`) and
+     * stays a literal. An empty key becomes [PLACEHOLDER_API_KEY], because Pi
+     * rejects the file rather than the provider on a blank value.
+     */
+    fun piApiKey(apiKey: String): String = when {
+        apiKey.isBlank() -> PLACEHOLDER_API_KEY
+        apiKey.startsWith("$") -> "$" + apiKey
+        apiKey.startsWith("!") -> "$!" + apiKey.drop(1)
+        else -> apiKey
+    }
 
     /**
      * The files [agentId] needs to run on [credentials], or nothing when there is
@@ -79,7 +101,7 @@ object SandboxAgentConfig {
                 putJsonObject(credentials.providerId) {
                     put("baseUrl", credentials.endpoint)
                     put("api", "openai-completions")
-                    put("apiKey", credentials.apiKey)
+                    put("apiKey", piApiKey(credentials.apiKey))
                     putJsonArray("models") {
                         add(
                             buildJsonObject {
@@ -132,7 +154,10 @@ object SandboxAgentConfig {
         }
         val env = buildString {
             appendLine("# Written by Pots from the app's active provider. Rewritten on every agent start.")
-            appendLine("$keyEnv=${dotenvValue(credentials.apiKey)}")
+            // A keyless endpoint still needs a value here: an empty one reads as
+            // "no key at all", which is a different thing from a key the server
+            // ignores.
+            appendLine("$keyEnv=${dotenvValue(credentials.apiKey.ifBlank { PLACEHOLDER_API_KEY })}")
         }
         return listOf(
             SandboxAgentFile(path = ".hermes/config.yaml", content = config),

@@ -1021,13 +1021,18 @@ private fun BuildProotExecutor.hasBinary(binary: String): Boolean =
     execute("command -v $binary >/dev/null 2>&1", timeoutSeconds = 20).success
 
 /**
- * True when [binary] is reachable. Always tries to place a stable symlink in
- * `/root/.local/bin` (even when already on the probe PATH) so login shells that
- * only keep a subset of dirs still find every agent by name.
+ * True when [binary] is reachable **and answers**. Always tries to place a stable
+ * symlink in `/root/.local/bin` (even when already on the probe PATH) so login
+ * shells that only keep a subset of dirs still find every agent by name.
  *
  * Known layouts:
  * - Pi: `~/.local/bin/pi` (npm `--prefix /root/.local`), Node runtime in `~/.local/share/pi-node/bin`
  * - Hermes: `~/.hermes/venv/bin/hermes`, already linked into `~/.local/bin`
+ *
+ * Reachable is not installed: a migrated home can carry Pi's npm payload and its
+ * `.local/bin/pi` shim without the Node runtime it needs, and the shim then dies
+ * on `#!/usr/bin/env node`. So the probe runs the binary — `--version` costs about
+ * a second and only happens on install and environment refresh, never per session.
  */
 private fun BuildProotExecutor.ensureAgentBinary(binary: String): Boolean {
     // Safe: [binary] is a fixed catalog name (pi/hermes), not user input.
@@ -1055,7 +1060,8 @@ private fun BuildProotExecutor.ensureAgentBinary(binary: String): Boolean {
         """.trimIndent(),
         timeoutSeconds = 30,
     )
-    return hasBinary(binary)
+    if (!hasBinary(binary)) return false
+    return execute("$binary --version >/dev/null 2>&1", timeoutSeconds = 60).success
 }
 
 /**

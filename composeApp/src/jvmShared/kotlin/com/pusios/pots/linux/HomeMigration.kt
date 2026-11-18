@@ -38,6 +38,11 @@ object HomeMigration {
      *   distribution's libc, which cannot run on the target, and the state those
      *   binaries keep. Pots Build only ever runs in Debian and installs them per
      *   environment, so there is nothing here another distribution can use.
+     * - Pi is npm payload plus its own Node runtime: the package under
+     *   `.local/lib/node_modules/@earendil-works` and the `.local/bin/pi` shim are
+     *   only worth anything next to the Node in `.local/share/pi-node`, and a home
+     *   that kept the shim without the runtime reports an agent that dies on
+     *   `#!/usr/bin/env node`.
      */
     val EXCLUDED = setOf(
         "projects",
@@ -48,6 +53,8 @@ object HomeMigration {
         ".profile",
         ".pi",
         ".local/share/pi-node",
+        ".local/lib/node_modules/@earendil-works",
+        ".local/bin/pi",
         ".hermes",
     )
 

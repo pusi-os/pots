@@ -99,6 +99,22 @@ class HomeMigrationTest {
     }
 
     @Test
+    fun `pi npm payload never travels without the node runtime it needs`() {
+        // npm's --prefix /root/.local splits Pi across three places: the package,
+        // the shim, and the Node runtime. Migrating the first two without the third
+        // leaves a binary that looks installed and dies on `#!/usr/bin/env node`.
+        write(source, ".local/bin/pi", "#!/usr/bin/env node")
+        write(source, ".local/lib/node_modules/@earendil-works/pi-coding-agent/package.json", "{}")
+        write(source, ".local/bin/other-tool", "#!/bin/sh")
+
+        HomeMigration.copy(source, target)
+
+        assertFalse(File(target, ".local/bin/pi").exists())
+        assertFalse(File(target, ".local/lib/node_modules/@earendil-works").exists())
+        assertTrue(File(target, ".local/bin/other-tool").isFile)
+    }
+
+    @Test
     fun `a migrated home has nothing left to migrate`() {
         write(source, "notes.txt", "abc")
         write(source, ".ssh/id_rsa", "key")

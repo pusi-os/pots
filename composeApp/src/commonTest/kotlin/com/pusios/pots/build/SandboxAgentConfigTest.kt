@@ -83,6 +83,47 @@ class SandboxAgentConfigTest {
     }
 
     @Test
+    fun `a keyless provider still leaves Pi with a usable models file`() {
+        // A local Ollama is a supported provider with no key at all; Pi rejects the
+        // whole file on an empty apiKey, which would take the provider, the model
+        // and the endpoint down with the key.
+        val keyless = credentials.copy(providerId = "openai-compatible", model = "llama3", apiKey = "")
+        val models = SandboxAgentConfig.filesFor(BuildAgents.PI, keyless)
+            .single { it.path == ".pi/agent/models.json" }.content
+        val provider = Json.parseToJsonElement(models).jsonObject["providers"]!!.jsonObject["openai-compatible"]!!.jsonObject
+
+        assertEquals(SandboxAgentConfig.PLACEHOLDER_API_KEY, provider["apiKey"]!!.jsonPrimitive.content)
+        assertEquals("llama3", provider["models"]!!.jsonArray.single().jsonObject["id"]!!.jsonPrimitive.content)
+        assertEquals("https://plusvibeapi.ru/v1", provider["baseUrl"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a blank key is a keyless provider, not a literal space`() {
+        val models = SandboxAgentConfig.filesFor(BuildAgents.PI, credentials.copy(apiKey = "   "))
+            .single { it.path == ".pi/agent/models.json" }.content
+        val provider = Json.parseToJsonElement(models).jsonObject["providers"]!!.jsonObject["plusvibe"]!!.jsonObject
+
+        assertEquals(SandboxAgentConfig.PLACEHOLDER_API_KEY, provider["apiKey"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a key that starts with a bang cannot make Pi run a command`() {
+        // Pi reads a leading `!` as "run this" and a leading `$` as an env lookup,
+        // both inside a JSON string. `$!` is its own escape for a literal `!`.
+        assertEquals("\$!literal-bang", SandboxAgentConfig.piApiKey("!literal-bang"))
+        assertEquals("\$\$ENV_REF", SandboxAgentConfig.piApiKey("\$ENV_REF"))
+        assertEquals("sk-plain", SandboxAgentConfig.piApiKey("sk-plain"))
+        assertEquals(SandboxAgentConfig.PLACEHOLDER_API_KEY, SandboxAgentConfig.piApiKey(""))
+
+        val escaped = credentials.copy(apiKey = "!literal-bang")
+        val provider = Json.parseToJsonElement(
+            SandboxAgentConfig.filesFor(BuildAgents.PI, escaped).single { it.path == ".pi/agent/models.json" }.content,
+        ).jsonObject["providers"]!!.jsonObject["plusvibe"]!!.jsonObject
+
+        assertEquals("\$!literal-bang", provider["apiKey"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     fun `Pi is pointed at a second provider by rewriting the same two files`() {
         val other = credentials.copy(
             providerId = "openai-compatible",
@@ -123,6 +164,19 @@ class SandboxAgentConfigTest {
         assertFalse(config.contains("sk-test-not-a-real-key"), "the key leaked into config.yaml")
         assertTrue(config.contains("key_env: HERMES_CUSTOM_PLUSVIBE_API_KEY"), config)
         assertTrue(env.contains("HERMES_CUSTOM_PLUSVIBE_API_KEY=sk-test-not-a-real-key"), env)
+    }
+
+    @Test
+    fun `a keyless provider still gives Hermes a key to send`() {
+        val keyless = credentials.copy(providerId = "openai-compatible", model = "llama3", apiKey = "")
+        val env = SandboxAgentConfig.filesFor(BuildAgents.HERMES, keyless)
+            .single { it.path == ".hermes/.env" }.content
+        val config = SandboxAgentConfig.filesFor(BuildAgents.HERMES, keyless)
+            .single { it.path == ".hermes/config.yaml" }.content
+
+        assertTrue(env.contains("HERMES_CUSTOM_OPENAI_COMPATIBLE_API_KEY=${SandboxAgentConfig.PLACEHOLDER_API_KEY}"), env)
+        // The variable is still declared, so Hermes does not go looking for a login.
+        assertTrue(config.contains("    key_env: HERMES_CUSTOM_OPENAI_COMPATIBLE_API_KEY"), config)
     }
 
     @Test

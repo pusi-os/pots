@@ -21,8 +21,9 @@ enum class LinuxDistro(
     val packageManager: PackageManagerSpec,
 ) {
     /**
-     * Base set is Pots Build's proven list: `tar` because OpenCode's installer
-     * extracts a `.tar.gz`, `coreutils` because Claude's checks a `sha256sum`.
+     * Base set is Pots Build's proven list: `tar` because Pi's installer extracts
+     * a `.tar.gz` of its Node runtime, `coreutils` because the agent installers
+     * verify their downloads with `sha256sum`.
      */
     DEBIAN(
         id = "debian",
