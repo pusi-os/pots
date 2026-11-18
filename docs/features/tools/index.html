@@ -2389,6 +2389,11 @@
 <td>Enabled</td>
 </tr>
 <tr>
+<td><code>ask_sandbox_agent</code></td>
+<td>Hand a task to a coding agent installed in the sandbox — OpenCode (<code>opencode run</code>), Pi (<code>pi -p</code>) or Hermes (<code>hermes -z</code>) — and return what it printed. The run is one-shot and non-interactive, on the provider Pots itself is configured with, so it spends the user's tokens: the tool description tells the model to call it only on an explicit request, never on its own initiative or in a loop. An agent that is not installed is reported by name and never substituted.</td>
+<td>Follows the sandbox switch; no switch of its own</td>
+</tr>
+<tr>
 <td><code>vector_search_storage</code></td>
 <td>Semantic search over the on-device index of photos and documents</td>
 <td>Enabled</td>
@@ -2553,7 +2558,7 @@
 <p>Tool availability is controlled at multiple levels:</p>
 <ul>
 <li><strong>Feature-level gates</strong> — memory tools require memory enabled, scheduling/heartbeat tools require scheduling enabled, email tools require email enabled</li>
-<li><strong>Sandbox install gate (Android)</strong> — <code>execute_shell_command</code>, <code>manage_process</code>, and <code>ssh_configure_host</code> are surfaced only when the Linux sandbox is actually installed (Ready) <em>and</em> the sandbox toggle is on. Until the sandbox is installed these tools are not sent to the model at all; the sandbox toggle itself is hidden until install completes, so there is no state in which they ride along without a working sandbox behind them</li>
+<li><strong>Sandbox install gate (Android)</strong> — <code>execute_shell_command</code>, <code>ask_sandbox_agent</code>, <code>manage_process</code>, and <code>ssh_configure_host</code> are surfaced only when the Linux sandbox is actually installed (Ready) <em>and</em> the sandbox toggle is on. Until the sandbox is installed these tools are not sent to the model at all; the sandbox toggle itself is hidden until install completes, so there is no state in which they ride along without a working sandbox behind them</li>
 <li><strong>Per-tool toggles</strong> — individual tools can be enabled or disabled in settings, persisted with a <code>tool_enabled_</code> key prefix</li>
 <li><strong>Default state</strong> — most tools default to enabled; desktop's <code>execute_shell_command</code> defaults to disabled, and so does <code>potsik</code> — the character is the app's own, and letting the model move it around uninvited is not its business. On Android the shell has no per-tool switch — it follows the sandbox switch, which is on by default once the sandbox is installed</li>
 <li><strong>Master-toggle-only</strong> — memory, scheduling, heartbeat, email, SMS, and notification tools have no individual per-tool toggle; they are on whenever their master switch in Settings → Agent is on (heartbeat is bundled with the scheduling switch). The Android sandbox tools and desktop's <code>manage_process</code> are gated the same way — by the sandbox switch and the shell switch respectively — and likewise carry no switch of their own</li>
