@@ -72,14 +72,26 @@ object SandboxAgentRun {
      * The agent's answer as the model should see it: the end of its output, marked
      * when clipped. The tail is what matters — an agent's conclusion is at the end
      * and its progress log at the start.
+     *
+     * The secret is cut out BEFORE the clipping, not after: a key straddling the cut
+     * would otherwise come back as half of itself, which is still a leak. The caller
+     * reads a few bytes more than it shows, so the whole key is inside the window.
      */
-    fun answer(raw: String, maxBytes: Int): String = withNotice(tail(raw, maxBytes), maxBytes, "last")
+    fun answer(raw: String, secrets: List<String>, maxBytes: Int): String = withNotice(tail(redact(raw, secrets), maxBytes), maxBytes, "last")
 
     /**
-     * A failed run's explanation: the start of stderr, marked when clipped. A CLI
-     * puts its complaint before its noise.
+     * A failed run's explanation: the start of its own stderr, or the start of stdout
+     * when stderr says nothing (a CLI that prints its error to stdout is common).
+     * The fallback belongs here and only here — on a successful run, stdout is the
+     * answer and must not be repeated under a second name.
      */
-    fun failureDetail(raw: String, maxBytes: Int): String = withNotice(head(raw, maxBytes), maxBytes, "first")
+    fun failureDetail(stderr: String, stdout: String, secrets: List<String>, maxBytes: Int): String = withNotice(head(redact(stderr.ifBlank { stdout }, secrets), maxBytes), maxBytes, "first")
+
+    /**
+     * Warnings from a successful run: its own stderr and nothing else. Silence stays
+     * silence, so a quiet agent does not get its own answer quoted back as a warning.
+     */
+    fun successNote(stderr: String, secrets: List<String>, maxBytes: Int): String = withNotice(head(redact(stderr, secrets), maxBytes), maxBytes, "first")
 
     /** The last [maxBytes] of [text], cut on a character boundary. */
     fun tail(text: String, maxBytes: Int): Clipped = clip(text, maxBytes, fromEnd = true)

@@ -150,11 +150,12 @@ Returns the agent's answer (the end of its output, marked when clipped) and its 
         val stdout = drain(executor, outFile, ANSWER_TAIL_BYTES + 256, fromEnd = true, env = env)
         val stderr = drain(executor, errFile, STDERR_HEAD_BYTES + 256, fromEnd = false, env = env)
 
-        val answer = SandboxAgentRun.redact(SandboxAgentRun.answer(stdout, ANSWER_TAIL_BYTES), secrets)
-        val detail = SandboxAgentRun.redact(
-            SandboxAgentRun.failureDetail(stderr.ifBlank { stdout }, STDERR_HEAD_BYTES),
-            secrets,
-        )
+        val answer = SandboxAgentRun.answer(stdout, secrets, ANSWER_TAIL_BYTES)
+        val detail = if (timedOut || exitCode != 0) {
+            SandboxAgentRun.failureDetail(stderr, stdout, secrets, STDERR_HEAD_BYTES)
+        } else {
+            SandboxAgentRun.successNote(stderr, secrets, STDERR_HEAD_BYTES)
+        }
 
         if (timedOut || exitCode != 0) {
             val reason = when {

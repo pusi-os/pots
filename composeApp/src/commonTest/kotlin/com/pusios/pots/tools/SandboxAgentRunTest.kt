@@ -137,16 +137,56 @@ class SandboxAgentRunTest {
     fun `clipping is announced, not silent`() {
         val long = "x".repeat(500)
 
-        val answer = SandboxAgentRun.answer(long, 100)
+        val answer = SandboxAgentRun.answer(long, emptyList(), 100)
         assertTrue(answer.startsWith("[Output truncated: showing the last 100 bytes]"))
         assertTrue(answer.endsWith("x".repeat(100)))
 
-        val failure = SandboxAgentRun.failureDetail(long, 100)
+        val failure = SandboxAgentRun.failureDetail(long, "", emptyList(), 100)
         assertTrue(failure.startsWith("[Output truncated: showing the first 100 bytes]"))
 
         // Nothing to announce when nothing was cut.
-        assertEquals("all of it", SandboxAgentRun.answer("all of it\n", 100))
-        assertEquals("all of it", SandboxAgentRun.failureDetail("  all of it  ", 100))
+        assertEquals("all of it", SandboxAgentRun.answer("all of it\n", emptyList(), 100))
+        assertEquals("all of it", SandboxAgentRun.failureDetail("  all of it  ", "", emptyList(), 100))
+    }
+
+    // --- what comes back, and under which name ----------------------------
+
+    @Test
+    fun `a successful run never repeats its answer as a warning`() {
+        // The answer lives in stdout; a run that says nothing on stderr has nothing to
+        // add. Feeding stdout in here is exactly the defect: the same text twice, the
+        // second time under a name that claims it is a warning.
+        assertEquals("", SandboxAgentRun.successNote("", emptyList(), 2_000))
+        assertEquals("", SandboxAgentRun.successNote("  \n\t ", emptyList(), 2_000))
+    }
+
+    @Test
+    fun `warnings from a successful run are its own stderr, from the start`() {
+        val stderr = "warning: unknown flag --foo\nfalling back to the default model"
+
+        assertEquals(stderr, SandboxAgentRun.successNote(stderr, emptyList(), 2_000))
+
+        val clipped = SandboxAgentRun.successNote("w".repeat(5_000), emptyList(), 100)
+        assertTrue(clipped.startsWith("[Output truncated: showing the first 100 bytes]"))
+    }
+
+    @Test
+    fun `a failed run with silent stderr falls back to the start of stdout`() {
+        val stdout = "error: no such file: src/Main.kt\n" + "noise ".repeat(1_000)
+        val detail = SandboxAgentRun.failureDetail("", stdout, emptyList(), 100)
+
+        // The fallback still lives — an agent that prints its complaint to stdout must
+        // not come back as an unexplained failure.
+        assertTrue(detail.contains("error: no such file"))
+        assertTrue(detail.startsWith("[Output truncated: showing the first 100 bytes]"))
+    }
+
+    @Test
+    fun `a failed run with stderr of its own does not mix stdout in`() {
+        val detail = SandboxAgentRun.failureDetail("boom: 401 unauthorized", "the whole answer", emptyList(), 2_000)
+
+        assertEquals("boom: 401 unauthorized", detail)
+        assertFalse(detail.contains("the whole answer"))
     }
 
     // --- secrets ----------------------------------------------------------
@@ -167,6 +207,35 @@ class SandboxAgentRunTest {
     fun `a blank secret leaves the text alone`() {
         val text = "nothing to hide"
         assertEquals(text, SandboxAgentRun.redact(text, listOf("", "   ")))
+    }
+
+    @Test
+    fun `a key cut by the tail boundary never comes back as a fragment`() {
+        // The cut lands ten characters inside the key, so clipping first and redacting
+        // afterwards would return the rest of it — a leak all the same.
+        val key = "sk-proj-00001111222233334444555566667777"
+        // 13010 characters total, so the 8000-byte tail starts at 5010 — ten
+        // characters into a key that begins at 5000.
+        val raw = "y".repeat(5_000) + key + "z".repeat(13_010 - 5_000 - key.length)
+        val answer = SandboxAgentRun.answer(raw, listOf(key), 8_000)
+
+        assertTrue(answer.startsWith("[Output truncated: showing the last 8000 bytes]"))
+        assertFalse(answer.contains(key.take(8)), "the start of the key survived the cut")
+        assertFalse(answer.contains(key.takeLast(8)), "the end of the key survived the cut")
+        assertFalse(answer.contains(key))
+        assertTrue(answer.contains(SandboxAgentRun.REDACTED))
+    }
+
+    @Test
+    fun `a key cut by the head boundary never comes back as a fragment`() {
+        val key = "sk-proj-00001111222233334444555566667777"
+        // head(2000) cuts ten characters into the key: the first ten would survive.
+        val raw = "y".repeat(1_990) + key + "z".repeat(500)
+        val detail = SandboxAgentRun.failureDetail(raw, "", listOf(key), 2_000)
+
+        assertFalse(detail.contains(key.take(8)), "the start of the key survived the cut")
+        assertFalse(detail.contains(key.takeLast(8)), "the end of the key survived the cut")
+        assertTrue(detail.contains(SandboxAgentRun.REDACTED))
     }
 
     // --- not installed ----------------------------------------------------
