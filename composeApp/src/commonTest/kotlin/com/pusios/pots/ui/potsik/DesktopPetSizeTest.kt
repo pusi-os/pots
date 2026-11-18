@@ -10,6 +10,10 @@ import kotlin.test.assertEquals
  * character fits it exactly and the window never eats taps meant for the
  * apps underneath (the PixelTag rule: the touch zone is the window's rect,
  * transparent pixels included — so the rect stays small).
+ *
+ * One size, one number: `132 dp × sizeScale`, clamped. The old second dial is
+ * folded into that number on load, and that fold is what keeps an existing
+ * user's character the size they chose.
  */
 class DesktopPetSizeTest {
 
@@ -19,18 +23,46 @@ class DesktopPetSizeTest {
     }
 
     @Test
-    fun `the size slider and the percent row both scale him`() {
-        val look = PotsikLook.Default.copy(sizeScale = 1.5f, sizePercent = 50)
-        assertEquals(132f * 1.5f * 0.5f, desktopPetCharacterSize(look).value, 0.01f)
+    fun `the single size dial scales him`() {
+        val look = PotsikLook.Default.copy(sizeScale = 1.5f)
+        assertEquals(132f * 1.5f, desktopPetCharacterSize(look).value, 0.01f)
     }
 
     @Test
     fun `he never shrinks below the minimum or grows past the maximum`() {
-        val small = PotsikLook.Default.copy(sizeScale = 0.6f, sizePercent = 50)
-        assertEquals(DESKTOP_PET_MIN_SIZE_DP, desktopPetCharacterSize(small).value, 0.01f)
+        assertEquals(
+            DESKTOP_PET_MIN_SIZE_DP,
+            desktopPetCharacterSize(PotsikLook.Default.copy(sizeScale = 0.1f)).value,
+            0.01f,
+        )
+        assertEquals(
+            DESKTOP_PET_MAX_SIZE_DP,
+            desktopPetCharacterSize(PotsikLook.Default.copy(sizeScale = 9f)).value,
+            0.01f,
+        )
+    }
 
-        val big = PotsikLook.Default.copy(sizeScale = 2.0f, sizePercent = 150)
-        assertEquals(DESKTOP_PET_MAX_SIZE_DP, desktopPetCharacterSize(big).value, 0.01f)
+    @Test
+    fun `the old percent row is folded into the one size`() {
+        val old = PotsikLook.Default.copy(sizeScale = 1.2f, sizePercent = 150)
+        val migrated = old.withSizeMigrated()
+
+        assertEquals(1.8f, migrated.sizeScale, 0.0001f)
+        assertEquals(100, migrated.sizePercent, "the legacy field is parked, never read again")
+        // What he was drawn at before the change is what he is drawn at after.
+        assertEquals(132f * 1.2f * 1.5f, desktopPetCharacterSize(migrated).value, 0.01f)
+    }
+
+    @Test
+    fun `a look that never used the percent row is left exactly as it is`() {
+        val look = PotsikLook.Default.copy(sizeScale = 0.9f)
+        assertEquals(look, look.withSizeMigrated())
+    }
+
+    @Test
+    fun `folding twice is the same as folding once`() {
+        val once = PotsikLook.Default.copy(sizeScale = 0.8f, sizePercent = 75).withSizeMigrated()
+        assertEquals(once, once.withSizeMigrated())
     }
 
     @Test

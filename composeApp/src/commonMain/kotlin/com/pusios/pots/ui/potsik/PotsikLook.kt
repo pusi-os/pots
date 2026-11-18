@@ -40,14 +40,22 @@ data class PotsikLook(
     /** The lashes on the bare eyes. Only ever visible with the shades off. */
     val lashesOn: Boolean = true,
 
-    /** A multiplier on the drawn size, 0.6 – 1.6. */
+    /**
+     * The size, as a multiplier on the base size the chat gives him.
+     *
+     * This is the **only** size there is: the pinch on the character writes
+     * it, and everything — the drawing, the desktop window, the bounds —
+     * works from `132 dp × sizeScale`, clamped to 72…320 dp.
+     */
     val sizeScale: Float = 1f,
 
     /**
-     * The size, as a percentage of the size the chat would give him.
+     * The old second size dial — the firmware's SIZE row, 50 % – 150 %.
      *
-     * The firmware's SIZE row: 50 % – 150 %, and it is applied on top of the
-     * size the layout asks for, so a big Потсик is big everywhere.
+     * Kept for reading old profiles only: it used to multiply [sizeScale],
+     * and [withSizeMigrated] folds it into that one number on load. Nothing
+     * in the UI writes it any more, and a look that comes out of the
+     * migration always has it at 100.
      */
     val sizePercent: Int = 100,
 
@@ -108,7 +116,6 @@ data class PotsikLook(
      * step with the first.
      */
     fun behaviour(): PotsikSettings = PotsikSettings(
-        sizePercent = sizePercent,
         tempoPercent = tempoPercent,
         banterEnabled = banterEnabled,
         draggable = draggable,
@@ -134,4 +141,23 @@ data class PotsikLook(
         /** The look a fresh install starts with: the bare one, in the firmware's default colours. */
         val Default = PotsikLook()
     }
+}
+
+/**
+ * Folds the old two-dial size into the one number there is now.
+ *
+ * The look used to be drawn at `132 dp × sizeScale × sizePercent / 100`: two
+ * sliders for one thing. A user who had the percent row at 150 and the
+ * multiplier at 1.2 was looking at a 237 dp character, and dropping the
+ * percent field without this would silently shrink him to 158 dp. The
+ * product is what he was drawn at, so the product is what the single size
+ * becomes; the legacy field is then parked at 100.
+ *
+ * Called on every look read from storage — the profile JSON and the legacy
+ * individual keys alike.
+ */
+fun PotsikLook.withSizeMigrated(): PotsikLook = if (sizePercent == 100) {
+    this
+} else {
+    copy(sizeScale = sizeScale * sizePercent / 100f, sizePercent = 100)
 }

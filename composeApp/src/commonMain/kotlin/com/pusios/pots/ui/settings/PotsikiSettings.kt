@@ -20,7 +20,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,9 +33,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.pusios.pots.LocalAppLanguageCode
 import com.pusios.pots.ui.components.PotsSlider
 import com.pusios.pots.ui.handCursor
+import com.pusios.pots.ui.potsik.PotsikAction
 import com.pusios.pots.ui.potsik.PotsikAvatar
 import com.pusios.pots.ui.potsik.PotsikClothColor
 import com.pusios.pots.ui.potsik.PotsikLook
@@ -42,8 +46,11 @@ import com.pusios.pots.ui.potsik.PotsikPhase
 import com.pusios.pots.ui.potsik.PotsikPlacementMode
 import com.pusios.pots.ui.potsik.PotsikShadeTint
 import com.pusios.pots.ui.potsik.canDrawDesktopPetOverlay
-import com.pusios.pots.ui.potsik.isDesktopPetSupported
+import com.pusios.pots.ui.potsik.desktopPetAvailability
+import com.pusios.pots.ui.potsik.desktopPetRow
 import com.pusios.pots.ui.potsik.openDesktopPetPermissionSettings
+import com.pusios.pots.ui.potsik.syncDesktopPetService
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.potsiki_banter
@@ -67,6 +74,7 @@ import pots.composeapp.generated.resources.potsiki_lashes_description
 import pots.composeapp.generated.resources.potsiki_outfit
 import pots.composeapp.generated.resources.potsiki_overlay
 import pots.composeapp.generated.resources.potsiki_overlay_description
+import pots.composeapp.generated.resources.potsiki_overlay_needs_newer
 import pots.composeapp.generated.resources.potsiki_overlay_permission_button
 import pots.composeapp.generated.resources.potsiki_overlay_permission_needed
 import pots.composeapp.generated.resources.potsiki_placement
@@ -85,8 +93,7 @@ import pots.composeapp.generated.resources.potsiki_shoes
 import pots.composeapp.generated.resources.potsiki_shorts
 import pots.composeapp.generated.resources.potsiki_show
 import pots.composeapp.generated.resources.potsiki_show_description
-import pots.composeapp.generated.resources.potsiki_size
-import pots.composeapp.generated.resources.potsiki_size_multiplier
+import pots.composeapp.generated.resources.potsiki_size_pinch_hint
 import pots.composeapp.generated.resources.potsiki_tempo
 import pots.composeapp.generated.resources.potsiki_tempo_description
 import pots.composeapp.generated.resources.potsiki_title
@@ -124,10 +131,23 @@ internal fun PotsikiContent(uiState: SettingsUiState, actions: SettingsActions) 
                         textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.height(12.dp))
+                    // The preview moves. A still frame of the character is
+                    // what the owner complained about, so the avatar plays a
+                    // catalogue animation and rolls on to the next one: the
+                    // costume is seen in motion, not frozen mid-breath.
+                    var previewTick by remember { mutableIntStateOf(0) }
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            delay(PREVIEW_STEP_MS)
+                            previewTick++
+                        }
+                    }
                     PotsikAvatar(
                         look = look,
                         phase = PotsikPhase.IDLE,
                         size = 170.dp,
+                        animationOverride = PREVIEW_ACTIONS[previewTick % PREVIEW_ACTIONS.size],
+                        animationKey = previewTick,
                     )
                 }
             }
@@ -149,35 +169,9 @@ internal fun PotsikiContent(uiState: SettingsUiState, actions: SettingsActions) 
                     // keeps the character on the desktop while the app is
                     // minimized, and opening the app brings him back inside —
                     // never both at once. Where the platform has no such
-                    // window, there is no toggle either.
-                    if (isDesktopPetSupported()) {
-                        var needsOverlayPermission by remember { mutableStateOf(false) }
-                        ToggleableHeadline(
-                            title = stringResource(Res.string.potsiki_overlay),
-                            description = stringResource(Res.string.potsiki_overlay_description),
-                            checked = look.overlayEnabled,
-                            onCheckedChange = { enabled ->
-                                if (enabled && !canDrawDesktopPetOverlay()) {
-                                    // Refusal is never silent: say why and
-                                    // give the way to grant it.
-                                    needsOverlayPermission = true
-                                } else {
-                                    needsOverlayPermission = false
-                                    actions.onChangePotsikLook(look.copy(overlayEnabled = enabled))
-                                }
-                            },
-                        )
-                        if (needsOverlayPermission) {
-                            Text(
-                                text = stringResource(Res.string.potsiki_overlay_permission_needed),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            TextButton(onClick = { openDesktopPetPermissionSettings() }) {
-                                Text(stringResource(Res.string.potsiki_overlay_permission_button))
-                            }
-                        }
-                    }
+                    // window, there is no row either; where the Android is too
+                    // old for it, the row is there but dead, with the reason.
+                    PotsikOverlayRow(look = look, actions = actions)
 
                     PotsikOptionRow(
                         title = stringResource(Res.string.potsiki_outfit),
@@ -242,16 +236,13 @@ internal fun PotsikiContent(uiState: SettingsUiState, actions: SettingsActions) 
                         onCheckedChange = { actions.onChangePotsikLook(look.copy(lashesOn = it)) },
                     )
 
-                    PotsikSizeRow(
-                        sizeScale = look.sizeScale,
-                        onChangeSizeScale = { actions.onChangePotsikLook(look.copy(sizeScale = it)) },
-                    )
-
-                    PotsikPercentRow(
-                        title = stringResource(Res.string.potsiki_size),
-                        percent = look.sizePercent,
-                        range = 50..150,
-                        onChange = { actions.onChangePotsikLook(look.copy(sizePercent = it)) },
+                    // One size, and no slider for it: it is set with two
+                    // fingers on the character itself, in the app and on the
+                    // desktop alike. The row is a hint, not a control.
+                    Text(
+                        text = stringResource(Res.string.potsiki_size_pinch_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
                     PotsikPercentRow(
@@ -393,39 +384,82 @@ private fun <T> PotsikOptionRow(
     }
 }
 
-/** The size slider, snapped to the same 50 % – 200 % range the UI scale uses. */
+/**
+ * The «Поверх окон» row, in all three states the platform can be in.
+ *
+ * Hidden where there is no such window at all (iOS, desktop, web), shown but
+ * dead on an Android older than the mode needs — the owner's rule: a mode the
+ * old system cannot do is not shimmed, the switch is disabled and the text
+ * names the version — and live everywhere else.
+ *
+ * The switch shows the *effective* state, not the saved wish: with the mode
+ * saved on but the permission missing it reads off, and the note under it says
+ * what to do. A switch that claimed to be on would promise a character
+ * standing on the desktop when there is none.
+ *
+ * [LifecycleResumeEffect] is the whole point of this row's shape: the user
+ * leaves for the system's permission screen, grants the permission, comes
+ * back — and the character has to appear without touching the switch again.
+ * ON_RESUME re-reads the permission and reconciles the service; the same hook
+ * catches a permission revoked in the system while the mode was on, which
+ * takes the window down and turns the switch off.
+ */
 @Composable
-private fun PotsikSizeRow(
-    sizeScale: Float,
-    onChangeSizeScale: (Float) -> Unit,
+private fun PotsikOverlayRow(
+    look: PotsikLook,
+    actions: SettingsActions,
 ) {
-    var sliderValue by remember(sizeScale) { mutableStateOf(sizeScale) }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(Res.string.potsiki_size_multiplier),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                text = "${(sliderValue * 100).roundToInt()}%",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-        PotsSlider(
-            value = sliderValue,
-            onValueChange = { sliderValue = it },
-            onValueChangeFinished = { onChangeSizeScale(sliderValue) },
-            valueRange = 0.6f..1.6f,
-            steps = 9,
+    val availability = remember { desktopPetAvailability() }
+    var permissionGranted by remember { mutableStateOf(canDrawDesktopPetOverlay()) }
+    LifecycleResumeEffect(Unit) {
+        permissionGranted = canDrawDesktopPetOverlay()
+        syncDesktopPetService()
+        onPauseOrDispose { }
+    }
+
+    val row = desktopPetRow(
+        availability = availability,
+        savedEnabled = look.overlayEnabled,
+        permissionGranted = permissionGranted,
+    )
+    if (!row.visible) return
+
+    ToggleableHeadline(
+        title = stringResource(Res.string.potsiki_overlay),
+        description = if (row.minimumOsLabel != null) {
+            stringResource(Res.string.potsiki_overlay_needs_newer, row.minimumOsLabel)
+        } else {
+            stringResource(Res.string.potsiki_overlay_description)
+        },
+        checked = row.checked,
+        // The wish is saved even without the permission: that is what lets
+        // the return from the system screen apply it on its own. Until the
+        // permission is there the switch stays off and the note explains.
+        onCheckedChange = { enabled -> actions.onChangePotsikLook(look.copy(overlayEnabled = enabled)) },
+        enabled = row.enabled,
+    )
+
+    if (row.enabled && look.overlayEnabled && !permissionGranted) {
+        Text(
+            text = stringResource(Res.string.potsiki_overlay_permission_needed),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        TextButton(onClick = { openDesktopPetPermissionSettings() }) {
+            Text(stringResource(Res.string.potsiki_overlay_permission_button))
+        }
     }
 }
+
+/** The animations the settings preview cycles through, one after another. */
+private val PREVIEW_ACTIONS = listOf(
+    PotsikAction.IDLE_WAVE,
+    PotsikAction.IDLE_HANDS_UP,
+    PotsikAction.IDLE_DANCE,
+)
+
+/** How long one of them runs before the next takes over (the avatar plays each for 2.6 s). */
+private const val PREVIEW_STEP_MS = 2_800L
 
 /**
  * The costume's name, in the app's own language.

@@ -284,9 +284,6 @@ enum class PotsikPlacementMode(val nameEn: String, val nameRu: String) {
 /** The settings that decide how the character behaves, in one immutable bundle. */
 @Immutable
 data class PotsikSettings(
-    /** The size, as a percentage of the size the chat layout would give him. */
-    val sizePercent: Int = 100,
-
     /** The tempo, as a percentage of every duration in the firmware. */
     val tempoPercent: Int = 70,
 

@@ -152,7 +152,7 @@ He reacts to being touched, the way the firmware's does.
 | Tap him | He bounces and says something. Where you tapped decides what: his head gets a pat, his belly gets a giggle, his feet get a hop |
 | Hold a finger on him | He bounces for longer and says something else |
 | Stroke him | He bounces and says something, every couple of seconds, for as long as the stroke lasts |
-| Drag him | He comes with the finger, hanging from it with his legs kicking and his arms windmilling. A finger that was still moving when it let go **throws** him: he flies, bounces off the floor, and sits down dizzy if it was a hard landing. A finger that had already stopped **drops** him, and he lands with a squash |
+| Drag him | He comes with the finger, hanging from it with his legs kicking and his arms thrown up — the catalogue's `IDLE_HANDS_UP`, which is the nearest thing the firmware has to being picked up, so the drag reuses it instead of adding a new animation. A finger that was still moving when it let go **throws** him: he flies, bounces off the floor, and sits down dizzy if it was a hard landing. A finger that had already stopped **drops** him, and he lands with a squash |
 | Swipe across him | He slides into the wall, wobbles, and comes back |
 
 The gestures are the firmware's own, with one difference: on the device he is
@@ -175,16 +175,61 @@ the screen either way — the whole of him, feet included, has to stay visible,
 and the size is capped by the screen so he can never grow into a shape too
 big to fit.
 
-There is **one** size model. The size he is drawn at is the size the layout
-gives him, times the layout's own factor for that place, times the user's
-size settings, times the pinch. The drawing, the box the finger grabs and the
-bounds that keep him on the screen all work from that one number, so they
-cannot disagree about how big he is. Before, the drawing and the bounds each
-had their own, and a big Потсик could hang off the screen.
+There is **one** size, and it has **one** control: the pinch. `PotsikLook`
+holds it as `sizeScale`, a multiplier on the 132 dp base, and everything —
+the drawing, the box the finger grabs, the desktop window, the bounds that
+keep him on the screen — works from that one number, clamped to 72…320 dp.
+The pinch ends on a size and that size is written into the look, so he is
+the same size the next time the app opens and the same size on the desktop as
+in the chat.
+
+The look used to carry a second dial — the firmware's SIZE row, a percentage
+on top of the multiplier — and the two multiplied. Old profiles still carry
+that field; `withSizeMigrated()` folds the percentage into `sizeScale` when a
+look is read, so a user who had 150 % and a 1.2 multiplier keeps the size he
+was looking at (1.8), and the legacy field is parked at 100 and never written
+again.
 
 The bounds live in one place, `clampPlacement()`, because three different
 callers have to obey the same rule: the drag, the agent's tool and the
-layout's own defaults.
+layout's own defaults. The desktop window obeys the same rule in
+`clampWindowOffset()`.
+
+## Above other windows (Android)
+
+**Settings → Потсик → Above other windows** keeps the character on the
+desktop in a system overlay window while the app is away; opening the app
+takes him back inside. The window is exactly his size plus the band his
+speech bubble is drawn in, because the OS delivers every tap inside the
+window's rect to the app, transparent pixels included.
+
+The mode needs Android's "display over other apps" permission, and the
+permission is granted on a system screen — so the settings screen re-reads it
+on every `ON_RESUME` and reconciles the service. Granting it and coming back
+is enough: the character appears without touching the switch again. Revoking
+it in the system while he stands there takes the window down and turns the
+switch off, because the switch shows the *effective* state (mode on **and**
+permission granted), not the saved wish; with the permission missing, the row
+says what to do and offers the button that opens the system screen.
+
+The mode starts at **Android 13 (API 33)**. Below that the row is still
+shown, but disabled, with the version in the text — the owner's rule for
+Android: a mode the old system cannot do is not shimmed. The platform gate is
+`desktopPetAvailability()`, and the row is rendered from `desktopPetRow()`,
+which is pure and tested; on iOS, desktop and the web the row is hidden as it
+always was.
+
+On the desktop the window is dragged by a finger past the touch slop and
+pinched with two. The drag lives in the shell view, which sees the raw screen
+coordinates, and reports itself into the common layer (`PotsikCarry`), so the
+character plays exactly the carry the app plays — arms up, legs kicking. The
+pinch resizes the window with `updateViewLayout` frame by frame and never
+recreates it (a recreated window would break the touch stream and the
+composition); the size is computed from the distance between the fingers, so
+moving the window under them changes nothing, and the shell hands the second
+finger's stream to the pinch instead of eating it as a drag. Letting go
+clamps the window back into the screen, so the character cannot be dragged
+off an edge and lost.
 
 ## The agent's tool
 
@@ -217,13 +262,13 @@ remembered position; changing profiles restores that profile's look.
 | Option | Values |
 |--------|--------|
 | Show the character | on / off — off leaves the chat exactly as it was before him |
+| Above other windows | Android 13 and newer: keeps him on the desktop while the app is away, with the "display over other apps" permission. Shown disabled on older Android, hidden on other platforms |
 | Outfit | The eighteen costumes, with their own names in both languages |
 | T-shirt / Shorts / Shoes | Eight tones each, all drawn from one shared palette so any combination harmonises |
 | Shades | Cyan, Pink, Green, Purple |
 | Sunglasses | on / off — off reveals the bare Simpsons-style eyes underneath |
 | Eyelashes | on / off — only visible with the shades off |
-| Size (percent) | 50 % – 150 %, the firmware's SIZE row |
-| Size (multiplier) | 60 % – 160 %, on top of the size the chat gives him |
+| Size | There is no slider: pinch him with two fingers, in the chat or on the desktop, and that size is kept |
 | Tempo | 50 % – 200 %, the firmware's TEMPO row. It scales every mood, every bubble and every idle beat, so a slow character is slow all the way through |
 | Chatter | on / off — whether he talks to himself when nothing is happening |
 | Dragging | on / off — whether he may be picked up and carried |
@@ -272,7 +317,10 @@ The app has no catch counter, so every costume is available from the start.
 | `composeApp/.../ui/potsik/PotsikPalette.kt` | The colours, in the firmware's RGB565 |
 | `composeApp/.../ui/potsik/PotsikShapes.kt` | The drawing primitives the firmware's `TFT_eSPI` calls became |
 | `composeApp/.../ui/potsik/PotsikModel.kt` | The moods, the emote poses, the costumes and the settings |
-| `composeApp/.../ui/potsik/PotsikLook.kt` | `PotsikLook` — everything the user can change |
+| `composeApp/.../ui/potsik/PotsikLook.kt` | `PotsikLook` — everything the user can change, and `withSizeMigrated()` |
+| `composeApp/.../ui/potsik/DesktopPet.kt` | The desktop window's numbers: his size, the pinch (`pinchedPotsikSize`), the window clamp (`clampWindowOffset`), the carry state and the drag's animation |
+| `composeApp/.../ui/potsik/DesktopPetPlatform.kt` | What the platform offers (`desktopPetAvailability()`), the row it implies (`desktopPetRow()`), the permission and the service calls |
+| `composeApp/.../androidMain/.../overlay/PotsOverlayService.kt` | The system window itself: the service, the shell view with the drag and the pinch, the foreground notification |
 | `composeApp/.../ui/potsik/PotsikAnimation.kt` | `PotsikAction` — the catalogue the agent's tool names |
 | `composeApp/.../ui/potsik/PotsikAvatar.kt` | The character on his own, and the frozen-pose preview |
 | `composeApp/.../ui/potsik/PotsikStage.kt` | Where he is: the anchors, the pinned position, the size, the engine, and the bounds (`clampPlacement`) that keep him on the screen |

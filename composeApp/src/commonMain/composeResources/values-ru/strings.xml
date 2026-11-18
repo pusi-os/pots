@@ -164,6 +164,7 @@
     <string name="potsiki_overlay_description">Оставить Потсика на рабочем столе, когда приложение свёрнуто; при открытии приложения он снова внутри. Только Android.</string>
     <string name="potsiki_overlay_permission_needed">Чтобы Потсик стоял на рабочем столе и не мешал нажимать остальное, разрешите отображение поверх других окон.</string>
     <string name="potsiki_overlay_permission_button">Открыть настройки</string>
+    <string name="potsiki_overlay_needs_newer">Этот режим поддерживается начиная с Android %1$s. На вашей системе он недоступен.</string>
     <string name="potsiki_outfit">Костюм</string>
     <string name="potsiki_shirt">Футболка</string>
     <string name="potsiki_shorts">Шорты</string>
@@ -174,8 +175,7 @@
     <string name="potsiki_glasses_hood">Капюшон парки оставляет видными только глаза — очки всегда сняты.</string>
     <string name="potsiki_lashes">Ресницы</string>
     <string name="potsiki_lashes_description">Ресницы на обычных глазах. Видны только без очков.</string>
-    <string name="potsiki_size">Размер</string>
-    <string name="potsiki_size_multiplier">Множитель размера</string>
+    <string name="potsiki_size_pinch_hint">Размер задаётся двумя пальцами на самом персонаже — и в приложении, и на рабочем столе.</string>
     <string name="potsiki_tempo">Темп</string>
     <string name="potsiki_tempo_description">Как быстро он двигается. От этого зависят все позы, все реплики и все паузы.</string>
     <string name="potsiki_banter">Болтовня</string>

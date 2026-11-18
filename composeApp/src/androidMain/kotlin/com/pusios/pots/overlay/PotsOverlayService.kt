@@ -46,11 +46,18 @@ import com.pusios.pots.ui.DarkColorScheme
 import com.pusios.pots.ui.LightColorScheme
 import com.pusios.pots.ui.potsik.DESKTOP_PET_BUBBLE_ROOM_DP
 import com.pusios.pots.ui.potsik.DesktopPetWindow
+import com.pusios.pots.ui.potsik.PotsikCarry
 import com.pusios.pots.ui.potsik.PotsikOverlayPet
+import com.pusios.pots.ui.potsik.PotsikPinch
+import com.pusios.pots.ui.potsik.clampWindowOffset
 import com.pusios.pots.ui.potsik.desktopPetCharacterSize
+import com.pusios.pots.ui.potsik.pinchedPotsikSize
+import com.pusios.pots.ui.potsik.potsikSizeScale
 import org.koin.android.ext.android.inject
 import org.koin.core.context.GlobalContext
 import java.util.Locale
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Is our own UI on screen — the process-wide truth the overlay window obeys.
@@ -91,8 +98,14 @@ object PotsAppForeground {
  *   would eat taps meant for the apps underneath;
  * - [applyVisibility] on every foreground flip: app in front → hidePet(),
  *   app away → showPet();
- * - the window is draggable by a finger past the touch slop, and remembers
- *   where it was put down.
+ * - the window is draggable by a finger past the touch slop and pinched
+ *   bigger or smaller with two, and remembers both where it was put down and
+ *   how big it was left.
+ *
+ * The service obeys the saved flag and the permission, never its own state:
+ * [wanted] is asked before every window and on every start, so turning the
+ * mode off — or losing the permission in the system — always takes the
+ * window down, whichever order the switch and the service were touched in.
  */
 class PotsOverlayService : Service() {
 
@@ -118,6 +131,14 @@ class PotsOverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // A stop asked for before this start was delivered has to win: the
+        // toggle is a switch, and on → off within a second used to leave a
+        // window nobody would ever take down, because the reconcile that
+        // asked for the stop ran before the service existed.
+        if (!wanted()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         applyVisibility()
         return START_STICKY
     }
@@ -142,17 +163,33 @@ class PotsOverlayService : Service() {
         ui.post { applyVisibility() }
     }
 
+    /**
+     * Is the mode on and the permission there?
+     *
+     * Read from the stored look every time rather than cached: the settings
+     * screen writes the flag, the system owns the permission, and a cached
+     * answer is exactly how a mode that was turned off keeps a character on
+     * somebody's screen.
+     */
+    private fun wanted(): Boolean = appSettings.getPotsikLook().overlayEnabled && canDraw(this)
+
     private fun applyVisibility() {
         if (!isRunning) return
+        if (!wanted()) {
+            // Turned off, or the permission was revoked while he stood there:
+            // take the window down and go away quietly. The settings row
+            // already shows what is missing.
+            hidePet()
+            stopSelf()
+            return
+        }
         if (PotsAppForeground.foreground) hidePet() else showPet()
     }
 
     private fun showPet() {
         if (pet != null) return
         val w = wm ?: return
-        if (!canDraw(this)) {
-            // The permission was revoked while the mode was on: do not fight
-            // the system, just go away; the settings row shows the button.
+        if (!wanted()) {
             stopSelf()
             return
         }
@@ -161,6 +198,14 @@ class PotsOverlayService : Service() {
         val winW = (desktopPetCharacterSize(look).value * m.density).toInt().coerceAtLeast(1)
         val winH = winW + (DESKTOP_PET_BUBBLE_ROOM_DP * m.density).toInt()
         val prefs = prefs()
+        val offset = clampWindowOffset(
+            x = prefs.getInt(KEY_X, (m.widthPixels - winW).coerceAtLeast(0)),
+            y = prefs.getInt(KEY_Y, m.heightPixels / 3),
+            windowWidth = winW,
+            windowHeight = winH,
+            screenWidth = m.widthPixels,
+            screenHeight = m.heightPixels,
+        )
         val params = WindowManager.LayoutParams(
             winW,
             winH,
@@ -171,14 +216,27 @@ class PotsOverlayService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = prefs.getInt(KEY_X, (m.widthPixels - winW).coerceAtLeast(0))
-            y = prefs.getInt(KEY_Y, m.heightPixels / 3)
+            x = offset.x
+            y = offset.y
         }
 
         val owner = OverlayWindowOwner()
         val shell = OverlayPetShell(this)
         shell.windowParams = params
         shell.onDragEnd = { nx, ny -> prefs.edit().putInt(KEY_X, nx).putInt(KEY_Y, ny).apply() }
+        shell.onSizeChanged = { widthPx ->
+            // The size a pinch ends on is the size he keeps: written into the
+            // look, so it survives the app being closed and the window being
+            // rebuilt — and the in-app character is the same size when the
+            // app comes back.
+            val sizeDp = widthPx / resources.displayMetrics.density
+            val current = appSettings.getPotsikLook()
+            val scale = potsikSizeScale(sizeDp)
+            if (scale != current.sizeScale) {
+                appSettings.setPotsikLook(current.copy(sizeScale = scale))
+            }
+            PotsikPinch.set(null)
+        }
         shell.attachContent(owner) {
             val liveLook by appSettings.potsikLookFlow.collectAsState()
             val themeMode by appSettings.themeModeFlow.collectAsState()
@@ -218,6 +276,10 @@ class PotsOverlayService : Service() {
     private fun hidePet() {
         val v = pet ?: return
         pet = null
+        // Whatever the shell was doing ended with the window: the character
+        // is not being carried any more, and no pinch is half-done.
+        PotsikCarry.setCarried(false)
+        PotsikPinch.set(null)
         DesktopPetWindow.setShowing(false)
         try {
             wm?.removeView(v)
@@ -295,9 +357,10 @@ class PotsOverlayService : Service() {
         /**
          * Brings the service in line with the saved flag: mode on and the
          * permission granted → running; anything else → stopped. Called from
-         * the settings toggle and from every app start, so the mode turned on
-         * before the process died comes back, and a revoked permission takes
-         * the window down.
+         * the settings toggle, from the settings screen's ON_RESUME (the
+         * return from the system permission screen) and from every app start,
+         * so the mode turned on before the process died comes back, and a
+         * revoked permission takes the window down.
          *
          * Only call this while the app is in the foreground: Android 12+
          * forbids starting a foreground service from the background, and a
@@ -317,27 +380,49 @@ class PotsOverlayService : Service() {
 }
 
 /**
- * The window's shell: a plain frame that owns the drag and hosts the
- * Compose content.
+ * The window's shell: a plain frame that owns the drag, the pinch and hosts
+ * the Compose content.
  *
- * The drag lives here rather than in Compose on purpose: the window moves in
- * RAW screen coordinates, and a finger on a moving window looks still to the
- * composition inside it — the classic feedback loop. The shell watches the
- * raw events, takes the gesture over past the touch slop (so a micro-shake
- * is never a drag and a tap still reaches the character), and moves the
- * window from the raw delta, the way PixelTag's pet view does.
+ * The gestures live here rather than in Compose on purpose: the window moves
+ * in RAW screen coordinates, and a finger on a moving window looks still to
+ * the composition inside it — the classic feedback loop. The shell watches the
+ * raw events, takes the gesture over past the touch slop (so a micro-shake is
+ * never a drag and a tap still reaches the character), and moves the window
+ * from the raw delta, the way PixelTag's pet view does.
+ *
+ * Two fingers are a pinch, and it is the shell's too: it resizes the window
+ * with `updateViewLayout` frame by frame — never by recreating the window,
+ * which would break the touch stream and the composition — and reports the
+ * size it ended on. The size itself is worked out by
+ * [pinchedPotsikSize], from the distance between the fingers, so a window
+ * moving under the fingers does not change it.
  */
 private class OverlayPetShell(context: Context) : FrameLayout(context) {
 
     var windowParams: WindowManager.LayoutParams? = null
     var onDragEnd: ((Int, Int) -> Unit)? = null
 
+    /** The character's width in pixels, after a pinch. */
+    var onSizeChanged: ((Float) -> Unit)? = null
+
+    private val windowManager: WindowManager
+        get() = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+
+    private val density: Float
+        get() = resources.displayMetrics.density
+
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+
     private var downRawX = 0f
     private var downRawY = 0f
     private var downWinX = 0
     private var downWinY = 0
     private var dragging = false
+
+    private var pinching = false
+    private var pinchDone = false
+    private var pinchStartSpan = 0f
+    private var pinchStartSizeDp = 0f
 
     fun attachContent(owner: OverlayWindowOwner, content: @Composable () -> Unit) {
         // The three tree owners go on THIS view — the window's root — and not
@@ -364,16 +449,30 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
                 downWinX = windowParams?.x ?: 0
                 downWinY = windowParams?.y ?: 0
                 dragging = false
+                pinching = false
+                pinchDone = false
+            }
+
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (ev.pointerCount >= 2) {
+                    // The second finger turns the gesture into a pinch: take
+                    // it over before the character inside sees a second touch.
+                    beginPinch(ev)
+                    return true
+                }
             }
 
             MotionEvent.ACTION_MOVE -> {
-                if (!dragging) {
+                if (!dragging && !pinching && !pinchDone) {
                     val dx = ev.rawX - downRawX
                     val dy = ev.rawY - downRawY
                     if (dx * dx + dy * dy > touchSlop * touchSlop.toFloat()) {
                         // The gesture declared itself a drag: take it over,
                         // the character inside sees a cancel, not a pet.
                         dragging = true
+                        // The common layer draws the carry — both arms up —
+                        // so the desktop and the app show the same thing.
+                        PotsikCarry.setCarried(true)
                         return true
                     }
                 }
@@ -387,24 +486,130 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> return true
 
-            MotionEvent.ACTION_MOVE -> {
-                if (!dragging) return false
-                params.x = downWinX + (event.rawX - downRawX).toInt()
-                params.y = downWinY + (event.rawY - downRawY).toInt()
-                val w = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                runCatching { w.updateViewLayout(this, params) }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount >= 2 && !pinching) beginPinch(event)
                 return true
             }
 
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (dragging && event.actionMasked == MotionEvent.ACTION_UP) {
-                    onDragEnd?.invoke(params.x, params.y)
+            MotionEvent.ACTION_MOVE -> {
+                if (pinching) {
+                    updatePinch(event)
+                    return true
                 }
-                dragging = false
+                if (dragging) {
+                    moveDrag(event)
+                    return true
+                }
+                return pinchDone
+            }
+
+            MotionEvent.ACTION_POINTER_UP -> {
+                // The second finger lifting ends the pinch: the finger left
+                // does not turn into a carry.
+                if (pinching) endPinch()
+                return pinchDone
+            }
+
+            MotionEvent.ACTION_UP -> {
+                if (pinching) endPinch()
+                if (dragging) finishDrag(params, save = true)
+                pinchDone = false
+                return true
+            }
+
+            MotionEvent.ACTION_CANCEL -> {
+                // The gesture was taken away — the window is going down, the
+                // app came forward. The size the pinch had already applied to
+                // the window is kept (it is on screen, so it must be the size
+                // he comes back at); a drag is not written down, because it
+                // never ended where the finger meant to leave him.
+                if (pinching) endPinch()
+                pinchDone = false
+                if (dragging) finishDrag(params, save = false)
                 return true
             }
         }
         return false
+    }
+
+    // ---- the drag ------------------------------------------------------------
+
+    private fun moveDrag(event: MotionEvent) {
+        val params = windowParams ?: return
+        params.x = downWinX + (event.rawX - downRawX).toInt()
+        params.y = downWinY + (event.rawY - downRawY).toInt()
+        // He stops at the edge instead of going over it: a pet dragged off the
+        // screen is a pet the user cannot get back.
+        keepOnScreen(params)
+        runCatching { windowManager.updateViewLayout(this, params) }
+    }
+
+    private fun finishDrag(params: WindowManager.LayoutParams, save: Boolean) {
+        dragging = false
+        PotsikCarry.setCarried(false)
+        keepOnScreen(params)
+        runCatching { windowManager.updateViewLayout(this, params) }
+        if (save) onDragEnd?.invoke(params.x, params.y)
+    }
+
+    // ---- the pinch -----------------------------------------------------------
+
+    private fun beginPinch(event: MotionEvent) {
+        val params = windowParams ?: return
+        // A second finger during a carry is a pinch, not a throw: the drag
+        // ends where he is and the size starts from here.
+        if (dragging) finishDrag(params, save = true)
+        pinching = true
+        pinchDone = false
+        pinchStartSpan = span(event)
+        pinchStartSizeDp = params.width / density
+        PotsikCarry.setCarried(false)
+    }
+
+    private fun updatePinch(event: MotionEvent) {
+        val params = windowParams ?: return
+        if (event.pointerCount < 2) return
+        val sizeDp = pinchedPotsikSize(pinchStartSizeDp, pinchStartSpan, span(event))
+        val widthPx = (sizeDp * density).roundToInt().coerceAtLeast(1)
+        params.width = widthPx
+        params.height = widthPx + (DESKTOP_PET_BUBBLE_ROOM_DP * density).roundToInt()
+        keepOnScreen(params)
+        runCatching { windowManager.updateViewLayout(this, params) }
+        // The character inside is drawn from this, so the window and the
+        // drawing grow together instead of the window outrunning him.
+        PotsikPinch.set(sizeDp)
+    }
+
+    private fun endPinch() {
+        if (!pinching) return
+        pinching = false
+        pinchDone = true
+        val params = windowParams ?: return
+        keepOnScreen(params)
+        runCatching { windowManager.updateViewLayout(this, params) }
+        onSizeChanged?.invoke(params.width.toFloat())
+    }
+
+    /** The distance between the first two fingers, in view pixels. */
+    private fun span(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 0f
+        val dx = event.getX(0) - event.getX(1)
+        val dy = event.getY(0) - event.getY(1)
+        return sqrt(dx * dx + dy * dy)
+    }
+
+    private fun keepOnScreen(params: WindowManager.LayoutParams) {
+        val screen = resources.displayMetrics
+        val offset = clampWindowOffset(
+            x = params.x,
+            y = params.y,
+            windowWidth = params.width,
+            windowHeight = params.height,
+            screenWidth = screen.widthPixels,
+            screenHeight = screen.heightPixels,
+        )
+        params.x = offset.x
+        params.y = offset.y
     }
 }
 

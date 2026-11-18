@@ -267,20 +267,21 @@ class PotsikStage(
         recompute()
     }
 
-    /**
-     * The screen reports the user's size setting for the character.
-     *
-     * It multiplies the size he is drawn at everywhere, so a bigger Потсик is
-     * bigger in the empty screen, in the working tile and in the footer alike
-     * — and the bounds follow him.
-     *
-     * The screen reports how far down the character must stay. */
+    /** The screen reports how far down the character must stay. */
     fun setTopInset(px: Float) {
         if (_topInset.value == px) return
         _topInset.value = px
         recompute()
     }
 
+    /**
+     * The screen reports the user's size setting for the character.
+     *
+     * It multiplies the size he is drawn at everywhere, so a bigger Потсик is
+     * bigger in the empty screen, in the working tile and in the footer alike
+     * — and the bounds follow him. It is the one size there is: the pinch on
+     * the character sets it, and the screen reports what the look holds.
+     */
     fun setSizePreference(factor: Float) {
         if (_sizePreference.value == factor) return
         _sizePreference.value = factor
@@ -454,16 +455,6 @@ class PotsikStage(
     }
 
     /**
-     * Makes the character bigger or smaller by a factor — a pinch, or a
-     * second's worth of scrolling.
-     */
-    fun scaleBy(factor: Float) {
-        if (factor <= 0f) return
-        _userScale.value = (_userScale.value * factor).coerceIn(MIN_SCALE, MAX_SCALE)
-        recompute()
-    }
-
-    /**
      * Puts the character back where the chat layout wants him, at the size
      * the layout wants, dropping any move.
      */
@@ -537,18 +528,16 @@ class PotsikStage(
 
     /**
      * The factors that make the character the size he is drawn at, apart from
-     * the pinch the user makes with two fingers.
+     * the size the user set with two fingers.
      *
-     * The layout's own size for the place he is standing in, the user's size
-     * slider and the firmware's own SIZE row, all in one number. Everything
-     * that has to do with his size — the drawing, the touch box, the bounds —
-     * works from this one factor, so they cannot disagree about how big he
-     * is.
+     * The layout's own size for the place he is standing in times the user's
+     * single size setting, in one number. Everything that has to do with his
+     * size — the drawing, the touch box, the bounds — works from this one
+     * factor, so they cannot disagree about how big he is.
      */
     private fun sizeFactors(): Float {
         val layout = defaultPlacement()?.scale ?: 1f
-        val percent = _settings.value.sizePercent.coerceIn(25, 400) / 100f
-        return layout * _sizePreference.value * percent
+        return layout * _sizePreference.value
     }
 
     private fun recompute() {

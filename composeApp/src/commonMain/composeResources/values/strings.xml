@@ -141,6 +141,7 @@
     <string name="potsiki_overlay_description">Keep Potsik on the desktop while the app is minimized; opening the app brings him back inside. Android only.</string>
     <string name="potsiki_overlay_permission_needed">For Potsik to stand on the desktop and not get in the way of everything else, let the app draw over other windows.</string>
     <string name="potsiki_overlay_permission_button">Open settings</string>
+    <string name="potsiki_overlay_needs_newer">This mode works from Android %1$s onwards. On your system it is not available.</string>
     <string name="potsiki_outfit">Outfit</string>
     <string name="potsiki_shirt">T-shirt</string>
     <string name="potsiki_shorts">Shorts</string>
@@ -151,8 +152,7 @@
     <string name="potsiki_glasses_hood">The parka's hood shows nothing but the eyes, so the shades stay off.</string>
     <string name="potsiki_lashes">Eyelashes</string>
     <string name="potsiki_lashes_description">Lashes on the bare eyes. Only visible with the shades off.</string>
-    <string name="potsiki_size">Size</string>
-    <string name="potsiki_size_multiplier">Size multiplier</string>
+    <string name="potsiki_size_pinch_hint">Size is set with two fingers on the character himself — in the app and on the desktop alike.</string>
     <string name="potsiki_tempo">Tempo</string>
     <string name="potsiki_tempo_description">How fast he moves. Every pose, every bubble and every idle beat is scaled by it.</string>
     <string name="potsiki_banter">Chatter</string>

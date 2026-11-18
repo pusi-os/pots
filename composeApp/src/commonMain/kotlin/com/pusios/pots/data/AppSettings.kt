@@ -6,6 +6,7 @@ import com.pusios.pots.linux.LinuxDistro
 import com.pusios.pots.mcp.McpServerConfig
 import com.pusios.pots.ui.potsik.PotsikLook
 import com.pusios.pots.ui.potsik.PotsikPlacementMode
+import com.pusios.pots.ui.potsik.withSizeMigrated
 import com.pusios.pots.writeAppStorageFile
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.CoroutineScope
@@ -355,7 +356,14 @@ class AppSettings(internal val settings: Settings) {
                 backupCorruptJson("agentProfiles", stored)
                 emptyList()
             }
-            if (decoded.isNotEmpty()) return decoded
+            if (decoded.isNotEmpty()) {
+                // Profiles written before the size was one number carry the
+                // old percent row; folding it in here is what keeps an
+                // existing user's character the size they chose.
+                return decoded.map { profile ->
+                    profile.copy(potsikLook = profile.potsikLook.withSizeMigrated())
+                }
+            }
         }
         val legacyToolOverrides = settings.keys
             .filter { it.startsWith(KEY_TOOL_PREFIX) }
@@ -856,7 +864,9 @@ class AppSettings(internal val settings: Settings) {
                 .toEnum(default.placementMode),
             pinnedX = settings.getFloat(KEY_POTSIK_PINNED_X, Float.NaN).takeUnless { it.isNaN() },
             pinnedY = settings.getFloat(KEY_POTSIK_PINNED_Y, Float.NaN).takeUnless { it.isNaN() },
-        )
+            // The old percent row folds into the one size, the same way it
+            // does for a stored profile.
+        ).withSizeMigrated()
     }
 
     private inline fun <reified T : Enum<T>> String.toEnum(fallback: T): T = try {

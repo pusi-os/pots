@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +20,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pusios.pots.LocalAppLanguageCode
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
 import kotlin.time.TimeSource
@@ -52,7 +54,11 @@ fun PotsikOverlayPet(
     val timeBase = remember(engine) { TimeSource.Monotonic.markNow() }
 
     val density = LocalDensity.current
-    val characterPx = with(density) { desktopPetCharacterSize(look).toPx() }
+    // A pinch in progress decides the size, so the character grows with the
+    // window instead of waiting for the fingers to lift; otherwise the look
+    // does.
+    val pinchSizeDp by PotsikPinch.sizeDp.collectAsState()
+    val characterPx = with(density) { (pinchSizeDp ?: potsikSizeDp(look)).dp.toPx() }
     val textMeasurer = rememberTextMeasurer()
     val bubbleFill = MaterialTheme.colorScheme.surface
     val bubbleTextColor = MaterialTheme.colorScheme.onSurface
@@ -88,6 +94,31 @@ fun PotsikOverlayPet(
             null,
             timeBase.elapsedNow().inWholeMilliseconds,
         )
+    }
+
+    // A finger on the window is carrying him.
+    //
+    // The drag itself belongs to the shell view — the window moves in raw
+    // screen coordinates and only the shell sees those — so it reports the
+    // gesture here through the common carry flag, and the character is told
+    // what the in-app gesture tells him: he hangs from the finger with both
+    // arms thrown up (the catalogue's IDLE_HANDS_UP), and comes down when it
+    // lifts. Same pose, same code, whichever surface is drawing him.
+    val carried by PotsikCarry.carried.collectAsState()
+    LaunchedEffect(engine, carried) {
+        when (potsikDragEffect(carried)) {
+            PotsikDragEffect.CARRY -> {
+                // The engine lets go of a finger that has stopped reporting
+                // for a few seconds, so a long drag keeps reporting: a carry
+                // that timed out mid-drag would drop him in the air.
+                while (true) {
+                    engine.grabTo(0f, 0f, timeBase.elapsedNow().inWholeMilliseconds)
+                    delay(CARRY_REFRESH_MS)
+                }
+            }
+
+            PotsikDragEffect.RELEASE -> engine.release(timeBase.elapsedNow().inWholeMilliseconds)
+        }
     }
 
     Box(
@@ -140,3 +171,6 @@ fun PotsikOverlayPet(
         }
     }
 }
+
+/** How often a long drag re-reports itself to the engine, well inside its carry timeout. */
+private const val CARRY_REFRESH_MS = 1_000L

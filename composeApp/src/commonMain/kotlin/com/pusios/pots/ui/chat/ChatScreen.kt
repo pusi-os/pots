@@ -361,6 +361,12 @@ fun ChatScreenContent(
                 look = if (profileHandoff == null) uiState.potsikLook else uiState.potsikLook.copy(isVisible = false),
                 phase = potsikPhase,
                 toolName = runningTool,
+                // A pinch is the only size dial there is: it ends on a size,
+                // and that size is written into the look so it survives a
+                // restart — and sizes the desktop window to match.
+                onSizeChanged = { scale ->
+                    uiState.actions.setPotsikLook(currentLook.copy(sizeScale = scale))
+                },
             )
             profileHandoff?.let { (outgoing, incoming) ->
                 AgentProfileHandoffOverlay(

@@ -3,7 +3,7 @@ package com.pusios.pots.ui.potsik
 // The browser has no window above other apps: the toggle is hidden and the
 // mode is never on.
 
-actual fun isDesktopPetSupported(): Boolean = false
+actual fun desktopPetAvailability(): DesktopPetAvailability = DesktopPetAvailability.NotOnThisPlatform
 
 actual fun canDrawDesktopPetOverlay(): Boolean = false
 

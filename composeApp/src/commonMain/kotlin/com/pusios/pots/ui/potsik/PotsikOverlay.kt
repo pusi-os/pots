@@ -81,6 +81,7 @@ fun PotsikOverlay(
     toolName: String? = null,
     baseSize: Dp = 132.dp,
     hasMessages: Boolean = false,
+    onSizeChanged: ((Float) -> Unit)? = null,
 ) {
     // The character's own language: the app's, which is the device's.
     val isRussian = LocalAppLanguageCode.current.lowercase().startsWith("ru")
@@ -286,8 +287,13 @@ fun PotsikOverlay(
                     modifier = Modifier
                         .offset { IntOffset(left, top) }
                         .size(characterDp)
-                        .pointerInput(stage, basePx) {
-                            trackCharacter(stage = stage, basePx = basePx)
+                        .pointerInput(stage, basePx, look.sizeScale) {
+                            trackCharacter(
+                                stage = stage,
+                                basePx = basePx,
+                                sizeDp = potsikSizeDp(look),
+                                onSizeSettled = onSizeChanged,
+                            )
                         },
                 )
             }
@@ -347,7 +353,9 @@ internal class PotsikPose(
  *
  * Two fingers are a pinch: he is made bigger or smaller, proportionally, and
  * the gesture then waits for every finger to lift before it does anything
- * else, so the second finger never turns into a carry.
+ * else, so the second finger never turns into a carry. The size the pinch
+ * ends on is written back into the look, so it survives the app being closed
+ * — and it is the same number the desktop window is sized from.
  *
  * A touch that does not start on him is left alone — it is not consumed, so
  * the chat underneath keeps its scrolling and its taps.
@@ -355,6 +363,8 @@ internal class PotsikPose(
 private suspend fun PointerInputScope.trackCharacter(
     stage: PotsikStage,
     basePx: Float,
+    sizeDp: Float,
+    onSizeSettled: ((Float) -> Unit)?,
 ) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
@@ -374,6 +384,7 @@ private suspend fun PointerInputScope.trackCharacter(
         var carried = false
         var held = false
         var pinched = false
+        var pinchSizeDp = sizeDp
         var lastDx = 0f
         var strokeMs = 0L
 
@@ -387,7 +398,13 @@ private suspend fun PointerInputScope.trackCharacter(
                 // are; a carry in progress is let go of first.
                 pinched = true
                 val zoom = event.calculateZoom()
-                if (zoom != 1f) stage.scaleBy(zoom)
+                if (zoom != 1f && zoom > 0f) {
+                    // The zoom is the ratio of the span between the fingers,
+                    // so it is the span ratio the size is scaled by: moving
+                    // the whole hand across the screen changes nothing.
+                    pinchSizeDp = pinchedPotsikSize(pinchSizeDp, 1f, zoom)
+                    stage.setSizePreference(potsikSizeScale(pinchSizeDp))
+                }
                 if (carried) {
                     stage.engine.release(now)
                     carried = false
@@ -458,6 +475,12 @@ private suspend fun PointerInputScope.trackCharacter(
                 // being carried about.
                 stage.engine.onPetting(now)
             }
+        }
+
+        // The pinch is over: the size it ended on is the size he keeps, so it
+        // is written back into the look and survives the app being closed.
+        if (pinched && onSizeSettled != null) {
+            onSizeSettled(potsikSizeScale(pinchSizeDp))
         }
     }
 }
