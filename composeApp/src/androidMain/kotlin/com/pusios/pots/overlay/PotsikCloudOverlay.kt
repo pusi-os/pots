@@ -116,6 +116,9 @@ internal class PotsikCloudOverlay(
     private var shell: CloudShell? = null
     private var owner: CloudWindowOwner? = null
 
+    /** A fade-out is running: the window is still there but already leaving. */
+    private var fading = false
+
     private val speechToText by lazy {
         val engine = settings?.getSttEngine()
         if (engine == null) null else createSpeechToText(engine, settings?.getSttVoskModel().orEmpty())
@@ -178,7 +181,6 @@ internal class PotsikCloudOverlay(
         if (isOpen) return
         val params = petParams() ?: return
         cloudState.value = PotsikCloudState()
-        onPhase(PotsikCloudPhase.Menu)
         val view = CloudShell(context).apply { onOutsideTouch = { close() } }
         val owner = CloudWindowOwner()
         view.attachContent(owner) { PotsikCloudRoot() }
@@ -186,22 +188,32 @@ internal class PotsikCloudOverlay(
         try {
             windowManager.addView(view, windowParams)
         } catch (_: Throwable) {
+            // No window after all (the permission was revoked between the tap
+            // and now). The character is told, or he would keep suppressing his
+            // own bubbles for a cloud that never appeared.
             owner.destroy()
+            onClosed()
             return
         }
         view.windowParams = windowParams
         shell = view
         this.owner = owner
         owner.start()
+        // Only now, with the window really up, is the cloud part of the screen.
+        onPhase(PotsikCloudPhase.Menu)
         // Opening is the confirmation: the same haptic the app gives a tap.
         view.haptic(HapticFeedbackConstants.CONFIRM)
         watchVoice()
     }
 
-    /** Takes the window down now — no fade: the caller is a drag, a rotation or the app coming back. */
+    /** Takes the window down now — no fade: the caller is a rotation, the app coming back or screen off. */
     fun close() {
         val view = shell ?: return
         shell = null
+        fading = false
+        // A fade that is still running ends here rather than on top of a
+        // window that has already been taken down.
+        view.animate().cancel()
         watcherJob?.cancel()
         watcherJob = null
         handsFree.stop()
@@ -212,6 +224,27 @@ internal class PotsikCloudOverlay(
         owner?.destroy()
         owner = null
         onClosed()
+    }
+
+    /**
+     * Takes the window down with a short fade.
+     *
+     * Only the drag uses it: a capsule that vanishes in one frame next to a
+     * character that is being carried reads as a glitch. Rotation, the app
+     * coming back and screen off keep [close] — nobody is watching a fade there.
+     */
+    fun closeWithFade() {
+        val view = shell ?: return
+        if (fading) return
+        fading = true
+        view.animate()
+            .alpha(0f)
+            .setDuration(CLOUD_FADE_MS)
+            .withEndAction {
+                fading = false
+                close()
+            }
+            .start()
     }
 
     /** The character moved: the capsule follows his head. */
@@ -316,6 +349,13 @@ internal class PotsikCloudOverlay(
                                 reply = state.reply,
                             )
 
+                            // «Не расслышал, повторите» — its own status, because the
+                            // loop reopens the microphone by itself in two seconds.
+                            HandsFreeStatus.NoMatch -> PotsikCloudState(
+                                phase = PotsikCloudPhase.Error,
+                                trouble = PotsikCloudTrouble.NoMatch,
+                            )
+
                             HandsFreeStatus.Error -> PotsikCloudState(
                                 phase = PotsikCloudPhase.Error,
                                 trouble = when (handsFree.error.value) {
@@ -378,16 +418,12 @@ internal class PotsikCloudOverlay(
 
     private suspend fun onAnswered(answer: PotsikCloudAsker.Answer.Answered) {
         setState(PotsikCloudState(phase = PotsikCloudPhase.Speaking, reply = answer.text))
-        if (textToSpeech != null) {
-            // The controller speaks the reply and reopens the microphone when
-            // it is done — the loop closing itself, exactly as in the app.
-            handsFree.onAssistantReply(answer.messageId, answer.text)
-        } else {
-            // No synthesizer: the answer stays on the pill long enough to be
-            // read, then the loop goes back to listening.
-            delay(NO_SPEECH_READING_MS)
-            if (state.phase == PotsikCloudPhase.Speaking) handsFree.resume()
-        }
+        // The controller speaks the reply and reopens the microphone when it is
+        // done — the loop closing itself, exactly as in the app. Without a
+        // synthesizer it goes straight back to listening, so the pill is what
+        // the reply is read on; the controller already allows that
+        // (isSupported only needs a recognizer).
+        handsFree.onAssistantReply(answer.messageId, answer.text)
     }
 
     // ---- the actions ---------------------------------------------------------
@@ -459,16 +495,26 @@ internal class PotsikCloudOverlay(
         LaunchedEffect(Unit) {
             appear.animateTo(1f, tween(durationMillis = OPEN_MS, easing = FastOutSlowInEasing))
         }
+        // Every tap inside the cloud is the confirmation the app gives a tap. The
+        // capsule lives in commonMain and knows nothing about Android, so the
+        // haptic is added here, where the window is: it covers the three buttons
+        // and the pill's own [Стоп] / [×], which go through the same callbacks.
+        val tapped: (() -> Unit) -> () -> Unit = { action ->
+            {
+                shell?.haptic(HapticFeedbackConstants.CONFIRM)
+                action()
+            }
+        }
         CompositionLocalProvider(LocalAppLanguageCode provides languageCode) {
             MaterialTheme(colorScheme = if (dark) DarkColorScheme else LightColorScheme) {
                 PotsikCloudCapsule(
                     state = state,
                     voiceAvailable = voiceAvailable,
-                    onVoice = ::onVoice,
-                    onText = ::onText,
-                    onPillTap = ::onPillTap,
-                    onCancel = ::onCancel,
-                    onRetry = ::onRetry,
+                    onVoice = tapped(::onVoice),
+                    onText = tapped(::onText),
+                    onPillTap = tapped(::onPillTap),
+                    onCancel = tapped(::onCancel),
+                    onRetry = tapped(::onRetry),
                     modifier = Modifier.graphicsLayer {
                         alpha = appear.value
                         val scale = 0.92f + 0.08f * appear.value
@@ -482,8 +528,8 @@ internal class PotsikCloudOverlay(
 
     private companion object {
         const val OPEN_MS = 120
+        const val CLOUD_FADE_MS = 90L
         const val THINKING_CANCEL_MS = 3_000L
-        const val NO_SPEECH_READING_MS = 6_000L
     }
 }
 

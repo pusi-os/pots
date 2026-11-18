@@ -54,14 +54,6 @@ class PotsikCloudStateTest {
     }
 
     @Test
-    fun `only the speaking pill interrupts`() {
-        assertTrue(potsikCloudPillInterrupts(PotsikCloudPhase.Speaking))
-        for (phase in PotsikCloudPhase.entries - PotsikCloudPhase.Speaking) {
-            assertFalse(potsikCloudPillInterrupts(phase), "$phase must not interrupt")
-        }
-    }
-
-    @Test
     fun `an empty field sends nothing`() {
         assertFalse(potsikCloudSendEnabled(""))
         assertFalse(potsikCloudSendEnabled("   "))

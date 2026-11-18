@@ -33,6 +33,7 @@ class HandsFreeControllerTest {
     ) : SpeechToText {
         override val isAvailable: Boolean = true
         var cancelCalls = 0
+        var startCalls = 0
         var lastOnResult: ((String) -> Unit)? = null
         var lastOnError: ((SpeechToTextError) -> Unit)? = null
 
@@ -41,6 +42,7 @@ class HandsFreeControllerTest {
             onResult: (String) -> Unit,
             onError: (SpeechToTextError) -> Unit,
         ) {
+            startCalls++
             lastOnResult = onResult
             lastOnError = onError
         }
@@ -163,6 +165,48 @@ class HandsFreeControllerTest {
         runCurrent()
 
         assertEquals(HandsFreeStatus.Thinking, controller.status.value, "the watchdog must not override a live session")
+    }
+
+    @Test
+    fun noMatchIsAnnouncedAndThenListensAgain() = runTest(testDispatcher) {
+        val stt = FakeStt()
+        val controller = controller(stt)
+        controller.start()
+        runCurrent()
+        assertEquals(1, stt.startCalls)
+
+        stt.lastOnError?.invoke(SpeechToTextError.NoMatch)
+
+        // «Не расслышал, повторите» has a status of its own: the chat pauses the
+        // loop on Error, and a missed phrase must not pause anything.
+        assertEquals(HandsFreeStatus.NoMatch, controller.status.value)
+        assertEquals(SpeechToTextError.NoMatch, controller.error.value)
+
+        advanceTimeBy(HandsFreeController.NO_MATCH_NOTICE_MS + 100)
+        runCurrent()
+
+        assertEquals(HandsFreeStatus.Listening, controller.status.value, "the loop reopens the microphone by itself")
+        assertEquals(2, stt.startCalls, "exactly one new session after the notice")
+    }
+
+    @Test
+    fun aTapDuringTheNoMatchNoticeDoesNotOpenTwoSessions() = runTest(testDispatcher) {
+        val stt = FakeStt()
+        val controller = controller(stt)
+        controller.start()
+        runCurrent()
+        stt.lastOnError?.invoke(SpeechToTextError.NoMatch)
+        assertEquals(HandsFreeStatus.NoMatch, controller.status.value)
+
+        // The chat's button during the notice: skip the wait and listen now.
+        controller.resume()
+        runCurrent()
+        assertEquals(HandsFreeStatus.Listening, controller.status.value)
+        assertEquals(2, stt.startCalls)
+
+        advanceTimeBy(HandsFreeController.NO_MATCH_NOTICE_MS + 100)
+        runCurrent()
+        assertEquals(2, stt.startCalls, "the pending notice must not add a session on top of the tap's")
     }
 
     @Test

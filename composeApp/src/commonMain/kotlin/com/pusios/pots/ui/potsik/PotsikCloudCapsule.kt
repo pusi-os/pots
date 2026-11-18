@@ -615,6 +615,3 @@ fun PotsikCloudInputPanel(
         }
     }
 }
-
-/** Kept for callers that need a stable empty state while the activity starts. */
-val PotsikCloudIdle = PotsikCloudState()

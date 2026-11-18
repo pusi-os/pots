@@ -50,7 +50,8 @@ bubble.
 
 The capsule is taken down when:
 
-- a drag of the character starts (a capsule following a moving window judders);
+- a drag of the character starts (a capsule following a moving window judders) —
+  it fades out over 90 ms rather than vanishing from under the finger;
 - the app comes to the foreground (`applyVisibility`: one Потсик, one surface);
 - the screen goes off (the microphone stops with it);
 - the screen rotates (`onConfigurationChanged` closes it and re-clamps the

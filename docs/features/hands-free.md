@@ -46,7 +46,7 @@ Recognizer and synthesizer never run at the same time. That is deliberate: with 
 
 The same controller drives the capsule that opens on a double tap on Потсик outside the app — see [The Cloud](potsik-cloud.md). What differs there:
 
-- A synthesizer is optional. The loop counts as supported when a recognizer exists (`isSupported` is `speechToText != null`): a device without a voice still listens and answers, the reply stays on the pill for six seconds and the microphone reopens. Without a recognizer the capsule's voice button is dead and says why.
+- A synthesizer is optional. The loop counts as supported when a recognizer exists (`isSupported` is `speechToText != null`): a device without a voice still listens and answers, and the microphone reopens as soon as the reply is in — the answer itself is read on the screen.
 - The screen state is checked before the microphone opens. An overlay cannot raise the system permission dialog, and Android does not deliver recognition while the screen is off, so the pill says «Слушаю только при включённом экране» instead of pretending to listen.
 - The microphone has one owner. While the overlay's loop runs, the text field's [Озвучить] answers «Сначала остановите голосовой режим» instead of talking over it.
 - The screen going off closes the capsule, and the loop stops with it (`ACTION_SCREEN_OFF`, registered by `PotsOverlayService` for the lifetime of its window).
@@ -60,7 +60,7 @@ The same controller drives the capsule that opens on a double tap on Потси�
 - Starting hands-free turns speech output on automatically, because a hands-free dialogue that silently answers is not hands-free
 - The speech-output toggle keeps working in both modes. Turning it off while the loop is listening means the agent still answers and the microphone still reopens, just without reading the reply out; turning it off while the agent is speaking cuts the sentence and reopens the microphone. Turning it back on lets the next reply be spoken. The top-bar volume icon always shows the real state, whichever mode set it
 - The microphone permission is requested when the user switches the mode on, not at first launch
-- A recognition session that ends without a result ("no match") is not an error: the loop simply waits for the next attempt
+- A recognition session that ends without a result («no match») is not an error: the loop announces `HandsFreeStatus.NoMatch` for two seconds and then reopens the microphone on its own. It is a status of its own rather than *Error* on purpose — the chat pauses the loop on *Error*, and a missed phrase must not pause anything; a tap on the button during the notice skips the wait instead of stopping the mode
 - A real failure (no recognition service, denied permission) pauses the loop in the *Error* state; tapping the button resumes it
 - Every recognition session carries an id, so a late callback from a session that was already replaced — because the user interrupted, or because a new session started — is ignored and cannot derail the loop
 - Leaving the chat screen cancels the recognition session and releases the recognizer

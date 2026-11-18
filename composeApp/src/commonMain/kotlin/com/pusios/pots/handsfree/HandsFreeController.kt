@@ -29,6 +29,13 @@ enum class HandsFreeStatus {
 
     /** The loop is paused after an error; it can be resumed with the button. */
     Error,
+
+    /**
+     * Nothing was recognised. Shown for a moment, then the loop listens again
+     * on its own: a missed phrase is part of a dialogue, not a failure. A status
+     * of its own rather than [Error], because the chat pauses the loop on Error.
+     */
+    NoMatch,
 }
 
 /**
@@ -85,6 +92,12 @@ class HandsFreeController(
          * by device logs).
          */
         internal const val LISTEN_TIMEOUT_MS = 15_000L
+
+        /**
+         * How long «Не расслышал, повторите» stays up before the microphone
+         * reopens by itself (the spec's two seconds).
+         */
+        internal const val NO_MATCH_NOTICE_MS = 2_000L
     }
 
     /**
@@ -271,14 +284,22 @@ class HandsFreeController(
                 listenWatchdog?.cancel()
                 listenWatchdog = null
                 _error.value = error
-                // "No match" is a normal part of a hands-free dialogue — the loop waits for
-                // the next attempt instead of dropping into an error state.
-                _status.value = if (error == SpeechToTextError.NoMatch) {
-                    HandsFreeStatus.Listening
+                if (error == SpeechToTextError.NoMatch) {
+                    // «Не расслышал, повторите», then the microphone reopens by
+                    // itself. The session id is checked again after the pause: an
+                    // interrupt or a tap that already restarted the loop must not
+                    // get a second session on top of it.
+                    _status.value = HandsFreeStatus.NoMatch
+                    scope.launch {
+                        delay(NO_MATCH_NOTICE_MS)
+                        if (id == sessionId) {
+                            _status.value = HandsFreeStatus.Listening
+                            listen()
+                        }
+                    }
                 } else {
-                    HandsFreeStatus.Error
+                    _status.value = HandsFreeStatus.Error
                 }
-                if (error == SpeechToTextError.NoMatch) listen()
             },
         )
     }

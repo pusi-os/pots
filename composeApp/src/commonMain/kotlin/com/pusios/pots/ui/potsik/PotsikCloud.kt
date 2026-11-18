@@ -117,13 +117,6 @@ fun potsikCloudVoiceEnabled(recognizerAvailable: Boolean): Boolean = recognizerA
 /** An empty field sends nothing. */
 fun potsikCloudSendEnabled(text: String): Boolean = text.isNotBlank()
 
-/**
- * A tap on the pill while he is talking is the barge-in: the speech stops first
- * and only then does the microphone open. In every other state the pill has
- * nothing to interrupt.
- */
-fun potsikCloudPillInterrupts(phase: PotsikCloudPhase): Boolean = phase == PotsikCloudPhase.Speaking
-
 /** The character's own look for each cloud state: the phases the app already has. */
 data class PotsikPetLook(
     val phase: PotsikPhase,

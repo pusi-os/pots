@@ -30,6 +30,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -273,8 +274,9 @@ class PotsOverlayService : Service() {
         shell.windowParams = params
         shell.onDragStart = {
             // A drag with the cloud open would drag the capsule's window after
-            // it, frame by frame, and both would judder — it closes instead.
-            closeCloud()
+            // it, frame by frame, and both would judder — it goes down with a
+            // short fade instead of vanishing from under the finger.
+            fadeOutCloud()
         }
         shell.onDragEnd = { nx, ny -> prefs.edit().putInt(KEY_X, nx).putInt(KEY_Y, ny).apply() }
         shell.onDragMoved = { onPetMoved() }
@@ -308,11 +310,14 @@ class PotsOverlayService : Service() {
             }
             CompositionLocalProvider(LocalAppLanguageCode provides languageCode) {
                 MaterialTheme(colorScheme = if (dark) DarkColorScheme else LightColorScheme) {
+                    // Remembered: the gesture detector is keyed on the callback,
+                    // and a new lambda on every recomposition would restart it.
+                    val onDoubleTap = remember { { toggleCloud() } }
                     PotsikOverlayPet(
                         look = liveLook,
                         cloud = cloudPhase.value,
                         doubleTapTimeoutMs = ViewConfiguration.getDoubleTapTimeout().toLong(),
-                        onDoubleTap = { toggleCloud() },
+                        onDoubleTap = onDoubleTap,
                     )
                 }
             }
@@ -398,6 +403,20 @@ class PotsOverlayService : Service() {
         cloud = null
         overlay.close()
         cloudPhase.value = null
+    }
+
+    /**
+     * The character is being carried: the capsule fades out instead of
+     * disappearing in one frame. The service drops its reference at once, so
+     * every other path (a rotation, screen off, the app coming back) still
+     * closes a cloud it can see; a fade that is cut short only removes the
+     * window a moment earlier.
+     */
+    private fun fadeOutCloud() {
+        val overlay = cloud ?: return
+        cloud = null
+        cloudPhase.value = null
+        overlay.closeWithFade()
     }
 
     /** The character moved under an open cloud: the capsule follows his head. */

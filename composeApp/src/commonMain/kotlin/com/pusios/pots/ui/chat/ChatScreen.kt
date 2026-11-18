@@ -1065,6 +1065,10 @@ private fun ChatModeScreen(
 
                             HandsFreeStatus.Error -> handsFree.resume()
 
+                            // A missed phrase: the loop reopens the microphone by itself in
+                            // a moment, and a tap skips that wait instead of stopping the mode.
+                            HandsFreeStatus.NoMatch -> handsFree.resume()
+
                             else -> {
                                 // The loop owns the voice while it runs: silence any
                                 // regular reply already being read out before the
