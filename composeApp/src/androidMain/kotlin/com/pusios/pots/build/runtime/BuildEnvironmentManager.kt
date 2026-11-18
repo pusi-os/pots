@@ -9,6 +9,8 @@ import com.pusios.pots.build.BuildStep
 import com.pusios.pots.build.BuildSystemInfo
 import com.pusios.pots.build.BuildTerminalSession
 import com.pusios.pots.build.PotsBuildState
+import com.pusios.pots.build.SandboxAgentConfig
+import com.pusios.pots.build.SandboxAgentCredentials
 import com.pusios.pots.build.terminal.DEFAULT_COLUMNS
 import com.pusios.pots.build.terminal.DEFAULT_ROWS
 import com.pusios.pots.build.terminal.MAX_COLUMNS
@@ -54,9 +56,6 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val TAG = "PotsBuild"
-
-/** Device-code pattern shown on Grok's login TUI (e.g. PNX4-ZGCX). */
-private val DEVICE_CODE_REGEX = Regex("""\b([A-Z0-9]{4}-[A-Z0-9]{4})\b""")
 
 private val INVALID_NAME_CHARS = Regex("[^A-Za-z0-9._-]+")
 
@@ -105,9 +104,6 @@ private class BuildSession(
 
     @Volatile
     var busy: Boolean = true
-
-    @Volatile
-    var lastDeviceCode: String? = null
 
     /** Cancels/reschedules when a new URL is captured so the bar stays for a full TTL. */
     var hyperlinkClearJob: Job? = null
@@ -212,6 +208,15 @@ class BuildEnvironmentManager(
     @Volatile
     var onEnvironmentChanged: (() -> Unit)? = null
     private var installJob: Job? = null
+
+    /**
+     * The provider Pots is using right now — supplied by the controller, which is
+     * the only place that can reach the settings repository. Read at every agent
+     * start rather than cached, so switching provider or model in Settings is
+     * enough for the sandbox agents to follow.
+     */
+    @Volatile
+    var activeCredentials: (() -> SandboxAgentCredentials?)? = null
 
     private val sessionsLock = Any()
     private val sessions = LinkedHashMap<String, BuildSession>()
@@ -597,8 +602,8 @@ class BuildEnvironmentManager(
         ensureAgentPathProfile()
         val executor = executor()
         executor.execute(
-            "mkdir -p /root/.local/bin /root/.grok/bin /root/.grok/downloads " +
-                "/root/.opencode/bin /root/.claude/downloads /usr/local/bin",
+            "mkdir -p /root/.local/bin /root/.local/share/pi-node /root/.hermes " +
+                "/root/.pi/agent /usr/local/bin",
             timeoutSeconds = 30,
         )
         val result = executor.execute(agent.installCommand, timeoutSeconds = 900)
@@ -610,14 +615,16 @@ class BuildEnvironmentManager(
             Log.w(TAG, "${agent.id} install failed (exit detail): ${result.failureDetail()}")
             val probe = executor.execute(
                 "command -v ${agent.binary} 2>/dev/null; " +
-                    "ls -la /root/.local/bin /root/.grok/bin /root/.opencode/bin /usr/local/bin 2>/dev/null; " +
-                    "ls -la /root/.local/share/claude/versions 2>/dev/null | tail -5; " +
-                    "ls -la /root/.grok/downloads 2>/dev/null | tail -5; " +
-                    "ls -la /root/.opencode/bin 2>/dev/null",
+                    "ls -la /root/.local/bin /root/.local/share/pi-node/bin /usr/local/bin 2>/dev/null; " +
+                    "ls -la /root/.hermes/venv/bin 2>/dev/null | tail -5; " +
+                    "ls -la /root/.pi 2>/dev/null",
                 timeoutSeconds = 30,
             )
             Log.w(TAG, "${agent.id} post-install probe: ${probe.stdout} ${probe.stderr}")
         }
+        // The agent is only worth having if it can answer on the provider the app
+        // is already using, so the config lands with the install, not on first run.
+        if (installed) applyAgentConfig(agent.id)
         installed
     }
 
@@ -626,15 +633,42 @@ class BuildEnvironmentManager(
         sync(error)
     }
 
+    /**
+     * Writes [agentId]'s own configuration from the provider Pots is on, so the
+     * agent in the sandbox is the same agent the chat is: same provider, same
+     * model, same key, same endpoint, with nothing to set up by hand.
+     *
+     * Written on the host straight into the guest home rather than through the
+     * shell: it is plain text, and a heredoc round-trip would only add a place for
+     * a key to be mangled by quoting.
+     */
+    private fun applyAgentConfig(agentId: String?) {
+        if (agentId == null) return
+        val credentials = activeCredentials?.invoke() ?: return
+        val marker = paths.readMarker() ?: return
+        val home = paths.homeDir(marker)
+        for (file in SandboxAgentConfig.filesFor(agentId, credentials)) {
+            val target = File(home, file.path)
+            runCatching {
+                target.parentFile?.mkdirs()
+                target.writeText(file.content)
+                // The env file carries the key: owner-only, like the shell's own .env.
+                if (target.name == ".env") {
+                    target.setReadable(false, false)
+                    target.setReadable(true, true)
+                }
+            }.onFailure { Log.w(TAG, "could not write ${file.path} for $agentId", it) }
+        }
+    }
+
     // --- terminal --------------------------------------------------------
 
-    /** Snapshot the screen, scan it for a device code, and push it to the UI. */
+    /** Snapshot the screen and push it to the UI. */
     private fun publishScreen(session: BuildSession) {
         val linksBefore = session.snapshot.hyperlinks
-        val text = session.refreshSnapshot()
-        noteDeviceCodeFromText(session, text)
+        session.refreshSnapshot()
         val linksAfter = session.snapshot.hyperlinks
-        // New URLs (OSC 8 / stream / device code) restart the auto-hide TTL.
+        // New URLs (OSC 8 / stream) restart the auto-hide TTL.
         if (linksAfter.isNotEmpty() && linksAfter != linksBefore) {
             scheduleHyperlinkClear(session)
         }
@@ -672,10 +706,12 @@ class BuildEnvironmentManager(
                 File(paths.tmpDir, session.openUrlFile).writeText("")
             }
             // An agent session runs the CLI first and leaves a usable shell behind.
+            // The config is rewritten right before the CLI starts, so a provider or
+            // model switched in Pots a second ago is the one the agent comes up on.
+            applyAgentConfig(session.agentId)
             // Resolve an absolute path under the non-login probe PATH: login shells
-            // (`bash -lc`) reset PATH via /etc/profile, and vendor installers often
-            // skip writing rc PATH lines when our proot env already included their
-            // bin dir — leaving only agents that force-wrote .bashrc (e.g. Grok).
+            // (`bash -lc`) reset PATH via /etc/profile, so the launch does not depend
+            // on whatever the agent's installer did or did not write into shell rc.
             val agentBinary = BuildAgents.get(session.agentId)?.binary
             val agentCmd = agentBinary?.let { resolveAgentCommand(it) }
             val launch = if (agentCmd != null) "$agentCmd; exec bash -l" else "exec bash -l"
@@ -710,7 +746,7 @@ class BuildEnvironmentManager(
                 },
             )
             session.handle = handle
-            // Poll Grok's URL capture file (and our BROWSER wrapper) while the shell runs.
+            // Poll the agent's URL capture file (and our BROWSER wrapper) while the shell runs.
             urlPollJob = scope.launch { pollOpenUrlFile(session) }
             val exit = handle.awaitExit()
             if (exit > 0) {
@@ -734,14 +770,13 @@ class BuildEnvironmentManager(
 
     /**
      * Login shells (`bash -l` / `bash -lc`) reset PATH from `/etc/profile`, which
-     * drops the proot-injected vendor dirs. Vendor installers often skip writing
-     * PATH into shell rc when their bin dir is already on PATH during install —
-     * so Claude (`~/.local/bin`) and OpenCode (`~/.opencode/bin`) vanish while
-     * Grok (always rewrites `.bashrc`) still works.
+     * drops the proot-injected agent dirs. Vendors do not reliably write PATH into
+     * shell rc either, and Pi's own Node runtime lives in a third directory that
+     * `npm` links from but does not put on PATH.
      *
-     * A tiny `/etc/profile.d` snippet puts every agent bin dir back for login
-     * shells without depending on vendor rc edits. Written on the host so it
-     * does not need a proot round-trip.
+     * A tiny `/etc/profile.d` snippet puts every agent dir back for login shells
+     * without depending on vendor rc edits. Written on the host so it does not
+     * need a proot round-trip.
      */
     private fun ensureAgentPathProfile() {
         val dir = File(paths.rootfsDir, "etc/profile.d")
@@ -749,7 +784,7 @@ class BuildEnvironmentManager(
         File(dir, "pots-build-path.sh").writeText(
             """
             |# Managed by Pots Build — keep coding-agent CLIs on PATH for login shells.
-            |export PATH="/root/.local/bin:/root/.grok/bin:/root/.opencode/bin${'$'}{PATH:+:${'$'}PATH}"
+            |export PATH="/root/.local/bin:/root/.local/share/pi-node/bin${'$'}{PATH:+:${'$'}PATH}"
             |
             """.trimMargin(),
         )
@@ -760,7 +795,7 @@ class BuildEnvironmentManager(
      * Ensures the binary is linked into a known dir before probing.
      */
     private fun resolveAgentCommand(binary: String): String {
-        // Safe: [binary] is a fixed catalog name (claude/grok/opencode).
+        // Safe: [binary] is a fixed catalog name (pi/hermes).
         val probe = executor()
         probe.ensureAgentBinary(binary)
         val path = probe.execute(
@@ -772,8 +807,8 @@ class BuildEnvironmentManager(
 
     /**
      * Installs `/usr/local/bin/pots-browser` into the rootfs so `$BROWSER` captures
-     * URLs Grok tries to open when no real display/browser exists under proot.
-     * The target file is per session, passed in as `POTS_OPEN_URL_FILE`.
+     * the URLs an agent tries to open when no real display/browser exists under
+     * proot. The target file is per session, passed in as `POTS_OPEN_URL_FILE`.
      */
     private fun ensureBrowserCaptureHelpers() {
         val script = File(paths.rootfsDir, "usr/local/bin/pots-browser")
@@ -824,34 +859,6 @@ class BuildEnvironmentManager(
             publishSessions()
             scheduleHyperlinkClear(session)
         }
-    }
-
-    /**
-     * When Grok shows a device code but never emits the auth URL on the PTY
-     * (confirmed via term-debug.log: zero https/OSC8), surface the known sign-in
-     * page plus the code so the user can complete login on the phone browser.
-     */
-    private fun noteDeviceCodeFromText(session: BuildSession, text: String) {
-        // Only treat as auth when the login copy is on screen. This runs on every
-        // repaint, so the keyword gate comes first: `contains(ignoreCase)` scans in
-        // place, where the regex and a lowercased copy of the whole screen allocate.
-        if (!text.contains("approve", ignoreCase = true) &&
-            !text.contains("signing in", ignoreCase = true) &&
-            !text.contains("browser", ignoreCase = true)
-        ) {
-            return
-        }
-        val code = DEVICE_CODE_REGEX.find(text)?.groupValues?.getOrNull(1) ?: return
-        if (code == session.lastDeviceCode) return
-        session.lastDeviceCode = code
-        session.withScreen { screen ->
-            screen.noteHyperlink("https://accounts.x.ai/sign-in")
-            // Bookmark-style deep link so the code is visible next to the URL in the bar.
-            screen.noteHyperlink("https://accounts.x.ai/sign-in#code=$code")
-        }
-        session.refreshSnapshot()
-        // TTL is scheduled by publishScreen when it sees the new links.
-        Log.i(TAG, "device code detected: $code — surface https://accounts.x.ai/sign-in")
     }
 
     /**
@@ -996,15 +1003,13 @@ class BuildEnvironmentManager(
 
     private fun agentEnv(columns: Int, rows: Int, openUrlPath: String) = mapOf(
         "USER" to "root",
-        // Vendor installers: Claude → ~/.local/bin, Grok → ~/.grok/bin, OpenCode → ~/.opencode/bin.
-        // Keep every agent dir on PATH; shell rc files are not sourced for non-login probes.
-        "PATH" to "/root/.local/bin:/root/.grok/bin:/root/.opencode/bin:$DEFAULT_GUEST_PATH",
+        // Pi → ~/.local/bin (on ~/.local/share/pi-node), Hermes → ~/.local/bin link
+        // into ~/.hermes/venv/bin. Keep every agent dir on PATH; shell rc files are
+        // not sourced for non-login probes.
+        "PATH" to "/root/.local/bin:/root/.local/share/pi-node/bin:$DEFAULT_GUEST_PATH",
         "COLORTERM" to "truecolor",
         "COLUMNS" to columns.toString(),
         "LINES" to rows.toString(),
-        // Grok opens the login URL via webbrowser; under proot there is no real browser.
-        // GROK_TEST_OPEN_URL_FILE is an official Grok hook that writes the URL to a file.
-        "GROK_TEST_OPEN_URL_FILE" to openUrlPath,
         // Same target for the pots-browser wrapper, so both hooks feed one session's link bar.
         "POTS_OPEN_URL_FILE" to openUrlPath,
         // webbrowser crate falls back to ${'$'}BROWSER when xdg-open is missing.
@@ -1018,28 +1023,27 @@ private fun BuildProotExecutor.hasBinary(binary: String): Boolean =
 /**
  * True when [binary] is reachable. Always tries to place a stable symlink in
  * `/root/.local/bin` (even when already on the probe PATH) so login shells that
- * only keep a subset of vendor dirs still find every agent by name.
+ * only keep a subset of dirs still find every agent by name.
  *
  * Known layouts:
- * - Claude: `~/.local/bin/claude` → `~/.local/share/claude/versions/<ver>`
- * - Grok: `~/.grok/bin/grok`
- * - OpenCode: `~/.opencode/bin/opencode`
+ * - Pi: `~/.local/bin/pi` (npm `--prefix /root/.local`), Node runtime in `~/.local/share/pi-node/bin`
+ * - Hermes: `~/.hermes/venv/bin/hermes`, already linked into `~/.local/bin`
  */
 private fun BuildProotExecutor.ensureAgentBinary(binary: String): Boolean {
-    // Safe: [binary] is a fixed catalog name (claude/grok/opencode), not user input.
+    // Safe: [binary] is a fixed catalog name (pi/hermes), not user input.
     execute(
         """
         set -e
         bin='$binary'
         dest="/root/.local/bin/${'$'}bin"
         mkdir -p /root/.local/bin
-        # Prefer a real file under .local/bin; otherwise link from vendor dirs.
+        # Prefer a real file under .local/bin; otherwise link from the agent's own dir.
         if [ -x "${'$'}dest" ] && [ ! -d "${'$'}dest" ]; then
             exit 0
         fi
         for candidate in \
-            "/root/.grok/bin/${'$'}bin" \
-            "/root/.opencode/bin/${'$'}bin" \
+            "/root/.hermes/venv/bin/${'$'}bin" \
+            "/root/.local/share/pi-node/bin/${'$'}bin" \
             "/usr/local/bin/${'$'}bin"
         do
             if [ -x "${'$'}candidate" ] && [ ! -d "${'$'}candidate" ]; then
@@ -1047,17 +1051,6 @@ private fun BuildProotExecutor.ensureAgentBinary(binary: String): Boolean {
                 exit 0
             fi
         done
-        # Claude install can leave only the versioned binary under share/.
-        if [ "${'$'}bin" = "claude" ]; then
-            ver_dir="/root/.local/share/claude/versions"
-            if [ -d "${'$'}ver_dir" ]; then
-                latest="${'$'}(ls -1 "${'$'}ver_dir" 2>/dev/null | sort -V | tail -1)"
-                if [ -n "${'$'}latest" ] && [ -x "${'$'}ver_dir/${'$'}latest" ]; then
-                    ln -sfn "${'$'}ver_dir/${'$'}latest" "${'$'}dest"
-                    exit 0
-                fi
-            fi
-        fi
         exit 0
         """.trimIndent(),
         timeoutSeconds = 30,

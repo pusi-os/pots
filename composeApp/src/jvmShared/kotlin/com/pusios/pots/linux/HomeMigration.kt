@@ -46,10 +46,9 @@ object HomeMigration {
         ".bash_logout",
         ".bash_profile",
         ".profile",
-        ".grok",
-        ".opencode",
-        ".claude",
-        ".local/share/claude",
+        ".pi",
+        ".local/share/pi-node",
+        ".hermes",
     )
 
     /**

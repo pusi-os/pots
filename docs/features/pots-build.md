@@ -1,8 +1,8 @@
 # Pots Build
 
-**Last verified:** 2026-11-01
+**Last verified:** 2026-11-18
 
-Pots Build is an **Android-only** coding environment inside the Pots app. It is a separate *surface* from chat — no shared conversation store, no sandbox tools, no provider/settings coupling — but it is not necessarily a separate *Linux*: when the chat sandbox also runs Debian, both work in the same install.
+Pots Build is an **Android-only** coding environment inside the Pots app. It is a separate *surface* from chat — no shared conversation store, no sandbox tools — but it is not necessarily a separate *Linux*: when the chat sandbox also runs Debian, both work in the same install. What it does share with chat is the provider: the agents it runs are pointed at whatever provider, model, key and endpoint Settings is on, so there is no second account to log into.
 
 It is a **single screen with three states** — set up Linux, pick a project, work in that project's terminal.
 
@@ -39,9 +39,15 @@ Pots also tells apt to keep running as (proot's fake) root instead of dropping t
 
 ### Coding agents
 
-Three agents are offered — **Claude Code**, **Grok**, and **OpenCode** — each installed with its vendor script, which is why curl, certificates, tar, and coreutils ship with the base system. Installers write under `/root` on the rootfs (executable); only project folders live on the external bind. Vendor scripts put their binaries in different home folders (`~/.local/bin` for Claude, `~/.grok/bin` for Grok, `~/.opencode/bin` for OpenCode). Proot injects all three into `PATH` for install and detection. Login shells (every project terminal) rebuild `PATH` from system profile files and would otherwise drop those dirs — and vendor installers often skip writing shell-rc `PATH` lines when their bin dir is already present during install. Pots Build therefore writes a small system profile snippet that keeps every agent bin dir on `PATH` for login shells, links found binaries into `~/.local/bin`, and starts an agent session via the resolved absolute path so opening Claude or OpenCode does not depend on whichever installer rewrote `.bashrc`. An agent counts as installed only when its binary is actually reachable afterwards, regardless of what the installer's exit code claimed; agent state is probed from the live environment rather than remembered in a file.
+Two agents are offered — **Pi** and **Hermes** — and both are installed by the base system's own tooling rather than a vendor shell script. Pi is a Node.js program, and the Node it needs (22.19+) is newer than bookworm's, so its installer unpacks a Node runtime into `~/.local/share/pi-node` from nodejs.org for the running architecture and then `npm install`s the CLI into `~/.local/bin`. Hermes is a Python package: `python3-venv` comes from apt and the wheel installs into `~/.hermes/venv`, with a symlink into `~/.local/bin`. Everything is written under `/root` on the rootfs (executable); only project folders live on the external bind. Proot injects both bin dirs into `PATH` for install and detection. Login shells (every project terminal) rebuild `PATH` from system profile files and would otherwise drop those dirs, and Pi's Node runtime sits in a third directory that `npm` links from without putting it on `PATH` — so Pots Build writes a small system profile snippet that keeps every agent dir on `PATH` for login shells, links found binaries into `~/.local/bin`, and starts an agent session via the resolved absolute path. An agent counts as installed only when its binary is actually reachable afterwards, regardless of what the installer's exit code claimed; agent state is probed from the live environment rather than remembered in a file.
 
-Vendor install pages often show both a Unix `curl | bash` line and a Windows PowerShell line. Only the Unix line is valid inside Pots Build — pasting both into the terminal will run the PowerShell tokens as shell commands and print `irm`/`iex: not found` after the real installer finishes.
+### Provider propagation
+
+Both agents come up on the provider Pots itself is using, with no per-agent setup: the active service instance's **provider, model, API key and endpoint** are written into each agent's own configuration file, and rewritten every time an agent session starts (and once more when an agent is installed). Switching provider or model in Settings is therefore all it takes for the sandbox agents to follow — there is no second account to log into and no endpoint to retype.
+
+The mapping is per agent, because each reads its own file: Pi takes `~/.pi/agent/models.json` (the provider as a custom OpenAI-compatible provider, with the active model in its list) plus `~/.pi/agent/settings.json` (that provider and model as the startup default); Hermes takes `~/.hermes/config.yaml` (a `providers:` entry plus the `model:` block that selects it) and keeps the key itself out of the YAML in `~/.hermes/.env`, which Hermes loads as dotenv and which is made owner-readable only. Provider and model ids are single-quoted YAML scalars so a quote in an id can never end the value early.
+
+Nothing is written when Pots has no provider to give: no configured service, no model chosen yet, or the on-device model — which has no endpoint a sandbox agent could call. A half-written config would only leave an agent pointed at nothing.
 
 Agents can be added after setup from the Debian system card on the project list, which shows the install progress on the setup surface and returns to the projects when it finishes.
 
@@ -55,7 +61,7 @@ Renaming offers the current name and refuses one that is empty, contains a path 
 
 Both close the project's sessions, because both move the ground out from under them: the shells are rooted in that folder, and one whose working directory has been renamed or unlinked is no longer a session anybody can use. Deleting removes the folder and everything in it, following no symlinks on the way — an agent's project can hold a link into the rootfs, and a delete that followed one would take the Debian install with it. Projects created outside the app keep whatever name the shell gave them: the list addresses a folder by the name it shows rather than by a sanitized guess at it.
 
-Above the list, an optional **Open with** row picks what a *fresh* project opens with: a plain shell (the default) or one of the installed agents. The choice is a preference rather than a per-visit pick — it is remembered until it is changed, including across app restarts, so somebody who works in Claude Code finds Claude Code selected the next morning. It has no say over a project that still has shells open — that one is resumed as it was left, and the row's choice applies to the next session started from the plus button. A remembered agent that the environment no longer has (Linux was removed and put back without it) falls back to a plain shell rather than opening a session on a missing binary.
+Above the list, an optional **Open with** row picks what a *fresh* project opens with: a plain shell (the default) or one of the installed agents. The choice is a preference rather than a per-visit pick — it is remembered until it is changed, including across app restarts, so somebody who works in Pi finds Pi selected the next morning. It has no say over a project that still has shells open — that one is resumed as it was left, and the row's choice applies to the next session started from the plus button. A remembered agent that the environment no longer has (Linux was removed and put back without it) falls back to a plain shell rather than opening a session on a missing binary.
 
 A **Debian system** card below the list is the home for everything about the Linux install rather than the projects: which Debian it is and for which architecture, how many packages are in it, how much space the system and the project folders take, how much room is left on the device, chips to install the remaining agents, and the uninstall action. The facts are read straight off the rootfs, so the card is current every time the list is shown.
 
@@ -89,7 +95,7 @@ The grid and the PTY are held to **one geometry**, because the two disagreeing i
 
 The grid is given as much of the screen as possible: the tab strip is the only chrome above it, and the panel runs edge to edge sideways — the grid keeps a small inset of its own, so a second margin around it would only cost columns.
 
-The session uses a **pseudo-terminal (PTY)** inside Debian (via Python’s `pty` module) so tools that open `/dev/tty` (Grok, Claude Code, fullscreen TUIs) can start. Output is parsed by a minimal VT emulator into a character grid and rendered in Compose.
+The session uses a **pseudo-terminal (PTY)** inside Debian (via Python’s `pty` module) so tools that open `/dev/tty` (agent CLIs, fullscreen TUIs) can start. Output is parsed by a minimal VT emulator into a character grid and rendered in Compose.
 
 ### Terminal input
 
@@ -130,7 +136,7 @@ The PTY hands Pots a block of output as often as the program produces one — un
 
 ## Limitations
 
-- **Minimal VT set** — cursor move, erase, SGR colors (16 + coarse 256/RGB map), scroll; login URLs are captured via Grok’s `GROK_TEST_OPEN_URL_FILE` / `$BROWSER` hooks (and OSC 8/52 / plain text when present) and shown under the grid for a couple of minutes, then cleared. Same path collapses to one link (so OAuth re-prints do not stack), at most three links, and line-wrapped URLs are rejoined before scanning; no full xterm (true dual alt-screen buffers, scrollback history).
+- **Minimal VT set** — cursor move, erase, SGR colors (16 + coarse 256/RGB map), scroll; login URLs are captured via the `$BROWSER` wrapper Pots installs (and OSC 8/52 / plain text when present) and shown under the grid for a couple of minutes, then cleared. Same path collapses to one link (so OAuth re-prints do not stack), at most three links, and line-wrapped URLs are rejoined before scanning; no full xterm (true dual alt-screen buffers, scrollback history).
 - **Mouse reporting is clicks and wheel only** — no drag-select or hover, so an app that asks to follow the pointer while it moves is answered as if it had only asked about clicks; no right button; no modifier keys on a click. A very wide grid falls back to reports an app can still read only if it asked for the modern coordinate form, which every agent TUI does.
 - **Keyboard mode gives up IME help** — no autocorrect, swipe typing or predictions while keys go straight to the terminal, which is why line mode still exists.
 - **Keyboards vary** — the null-input-type hint is a convention, not a guarantee. A keyboard that ignores it delivers whole words on commit rather than single presses, so as-you-type behavior degrades to word-at-a-time on those.
@@ -153,7 +159,8 @@ The PTY hands Pots a block of output as often as the program produces one — un
 | --- | --- |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/PotsBuildController.kt` | Environment interface plus the no-op used off Android. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/PotsBuildState.kt` | The single state snapshot the screen renders. |
-| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/BuildAgents.kt` | The three installable coding agents. |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/BuildAgents.kt` | The two installable coding agents and their install commands. |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/SandboxAgentConfig.kt` | Turns the active Pots provider into each agent's own config file (Pi's `models.json`/`settings.json`, Hermes' `config.yaml`/`.env`), plus the settings → credentials read. Pure, and unit-tested without a sandbox. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/terminal/` | Cell buffer, VT parser, immutable screen snapshot. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/terminal/TerminalKeys.kt` | Key set, modifier latches, and the xterm key-to-bytes encoder. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/terminal/TerminalMouse.kt` | Which mouse events an app asked for, and the touch-to-report encoder. |

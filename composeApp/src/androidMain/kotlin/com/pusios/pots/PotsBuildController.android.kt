@@ -2,8 +2,10 @@ package com.pusios.pots
 
 import android.content.Context
 import com.pusios.pots.build.PotsBuildState
+import com.pusios.pots.build.activeSandboxCredentials
 import com.pusios.pots.build.runtime.BuildEnvironmentManager
 import com.pusios.pots.build.runtime.BuildFileBrowser
+import com.pusios.pots.data.DataRepository
 import com.pusios.pots.linux.LinuxDistro
 import com.pusios.pots.linux.LinuxInstalls
 import com.pusios.pots.linux.LinuxPaths
@@ -17,6 +19,7 @@ class AndroidPotsBuildController : PotsBuildController {
 
     private val context: Context by inject(Context::class.java)
     private val sandboxManager: LinuxSandboxManager by inject(LinuxSandboxManager::class.java)
+    private val dataRepository: DataRepository by inject(DataRepository::class.java)
 
     private val installs by lazy { LinuxInstalls(context) }
 
@@ -32,6 +35,10 @@ class AndroidPotsBuildController : PotsBuildController {
 
     private val manager: BuildEnvironmentManager by lazy {
         BuildEnvironmentManager(paths).also { built ->
+            // The agents in here are meant to be the agent the chat already is, so
+            // every session start reads the live provider from Settings instead of
+            // asking the user to configure each CLI separately.
+            built.activeCredentials = { dataRepository.activeSandboxCredentials() }
             // Both directions are checked at fire time, not wired once: the chat
             // sandbox can be pointed at this install and away from it while the
             // app runs.

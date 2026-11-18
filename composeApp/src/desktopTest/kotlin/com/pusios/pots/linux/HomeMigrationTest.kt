@@ -81,9 +81,9 @@ class HomeMigrationTest {
         write(source, "projects/app/main.kt", "fun main() {}")
         write(source, ".cache/pip/wheel", "junk")
         write(source, ".bashrc", "alias ll='ls -l'")
-        write(source, ".opencode/bin/opencode", "binary")
-        write(source, ".claude/settings.json", "{}")
-        write(source, ".local/share/claude/versions/1.0", "binary")
+        write(source, ".pi/agent/settings.json", "{}")
+        write(source, ".local/share/pi-node/bin/node", "binary")
+        write(source, ".hermes/config.yaml", "model: {}")
         write(source, ".local/bin/myscript", "#!/bin/sh")
 
         assertEquals(1, HomeMigration.survey(source, target).fileCount)
@@ -93,9 +93,9 @@ class HomeMigrationTest {
         assertFalse(File(target, "projects").exists())
         assertFalse(File(target, ".cache").exists())
         assertFalse(File(target, ".bashrc").exists())
-        assertFalse(File(target, ".opencode").exists())
-        assertFalse(File(target, ".claude").exists())
-        assertFalse(File(target, ".local/share/claude").exists())
+        assertFalse(File(target, ".pi").exists())
+        assertFalse(File(target, ".local/share/pi-node").exists())
+        assertFalse(File(target, ".hermes").exists())
     }
 
     @Test

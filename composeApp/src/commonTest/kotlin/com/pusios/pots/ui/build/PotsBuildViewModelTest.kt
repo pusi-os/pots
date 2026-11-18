@@ -32,7 +32,7 @@ class PotsBuildViewModelTest {
         override val state = MutableStateFlow(
             PotsBuildState(
                 environment = BuildEnvironmentState.Ready,
-                installedAgents = persistentSetOf("claude-code", "grok"),
+                installedAgents = persistentSetOf("pi", "hermes"),
             ),
         )
         override val files: FileBrowserSource = NoOpFileBrowserSource
@@ -91,33 +91,33 @@ class PotsBuildViewModelTest {
         viewModel.uiState.test {
             assertNull(awaitItem().launchAgentId)
 
-            viewModel.setLaunchAgent("grok")
+            viewModel.setLaunchAgent("hermes")
             testDispatcher.scheduler.advanceUntilIdle()
 
-            assertEquals("grok", awaitItem().launchAgentId)
-            assertEquals("grok", fakeRepository.getPotsBuildLaunchAgent())
+            assertEquals("hermes", awaitItem().launchAgentId)
+            assertEquals("hermes", fakeRepository.getPotsBuildLaunchAgent())
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
     fun `launch agent is restored on the next app start`() = runTest {
-        fakeRepository.storedPotsBuildLaunchAgent = "claude-code"
+        fakeRepository.storedPotsBuildLaunchAgent = "pi"
 
         val viewModel = PotsBuildViewModel(fakeController, fakeRepository)
 
         viewModel.uiState.test {
-            assertEquals("claude-code", awaitItem().launchAgentId)
+            assertEquals("pi", awaitItem().launchAgentId)
             cancelAndIgnoreRemainingEvents()
         }
 
         viewModel.openProject("demo")
-        assertEquals(listOf<String?>("claude-code"), fakeController.startedWith)
+        assertEquals(listOf<String?>("pi"), fakeController.startedWith)
     }
 
     @Test
     fun `picking the shell again clears the stored agent`() = runTest {
-        fakeRepository.storedPotsBuildLaunchAgent = "grok"
+        fakeRepository.storedPotsBuildLaunchAgent = "hermes"
 
         val viewModel = PotsBuildViewModel(fakeController, fakeRepository)
         viewModel.setLaunchAgent(null)
@@ -140,7 +140,9 @@ class PotsBuildViewModelTest {
 
     @Test
     fun `a remembered agent that is no longer installed falls back to a shell`() = runTest {
-        fakeRepository.storedPotsBuildLaunchAgent = "opencode"
+        // A choice made when Pots still shipped Claude Code: the id is gone from the
+        // catalog now, so the environment can never report it as installed.
+        fakeRepository.storedPotsBuildLaunchAgent = "claude-code"
 
         val viewModel = PotsBuildViewModel(fakeController, fakeRepository)
 
