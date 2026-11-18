@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -163,7 +164,7 @@ class PotsOverlayService : Service() {
         super.onConfigurationChanged(newConfig)
         val view = pet ?: return
         val params = view.windowParams ?: return
-        keepOnScreen(params)
+        clampToScreen(params, resources.displayMetrics)
         runCatching { wm?.updateViewLayout(view, params) }
         prefs().edit().putInt(KEY_X, params.x).putInt(KEY_Y, params.y).apply()
     }
@@ -560,14 +561,14 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         params.y = downWinY + (event.rawY - downRawY).toInt()
         // He stops at the edge instead of going over it: a pet dragged off the
         // screen is a pet the user cannot get back.
-        keepOnScreen(params)
+        clampToScreen(params, resources.displayMetrics)
         runCatching { windowManager.updateViewLayout(this, params) }
     }
 
     private fun finishDrag(params: WindowManager.LayoutParams, save: Boolean) {
         dragging = false
         PotsikCarry.setCarried(false)
-        keepOnScreen(params)
+        clampToScreen(params, resources.displayMetrics)
         runCatching { windowManager.updateViewLayout(this, params) }
         if (save) onDragEnd?.invoke(params.x, params.y)
     }
@@ -593,7 +594,7 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         val widthPx = (sizeDp * density).roundToInt().coerceAtLeast(1)
         params.width = widthPx
         params.height = widthPx + (DESKTOP_PET_BUBBLE_ROOM_DP * density).roundToInt()
-        keepOnScreen(params)
+        clampToScreen(params, resources.displayMetrics)
         runCatching { windowManager.updateViewLayout(this, params) }
         // The character inside is drawn from this, so the window and the
         // drawing grow together instead of the window outrunning him.
@@ -605,7 +606,7 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         pinching = false
         pinchDone = true
         val params = windowParams ?: return
-        keepOnScreen(params)
+        clampToScreen(params, resources.displayMetrics)
         runCatching { windowManager.updateViewLayout(this, params) }
         onSizeChanged?.invoke(params.width.toFloat())
     }
@@ -617,20 +618,31 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         val dy = event.getY(0) - event.getY(1)
         return sqrt(dx * dx + dy * dy)
     }
+}
 
-    private fun keepOnScreen(params: WindowManager.LayoutParams) {
-        val screen = resources.displayMetrics
-        val offset = clampWindowOffset(
-            x = params.x,
-            y = params.y,
-            windowWidth = params.width,
-            windowHeight = params.height,
-            screenWidth = screen.widthPixels,
-            screenHeight = screen.heightPixels,
-        )
-        params.x = offset.x
-        params.y = offset.y
-    }
+/**
+ * Keeps a window fully on the screen after a move, a resize or a rotation.
+ *
+ * One implementation for the whole file: the shell calls it from its gestures
+ * and the service from [PotsOverlayService.onConfigurationChanged], and both
+ * hand in the metrics they hold — the shell's view resources and the service's
+ * resources, which the system has already refreshed when the callback arrives.
+ * Top-level `private` keeps it off the API of both classes.
+ */
+private fun clampToScreen(
+    params: WindowManager.LayoutParams,
+    screen: DisplayMetrics,
+) {
+    val offset = clampWindowOffset(
+        x = params.x,
+        y = params.y,
+        windowWidth = params.width,
+        windowHeight = params.height,
+        screenWidth = screen.widthPixels,
+        screenHeight = screen.heightPixels,
+    )
+    params.x = offset.x
+    params.y = offset.y
 }
 
 /**
