@@ -1048,14 +1048,19 @@ class ChatViewModel(
     }
 
     /**
-     * Settings → «Онбординг»: reopens the first-launch wizard.
+     * Settings → «Онбординг»: reopens the first-launch wizard from its first step.
      *
      * The wizard renders in the empty-chat slot, so the chat is reset first; the flags are the
-     * same ones the «продолжить» card writes, no new state is involved.
+     * same ones the «продолжить» card writes, no new state is involved. The saved step is
+     * rewound to 1 — a user who already finished the wizard would otherwise land on step 4.
      */
     fun restartOnboarding() {
+        dataRepository.setOnboardingStep(1)
         startNewChat()
         onboardingResume()
+        _state.update {
+            it.copy(onboarding = it.onboarding.copy(step = 1, showLocalLimits = false))
+        }
     }
 
     fun refreshSettings() {

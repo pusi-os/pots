@@ -407,4 +407,52 @@ class ChatViewModelOnboardingTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    // ---- settings → «Онбординг» ----
+
+    @Test
+    fun `restarting from settings reopens a finished wizard at step one`() = runTest {
+        // A user who completed the wizard: done + finished-step are set and the saved step is 4.
+        fakeRepository.setOnboardingDone(true)
+        fakeRepository.setOnboardingFinishedStep(true)
+        fakeRepository.setOnboardingStep(4)
+        val viewModel = createViewModel()
+        viewModel.state.test {
+            awaitItem()
+            viewModel.restartOnboarding()
+            testDispatcher.scheduler.advanceUntilIdle()
+            val restarted = viewModel.state.value
+            assertEquals(OnboardingPhase.Active, restarted.onboarding.phase)
+            assertEquals(1, restarted.onboarding.step)
+            assertFalse(restarted.onboarding.showLocalLimits)
+            // Persistence is rewound too, so a relaunch does not jump back to step 4.
+            assertEquals(1, fakeRepository.getOnboardingStep())
+            assertFalse(fakeRepository.isOnboardingDone())
+            assertFalse(fakeRepository.isOnboardingFinishedStep())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `restarting after a skip reopens the wizard instead of the final card`() = runTest {
+        // «Пропустить» leaves done + finished-step set, which renders the resume card on restore.
+        fakeRepository.setOnboardingDone(true)
+        fakeRepository.setOnboardingFinishedStep(true)
+        val viewModel = createViewModel()
+        viewModel.state.test {
+            awaitItem()
+            viewModel.restartOnboarding()
+            testDispatcher.scheduler.advanceUntilIdle()
+            val restarted = viewModel.state.value
+            assertEquals(OnboardingPhase.Active, restarted.onboarding.phase)
+            assertEquals(1, restarted.onboarding.step)
+            cancelAndIgnoreRemainingEvents()
+        }
+        // A fresh ViewModel (next launch) starts the wizard rather than the skipped card.
+        val relaunched = createViewModel()
+        relaunched.state.test {
+            assertEquals(OnboardingPhase.Active, awaitItem().onboarding.phase)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }
