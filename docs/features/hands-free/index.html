@@ -498,6 +498,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#in-the-overlay-the-cloud" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the overlay (the cloud)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1305,6 +1316,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#in-the-overlay-the-cloud" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the overlay (the cloud)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1396,6 +1418,16 @@
 <h3 id="barge-in">Barge-in</h3>
 <p>The agent can be interrupted while it is speaking. Tapping the voice button in the <em>Speaking</em> state cuts the reply off at the word and reopens the microphone; the user can then answer instead of waiting for the agent to finish. In every other state the button starts or stops the mode.</p>
 <p>Recognizer and synthesizer never run at the same time. That is deliberate: with the microphone open while the agent talks, the recognizer transcribes the agent's own voice, and the agent then interrupts itself. Stopping the speech before opening the microphone is what makes the interruption predictable.</p>
+<h3 id="in-the-overlay-the-cloud">In the overlay (the cloud)</h3>
+<p>The same controller drives the capsule that opens on a double tap on Потсик outside the app — see <a href="../potsik-cloud/">The Cloud</a>. What differs there:</p>
+<ul>
+<li>A synthesizer is optional. The loop counts as supported when a recognizer exists (<code>isSupported</code> is <code>speechToText != null</code>): a device without a voice still listens and answers, and the microphone reopens as soon as the reply is in — the answer itself is read on the screen.</li>
+<li>The screen state is checked before the microphone opens. An overlay cannot raise the system permission dialog, and Android does not deliver recognition while the screen is off, so the pill says «Слушаю только при включённом экране» instead of pretending to listen.</li>
+<li>The microphone has one owner. While the overlay's loop runs, the text field's [Озвучить] answers «Сначала остановите голосовой режим» instead of talking over it.</li>
+<li>The screen going off closes the capsule, and the loop stops with it (<code>ACTION_SCREEN_OFF</code>, registered by <code>PotsOverlayService</code> for the lifetime of its window).</li>
+<li>Barge-in is a tap on the pill in <em>Speaking</em>, in the same order as the app's voice button: the speech stops first, the microphone opens after.</li>
+<li>Haptics only: a <code>CONFIRM</code> tick when the capsule opens and on a tap, a <code>SEGMENT_TICK</code> when a new recognition session starts. Nothing buzzes continuously.</li>
+</ul>
 <h2 id="behaviour">Behaviour</h2>
 <ul>
 <li>The transcript is sent as an ordinary chat message, so it lands in the conversation history like a typed one and can be re-read, regenerated or answered afterwards</li>
@@ -1403,7 +1435,7 @@
 <li>Starting hands-free turns speech output on automatically, because a hands-free dialogue that silently answers is not hands-free</li>
 <li>The speech-output toggle keeps working in both modes. Turning it off while the loop is listening means the agent still answers and the microphone still reopens, just without reading the reply out; turning it off while the agent is speaking cuts the sentence and reopens the microphone. Turning it back on lets the next reply be spoken. The top-bar volume icon always shows the real state, whichever mode set it</li>
 <li>The microphone permission is requested when the user switches the mode on, not at first launch</li>
-<li>A recognition session that ends without a result ("no match") is not an error: the loop simply waits for the next attempt</li>
+<li>A recognition session that ends without a result («no match») is not an error: the loop announces <code>HandsFreeStatus.NoMatch</code> for two seconds and then reopens the microphone on its own. It is a status of its own rather than <em>Error</em> on purpose — the chat pauses the loop on <em>Error</em>, and a missed phrase must not pause anything; a tap on the button during the notice skips the wait instead of stopping the mode</li>
 <li>A real failure (no recognition service, denied permission) pauses the loop in the <em>Error</em> state; tapping the button resumes it</li>
 <li>Every recognition session carries an id, so a late callback from a session that was already replaced — because the user interrupted, or because a new session started — is ignored and cannot derail the loop</li>
 <li>Leaving the chat screen cancels the recognition session and releases the recognizer</li>
@@ -1457,6 +1489,14 @@
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/chat/ChatScreen.kt</code></td>
 <td>Creates the controller, feeds assistant replies into it, wires the top-bar button</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt</code></td>
+<td>The same loop in the desktop capsule's overlay window (the voice pill)</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../overlay/PotsikTextInputActivity.kt</code></td>
+<td>The capsule's text field; the second owner of «Озвучить», which defers to the pill</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/tts/PotsTextToSpeech.kt</code></td>
