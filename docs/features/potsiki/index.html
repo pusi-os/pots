@@ -1125,6 +1125,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#above-other-windows-android" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Above other windows (Android)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-agents-tool" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1399,6 +1410,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#above-other-windows-android" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Above other windows (Android)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-agents-tool" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1651,7 +1673,7 @@ anything in a chat app, so those pools were left behind; the rest are here.</p>
 </tr>
 <tr>
 <td>Drag him</td>
-<td>He comes with the finger, hanging from it with his legs kicking and his arms windmilling. A finger that was still moving when it let go <strong>throws</strong> him: he flies, bounces off the floor, and sits down dizzy if it was a hard landing. A finger that had already stopped <strong>drops</strong> him, and he lands with a squash</td>
+<td>He comes with the finger, hanging from it with his legs kicking and his arms thrown up — the catalogue's <code>IDLE_HANDS_UP</code>, which is the nearest thing the firmware has to being picked up, so the drag reuses it instead of adding a new animation. A finger that was still moving when it let go <strong>throws</strong> him: he flies, bounces off the floor, and sits down dizzy if it was a hard landing. A finger that had already stopped <strong>drops</strong> him, and he lands with a squash</td>
 </tr>
 <tr>
 <td>Swipe across him</td>
@@ -1675,15 +1697,58 @@ decides where he stands and switches the drag off. The stage keeps him inside
 the screen either way — the whole of him, feet included, has to stay visible,
 and the size is capped by the screen so he can never grow into a shape too
 big to fit.</p>
-<p>There is <strong>one</strong> size model. The size he is drawn at is the size the layout
-gives him, times the layout's own factor for that place, times the user's
-size settings, times the pinch. The drawing, the box the finger grabs and the
-bounds that keep him on the screen all work from that one number, so they
-cannot disagree about how big he is. Before, the drawing and the bounds each
-had their own, and a big Потсик could hang off the screen.</p>
+<p>There is <strong>one</strong> size, and it has <strong>one</strong> control: the pinch. <code>PotsikLook</code>
+holds it as <code>sizeScale</code>, a multiplier on the 132 dp base, and everything —
+the drawing, the box the finger grabs, the desktop window, the bounds that
+keep him on the screen — works from that one number, clamped to 72…320 dp.
+The pinch ends on a size and that size is written into the look, so he is
+the same size the next time the app opens and the same size on the desktop as
+in the chat.</p>
+<p>The look used to carry a second dial — the firmware's SIZE row, a percentage
+on top of the multiplier — and the two multiplied. Old profiles still carry
+that field; <code>withSizeMigrated()</code> folds the percentage into <code>sizeScale</code> when a
+look is read, so a user who had 150 % and a 1.2 multiplier keeps the size he
+was looking at (1.8), and the legacy field is parked at 100 and never written
+again.</p>
 <p>The bounds live in one place, <code>clampPlacement()</code>, because three different
 callers have to obey the same rule: the drag, the agent's tool and the
-layout's own defaults.</p>
+layout's own defaults. The desktop window obeys the same rule in
+<code>clampWindowOffset()</code>.</p>
+<h2 id="above-other-windows-android">Above other windows (Android)</h2>
+<p><strong>Settings → Потсик → Above other windows</strong> keeps the character on the
+desktop in a system overlay window while the app is away; opening the app
+takes him back inside. The window is exactly his size plus the band his
+speech bubble is drawn in, because the OS delivers every tap inside the
+window's rect to the app, transparent pixels included.</p>
+<p>The mode needs Android's "display over other apps" permission, and the
+permission is granted on a system screen — so the settings screen re-reads it
+on every <code>ON_RESUME</code> and reconciles the service. Granting it and coming back
+is enough: the character appears without touching the switch again. Revoking
+it in the system while he stands there takes the window down and turns the
+switch off, because the switch shows the <em>effective</em> state (mode on <strong>and</strong>
+permission granted), not the saved wish; with the permission missing, the row
+says what to do and offers the button that opens the system screen.</p>
+<p>The mode starts at <strong>Android 13 (API 33)</strong>. Below that the row is still
+shown, but disabled, with the version in the text — the owner's rule for
+Android: a mode the old system cannot do is not shimmed. The platform gate is
+<code>desktopPetAvailability()</code>, and the row is rendered from <code>desktopPetRow()</code>,
+which is pure and tested; on iOS, desktop and the web the row is hidden as it
+always was.</p>
+<p>On the desktop the window is dragged by a finger past the touch slop and
+pinched with two. The drag lives in the shell view, which sees the raw screen
+coordinates, and reports itself into the common layer (<code>PotsikCarry</code>), so the
+character plays exactly the carry the app plays — arms up, legs kicking. The
+pinch resizes the window with <code>updateViewLayout</code> frame by frame and never
+recreates it (a recreated window would break the touch stream and the
+composition); the size is computed from the distance between the fingers, so
+moving the window under them changes nothing, and the shell hands the second
+finger's stream to the pinch instead of eating it as a drag. Letting go
+clamps the window back into the screen, so the character cannot be dragged
+off an edge and lost — and a rotation or a display-size change goes through
+the same clamp (<code>onConfigurationChanged</code>), because the window keeps absolute
+coordinates and a character put down low in portrait would otherwise sit past
+the bottom edge in landscape. The new place is written to the prefs, so he
+comes back where he was left.</p>
 <h2 id="the-agents-tool">The agent's tool</h2>
 <p><strong>Settings → Tools</strong> has a switch for <strong>Потсик</strong>; the on-device model can be
 given the same tool in <strong>Settings → Локальная модель</strong>. It is off by default.</p>
@@ -1743,6 +1808,10 @@ remembered position; changing profiles restores that profile's look.</p>
 <td>on / off — off leaves the chat exactly as it was before him</td>
 </tr>
 <tr>
+<td>Above other windows</td>
+<td>Android 13 and newer: keeps him on the desktop while the app is away, with the "display over other apps" permission. Shown disabled on older Android, hidden on other platforms</td>
+</tr>
+<tr>
 <td>Outfit</td>
 <td>The eighteen costumes, with their own names in both languages</td>
 </tr>
@@ -1763,12 +1832,8 @@ remembered position; changing profiles restores that profile's look.</p>
 <td>on / off — only visible with the shades off</td>
 </tr>
 <tr>
-<td>Size (percent)</td>
-<td>50 % – 150 %, the firmware's SIZE row</td>
-</tr>
-<tr>
-<td>Size (multiplier)</td>
-<td>60 % – 160 %, on top of the size the chat gives him</td>
+<td>Size</td>
+<td>There is no slider: pinch him with two fingers, in the chat or on the desktop, and that size is kept</td>
 </tr>
 <tr>
 <td>Tempo</td>
@@ -1938,7 +2003,19 @@ The app has no catch counter, so every costume is available from the start.</p>
 </tr>
 <tr>
 <td><code>composeApp/.../ui/potsik/PotsikLook.kt</code></td>
-<td><code>PotsikLook</code> — everything the user can change</td>
+<td><code>PotsikLook</code> — everything the user can change, and <code>withSizeMigrated()</code></td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/DesktopPet.kt</code></td>
+<td>The desktop window's numbers: his size, the pinch (<code>pinchedPotsikSize</code>), the window clamp (<code>clampWindowOffset</code>), the carry state and the drag's animation</td>
+</tr>
+<tr>
+<td><code>composeApp/.../ui/potsik/DesktopPetPlatform.kt</code></td>
+<td>What the platform offers (<code>desktopPetAvailability()</code>), the row it implies (<code>desktopPetRow()</code>), the permission and the service calls</td>
+</tr>
+<tr>
+<td><code>composeApp/.../androidMain/.../overlay/PotsOverlayService.kt</code></td>
+<td>The system window itself: the service, the shell view with the drag and the pinch, the foreground notification</td>
 </tr>
 <tr>
 <td><code>composeApp/.../ui/potsik/PotsikAnimation.kt</code></td>
