@@ -328,6 +328,15 @@
     <string name="execution_log_status_fail">FAIL</string>
     <string name="settings_daemon_mode">Daemon Mode</string>
     <string name="settings_daemon_mode_description">Keep Pots running in the background so scheduled tasks execute even when the app is not in the foreground.</string>
+    <string name="settings_assistant_title">Default assistant</string>
+    <string name="settings_assistant_description">The system assist gesture (long-press Home or power) opens Pots in voice mode. Android cannot grant this role from the app — pick Pots in default apps. There is no always-on “hey pots” wake word: use the gesture, the Quick Settings tile, or the voice button in chat.</string>
+    <string name="settings_assistant_assign">Make Pots the assistant</string>
+    <string name="settings_assistant_held">Pots is the default assistant</string>
+    <string name="settings_assistant_open_settings">Open default apps</string>
+    <string name="settings_assistant_needs_android">Not supported on this Android. Needs Android %1$s.</string>
+    <string name="settings_assistant_not_supported">Not supported on this platform.</string>
+    <string name="qs_tile_label">Pots</string>
+    <string name="qs_tile_description">Start a voice chat with Pots</string>
     <string name="settings_heartbeat">Heartbeat</string>
     <string name="settings_heartbeat_description">Periodic self-checks that let the AI review memories and tasks without user input. Runs every %1$d minutes during active hours.</string>
     <string name="settings_heartbeat_interval">Interval</string>

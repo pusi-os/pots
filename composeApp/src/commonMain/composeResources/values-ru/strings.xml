@@ -257,6 +257,15 @@
     <string name="error_empty_response">Ответ не получен. Попробуйте начать новый чат или сократить сообщение.</string>
     <string name="settings_daemon_mode">Фоновый режим</string>
     <string name="settings_daemon_mode_description">Оставлять Потс работающим в фоновом режиме, чтобы запланированные задачи выполнялись даже когда приложение не на переднем плане.</string>
+    <string name="settings_assistant_title">Ассистент по умолчанию</string>
+    <string name="settings_assistant_description">Системный жест ассистента (долгое удержание Home или питания) открывает Потс в голосовом режиме. Роль нельзя запросить из приложения — выберите Потс в приложениях по умолчанию. Всегда-включённого «эй потс» нет: используйте жест, плитку быстрых настроек или кнопку голоса в чате.</string>
+    <string name="settings_assistant_assign">Сделать Потс ассистентом</string>
+    <string name="settings_assistant_held">Потс уже ассистент по умолчанию</string>
+    <string name="settings_assistant_open_settings">Открыть приложения по умолчанию</string>
+    <string name="settings_assistant_needs_android">Не поддерживается на этой версии Android. Нужен Android %1$s.</string>
+    <string name="settings_assistant_not_supported">Не поддерживается на этой платформе.</string>
+    <string name="qs_tile_label">Потс</string>
+    <string name="qs_tile_description">Начать голосовой чат с Потс</string>
     <string name="settings_scheduled_tasks">Запланированные задачи</string>
     <string name="settings_scheduled_tasks_description">Задачи, запланированные ИИ для выполнения в будущем. Попросите ИИ напомнить вам или выполнить что-то позже, чтобы создать запланированные задачи.</string>
     <string name="settings_scheduled_tasks_cancel">Отменить задачу</string>

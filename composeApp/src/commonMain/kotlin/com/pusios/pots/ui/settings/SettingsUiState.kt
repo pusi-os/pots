@@ -1,6 +1,7 @@
 package com.pusios.pots.ui.settings
 
 import androidx.compose.runtime.Immutable
+import com.pusios.pots.assistant.AssistantAvailability
 import com.pusios.pots.data.AgentProfile
 import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.EmailAccount
@@ -163,6 +164,7 @@ data class SettingsUiState(
     val currentSponsors: ImmutableList<SponsorsResponseDto.Sponsor> = persistentListOf(),
     val pastSponsors: ImmutableList<SponsorsResponseDto.Sponsor> = persistentListOf(),
     val update: AppUpdateUiState = AppUpdateUiState(),
+    val assistant: AssistantAvailability = AssistantAvailability.NotOnThisPlatform,
     val pendingDeletion: PendingDeletion? = null,
 )
 

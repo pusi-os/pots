@@ -31,6 +31,8 @@ data class ChatActions(
     val sendSmsDraft: (String) -> Unit,
     val discardSmsDraft: (String) -> Unit,
     val consumeComposerPrefill: () -> Unit,
+    /** Clears [ChatUiState.startHandsFreeRequested] after the voice loop has been started. */
+    val consumeStartHandsFree: () -> Unit,
     val setPotsikLook: (PotsikLook) -> Unit,
     /** Sets speech output explicitly, so hands-free and the toggle agree. */
     val setSpeechOutputEnabled: (Boolean) -> Unit,

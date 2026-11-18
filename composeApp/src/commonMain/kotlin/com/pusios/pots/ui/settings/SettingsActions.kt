@@ -98,6 +98,8 @@ data class SettingsActions(
     /** Checks GitHub for a newer build and, when there is one, downloads and hands it over. */
     val onUpdateApp: () -> Unit,
     val onCancelUpdate: () -> Unit,
+    /** Opens the system default-apps screen so the user can assign ROLE_ASSISTANT. */
+    val onOpenDefaultAppsSettings: () -> Unit,
 ) {
     companion object {
         val NoOp = SettingsActions(
@@ -186,6 +188,7 @@ data class SettingsActions(
             onUndoDelete = {},
             onUpdateApp = {},
             onCancelUpdate = {},
+            onOpenDefaultAppsSettings = {},
         )
     }
 }

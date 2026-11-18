@@ -963,6 +963,17 @@ private fun ChatModeScreen(
         uiState.actions.consumeComposerPrefill()
     }
 
+    // Assist gesture / QS tile: a fresh chat with the microphone already open.
+    LaunchedEffect(uiState.startHandsFreeRequested) {
+        if (!uiState.startHandsFreeRequested) return@LaunchedEffect
+        if (handsFree.isSupported && !handsFree.isActive) {
+            textToSpeech?.stop()
+            uiState.actions.setIsSpeaking(false, "")
+            handsFree.start()
+        }
+        uiState.actions.consumeStartHandsFree()
+    }
+
     // When the active conversation changes (e.g. user starts a new chat from the
     // top bar or taps the heartbeat banner), collapse the sandbox view so the
     // user lands on the chat they just opened. Tracking the previous id avoids

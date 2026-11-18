@@ -1,6 +1,6 @@
 # Chat & Conversations
 
-**Last verified:** 2026-11-10
+**Last verified:** 2026-11-18
 
 Pots's chat system manages the message history, conversation persistence, file attachments, and speech output. Conversations are service-independent — switching providers does not affect which conversation is loaded or restored. Multiple conversations are persisted and browsable via a history sheet.
 
@@ -30,7 +30,7 @@ Auto-derived from the first user message when a conversation is saved for the fi
 - Conversations are service-independent — switching services does not affect which conversation is loaded
 - Interactive vs normal chat mode is persisted alongside the current pointer, so an empty interactive chat also survives a restart
 - On the first launch after upgrading from a build that did not persist the current-conversation pointer, a one-time migration pins the most recently updated conversation as the current pointer so the user resumes where they left off
-- On Android, sharing plain text into Pots from another app (the system share sheet) starts a new conversation and puts the shared text in the input field, unsent. The previous conversation stays in history. The user can edit the text or add an instruction, then send as usual. Opening Pots from the launcher or the assist gesture is unchanged; assist still starts an empty new chat
+- On Android, sharing plain text into Pots from another app (the system share sheet) starts a new conversation and puts the shared text in the input field, unsent. The previous conversation stays in history. The user can edit the text or add an instruction, then send as usual. Opening Pots from the launcher is unchanged. The assist gesture and the Quick Settings tile start an empty new chat and turn hands-free on.
 
 ## Chat History
 

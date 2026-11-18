@@ -53,6 +53,7 @@ object ScreenshotTestData {
         sendSmsDraft = {},
         discardSmsDraft = {},
         consumeComposerPrefill = {},
+        consumeStartHandsFree = {},
         setPotsikLook = {},
         newMiniAppSession = {},
         saveMiniApp = { _, _, _, _ -> },

@@ -100,6 +100,11 @@ data class ChatUiState(
     /** How the animated character (Потсик) looks. */
     val potsikLook: PotsikLook = PotsikLook.Default,
     val composerPrefill: String? = null,
+    /**
+     * Pulse from `ACTION_ASSIST` / the Quick Settings tile: the chat screen
+     * starts the hands-free loop once, then calls [ChatActions.consumeStartHandsFree].
+     */
+    val startHandsFreeRequested: Boolean = false,
     /** Saved mini-apps, newest first. */
     val miniApps: ImmutableList<MiniAppSummary> = persistentListOf(),
     /** The slice the chat toolbar shows. */

@@ -92,6 +92,14 @@ internal fun GeneralContent(uiState: SettingsUiState, actions: SettingsActions) 
                     )
                 }
             }
+            if (uiState.assistant !is com.pusios.pots.assistant.AssistantAvailability.NotOnThisPlatform) {
+                SettingsCard {
+                    AssistantSettingsSection(
+                        availability = uiState.assistant,
+                        onOpenDefaultApps = actions.onOpenDefaultAppsSettings,
+                    )
+                }
+            }
             SettingsCard {
                 DynamicUiToggle(
                     isDynamicUiEnabled = uiState.isDynamicUiEnabled,

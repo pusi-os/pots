@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.pusios.pots.DaemonController
 import com.pusios.pots.Platform
 import com.pusios.pots.Version
+import com.pusios.pots.assistant.currentAssistantAvailability
+import com.pusios.pots.assistant.openDefaultAppsSettings
 import com.pusios.pots.currentPlatform
 import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.AppLanguage
@@ -180,6 +182,7 @@ class SettingsViewModel(
             localImportingFileName = dataRepository.getLocalImportingFileName()?.value,
             localImportProgress = dataRepository.getLocalImportProgress()?.value,
             modelContextTokens = buildModelContextTokensMap(),
+            assistant = currentAssistantAvailability(),
         )
     }
 
@@ -271,6 +274,7 @@ class SettingsViewModel(
         onUndoDelete = ::onUndoDelete,
         onUpdateApp = ::onUpdateApp,
         onCancelUpdate = ::onCancelUpdate,
+        onOpenDefaultAppsSettings = ::onOpenDefaultAppsSettings,
     )
 
     private var updateManager: AppUpdateManager? = null
@@ -373,6 +377,9 @@ class SettingsViewModel(
                 )
             }
         }
+        // ROLE_ASSISTANT is assigned only in system settings; re-read after the
+        // user comes back from that screen.
+        _state.update { it.copy(assistant = currentAssistantAvailability()) }
     }
 
     // ---- Self-update (Настройки → Сервисы) ----
@@ -477,6 +484,10 @@ class SettingsViewModel(
         updateJob?.cancel()
         updateJob = null
         _state.update { it.copy(update = it.update.copy(phase = UpdatePhase.Idle, progress = null, error = null)) }
+    }
+
+    private fun onOpenDefaultAppsSettings() {
+        openDefaultAppsSettings()
     }
 
     private fun fetchSponsors() {

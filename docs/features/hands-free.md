@@ -1,6 +1,6 @@
 # Hands-Free Voice Mode
 
-**Last verified:** 2026-11-10
+**Last verified:** 2026-11-18
 
 Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it heard, waits for the agent, speaks the answer and listens again. The user never has to touch the screen for the whole round trip.
 
@@ -53,6 +53,7 @@ Recognizer and synthesizer never run at the same time. That is deliberate: with 
 - A real failure (no recognition service, denied permission) pauses the loop in the *Error* state; tapping the button resumes it
 - Every recognition session carries an id, so a late callback from a session that was already replaced — because the user interrupted, or because a new session started — is ignored and cannot derail the loop
 - Leaving the chat screen cancels the recognition session and releases the recognizer
+- On Android 10+, the system assist gesture (long-press Home or power) and the Quick Settings tile «Pots» start a fresh chat and turn this loop on. The role cannot be requested in code — Settings → General sends the user to default apps. There is no always-on «hey pots» wake word.
 
 ## Key Files
 
@@ -72,5 +73,8 @@ Recognizer and synthesizer never run at the same time. That is deliberate: with 
 | `composeApp/src/commonMain/.../ui/tts/SpeechChunks.kt` | Splits long replies into platform-sized chunks |
 | `composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt` | The voice-mode button with its state icon and listening pulse |
 | `composeApp/src/commonMain/.../ui/chat/composables/EmptyState.kt` | Animated voice-mode entry in the empty chat |
+| `composeApp/src/commonMain/.../assistant/AssistantAvailability.kt` | Whether the assistant role can be held on this device |
+| `composeApp/src/commonMain/.../ui/settings/AssistantSettings.kt` | Settings card that opens default-apps |
+| `androidApp/.../PotsAssistTileService.kt` | Quick Settings tile that fires `ACTION_ASSIST` |
 | `composeApp/src/commonMain/.../tools/PermissionController.kt` | The `RECORD_AUDIO` runtime permission |
-| `androidApp/src/main/AndroidManifest.xml` | `RECORD_AUDIO` permission declaration |
+| `androidApp/src/main/AndroidManifest.xml` | `RECORD_AUDIO`, `ACTION_ASSIST`, QS tile |

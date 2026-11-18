@@ -135,6 +135,7 @@ class ChatViewModel(
         sendSmsDraft = ::sendSmsDraft,
         discardSmsDraft = ::discardSmsDraft,
         consumeComposerPrefill = ::consumeComposerPrefill,
+        consumeStartHandsFree = ::consumeStartHandsFree,
         setPotsikLook = ::setPotsikLook,
         setSpeechOutputEnabled = ::setSpeechOutputEnabled,
         newMiniAppSession = ::newMiniAppSession,
@@ -252,6 +253,12 @@ class ChatViewModel(
                 .filter { it }
                 .collect {
                     startNewChat()
+                    _state.update {
+                        it.copy(
+                            startHandsFreeRequested = true,
+                            isSpeechOutputEnabled = true,
+                        )
+                    }
                     dataRepository.consumeOpenAssistRequest()
                 }
         }
@@ -992,6 +999,10 @@ class ChatViewModel(
 
     private fun consumeComposerPrefill() {
         _state.update { it.copy(composerPrefill = null) }
+    }
+
+    private fun consumeStartHandsFree() {
+        _state.update { it.copy(startHandsFreeRequested = false) }
     }
 
     private fun enterInteractiveMode() {

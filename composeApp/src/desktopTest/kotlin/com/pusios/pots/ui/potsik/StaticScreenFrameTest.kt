@@ -182,6 +182,7 @@ private fun noopChatActions() = ChatActions(
     sendSmsDraft = {},
     discardSmsDraft = {},
     consumeComposerPrefill = {},
+    consumeStartHandsFree = {},
     setPotsikLook = {},
     setSpeechOutputEnabled = {},
     newMiniAppSession = {},

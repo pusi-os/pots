@@ -144,6 +144,7 @@ Plus a built-in **Free** tier that requires no API key.
 - **[Reasoning](features/reasoning.md)** — How reasoning traces are sent back to providers and shown
 - **[System Prompts](features/system-prompts.md)** — How each prompt variant is composed
 - **[Skills](features/skills.md)** — Installable SKILL.md instruction bundles
+- **[Hands-Free](features/hands-free.md)** — Spoken dialogue loop, assist gesture and Quick Settings tile (Android)
 - **[Linux Sandbox](features/sandbox.md)** — On-device Debian/Alpine shell for the AI and the user (Android)
 - **[Pots Build](features/pots-build.md)** — Coding environment with terminals and coding agents (Android)
 - **[Notifications](features/notifications.md)** — Reading other apps' notifications (Android, FOSS build)
