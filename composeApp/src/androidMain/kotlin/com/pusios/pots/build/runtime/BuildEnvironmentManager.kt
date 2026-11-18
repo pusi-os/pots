@@ -640,13 +640,9 @@ class BuildEnvironmentManager(
     /** Records what [agentId]'s own `--version` said; a null [version] clears the entry. */
     private fun setAgentVersion(agentId: String, version: String?) {
         _state.update {
-            it.copy(
-                agentVersions = if (version == null) {
-                    it.agentVersions.remove(agentId)
-                } else {
-                    it.agentVersions.put(agentId, version)
-                },
-            )
+            val versions = it.agentVersions.toMutableMap()
+            if (version == null) versions.remove(agentId) else versions[agentId] = version
+            it.copy(agentVersions = versions.toImmutableMap())
         }
     }
 
