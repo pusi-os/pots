@@ -862,7 +862,7 @@
     <string name="potsik_cloud_open_in_chat">Открыть в чате</string>
     <string name="potsik_cloud_speak_aloud">Озвучить</string>
     <string name="potsik_cloud_mic_busy">Сначала остановите голосовой режим</string>
-    <string name="potsik_cloud_screen">Спросить про экран</string>
+    <string name="potsik_cloud_screen">Спросить про этот экран</string>
     <string name="potsik_cloud_screen_waiting">Нужно разрешение на снимок экрана</string>
     <string name="potsik_cloud_screenshot_caption">Скриншот %1$s</string>
     <string name="potsik_cloud_screen_placeholder">Спросить про этот экран…</string>

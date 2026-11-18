@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -53,6 +54,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -137,6 +139,23 @@ fun PotsikCloudCapsule(
         else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     }
     Column(modifier = modifier.fillMaxSize()) {
+        // The dead voice button explains itself here: a grey circle alone tells
+        // a sighted user nothing, and the mode cannot be started to reach an
+        // error pill. The line goes above the capsule, not under the tail —
+        // the window's bottom edge is anchored to his head, so anything below
+        // the tail would push the tail off it.
+        if (!voiceAvailable && state.phase == PotsikCloudPhase.Menu) {
+            Text(
+                text = stringResource(Res.string.potsik_cloud_no_recognizer),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(POTSIK_CLOUD_NOTICE_HEIGHT_DP.dp)
+                    .padding(bottom = 4.dp),
+            )
+        }
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -216,6 +235,7 @@ private fun PotsikCloudMenu(
         )
         CloudActionButton(
             enabled = true,
+            outlined = true,
             icon = { tint ->
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_screen_ask),
@@ -228,23 +248,39 @@ private fun PotsikCloudMenu(
     }
 }
 
-/** One 48 dp action: the accessibility minimum, and what the capsule is sized from. */
+/**
+ * One 48 dp action: the accessibility minimum, and what the capsule is sized from.
+ *
+ * [outlined] is the secondary look the spec gives the screen button: it is the
+ * only action that raises a system dialog, so it reads as a step out of the
+ * capsule rather than a peer of the two filled tonal ones.
+ */
 @Composable
 private fun CloudActionButton(
     enabled: Boolean,
     icon: @Composable (Color) -> Unit,
     onClick: () -> Unit,
+    outlined: Boolean = false,
 ) {
-    val tint = if (enabled) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+    val tint = when {
+        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        outlined -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onPrimaryContainer
     }
     Box(
         modifier = Modifier
             .size(POTSIK_CLOUD_BUTTON_DP.dp)
             .clip(CircleShape)
-            .background(if (enabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f) else Color.Transparent),
+            .then(
+                when {
+                    // A dead button keeps no shape at all: the grey glyph is the message.
+                    !enabled -> Modifier
+
+                    outlined -> Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+
+                    else -> Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f))
+                },
+            ),
     ) {
         IconButton(
             onClick = { if (enabled) onClick() },

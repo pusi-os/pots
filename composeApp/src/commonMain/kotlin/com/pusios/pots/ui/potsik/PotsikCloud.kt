@@ -31,6 +31,13 @@ const val POTSIK_CLOUD_TAIL_HEIGHT_DP = 8f
 /** The window is exactly the capsule plus the tail — no empty area to eat taps. */
 const val POTSIK_CLOUD_WINDOW_HEIGHT_DP = POTSIK_CLOUD_HEIGHT_DP + POTSIK_CLOUD_TAIL_HEIGHT_DP
 
+/**
+ * The line above the capsule when the device has no recognizer: two lines of
+ * `labelSmall` (16 dp each — «На этом устройстве нет распознавания речи» does
+ * not fit on one at 176 dp wide) plus the 4 dp gap above the capsule.
+ */
+const val POTSIK_CLOUD_NOTICE_HEIGHT_DP = 36f
+
 /** One action: the accessibility minimum, and what the layout is built from. */
 const val POTSIK_CLOUD_BUTTON_DP = 48f
 
@@ -291,9 +298,19 @@ data class PotsikCloudSize(val widthDp: Float, val heightDp: Float)
  *
  * The text field is not a window at all: it is a translucent activity, because
  * a `TYPE_APPLICATION_OVERLAY` window is always below the keyboard.
+ *
+ * [voiceAvailable] is the one thing besides the phase that changes the height:
+ * without a recognizer the menu carries a line of explanation above the capsule,
+ * and the window has to grow by [POTSIK_CLOUD_NOTICE_HEIGHT_DP] or the line is
+ * clipped by the window's own bounds.
  */
-fun potsikCloudWindowSize(state: PotsikCloudState): PotsikCloudSize = when (state.phase) {
-    PotsikCloudPhase.Menu -> PotsikCloudSize(POTSIK_CLOUD_WIDTH_DP, POTSIK_CLOUD_WINDOW_HEIGHT_DP)
+fun potsikCloudWindowSize(state: PotsikCloudState, voiceAvailable: Boolean = true): PotsikCloudSize = when (state.phase) {
+    PotsikCloudPhase.Menu ->
+        if (voiceAvailable) {
+            PotsikCloudSize(POTSIK_CLOUD_WIDTH_DP, POTSIK_CLOUD_WINDOW_HEIGHT_DP)
+        } else {
+            PotsikCloudSize(POTSIK_CLOUD_WIDTH_DP, POTSIK_CLOUD_WINDOW_HEIGHT_DP + POTSIK_CLOUD_NOTICE_HEIGHT_DP)
+        }
 
     PotsikCloudPhase.Listening,
     PotsikCloudPhase.Thinking,

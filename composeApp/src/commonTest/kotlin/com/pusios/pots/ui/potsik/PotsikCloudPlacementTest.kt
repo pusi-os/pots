@@ -135,6 +135,19 @@ class PotsikCloudPlacementTest {
     }
 
     @Test
+    fun `the menu window grows by the notice line when there is no recognizer`() {
+        val withVoice = potsikCloudWindowSize(PotsikCloudState(), voiceAvailable = true)
+        val withoutVoice = potsikCloudWindowSize(PotsikCloudState(), voiceAvailable = false)
+        assertEquals(POTSIK_CLOUD_WIDTH_DP, withoutVoice.widthDp)
+        assertEquals(withVoice.heightDp + POTSIK_CLOUD_NOTICE_HEIGHT_DP, withoutVoice.heightDp)
+        // The line lives on the menu only, so a pill is the same size either way.
+        assertEquals(
+            potsikCloudWindowSize(PotsikCloudState(phase = PotsikCloudPhase.Listening), voiceAvailable = true),
+            potsikCloudWindowSize(PotsikCloudState(phase = PotsikCloudPhase.Listening), voiceAvailable = false),
+        )
+    }
+
+    @Test
     fun `the pill is shorter than the menu`() {
         val pill = potsikCloudWindowSize(PotsikCloudState(phase = PotsikCloudPhase.Listening))
         assertEquals(POTSIK_CLOUD_PILL_WIDTH_DP, pill.widthDp)

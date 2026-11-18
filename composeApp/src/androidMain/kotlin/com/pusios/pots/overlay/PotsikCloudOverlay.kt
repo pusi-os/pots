@@ -282,7 +282,7 @@ internal class PotsikCloudOverlay(
     }
 
     private fun buildParams(pet: WindowManager.LayoutParams): WindowManager.LayoutParams {
-        val size = potsikCloudWindowSize(state)
+        val size = potsikCloudWindowSize(state, voiceAvailable)
         val density = context.resources.displayMetrics.density
         val params = WindowManager.LayoutParams(
             (size.widthDp * density).roundToInt(),
@@ -328,7 +328,7 @@ internal class PotsikCloudOverlay(
         if (previous.phase != next.phase) onPhase(next.phase)
         val view = shell ?: return
         val params = view.windowParams ?: return
-        val size = potsikCloudWindowSize(next)
+        val size = potsikCloudWindowSize(next, voiceAvailable)
         val density = context.resources.displayMetrics.density
         val width = (size.widthDp * density).roundToInt()
         val height = (size.heightDp * density).roundToInt()

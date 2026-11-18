@@ -46,6 +46,21 @@ Placement, all of it pure and tested without a device
 Never below him: from below the capsule covers his body and his own speech
 bubble.
 
+## The menu
+
+Three 48 dp actions in the spec's 176×64 capsule: «Голос» and «Текст» are filled
+tonal (`primaryContainer`), «Экран» is **outlined** — the spec's secondary action
+for the one button that raises a system dialog, and last in the row so a stray
+tap near the edge does not start a screen capture
+(`pots-overlay-menu-ux.md` §7).
+
+Without a recognizer the voice button is dead (grey glyph, no shape, alpha 0.38)
+and the menu carries the explanation **above** the capsule, growing the window
+by 36 dp (`POTSIK_CLOUD_NOTICE_HEIGHT_DP`). Above, not under the tail: the
+window's bottom edge is anchored 8 dp above his head, so a line below the tail
+would pull the tail off the head. `potsikCloudWindowSize(state, voiceAvailable)`
+decides that height and is tested without a device.
+
 ## Lifecycle
 
 The capsule is taken down when:
@@ -79,7 +94,7 @@ Failure branches, all of them keeping what the user said:
 
 | Situation | What the user sees |
 |---|---|
-| No recognizer on the device | the voice button is dead (alpha 0.38); its `contentDescription` says why, and the error pill repeats it if the mode is started anyway |
+| No recognizer on the device | the voice button is dead (alpha 0.38, `contentDescription` «Голосовой режим недоступен») and the line above the capsule says «На этом устройстве нет распознавания речи». The mode cannot be started, so no error pill is reachable from here; `NoRecognizer` is left for a recognizer that fails mid-session |
 | Nothing recognised | «Не расслышал, повторите», listening again — not an error |
 | 15 s without an answer | «Не расслышал» + [Повторить] |
 | The microphone permission is missing | «Нет доступа к микрофону» + [Повторить]; the dialog itself lives in the app, an overlay cannot raise it |
