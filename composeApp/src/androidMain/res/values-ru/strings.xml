@@ -11,4 +11,6 @@
     <string name="mini_app_server_notification_text">Сервер мини-приложений работает</string>
     <string name="potsik_overlay_channel_name">Питомец на рабочем столе</string>
     <string name="potsik_overlay_notification">Потсик стоит на рабочем столе</string>
+    <string name="potsik_screen_channel_name">Снимок экрана</string>
+    <string name="potsik_screen_notification">Потсик может снять ваш экран</string>
 </resources>

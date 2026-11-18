@@ -862,4 +862,15 @@
     <string name="potsik_cloud_open_in_chat">Открыть в чате</string>
     <string name="potsik_cloud_speak_aloud">Озвучить</string>
     <string name="potsik_cloud_mic_busy">Сначала остановите голосовой режим</string>
+    <string name="potsik_cloud_screen">Спросить про экран</string>
+    <string name="potsik_cloud_screen_waiting">Нужно разрешение на снимок экрана</string>
+    <string name="potsik_cloud_screenshot_caption">Скриншот %1$s</string>
+    <string name="potsik_cloud_screen_placeholder">Спросить про этот экран…</string>
+    <string name="potsik_cloud_screen_remove">Убрать скриншот</string>
+    <string name="potsik_cloud_screen_denied">Без разрешения снимок недоступен</string>
+    <string name="potsik_cloud_screen_revoked">Доступ к экрану закрыт</string>
+    <string name="potsik_cloud_screen_failed">Не удалось снять экран</string>
+    <string name="potsik_cloud_chip_what">Что здесь?</string>
+    <string name="potsik_cloud_chip_translate">Переведи</string>
+    <string name="potsik_cloud_chip_wrong">Что не так?</string>
 </resources>

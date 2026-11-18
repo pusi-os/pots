@@ -79,7 +79,7 @@ Failure branches, all of them keeping what the user said:
 
 | Situation | What the user sees |
 |---|---|
-| No recognizer on the device | the voice button is dead (alpha 0.38) and the third slot says why |
+| No recognizer on the device | the voice button is dead (alpha 0.38); its `contentDescription` says why, and the error pill repeats it if the mode is started anyway |
 | Nothing recognised | «Не расслышал, повторите», listening again — not an error |
 | 15 s without an answer | «Не расслышал» + [Повторить] |
 | The microphone permission is missing | «Нет доступа к микрофону» + [Повторить]; the dialog itself lives in the app, an overlay cannot raise it |
@@ -112,6 +112,7 @@ closes it, and the insets are the system's own business.
 |---|---|
 | `composeApp/src/commonMain/.../ui/potsik/PotsikCloud.kt` | The state, the placement arithmetic, the tap counter, the draft |
 | `composeApp/src/commonMain/.../ui/potsik/PotsikCloudCapsule.kt` | The capsule and the pill (Compose, no platform code) |
+| `composeApp/src/commonMain/.../ui/potsik/PotsikScreen.kt` | The screen mode of the third button — see [the screen mode](potsik-screenshot.md) |
 | `composeApp/src/commonMain/.../ui/potsik/PotsikCloudAsker.kt` | One question into the current chat, one answer out of it |
 | `composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt` | The window, the microphone, the lifetime |
 | `composeApp/src/androidMain/.../overlay/PotsikTextInputActivity.kt` | The text field, as a translucent activity |
@@ -120,6 +121,8 @@ closes it, and the insets are the system's own business.
 
 ## What is not here
 
-- The «Экран» button (screenshot through `MediaProjection`) is its own card; the
-  capsule reserves the third slot for it and draws it empty until then.
 - No «Открыть Pots» action in the capsule (a v1.1 candidate).
+
+The third button, «Экран», is [its own page](potsik-screenshot.md): it raises a
+system consent dialog, and a dialog on every tap is a feature nobody uses — so
+it has a mode of its own, with its own lifetime.

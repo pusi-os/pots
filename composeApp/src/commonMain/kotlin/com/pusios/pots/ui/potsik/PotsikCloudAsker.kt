@@ -2,6 +2,7 @@ package com.pusios.pots.ui.potsik
 
 import com.pusios.pots.data.DataRepository
 import com.pusios.pots.ui.chat.lastRenderedAssistant
+import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -52,13 +53,16 @@ class PotsikCloudAsker(
     /** The question currently in flight or last answered, for [retry]. */
     private var lastQuestion: String = ""
 
+    /** What was attached to it — the screenshot of Flow 3, if there was one. */
+    private var lastFiles: List<PlatformFile> = emptyList()
+
     /**
      * Sends [question] to the current chat.
      *
      * A second question replaces the first: the chat answers one turn at a
      * time, and a queued turn nobody asked for would speak out of order.
      */
-    fun ask(question: String) {
+    fun ask(question: String, files: List<PlatformFile> = emptyList()) {
         val text = question.trim()
         if (text.isEmpty()) return
         val repo = repository
@@ -69,13 +73,14 @@ class PotsikCloudAsker(
         }
         job?.cancel()
         lastQuestion = text
+        lastFiles = files
         // What the chat had before the question: the answer is whatever the
         // assistant says next, not a reply left over from the previous turn.
         val previousReplyId = repo.chatHistory.value.lastRenderedAssistant()?.id
         _answer.value = Answer.Thinking(text)
         job = scope.launch {
             try {
-                repo.ask(text, emptyList())
+                repo.ask(text, files)
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
@@ -100,13 +105,14 @@ class PotsikCloudAsker(
     fun retry() {
         val question = lastQuestion
         if (question.isEmpty()) return
-        ask(question)
+        ask(question, lastFiles)
     }
 
     /** Drops the answer, and any request still in flight with it. */
     fun reset() {
         job?.cancel()
         job = null
+        lastFiles = emptyList()
         _answer.value = Answer.Idle
     }
 }

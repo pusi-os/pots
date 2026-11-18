@@ -22,6 +22,9 @@
         window while the app is in the background (opt-in, off by default). -->
    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+   <!-- The screen mode: a MediaProjection session has to live under a
+       foreground service of this type (Android 14+). -->
+   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
 
    <!-- Bluetooth for companion pairing. CONNECT/ADVERTISE/SCAN are runtime permission on Android 12+. -->
    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
@@ -96,6 +99,13 @@
             android:launchMode="singleTop"
             android:theme="@style/PotsikTextInputTheme"
             android:windowSoftInputMode="adjustResize" />
+        <!-- The consent dialog of the screen mode: an activity, because only an
+             activity can receive the result of the MediaProjection intent. -->
+        <activity
+            android:name="com.pusios.pots.overlay.PotsikScreenCaptureActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/PotsikTextInputTheme" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -128,6 +138,13 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps the user's desktop pet character visible in a system overlay window while the app is in the background" />
         </service>
+        <!-- The screen mode's session. Its own service and not the pet's: the
+             type has to be mediaProjection, and leaving the mode has to end
+             exactly this service. -->
+        <service
+            android:name="com.pusios.pots.overlay.PotsikScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
         <uses-native-library android:name="libvndksupport.so" android:required="false"/>
         <uses-native-library android:name="libOpenCL.so" android:required="false"/>
     </application>

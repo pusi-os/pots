@@ -53,8 +53,15 @@ import com.pusios.pots.ui.potsik.PotsikCloudPhase
 import com.pusios.pots.ui.potsik.PotsikCloudState
 import com.pusios.pots.ui.potsik.PotsikCloudTrouble
 import com.pusios.pots.ui.potsik.PotsikCloudVoice
+import com.pusios.pots.ui.potsik.PotsikScreenMode
+import com.pusios.pots.ui.potsik.PotsikScreenPhase
+import com.pusios.pots.ui.potsik.PotsikScreenStep
+import com.pusios.pots.ui.potsik.PotsikShotHolder
+import com.pusios.pots.ui.potsik.PotsikShotUi
+import com.pusios.pots.ui.potsik.isScreenTrouble
 import com.pusios.pots.ui.potsik.potsikCloudPlacement
 import com.pusios.pots.ui.potsik.potsikCloudWindowSize
+import com.pusios.pots.ui.potsik.potsikScreenshotSizeLabel
 import com.pusios.pots.ui.tts.DEFAULT_PIPER_VOICE_ID
 import com.pusios.pots.ui.tts.PotsTextToSpeech
 import com.pusios.pots.ui.tts.createPiperTextToSpeech
@@ -151,6 +158,19 @@ internal class PotsikCloudOverlay(
     /** The pill's state; a Compose `State`, so the capsule redraws when it changes. */
     private val state: PotsikCloudState get() = cloudState.value
 
+    /**
+     * Flow 3: consent once per mode, a frame per tap.
+     *
+     * The mode lives as long as the cloud does — the pill is where it says what
+     * it is doing, and a projection with no cloud on screen is a status-bar chip
+     * nobody asked for. Closing the cloud ends it, which is also why the next
+     * double tap asks for consent again.
+     */
+    private val screenMode = PotsikScreenMode(AndroidScreenProjector(context))
+
+    /** The frame on the pill, already decoded for Compose. */
+    private val screenShot = mutableStateOf<PotsikShotUi?>(null)
+
     private var watcherJob: Job? = null
 
     val isOpen: Boolean get() = shell != null
@@ -211,6 +231,11 @@ internal class PotsikCloudOverlay(
         val view = shell ?: return
         shell = null
         fading = false
+        // The screen mode belongs to this window: its listener goes first, so a
+        // session that lands after this point has nobody to hand a frame to.
+        PotsikScreenProjection.listener = null
+        screenMode.exit()
+        screenShot.value = null
         // A fade that is still running ends here rather than on top of a
         // window that has already been taken down.
         view.animate().cancel()
@@ -265,7 +290,10 @@ internal class PotsikCloudOverlay(
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                // The cloud must not appear in its own screenshot: a capsule
+                // over the picture it took looks like a broken feature.
+                WindowManager.LayoutParams.FLAG_SECURE,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -442,16 +470,123 @@ internal class PotsikCloudOverlay(
     }
 
     fun onText() {
+        // The plain text flow asks no question about a picture: whatever the
+        // screen mode left pending is not this question's attachment.
+        PotsikShotHolder.clear()
         // The field is an activity, and the cloud's window goes down with it:
         // one Потсик and one surface, as everywhere else in the app.
         close()
         onOpenText()
     }
 
-    /** A tap on the pill: the barge-in while he is talking, and a fresh attempt otherwise. */
+    /**
+     * «Экран»: the frame, or the consent dialog that has to come first.
+     *
+     * Consent is granted once per mode — the system dialog is only raised when
+     * no session lives, and the frame is taken when the dialog answers, not
+     * before. While the dialog is up the pill says so and offers no buttons.
+     */
+    fun onScreen() {
+        PotsikScreenProjection.listener = screenListener
+        scope.launch {
+            when (screenMode.tap()) {
+                PotsikScreenStep.AskConsent -> {
+                    setState(PotsikCloudState(phase = PotsikCloudPhase.AwaitingConsent))
+                    context.startActivity(potsikScreenConsentIntent(context))
+                }
+
+                PotsikScreenStep.Captured -> showScreen(announce = true)
+            }
+        }
+    }
+
+    /** [×] on the shot pill: the frame goes, the session stays — the next tap takes another one. */
+    fun onRemoveShot() {
+        screenMode.clearShot()
+        PotsikShotHolder.clear()
+        showScreen()
+    }
+
+    /**
+     * The question about the frame, in the same field Flow 2 uses.
+     *
+     * The frame is handed over in [PotsikShotHolder], because the field is
+     * another activity; the cloud closes with it, and the session ends with the
+     * cloud — the picture is already in hand, so nothing is lost, and no
+     * projection is left running behind a closed capsule.
+     */
+    private fun openQuestionAboutShot() {
+        val shot = screenMode.state.value.shot ?: return
+        PotsikShotHolder.set(shot)
+        close()
+        onOpenText()
+    }
+
+    /**
+     * The session's answers. They arrive on the main thread, where the cloud's
+     * own state lives, so nothing has to be posted.
+     */
+    private val screenListener = object : PotsikScreenProjection.Listener {
+        override fun onScreenReady() {
+            scope.launch {
+                screenMode.onConsentGranted()
+                showScreen(announce = true)
+            }
+        }
+
+        override fun onScreenDenied() {
+            screenMode.onConsentDenied()
+            showScreen()
+        }
+
+        override fun onScreenFailed() {
+            screenMode.onSessionFailed()
+            showScreen()
+        }
+
+        override fun onScreenRevoked() {
+            screenMode.onRevoked()
+            showScreen()
+        }
+    }
+
+    /**
+     * Draws what the screen mode has: the wait, the frame, or the reason it did
+     * not work. Every branch of the mode goes through here, so the pill and the
+     * state machine cannot disagree about what is happening.
+     */
+    private fun showScreen(announce: Boolean = false) {
+        val screen = screenMode.state.value
+        when (screen.phase) {
+            PotsikScreenPhase.Shot -> {
+                screenShot.value = screen.shot?.let { shot ->
+                    PotsikShotUi(preview = shot.preview(), label = potsikScreenshotSizeLabel(shot.width, shot.height))
+                }
+                setState(PotsikCloudState(phase = PotsikCloudPhase.Shot))
+                if (announce) shell?.haptic(HapticFeedbackConstants.CONFIRM)
+            }
+
+            PotsikScreenPhase.AwaitingConsent -> setState(PotsikCloudState(phase = PotsikCloudPhase.AwaitingConsent))
+
+            PotsikScreenPhase.Failed -> setState(
+                PotsikCloudState(phase = PotsikCloudPhase.Error, trouble = screen.trouble),
+            )
+
+            // Back to the menu: the session is the mode's own business and
+            // survives a removed frame.
+            PotsikScreenPhase.Off -> {
+                screenShot.value = null
+                setState(PotsikCloudState())
+            }
+        }
+    }
+
+    /** A tap on the pill: the barge-in while he is talking, the question on a shot, a fresh attempt otherwise. */
     fun onPillTap() {
-        if (state.phase == PotsikCloudPhase.Speaking || state.phase == PotsikCloudPhase.Listening) {
-            handsFree.interrupt()
+        when (state.phase) {
+            PotsikCloudPhase.Shot -> openQuestionAboutShot()
+            PotsikCloudPhase.Speaking, PotsikCloudPhase.Listening -> handsFree.interrupt()
+            else -> Unit
         }
     }
 
@@ -466,6 +601,12 @@ internal class PotsikCloudOverlay(
     fun onRetry() {
         if (state.unsent) {
             asker.retry()
+            return
+        }
+        // A screen failure is retried the way it was started: ask for consent
+        // again if the session is gone, take a frame if it is still there.
+        if (state.trouble.isScreenTrouble()) {
+            onScreen()
             return
         }
         handsFree.resume()
@@ -510,11 +651,14 @@ internal class PotsikCloudOverlay(
                 PotsikCloudCapsule(
                     state = state,
                     voiceAvailable = voiceAvailable,
+                    shot = screenShot.value,
                     onVoice = tapped(::onVoice),
                     onText = tapped(::onText),
+                    onScreen = tapped(::onScreen),
                     onPillTap = tapped(::onPillTap),
                     onCancel = tapped(::onCancel),
                     onRetry = tapped(::onRetry),
+                    onRemoveShot = tapped(::onRemoveShot),
                     modifier = Modifier.graphicsLayer {
                         alpha = appear.value
                         val scale = 0.92f + 0.08f * appear.value

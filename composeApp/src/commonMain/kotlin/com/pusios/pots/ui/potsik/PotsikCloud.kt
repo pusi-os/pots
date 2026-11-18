@@ -64,6 +64,12 @@ enum class PotsikCloudPhase {
     Speaking,
     TextInput,
     Error,
+
+    /** «Экран» was tapped and the system consent dialog is open: nothing is captured yet. */
+    AwaitingConsent,
+
+    /** A frame of the screen is in hand and is waiting for its question. */
+    Shot,
 }
 
 /** Why the pill went into [PotsikCloudPhase.Error]. */
@@ -91,7 +97,27 @@ enum class PotsikCloudTrouble {
 
     /** No chat is loaded to answer: the app has to be opened once. */
     NoChat,
+
+    /** The system consent dialog was refused, or dismissed by a tap outside it. */
+    ScreenConsentDenied,
+
+    /** The projection was taken away after it was granted: the lock screen, the status-bar chip. */
+    ScreenConsentRevoked,
+
+    /** The session never came up, or the mirror had no frame to give. */
+    ScreenCaptureFailed,
 }
+
+/**
+ * True for the troubles the screen mode owns.
+ *
+ * [Повторить] has to mean two different things: "listen again" for the voice
+ * loop and "ask for the screen again" for the screenshot. This is how the
+ * retry tells them apart without a second error enum.
+ */
+fun PotsikCloudTrouble?.isScreenTrouble(): Boolean = this == PotsikCloudTrouble.ScreenConsentDenied ||
+    this == PotsikCloudTrouble.ScreenConsentRevoked ||
+    this == PotsikCloudTrouble.ScreenCaptureFailed
 
 /**
  * What the cloud is doing right now.
@@ -135,10 +161,21 @@ data class PotsikPetLook(
  */
 fun potsikPetLook(cloud: PotsikCloudPhase?): PotsikPetLook = when (cloud) {
     null -> PotsikPetLook(PotsikPhase.IDLE, null, leaning = false)
-    PotsikCloudPhase.Menu, PotsikCloudPhase.TextInput -> PotsikPetLook(PotsikPhase.IDLE, null, leaning = false)
+
+    PotsikCloudPhase.Menu,
+    PotsikCloudPhase.TextInput,
+    // Waiting for the consent dialog is the same "nothing is happening yet" as
+    // the menu: he breathes, and the pill is where the waiting is written.
+    PotsikCloudPhase.AwaitingConsent,
+    PotsikCloudPhase.Shot,
+    -> PotsikPetLook(PotsikPhase.IDLE, null, leaning = false)
+
     PotsikCloudPhase.Listening -> PotsikPetLook(PotsikPhase.IDLE, null, leaning = true)
+
     PotsikCloudPhase.Thinking -> PotsikPetLook(PotsikPhase.WORKING, null, leaning = false)
+
     PotsikCloudPhase.Speaking -> PotsikPetLook(PotsikPhase.SPEAKING, null, leaning = false)
+
     PotsikCloudPhase.Error -> PotsikPetLook(PotsikPhase.ERROR, null, leaning = false)
 }
 
@@ -262,7 +299,12 @@ fun potsikCloudWindowSize(state: PotsikCloudState): PotsikCloudSize = when (stat
     PotsikCloudPhase.Thinking,
     PotsikCloudPhase.Speaking,
     PotsikCloudPhase.Error,
+    PotsikCloudPhase.AwaitingConsent,
     -> PotsikCloudSize(POTSIK_CLOUD_PILL_WIDTH_DP, POTSIK_CLOUD_PILL_HEIGHT_DP + POTSIK_CLOUD_TAIL_HEIGHT_DP)
+
+    // The shot pill holds a 64 dp thumbnail, so it is taller and wider than a
+    // pill of text: the caption «Скриншот 1080×2400» has to fit beside it.
+    PotsikCloudPhase.Shot -> PotsikCloudSize(POTSIK_CLOUD_SHOT_WIDTH_DP, POTSIK_CLOUD_SHOT_HEIGHT_DP + POTSIK_CLOUD_TAIL_HEIGHT_DP)
 
     // Not drawn in a window at all; the menu's size keeps the caller honest.
     PotsikCloudPhase.TextInput -> PotsikCloudSize(POTSIK_CLOUD_WIDTH_DP, POTSIK_CLOUD_WINDOW_HEIGHT_DP)
@@ -273,6 +315,18 @@ const val POTSIK_CLOUD_PILL_WIDTH_DP = 240f
 
 /** The pill's height: one 48 dp row, the same as the capsule's. */
 const val POTSIK_CLOUD_PILL_HEIGHT_DP = 48f
+
+/** The shot pill's height: a 64 dp thumbnail in an 8 dp padding. */
+const val POTSIK_CLOUD_SHOT_HEIGHT_DP = 80f
+
+/** The shot pill's width: the thumbnail, its gap, and a caption that fits beside them. */
+const val POTSIK_CLOUD_SHOT_WIDTH_DP = 288f
+
+/** The thumbnail's side, both on the pill and in the question panel. */
+const val POTSIK_CLOUD_THUMBNAIL_DP = 64f
+
+/** The thumbnail's corner radius, from the Pots canon. */
+const val POTSIK_CLOUD_THUMBNAIL_RADIUS_DP = 12f
 
 /**
  * The text that has not been sent yet.

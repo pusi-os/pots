@@ -7,8 +7,11 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,8 +51,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pusios.pots.ui.potsAdaptiveCardBorder
@@ -60,9 +64,13 @@ import org.jetbrains.compose.resources.vectorResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.ic_close
 import pots.composeapp.generated.resources.ic_handsfree
+import pots.composeapp.generated.resources.ic_screen_ask
 import pots.composeapp.generated.resources.ic_send
 import pots.composeapp.generated.resources.ic_stop
 import pots.composeapp.generated.resources.potsik_cloud_cancel
+import pots.composeapp.generated.resources.potsik_cloud_chip_translate
+import pots.composeapp.generated.resources.potsik_cloud_chip_what
+import pots.composeapp.generated.resources.potsik_cloud_chip_wrong
 import pots.composeapp.generated.resources.potsik_cloud_close
 import pots.composeapp.generated.resources.potsik_cloud_input_placeholder
 import pots.composeapp.generated.resources.potsik_cloud_listening
@@ -74,7 +82,15 @@ import pots.composeapp.generated.resources.potsik_cloud_no_recognizer
 import pots.composeapp.generated.resources.potsik_cloud_open_in_chat
 import pots.composeapp.generated.resources.potsik_cloud_permission_denied
 import pots.composeapp.generated.resources.potsik_cloud_retry
+import pots.composeapp.generated.resources.potsik_cloud_screen
+import pots.composeapp.generated.resources.potsik_cloud_screen_denied
+import pots.composeapp.generated.resources.potsik_cloud_screen_failed
 import pots.composeapp.generated.resources.potsik_cloud_screen_off
+import pots.composeapp.generated.resources.potsik_cloud_screen_placeholder
+import pots.composeapp.generated.resources.potsik_cloud_screen_remove
+import pots.composeapp.generated.resources.potsik_cloud_screen_revoked
+import pots.composeapp.generated.resources.potsik_cloud_screen_waiting
+import pots.composeapp.generated.resources.potsik_cloud_screenshot_caption
 import pots.composeapp.generated.resources.potsik_cloud_send
 import pots.composeapp.generated.resources.potsik_cloud_speak_aloud
 import pots.composeapp.generated.resources.potsik_cloud_stop
@@ -95,19 +111,24 @@ import kotlin.math.sin
  * transparent pixels included, so a roomier window would eat taps meant for
  * the app underneath.
  *
- * The menu is the spec's 176×64 capsule: two live slots (voice, text) and the
- * third one empty, reserved for the screen button of its own card. Filling it
- * now would mean moving both buttons later.
+ * The menu is the spec's 176×64 capsule: three 48 dp actions — voice, text
+ * and the screen. The screen button is last on purpose: it is the only one
+ * that raises a system dialog, and a stray tap near the edge of the capsule
+ * should not start a screen capture.
  */
 @Composable
 fun PotsikCloudCapsule(
     state: PotsikCloudState,
     voiceAvailable: Boolean,
+    /** The frame the screen mode is holding, if any: the pill draws its thumbnail. */
+    shot: PotsikShotUi?,
     onVoice: () -> Unit,
     onText: () -> Unit,
+    onScreen: () -> Unit,
     onPillTap: () -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
+    onRemoveShot: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(POTSIK_CLOUD_RADIUS_DP.dp)
@@ -130,13 +151,16 @@ fun PotsikCloudCapsule(
                     voiceAvailable = voiceAvailable,
                     onVoice = onVoice,
                     onText = onText,
+                    onScreen = onScreen,
                 )
 
                 else -> PotsikCloudPill(
                     state = state,
+                    shot = shot,
                     onPillTap = onPillTap,
                     onCancel = onCancel,
                     onRetry = onRetry,
+                    onRemoveShot = onRemoveShot,
                 )
             }
         }
@@ -154,6 +178,7 @@ private fun PotsikCloudMenu(
     voiceAvailable: Boolean,
     onVoice: () -> Unit,
     onText: () -> Unit,
+    onScreen: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -163,8 +188,9 @@ private fun PotsikCloudMenu(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CloudActionButton(
-            // A dead voice button says why in the third slot instead of
-            // failing at the tap; the layout does not change either way.
+            // A dead voice button says why to TalkBack instead of failing at
+            // the tap: the explanation that used to sit in the empty third
+            // slot lives in its contentDescription now that «Экран» owns it.
             enabled = voiceAvailable,
             icon = { tint ->
                 Icon(
@@ -188,22 +214,17 @@ private fun PotsikCloudMenu(
             },
             onClick = onText,
         )
-        Box(
-            modifier = Modifier
-                .width(POTSIK_CLOUD_BUTTON_DP.dp)
-                .height(POTSIK_CLOUD_BUTTON_DP.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (!voiceAvailable) {
-                Text(
-                    text = stringResource(Res.string.potsik_cloud_no_recognizer),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
+        CloudActionButton(
+            enabled = true,
+            icon = { tint ->
+                Icon(
+                    imageVector = vectorResource(Res.drawable.ic_screen_ask),
+                    contentDescription = stringResource(Res.string.potsik_cloud_screen),
+                    tint = tint,
                 )
-            }
-        }
+            },
+            onClick = onScreen,
+        )
     }
 }
 
@@ -236,22 +257,30 @@ private fun CloudActionButton(
 }
 
 /**
- * The state pill: listening, thinking, speaking, or the reason it stopped.
+ * The state pill: listening, thinking, speaking, the reason it stopped, the
+ * wait for the consent dialog, or the frame the screen mode took.
  *
  * A tap on it is the barge-in while he is talking — the speech stops first and
- * the microphone opens after, which is the order the whole app uses.
+ * the microphone opens after, which is the order the whole app uses. On the
+ * shot pill the same tap opens the question about the frame.
  */
 @Composable
 private fun PotsikCloudPill(
     state: PotsikCloudState,
+    shot: PotsikShotUi?,
     onPillTap: () -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
+    onRemoveShot: () -> Unit,
 ) {
     val content = if (state.phase == PotsikCloudPhase.Error) {
         MaterialTheme.colorScheme.onErrorContainer
     } else {
         MaterialTheme.colorScheme.onSurface
+    }
+    if (state.phase == PotsikCloudPhase.Shot) {
+        PotsikCloudShotRow(shot = shot, content = content, onTap = onPillTap, onRemove = onRemoveShot)
+        return
     }
     Row(
         modifier = Modifier
@@ -315,8 +344,78 @@ private fun PotsikCloudPill(
                 onClick = onCancel,
             )
 
+            // Waiting for the consent dialog: the system dialog is modal and
+            // owns the screen, so the pill carries the words and no buttons.
             else -> Unit
         }
+    }
+}
+
+/**
+ * The shot pill: the thumbnail, its size, and [×].
+ *
+ * A tap anywhere but [×] opens the question about the frame — the field is the
+ * next step of the flow, and the pill is the only thing to tap for it.
+ */
+@Composable
+private fun PotsikCloudShotRow(
+    shot: PotsikShotUi?,
+    content: Color,
+    onTap: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(onClick = onTap)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        PotsikCloudThumbnail(shot = shot, side = POTSIK_CLOUD_THUMBNAIL_DP.dp)
+        Text(
+            text = shot?.let { stringResource(Res.string.potsik_cloud_screenshot_caption, it.label) }.orEmpty(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = content,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        PillButton(
+            icon = {
+                Icon(
+                    imageVector = vectorResource(Res.drawable.ic_close),
+                    contentDescription = stringResource(Res.string.potsik_cloud_screen_remove),
+                    tint = content,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
+            onClick = onRemove,
+        )
+    }
+}
+
+/** The frame itself, clipped to the Pots corner radius; a grey square if it could not be decoded. */
+@Composable
+private fun PotsikCloudThumbnail(shot: PotsikShotUi?, side: Dp) {
+    val shape = RoundedCornerShape(POTSIK_CLOUD_THUMBNAIL_RADIUS_DP.dp)
+    val placeholder = MaterialTheme.colorScheme.surfaceVariant
+    if (shot?.preview != null) {
+        Image(
+            bitmap = shot.preview,
+            contentDescription = stringResource(Res.string.potsik_cloud_screenshot_caption, shot.label),
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(side)
+                .clip(shape),
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .size(side)
+                .clip(shape)
+                .background(placeholder),
+        )
     }
 }
 
@@ -325,6 +424,50 @@ private fun PillButton(icon: @Composable () -> Unit, onClick: () -> Unit) {
     IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) { icon() }
 }
 
+/**
+ * The three hints above the field of Flow 3: «Что здесь?» · «Переведи» ·
+ * «Что не так?».
+ *
+ * A chip fills the draft instead of sending at once: the question is the
+ * user's, and a chip that sends on its own would take the decision to ask away
+ * from the field that exists for it. The row scrolls sideways so three chips
+ * never push the field off a narrow screen.
+ */
+@Composable
+private fun PotsikCloudChips(onDraftChange: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (hint in POTSIK_CLOUD_SCREEN_HINTS) {
+            val text = stringResource(hint)
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onDraftChange(text) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** The chips' order is the spec's: what, translate, what is wrong. */
+private val POTSIK_CLOUD_SCREEN_HINTS = listOf(
+    Res.string.potsik_cloud_chip_what,
+    Res.string.potsik_cloud_chip_translate,
+    Res.string.potsik_cloud_chip_wrong,
+)
+
 /** What the pill says, in the language the app is set to. */
 @Composable
 private fun potsikCloudPillText(state: PotsikCloudState): String = when (state.phase) {
@@ -332,6 +475,7 @@ private fun potsikCloudPillText(state: PotsikCloudState): String = when (state.p
     PotsikCloudPhase.Thinking -> stringResource(Res.string.potsik_cloud_thinking)
     PotsikCloudPhase.Speaking -> state.reply
     PotsikCloudPhase.Error -> stringResource(potsikCloudTroubleText(state.trouble))
+    PotsikCloudPhase.AwaitingConsent -> stringResource(Res.string.potsik_cloud_screen_waiting)
     else -> ""
 }
 
@@ -345,6 +489,9 @@ fun potsikCloudTroubleText(trouble: PotsikCloudTrouble?): StringResource = when 
     PotsikCloudTrouble.ScreenOff -> Res.string.potsik_cloud_screen_off
     PotsikCloudTrouble.MicBusy -> Res.string.potsik_cloud_mic_busy
     PotsikCloudTrouble.NoChat -> Res.string.potsik_cloud_no_chat
+    PotsikCloudTrouble.ScreenConsentDenied -> Res.string.potsik_cloud_screen_denied
+    PotsikCloudTrouble.ScreenConsentRevoked -> Res.string.potsik_cloud_screen_revoked
+    PotsikCloudTrouble.ScreenCaptureFailed -> Res.string.potsik_cloud_screen_failed
 }
 
 /** The tail under the capsule, pointing at his head. */
@@ -461,9 +608,12 @@ private fun PotsikCloudDots(color: Color) {
 fun PotsikCloudInputPanel(
     state: PotsikCloudState,
     draft: String,
+    /** The frame the question is about, if the field was opened from the screen mode. */
+    shot: PotsikShotUi?,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onRetry: () -> Unit,
+    onRemoveShot: () -> Unit,
     onSpeak: (() -> Unit)?,
     onOpenInChat: () -> Unit,
     onClose: () -> Unit,
@@ -579,35 +729,74 @@ fun PotsikCloudInputPanel(
                         }
                     }
 
-                    else -> Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        OutlinedTextField(
-                            value = draft,
-                            onValueChange = onDraftChange,
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(focusRequester),
-                            placeholder = { Text(stringResource(Res.string.potsik_cloud_input_placeholder)) },
-                            maxLines = 4,
-                            shape = RoundedCornerShape(16.dp),
-                        )
-                        IconButton(
-                            onClick = { if (potsikCloudSendEnabled(draft)) onSend() },
-                            enabled = potsikCloudSendEnabled(draft),
-                            modifier = Modifier.size(POTSIK_CLOUD_BUTTON_DP.dp),
+                    else -> Column {
+                        if (shot != null) {
+                            // What will be sent, above the question about it: the
+                            // picture is what the chips and the field are for.
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                PotsikCloudThumbnail(shot = shot, side = 40.dp)
+                                Text(
+                                    text = stringResource(Res.string.potsik_cloud_screenshot_caption, shot.label),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(onClick = onRemoveShot, modifier = Modifier.size(40.dp)) {
+                                    Icon(
+                                        imageVector = vectorResource(Res.drawable.ic_close),
+                                        contentDescription = stringResource(Res.string.potsik_cloud_screen_remove),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            PotsikCloudChips(onDraftChange)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Icon(
-                                imageVector = vectorResource(Res.drawable.ic_send),
-                                contentDescription = stringResource(Res.string.potsik_cloud_send),
-                                tint = if (potsikCloudSendEnabled(draft)) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            OutlinedTextField(
+                                value = draft,
+                                onValueChange = onDraftChange,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(focusRequester),
+                                placeholder = {
+                                    Text(
+                                        stringResource(
+                                            if (shot != null) {
+                                                Res.string.potsik_cloud_screen_placeholder
+                                            } else {
+                                                Res.string.potsik_cloud_input_placeholder
+                                            },
+                                        ),
+                                    )
                                 },
+                                maxLines = 4,
+                                shape = RoundedCornerShape(16.dp),
                             )
+                            IconButton(
+                                onClick = { if (potsikCloudSendEnabled(draft)) onSend() },
+                                enabled = potsikCloudSendEnabled(draft),
+                                modifier = Modifier.size(POTSIK_CLOUD_BUTTON_DP.dp),
+                            ) {
+                                Icon(
+                                    imageVector = vectorResource(Res.drawable.ic_send),
+                                    contentDescription = stringResource(Res.string.potsik_cloud_send),
+                                    tint = if (potsikCloudSendEnabled(draft)) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                    },
+                                )
+                            }
                         }
                     }
                 }
