@@ -861,5 +861,4 @@
     <string name="potsik_cloud_open_in_chat">Open in chat</string>
     <string name="potsik_cloud_speak_aloud">Read aloud</string>
     <string name="potsik_cloud_mic_busy">Stop the voice mode first</string>
-    <string name="potsik_cloud_unsent">Not sent</string>
 </resources>

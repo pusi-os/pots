@@ -862,5 +862,4 @@
     <string name="potsik_cloud_open_in_chat">Открыть в чате</string>
     <string name="potsik_cloud_speak_aloud">Озвучить</string>
     <string name="potsik_cloud_mic_busy">Сначала остановите голосовой режим</string>
-    <string name="potsik_cloud_unsent">Не отправлено</string>
 </resources>
