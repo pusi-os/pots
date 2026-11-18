@@ -9,7 +9,14 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private const val MAX_OUTPUT_LENGTH = 15_000
 private const val DEFAULT_TIMEOUT_SECONDS = 30L
-private const val MAX_TIMEOUT_SECONDS = 180L
+
+/**
+ * Ceiling on a single command, not a policy: each caller picks its own timeout and
+ * this only stops a nonsensical one. It has to cover the longest legitimate run —
+ * a coding agent answering a task, and a package install — or that caller's own
+ * timeout would be silently cut to this one.
+ */
+private const val MAX_TIMEOUT_SECONDS = 900L
 
 /**
  * The chat sandbox's view of a rootfs: line-oriented output over pipes, and

@@ -202,6 +202,7 @@ actual fun getPlatformToolDefinitions(): List<ToolInfo> = CommonTools.commonTool
         ListDownloadsTool.toolInfo,
         OpenFileTool.toolInfo,
         ShellCommandTool.toolInfo,
+        AskSandboxAgentTool.toolInfo,
         ProcessManagerTool.toolInfo,
         SshConfigureHostTool.toolInfo,
     )
@@ -313,6 +314,9 @@ actual fun getAvailableTools(): List<Tool> {
                     add(ImportPhotoTool.create(context, sandboxManager, photoPermissionController))
                 }
                 add(ShellCommandTool)
+                // The same gate as the shell it hands work to: the agents live in the
+                // same rootfs, and there is nothing to ask without one.
+                add(AskSandboxAgentTool)
                 add(ProcessManagerTool)
                 add(SshConfigureHostTool)
             }

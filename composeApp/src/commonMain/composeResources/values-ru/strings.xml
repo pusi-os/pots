@@ -208,6 +208,8 @@
     <string name="tool_open_file_description">Открыть файлы песочницы в стандартном приложении Android</string>
     <string name="tool_execute_shell_command_name">Выполнить команду</string>
     <string name="tool_execute_shell_command_description">Выполнить команду оболочки в песочнице Linux</string>
+    <string name="tool_ask_sandbox_agent_name">Поручить агенту песочницы</string>
+    <string name="tool_ask_sandbox_agent_description">Передать задачу OpenCode, Pi или Hermes в песочнице Linux</string>
     <string name="settings_dynamic_ui">Динамический интерфейс</string>
     <string name="settings_dynamic_ui_description">Разрешить ИИ создавать интерактивные элементы интерфейса, такие как кнопки, формы и карточки в ответах. Изменение применяется к новым разговорам.</string>
     <string name="settings_memories">Воспоминания</string>
