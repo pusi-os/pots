@@ -33,6 +33,8 @@ import com.pusios.pots.ui.sandbox.sandboxStatusText
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_open
+import pots.composeapp.generated.resources.settings_sandbox_agent_version_unknown
+import pots.composeapp.generated.resources.settings_sandbox_agents_title
 import pots.composeapp.generated.resources.settings_sandbox_cancel
 import pots.composeapp.generated.resources.settings_sandbox_description
 import pots.composeapp.generated.resources.settings_sandbox_disk_usage
@@ -117,6 +119,37 @@ internal fun SandboxSettingsCard(
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = onOpenPotsBuild, modifier = Modifier.handCursor()) {
                 Text(stringResource(Res.string.pots_build_open))
+            }
+        }
+
+        // Which agents are in this sandbox, and the version each one reported for
+        // itself. The version is whatever its own `--version` printed — when that
+        // is nothing usable, the card says so instead of guessing.
+        if (sandboxState.agents.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = stringResource(Res.string.settings_sandbox_agents_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            sandboxState.agents.forEach { agent ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = CenterVertically,
+                ) {
+                    Text(
+                        text = agent.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = agent.version
+                            ?: stringResource(Res.string.settings_sandbox_agent_version_unknown),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 

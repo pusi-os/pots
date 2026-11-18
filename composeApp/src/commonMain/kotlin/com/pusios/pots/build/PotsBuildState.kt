@@ -3,8 +3,10 @@ package com.pusios.pots.build
 import androidx.compose.runtime.Immutable
 import com.pusios.pots.build.terminal.TerminalSnapshot
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 
 /** Ordered steps of a Pots Build install, shown as progress on the setup screen. */
@@ -64,6 +66,12 @@ data class BuildSystemInfo(
 data class PotsBuildState(
     val environment: BuildEnvironmentState = BuildEnvironmentState.NotInstalled,
     val installedAgents: ImmutableSet<String> = persistentSetOf(),
+    /**
+     * What each installed agent's own `--version` reported, keyed by agent id.
+     * Only determined versions are here — an agent whose probe printed nothing
+     * usable has no entry, and the UI says so rather than inventing one.
+     */
+    val agentVersions: ImmutableMap<String, String> = persistentMapOf(),
     /** Folder names under the Linux home's `projects` directory. */
     val projects: ImmutableList<String> = persistentListOf(),
     /** Live shells, oldest first. Sessions of every open project, not just the visible one. */

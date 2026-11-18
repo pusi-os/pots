@@ -2,6 +2,7 @@ package com.pusios.pots.build.runtime
 
 import android.os.StatFs
 import android.util.Log
+import com.pusios.pots.build.AgentVersion
 import com.pusios.pots.build.BuildAgent
 import com.pusios.pots.build.BuildAgents
 import com.pusios.pots.build.BuildEnvironmentState
@@ -28,8 +29,10 @@ import com.pusios.pots.linux.LinuxPaths
 import com.pusios.pots.linux.ProotHandle
 import com.pusios.pots.linux.ProotLauncher
 import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -606,26 +609,45 @@ class BuildEnvironmentManager(
                 "/root/.pi/agent /usr/local/bin",
             timeoutSeconds = 30,
         )
-        val result = executor.execute(agent.installCommand, timeoutSeconds = 900)
+        val result = executor.execute(agent.installCommand, timeoutSeconds = agent.installTimeoutSeconds)
         // Vendor scripts may leave the binary only in their private dir and only
         // update shell rc files — which Pots Build never sources. Link into PATH
-        // and re-probe so a successful download still counts as installed.
-        val installed = executor.ensureAgentBinary(agent.binary)
+        // and re-probe so a successful download still counts as installed. The
+        // probe's output is the agent's own `--version`, which is the only place
+        // the version the Settings card shows may come from.
+        val probe = executor.ensureAgentBinary(agent.binary)
+        val installed = probe != null
         if (!installed) {
             Log.w(TAG, "${agent.id} install failed (exit detail): ${result.failureDetail()}")
-            val probe = executor.execute(
+            val probeOutput = executor.execute(
                 "command -v ${agent.binary} 2>/dev/null; " +
                     "ls -la /root/.local/bin /root/.local/share/pi-node/bin /usr/local/bin 2>/dev/null; " +
-                    "ls -la /root/.hermes/venv/bin 2>/dev/null | tail -5; " +
+                    "ls -la /root/.hermes/hermes-agent/.hermes/bin 2>/dev/null | tail -5; " +
                     "ls -la /root/.pi 2>/dev/null",
                 timeoutSeconds = 30,
             )
-            Log.w(TAG, "${agent.id} post-install probe: ${probe.stdout} ${probe.stderr}")
+            Log.w(TAG, "${agent.id} post-install probe: ${probeOutput.stdout} ${probeOutput.stderr}")
         }
         // The agent is only worth having if it can answer on the provider the app
         // is already using, so the config lands with the install, not on first run.
-        if (installed) applyAgentConfig(agent.id)
+        if (installed) {
+            applyAgentConfig(agent.id)
+            setAgentVersion(agent.id, AgentVersion.parse(probe))
+        }
         installed
+    }
+
+    /** Records what [agentId]'s own `--version` said; a null [version] clears the entry. */
+    private fun setAgentVersion(agentId: String, version: String?) {
+        _state.update {
+            it.copy(
+                agentVersions = if (version == null) {
+                    it.agentVersions.remove(agentId)
+                } else {
+                    it.agentVersions.put(agentId, version)
+                },
+            )
+        }
     }
 
     /** The installer already removes a rootfs it could not finish; this reports it. */
@@ -893,6 +915,9 @@ class BuildEnvironmentManager(
             it.copy(
                 environment = if (ready) BuildEnvironmentState.Ready else BuildEnvironmentState.NotInstalled,
                 installedAgents = if (ready) guessAgents() else persistentSetOf(),
+                // Versions survive the file-stat pass and are replaced by the real
+                // probe below; an uninstalled system has none to keep.
+                agentVersions = if (ready) it.agentVersions else persistentMapOf(),
                 projects = scanProjects(),
                 // Keep the card's numbers up while they are re-measured; an
                 // uninstalled system has none to keep.
@@ -902,7 +927,14 @@ class BuildEnvironmentManager(
         }
         if (!ready) return
         val agents = detectAgents()
-        _state.update { it.copy(installedAgents = agents) }
+        _state.update {
+            it.copy(
+                installedAgents = agents.keys.toImmutableSet(),
+                agentVersions = agents.mapNotNull { (id, output) ->
+                    AgentVersion.parse(output)?.let { version -> id to version }
+                }.toMap().toImmutableMap(),
+            )
+        }
         val info = readSystemInfo()
         _state.update { it.copy(systemInfo = info) }
     }
@@ -955,13 +987,14 @@ class BuildEnvironmentManager(
         }
     }
 
-    private fun detectAgents(): ImmutableSet<String> {
+    private fun detectAgents(): Map<String, String> {
         ensureAgentPathProfile()
         val executor = executor()
-        return BuildAgents.all
-            .filter { executor.ensureAgentBinary(it.binary) }
-            .map { it.id }
-            .toImmutableSet()
+        // One probe per agent answers both questions at once: the binary runs, and
+        // its own `--version` line is what the Settings card reports.
+        return BuildAgents.all.mapNotNull { agent ->
+            executor.ensureAgentBinary(agent.binary)?.let { agent.id to it }
+        }.toMap()
     }
 
     private fun scanProjects() = paths.projectsDir.listFiles()
@@ -1021,20 +1054,24 @@ private fun BuildProotExecutor.hasBinary(binary: String): Boolean =
     execute("command -v $binary >/dev/null 2>&1", timeoutSeconds = 20).success
 
 /**
- * True when [binary] is reachable **and answers**. Always tries to place a stable
- * symlink in `/root/.local/bin` (even when already on the probe PATH) so login
- * shells that only keep a subset of dirs still find every agent by name.
+ * What [binary]'s own `--version` printed, or null when the binary is missing or
+ * does not answer. Always tries to place a stable symlink in `/root/.local/bin`
+ * (even when already on the probe PATH) so login shells that only keep a subset
+ * of dirs still find every agent by name.
  *
  * Known layouts:
- * - Pi: `~/.local/bin/pi` (npm `--prefix /root/.local`), Node runtime in `~/.local/share/pi-node/bin`
- * - Hermes: `~/.hermes/venv/bin/hermes`, already linked into `~/.local/bin`
+ * - Pi: `~/.local/bin/pi` → the managed install's `~/.pi/agent/bin/pi`, Node runtime in `~/.local/share/pi-node/bin`
+ * - Hermes: `~/.hermes/hermes-agent/.hermes/bin/hermes`, linked into `~/.local/bin`
  *
  * Reachable is not installed: a migrated home can carry Pi's npm payload and its
  * `.local/bin/pi` shim without the Node runtime it needs, and the shim then dies
  * on `#!/usr/bin/env node`. So the probe runs the binary — `--version` costs about
  * a second and only happens on install and environment refresh, never per session.
+ *
+ * The output is returned rather than discarded because it is also the version:
+ * nothing else in the app may claim to know which release is installed.
  */
-private fun BuildProotExecutor.ensureAgentBinary(binary: String): Boolean {
+private fun BuildProotExecutor.ensureAgentBinary(binary: String): String? {
     // Safe: [binary] is a fixed catalog name (pi/hermes), not user input.
     execute(
         """
@@ -1047,7 +1084,7 @@ private fun BuildProotExecutor.ensureAgentBinary(binary: String): Boolean {
             exit 0
         fi
         for candidate in \
-            "/root/.hermes/venv/bin/${'$'}bin" \
+            "/root/.hermes/hermes-agent/.hermes/bin/${'$'}bin" \
             "/root/.local/share/pi-node/bin/${'$'}bin" \
             "/usr/local/bin/${'$'}bin"
         do
@@ -1060,8 +1097,8 @@ private fun BuildProotExecutor.ensureAgentBinary(binary: String): Boolean {
         """.trimIndent(),
         timeoutSeconds = 30,
     )
-    if (!hasBinary(binary)) return false
-    return execute("$binary --version >/dev/null 2>&1", timeoutSeconds = 60).success
+    if (!hasBinary(binary)) return null
+    return execute("$binary --version 2>&1", timeoutSeconds = 60).takeIf { it.success }?.stdout
 }
 
 /**

@@ -9,8 +9,8 @@ import kotlinx.collections.immutable.persistentListOf
  * self-contained installer, so the base system plus curl is all they need.
  *
  * Install locations (guest paths under `/root`):
- * - Pi → `~/.local/bin/pi`, on a Node.js runtime unpacked to `~/.local/share/pi-node`
- * - Hermes → `~/.hermes/venv/bin/hermes`, linked into `~/.local/bin/hermes`
+ * - Pi → `~/.local/bin/pi`, a link into the managed install at `~/.pi/agent`
+ * - Hermes → `~/.hermes/hermes-agent/.hermes/bin/hermes`, linked into `~/.local/bin/hermes`
  *
  * Proot injects both bin dirs into PATH for probes/installers. Login shells
  * rebuild PATH from profile files, so Pots Build also writes a profile.d snippet
@@ -26,6 +26,12 @@ data class BuildAgent(
     val title: String,
     val binary: String,
     val installCommand: String,
+    /**
+     * How long [installCommand] may run. Pi downloads one pinned release; Hermes
+     * builds a Python tree and its command on the device itself, which on a phone
+     * takes many times longer than a download.
+     */
+    val installTimeoutSeconds: Long = 900,
 )
 
 object BuildAgents {
@@ -38,6 +44,13 @@ object BuildAgents {
      * Pi needs 22.19+ and Debian bookworm's nodejs is 18. The version is resolved
      * from nodejs.org's own index for the running architecture, so this works on
      * every phone Debian runs on (arm64, armhf, x86).
+     *
+     * Then Pi's own installer, not npm: it resolves one pinned release with its
+     * lock file and lays it down under `~/.pi/agent`, which is also what `pi
+     * update` maintains. npm would pick up transitive ranges instead — Pi's own
+     * README says so. Node has to be in place first, because the installer only
+     * fetches Node itself when there is a terminal to ask on, and a sandbox
+     * install has none.
      */
     private const val PI_INSTALL = """
         set -e
@@ -55,26 +68,34 @@ object BuildAgents {
         curl -fsSL "${'$'}node_dist/${'$'}node_file" -o /tmp/pots-node.tar.gz
         tar -xzf /tmp/pots-node.tar.gz -C /root/.local/share/pi-node --strip-components=1
         rm -f /tmp/pots-node.tar.gz
-        export PATH="/root/.local/share/pi-node/bin:${'$'}PATH"
-        npm install -g --ignore-scripts --no-fund --no-audit --prefix /root/.local \
-          @earendil-works/pi-coding-agent
+        export PATH="/root/.local/share/pi-node/bin:/root/.local/bin:${'$'}PATH"
+        # stdin closed: the installer's own prompts (start Pi now?, install Node?)
+        # must not wait for an answer nobody is there to give.
+        curl -fsSL https://pi.dev/install.sh -o /tmp/pots-pi-install.sh
+        sh /tmp/pots-pi-install.sh < /dev/null
+        rm -f /tmp/pots-pi-install.sh
     """
 
     /**
-     * Hermes comes from PyPI into its own venv: the wheel declares Python
-     * 3.11–3.13, which is what bookworm ships, and a venv keeps its dependency
-     * tree (it pins `openai`, `httpx` and friends) away from the system one.
+     * Hermes from its own repository, through the installer its developers ship:
+     * the checkout carries `scripts/install.sh`, which pins uv and Python, then
+     * builds the `hermes` command into `~/.hermes/hermes-agent/.hermes/bin`.
+     * PyPI is not an option — its only release is an old build without `webapp`.
+     *
+     * The clone is the only part done here: the installer is idempotent and
+     * updates an existing checkout itself, so a rerun is safe.
      */
     private const val HERMES_INSTALL = """
         set -e
         export DEBIAN_FRONTEND=noninteractive
-        apt-get update -qq || true
-        apt-get install -y --no-install-recommends python3-venv python3-pip
-        python3 -m venv /root/.hermes/venv
-        /root/.hermes/venv/bin/pip install --no-cache-dir --upgrade pip
-        /root/.hermes/venv/bin/pip install --no-cache-dir hermes-agent
-        mkdir -p /root/.local/bin
-        ln -sfn /root/.hermes/venv/bin/hermes /root/.local/bin/hermes
+        mkdir -p /root/.hermes /root/.local/bin
+        if [ ! -d /root/.hermes/hermes-agent/.git ]; then
+          git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /root/.hermes/hermes-agent
+        fi
+        bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use
+        # The installer publishes the command for login shells; link it into the
+        # bin dir Pots Build's own PATH carries so probes find it by name.
+        ln -sfn /root/.hermes/hermes-agent/.hermes/bin/hermes /root/.local/bin/hermes
     """
 
     val all: ImmutableList<BuildAgent> = persistentListOf(
@@ -89,6 +110,9 @@ object BuildAgents {
             title = "Hermes",
             binary = "hermes",
             installCommand = HERMES_INSTALL.trimIndent(),
+            // Its installer resolves uv and Python, installs the dependency tree
+            // and builds the command — none of it is a download.
+            installTimeoutSeconds = 2700,
         ),
     )
 
