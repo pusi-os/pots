@@ -62,17 +62,22 @@ object SandboxAgentConfig {
         "HERMES_CUSTOM_" + providerId.uppercase().map { if (it.isLetterOrDigit()) it else '_' }.joinToString("") + "_API_KEY"
 
     /**
-     * The key as Pi's `models.json` can hold it. Pi reads a leading `$` or `!` as
-     * an env reference or a command to run — inside a string — so a key that
-     * happens to start with one is written with Pi's own escape (`$$`, `$!`) and
-     * stays a literal. An empty key becomes [PLACEHOLDER_API_KEY], because Pi
-     * rejects the file rather than the provider on a blank value.
+     * The key as Pi's `models.json` can hold it. Pi interpolates `$` anywhere in
+     * the value, not just at the start: an unset name resolves to nothing, which
+     * leaves the provider unconfigured, and a set one (`$HOME`) silently
+     * substitutes the sandbox's own variable, so the key travels corrupted with
+     * nothing in the file to show it. Every `$` is therefore doubled. A leading
+     * `!` is a command to run and gets Pi's `$!` prefix, prepended after the
+     * doubling so the prefix itself survives as an escape. An empty key becomes
+     * [PLACEHOLDER_API_KEY], because Pi rejects the file rather than the
+     * provider on a blank value.
      */
     fun piApiKey(apiKey: String): String = when {
         apiKey.isBlank() -> PLACEHOLDER_API_KEY
-        apiKey.startsWith("$") -> "$" + apiKey
-        apiKey.startsWith("!") -> "$!" + apiKey.drop(1)
-        else -> apiKey
+        // The `$!` prefix goes on last: doubling first would turn it into `$$!`,
+        // which Pi reads as a literal `$` followed by the key's own `!`.
+        apiKey.startsWith("!") -> "$!" + apiKey.drop(1).replace("$", "$$")
+        else -> apiKey.replace("$", "$$")
     }
 
     /**

@@ -124,6 +124,27 @@ class SandboxAgentConfigTest {
     }
 
     @Test
+    fun `a dollar anywhere in a key is written literally`() {
+        // Pi interpolates `$` in any position, not only at the start: an unset
+        // name resolves to nothing (the provider disappears) and a set one such
+        // as `$HOME` silently substitutes the sandbox's own variable, so the key
+        // reaches the endpoint corrupted with nothing in the file to show it.
+        assertEquals("sk-mid\$\$X", SandboxAgentConfig.piApiKey("sk-mid\$X"))
+        assertEquals("sk-\$\$HOME-tail", SandboxAgentConfig.piApiKey("sk-\$HOME-tail"))
+        assertEquals("\$\$ENV_REF", SandboxAgentConfig.piApiKey("\$ENV_REF"))
+        assertEquals("a\$\$b\$\$c", SandboxAgentConfig.piApiKey("a\$b\$c"))
+        // A leading `!` keeps its single-`$` escape, and the rest is still doubled.
+        assertEquals("\$!a\$\$b", SandboxAgentConfig.piApiKey("!a\$b"))
+
+        val midDollar = credentials.copy(apiKey = "sk-mid\$X")
+        val provider = Json.parseToJsonElement(
+            SandboxAgentConfig.filesFor(BuildAgents.PI, midDollar).single { it.path == ".pi/agent/models.json" }.content,
+        ).jsonObject["providers"]!!.jsonObject["plusvibe"]!!.jsonObject
+
+        assertEquals("sk-mid\$\$X", provider["apiKey"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     fun `Pi is pointed at a second provider by rewriting the same two files`() {
         val other = credentials.copy(
             providerId = "openai-compatible",
