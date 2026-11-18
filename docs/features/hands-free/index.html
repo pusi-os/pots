@@ -1350,7 +1350,7 @@
 
 
 <h1 id="hands-free-voice-mode">Hands-Free Voice Mode</h1>
-<p><strong>Last verified:</strong> 2026-11-10</p>
+<p><strong>Last verified:</strong> 2026-11-18</p>
 <p>Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it heard, waits for the agent, speaks the answer and listens again. The user never has to touch the screen for the whole round trip.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="voice-mode">Voice mode</h3>
@@ -1407,6 +1407,7 @@
 <li>A real failure (no recognition service, denied permission) pauses the loop in the <em>Error</em> state; tapping the button resumes it</li>
 <li>Every recognition session carries an id, so a late callback from a session that was already replaced — because the user interrupted, or because a new session started — is ignored and cannot derail the loop</li>
 <li>Leaving the chat screen cancels the recognition session and releases the recognizer</li>
+<li>On Android 10+, the system assist gesture (long-press Home or power) and the Quick Settings tile «Pots» start a fresh chat and turn this loop on. The role cannot be requested in code — Settings → General sends the user to default apps. There is no always-on «hey pots» wake word.</li>
 </ul>
 <h2 id="key-files">Key Files</h2>
 <table>
@@ -1474,12 +1475,24 @@
 <td>Animated voice-mode entry in the empty chat</td>
 </tr>
 <tr>
+<td><code>composeApp/src/commonMain/.../assistant/AssistantAvailability.kt</code></td>
+<td>Whether the assistant role can be held on this device</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/settings/AssistantSettings.kt</code></td>
+<td>Settings card that opens default-apps</td>
+</tr>
+<tr>
+<td><code>androidApp/.../PotsAssistTileService.kt</code></td>
+<td>Quick Settings tile that fires <code>ACTION_ASSIST</code></td>
+</tr>
+<tr>
 <td><code>composeApp/src/commonMain/.../tools/PermissionController.kt</code></td>
 <td>The <code>RECORD_AUDIO</code> runtime permission</td>
 </tr>
 <tr>
 <td><code>androidApp/src/main/AndroidManifest.xml</code></td>
-<td><code>RECORD_AUDIO</code> permission declaration</td>
+<td><code>RECORD_AUDIO</code>, <code>ACTION_ASSIST</code>, QS tile</td>
 </tr>
 </tbody>
 </table>
