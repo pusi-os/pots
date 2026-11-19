@@ -1,6 +1,6 @@
 # Tasks
 
-**Last verified:** 2026-11-03
+**Last verified:** 2026-11-19
 
 Pots's tasks feature enables the AI to schedule one-time or recurring actions for future execution. Tasks are created through AI tools, stored persistently, and executed automatically by a background scheduler that polls on a fixed interval.
 
@@ -40,8 +40,8 @@ A 5-field schedule format (`minute hour day-of-month month day-of-week`) used fo
 
 - Task execution is skipped if the app is currently processing another API call
 - Due tasks run one after another; if a foreground chat request starts mid-cycle, the remaining tasks wait for the next poll
-- Task prompts run through the full tool-calling loop so the AI can use available tools (e.g. send notifications, call MCP servers). They always use the default model selection (first configured remote service, falling back to on-device) — the heartbeat model override does not apply. Tool calls are bound to the heartbeat conversation's session. When the response is non-blank it is appended to the heartbeat conversation (prefixed with the task description as a bold header) and the unread-heartbeat indicator is set, so scheduled output shares the same surface as heartbeat output without polluting the main chat history
-- Results are stored as the task's last result for audit purposes, and each run is added to the task's recent-activity log
+- Task prompts run through the full tool-calling loop so the AI can use available tools (e.g. send notifications, call MCP servers). They run on the instance and model the task was created with, and go to the Pulse **Fallback model** when that instance gives up; a task with no recorded instance uses the default model selection (first configured remote service, then on-device). Tool calls are bound to the heartbeat conversation's session. When the response is non-blank it is appended to the heartbeat conversation (prefixed with the task description as a bold header) and the unread-heartbeat indicator is set, so scheduled output shares the same surface as heartbeat output without polluting the main chat history
+- Results are stored as the task's last result for audit purposes, and each run is added to the task's recent-activity log. A run that switched to the reserve model records that in the same log line — `fell back to <provider / model> after <reason>: <detail> (<instance>)`, worded exactly like the Pulse journal — so the log never hides which model answered; a run that never fell back leaves the line empty
 - The scheduler also handles heartbeat checks, email polling, and (FOSS builds) SMS polling in the same poll loop. Email polling fetches headers in batches of up to 50 per account per poll and buffers them for the next heartbeat to pick up; no AI call runs during email or SMS polling itself
 
 ## Failure Handling
@@ -83,7 +83,7 @@ The scheduled tasks section in settings provides:
 
 - **Feature toggle** — enables or disables the scheduling feature globally; when disabled, no tasks execute and scheduling tools are unavailable to the AI
 - **Task list** — shown only while the toggle is on. The list is live: it follows the task store, so tasks the agent creates in the background appear without reopening the screen, and a deletion disappears the moment it is persisted. Each task shows its description, status (PENDING or COMPLETED), and either a local execution time with UTC offset, a human-readable cron description, or "on every heartbeat"
-- **Tap a task** — opens a details sheet with the trigger, status, schedule (or next run for cron), creation time, consecutive failure count (when non-zero), last result, and a recent-activity log of up to the last 10 runs (timestamp + OK/FAIL + reason). For HEARTBEAT-trigger tasks the activity list is sourced from the heartbeat-wide log instead, since they don't fire on their own schedule
+- **Tap a task** — opens a details sheet with the trigger, status, schedule (or next run for cron), creation time, consecutive failure count (when non-zero), last result, and a recent-activity log of up to the last 10 runs (timestamp + OK/FAIL + reason, or the model fallback on a run that switched). For HEARTBEAT-trigger tasks the activity list is sourced from the heartbeat-wide log instead, since they don't fire on their own schedule
 - **Delete button** — available on all tasks to remove them; deletion is deferred with a snackbar "Undo" option (~4 seconds) before the task is permanently cancelled
 
 ### Cron Description
