@@ -91,9 +91,13 @@ enum class ProviderFailureReason {
     Unknown,
     ;
 
-    /** Whether repeating the same call against the same instance can plausibly help. */
+    /**
+     * Whether repeating the same call against the same instance can plausibly help.
+     * [Unknown] stays retryable on purpose: an unclassified failure used to be retried, and a
+     * spare attempt costs less than silently dropping a retry that would have worked.
+     */
     val isRetryable: Boolean
-        get() = this == Unreachable || this == Timeout || this == RateLimited
+        get() = this == Unreachable || this == Timeout || this == RateLimited || this == Unknown
 }
 
 /** The journal/UI line for a connection failure: `Reason: provider detail`. */
@@ -169,6 +173,9 @@ internal fun Throwable.transportFailureReason(): ProviderFailureReason {
  * Whether a failed call is worth repeating against the same instance. Rejected credentials, a
  * missing model, a malformed request and exhausted credit all fail identically a second later,
  * so they go straight to the fallback instead of burning the retry budget.
+ *
+ * Everything not listed here is retried: this list is the explicit "a repeat cannot help" set,
+ * so an unclassified failure keeps the old behaviour of getting another attempt.
  */
 fun Exception.isRetryableProviderFailure(): Boolean = when (this) {
     // Quota and credit exhaustion look like a rate limit but will not clear on a retry.
@@ -177,6 +184,10 @@ fun Exception.isRetryableProviderFailure(): Boolean = when (this) {
     is NoConfiguredServiceException,
     is ConfiguredInstanceNotFoundException,
     -> false
+
+    // The provider answered with nothing. Classified as BadResponse by shape, but a retry is
+    // exactly what helps here, so it must not join the straight-to-fallback group above.
+    is OpenAICompatibleEmptyResponseException -> true
 
     else -> providerFailureReason().isRetryable
 }

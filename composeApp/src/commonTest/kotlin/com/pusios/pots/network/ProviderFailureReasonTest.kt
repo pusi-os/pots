@@ -99,6 +99,13 @@ class ProviderFailureReasonTest {
             OpenAICompatibleConnectionException(ProviderFailureReason.Timeout),
             OpenAICompatibleConnectionException(ProviderFailureReason.Unreachable),
             OpenAICompatibleRateLimitExceededException(),
+            // Unclassified failures keep the pre-diagnostics behaviour: they were retried before
+            // this fix and a spare attempt costs less than a silently skipped retry.
+            RuntimeException("something else"),
+            OpenAICompatibleGenericException("bad gateway"),
+            OpenAICompatibleConnectionException(ProviderFailureReason.Unknown, "odd"),
+            // An empty answer is classified BadResponse by shape, but a retry is what helps.
+            OpenAICompatibleEmptyResponseException(),
         )
         val notRetried = listOf(
             OpenAICompatibleInvalidApiKeyException(),

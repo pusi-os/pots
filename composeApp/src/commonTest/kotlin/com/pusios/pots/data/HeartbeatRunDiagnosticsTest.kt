@@ -94,6 +94,11 @@ class HeartbeatRunDiagnosticsTest {
         assertEquals(3, harness.repository.askWithToolsCalls.count { it == "pulse-primary" })
         assertEquals("pulse-reserve", harness.repository.askWithToolsCalls.last())
         assertTrue(entry.success)
+        // The whole note, not a substring: an extra word here is a defect, not a nuance.
+        assertEquals(
+            "fell back to OpenAI-Compatible API / llama3 after Unreachable: connection refused (Polza.ai / gpt-4o)",
+            entry.note,
+        )
     }
 
     @Test
@@ -122,10 +127,28 @@ class HeartbeatRunDiagnosticsTest {
         val entry = harness.runHeartbeat(primaryId = "pulse-primary")
 
         assertFalse(entry.success)
-        // One attempt against the pin, and the reserve is never substituted for it.
+        // One attempt against the pin; with no reserve selected nothing else may stand in for it.
         assertEquals(listOf<String?>("pulse-primary"), harness.repository.askWithToolsCalls)
         val error = assertNotNull(entry.error)
         assertTrue(error.contains("configured instance not found: pulse-primary"), "journal does not report the missing instance: $error")
+    }
+
+    @Test
+    fun `a deleted instance with a reserve falls back and still names the missing pin`() = runTest {
+        val harness = Harness(listOf(primary, reserve))
+        harness.repository.askWithToolsFailures = mapOf(
+            "pulse-primary" to ConfiguredInstanceNotFoundException("pulse-primary"),
+        )
+
+        val entry = harness.runHeartbeat(primaryId = "pulse-primary", fallbackId = "pulse-reserve")
+
+        // The reserve is the owner's explicit choice, so it may take over — but the journal
+        // still has to say that the chosen instance was the one that vanished.
+        assertTrue(entry.success)
+        assertEquals(
+            "fell back to OpenAI-Compatible API / llama3 after configured instance not found: pulse-primary",
+            entry.note,
+        )
     }
 
     @Test
@@ -142,7 +165,7 @@ class HeartbeatRunDiagnosticsTest {
     }
 
     @Test
-    fun `the provider detail reaches the journal`() = runTest {
+    fun `the provider detail reaches the journal exactly once`() = runTest {
         val harness = Harness(listOf(primary))
         harness.repository.askWithToolsFailures = mapOf(
             "pulse-primary" to OpenAICompatibleConnectionException(ProviderFailureReason.Unreachable, "connection refused"),
@@ -150,8 +173,27 @@ class HeartbeatRunDiagnosticsTest {
 
         val entry = harness.runHeartbeat(primaryId = "pulse-primary")
 
-        val error = assertNotNull(entry.error)
-        assertTrue(error.contains("Unreachable: connection refused"), "journal dropped the provider's words: $error")
-        assertTrue(error.contains("gpt-4o"), "journal does not name the model that failed: $error")
+        // The reason is already inside the exception's own message; the journal must not add it
+        // a second time, and it must name the model that failed and the setting that is missing.
+        assertEquals(
+            "Unreachable: connection refused (Polza.ai / gpt-4o); no fallback model selected in Settings → Agent → Heartbeat",
+            entry.error,
+        )
+    }
+
+    @Test
+    fun `a reserve equal to the primary is named honestly`() = runTest {
+        val harness = Harness(listOf(primary))
+        harness.repository.askWithToolsFailures = mapOf(
+            "pulse-primary" to OpenAICompatibleInvalidApiKeyException(),
+        )
+
+        val entry = harness.runHeartbeat(primaryId = "pulse-primary", fallbackId = "pulse-primary")
+
+        // A reserve *is* selected — it just cannot take over, so "no fallback model selected" lies.
+        assertEquals(
+            "Unauthorized (Polza.ai / gpt-4o); reserve equals the primary instance",
+            entry.error,
+        )
     }
 }

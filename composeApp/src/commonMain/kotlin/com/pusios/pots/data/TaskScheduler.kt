@@ -68,6 +68,12 @@ class TaskScheduler(
         /** Shown in the journal when the primary fails and no reserve is configured. */
         const val NO_FALLBACK_SUFFIX = "; no fallback model selected in Settings → Agent → Heartbeat"
 
+        /**
+         * Shown when the reserve points at the primary itself. Saying "no fallback selected"
+         * there would be a lie: one is selected, it just cannot take over.
+         */
+        const val RESERVE_EQUALS_PRIMARY_SUFFIX = "; reserve equals the primary instance"
+
         /** Per-task execution log size — surfaced in the task details sheet. */
         const val MAX_TASK_LOG_ENTRIES = 10
 
@@ -233,11 +239,14 @@ class TaskScheduler(
         // Nothing is configured at all: a fallback would fail the same way, and the journal
         // line is already the whole answer — pointing at the fallback setting would mislead.
         val nothingConfigured = primaryFailure is NoConfiguredServiceException
-        val canFallBack = !nothingConfigured &&
-            !fallbackInstanceId.isNullOrBlank() &&
-            fallbackInstanceId != primaryInstanceId
+        val reserveIsSameInstance = !fallbackInstanceId.isNullOrBlank() && fallbackInstanceId == primaryInstanceId
+        val canFallBack = !nothingConfigured && !fallbackInstanceId.isNullOrBlank() && !reserveIsSameInstance
         if (!canFallBack) {
-            val suffix = if (nothingConfigured) "" else NO_FALLBACK_SUFFIX
+            val suffix = when {
+                nothingConfigured -> ""
+                reserveIsSameInstance -> RESERVE_EQUALS_PRIMARY_SUFFIX
+                else -> NO_FALLBACK_SUFFIX
+            }
             throw ProviderRunFailedException(failureLine(primaryFailure, primaryInstanceId) + suffix)
         }
         try {
@@ -260,11 +269,15 @@ class TaskScheduler(
     }
 
     /** Journal line for a failure: `<reason>: <provider detail> (<instance>)`. */
-    private fun failureLine(e: Exception, instanceId: String?): String = if (e is ConfiguredInstanceNotFoundException || e is NoConfiguredServiceException) {
+    private fun failureLine(e: Exception, instanceId: String?): String = when (e) {
+        // Its message is already `<reason>: <detail>`, so prefixing the reason again would
+        // print it twice ("Unreachable: Unreachable: connection refused").
+        is OpenAICompatibleConnectionException -> describeFailure(e.reason, e.detail, instanceLabel(instanceId))
+
         // Already a full sentence about routing; a reason prefix would only add noise.
-        e.message ?: e::class.simpleName.orEmpty()
-    } else {
-        describeFailure(e.providerFailureReason(), e.message, instanceLabel(instanceId))
+        is ConfiguredInstanceNotFoundException, is NoConfiguredServiceException -> e.message ?: e::class.simpleName.orEmpty()
+
+        else -> describeFailure(e.providerFailureReason(), e.message, instanceLabel(instanceId))
     }
 
     /** `Provider / model` for the journal, so the owner knows which model to look at. */

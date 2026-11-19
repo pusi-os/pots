@@ -31,7 +31,7 @@ Heartbeat configuration is stored as a serialized JSON object in app settings. V
 - **Model**: optional override for which service+model to use for heartbeats. When set, the run goes to *that instance and its own selected model* — not to the chat's global model. When not set, the default path prefers the first configured **remote** service, then falls back to the first on-device (LiteRT) instance if no remote is configured. Useful for selecting a cheaper or faster model for background checks
 - **Fallback model**: optional second service+model. Tried once after the primary gives up (see the retry policy below). When unset, or equal to the primary, only the primary is tried
 
-**If the selected instance disappears** (provider removed, instance re-created with a new id, settings imported from another device) the run does **not** substitute another provider: it fails and the journal says `configured instance not found: <id>`. Silently reporting on a model the owner did not choose would be worse than reporting the problem — the owner would be reading the wrong model's behaviour. The slot is cleared the next time the settings screen loads.
+**If the selected instance disappears** (provider removed, instance re-created with a new id, settings imported from another device) the run does **not** silently substitute another provider. With no reserve configured it fails and the journal says `configured instance not found: <id>`; with a reserve configured the run goes through that reserve and records a success whose note says `fell back to <reserve> after configured instance not found: <id>`. Either way the journal names the missing pin, so the owner never reads the behaviour of a model they did not choose without being told. The slot is cleared the next time the settings screen loads.
 
 **Provider classes** — the same path serves all of them: an OpenAI-compatible remote, the on-device LiteRT model, and a keyless endpoint (a local Ollama/LM Studio instance, `requiresApiKey = false`). A keyless instance sends **no** `Authorization` header at all — an empty header reads as a malformed credential to several gateways and would turn a working local setup into a 401.
 
@@ -86,7 +86,8 @@ The failure class decides whether the same instance is tried again. Every failur
 |---|---|---|---|
 | `Unauthorized` | 401, rejected/absent API key | no — goes straight to the fallback | `Unauthorized: 401 Unauthorized (Polza.ai / gpt-4o)` |
 | `ModelNotFound` | 404, the model id is not served by this provider | no | `ModelNotFound: …` |
-| `BadResponse` | 400/413/422, content policy, empty body, unreadable JSON | no | `BadResponse: <provider text>` |
+| `BadResponse` | 400/413/422, content policy, unreadable JSON | no | `BadResponse: <provider text>` |
+| `BadResponse` (empty body) | the provider answered with nothing at all | yes — the one `BadResponse` shape a retry helps | `BadResponse (Polza.ai / gpt-4o)` |
 | `RateLimited` | 429, provider overloaded | yes | `RateLimited: 429 Too Many Requests` |
 | `Timeout` | request or socket timeout, attempt exceeded the budget | yes | `Timeout: no answer within 90s` |
 | `Unreachable` | DNS, refused connection, TLS failure, 5xx from the provider | yes | `Unreachable: connection refused` |
@@ -94,10 +95,13 @@ The failure class decides whether the same instance is tried again. Every failur
 
 Retries stop at three attempts **and** at a 90-second wall-clock budget for the primary instance; a single attempt is bounded by whatever is left of that budget, so a hanging endpoint can no longer own three full request timeouts. Backoff is 2 s, then 4 s. Quota/credit exhaustion (`RateLimited` in shape) is **not** retried — a retry cannot restore the balance.
 
+The reason appears **once** in the line. A connection failure already carries `<reason>: <detail>` inside its own message, so the journal prints `<reason>: <detail> (<provider / model>)` and never `<reason>: <reason>: …`.
+
 When the primary gives up:
 
-- **fallback configured** → one attempt against it. If it answers, the entry is a success with a note: `fell back to OpenAI-compatible / llama3 after Unauthorized: 401 Unauthorized (Polza.ai / gpt-4o)`. If it fails too, the journal carries both lines: `<primary line>; fallback <fallback line>`.
+- **fallback configured** → one attempt against it. If it answers, the entry is a success with a note: `fell back to OpenAI-Compatible API / llama3 after Unauthorized: 401 Unauthorized (Polza.ai / gpt-4o)`. If it fails too, the journal carries both lines: `<primary line>; fallback <fallback line>`.
 - **no fallback configured** → the line ends with `; no fallback model selected in Settings → Agent → Heartbeat`.
+- **fallback set to the primary itself** → the line ends with `; reserve equals the primary instance` — a reserve *is* selected, it just cannot take over, and saying "no fallback selected" there would be a lie.
 - **nothing configured at all** → `no configured service instances` (previously an empty string recorded as a successful run that did nothing).
 
 ## Heartbeat Log
