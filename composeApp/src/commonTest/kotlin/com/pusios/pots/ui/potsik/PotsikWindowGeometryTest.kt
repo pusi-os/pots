@@ -27,13 +27,12 @@ class PotsikWindowGeometryTest {
 
     private fun px(dp: Float): Int = (dp * density).roundToInt()
 
-    private fun geometry(characterDp: Float, screenWidthPx: Int = screenWidth): PotsikWindowGeometry =
-        potsikWindowGeometry(
-            characterPx = px(characterDp),
-            density = density,
-            bubbleRoomDp = DESKTOP_PET_BUBBLE_ROOM_DP,
-            screenWidthPx = screenWidthPx,
-        )
+    private fun geometry(characterDp: Float, screenWidthPx: Int = screenWidth): PotsikWindowGeometry = potsikWindowGeometry(
+        characterPx = px(characterDp),
+        density = density,
+        bubbleRoomDp = DESKTOP_PET_BUBBLE_ROOM_DP,
+        screenWidthPx = screenWidthPx,
+    )
 
     // ---- the size of the window ---------------------------------------------
 

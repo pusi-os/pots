@@ -138,8 +138,7 @@ internal const val POTSIK_BUBBLE_POP_PEAK = 1.12f
  * a negative box; the clamp to [windowWidthPx] keeps a caller's own limit from
  * being widened by this rule.
  */
-internal fun potsikBubbleTextLimit(windowWidthPx: Float, wantedPx: Float): Float =
-    (wantedPx.coerceAtMost(windowWidthPx) / POTSIK_BUBBLE_POP_PEAK - BUBBLE_PADDING * 2f).coerceAtLeast(32f)
+internal fun potsikBubbleTextLimit(windowWidthPx: Float, wantedPx: Float): Float = (wantedPx.coerceAtMost(windowWidthPx) / POTSIK_BUBBLE_POP_PEAK - BUBBLE_PADDING * 2f).coerceAtLeast(32f)
 
 /**
  * The widest the bubble gets in a window [windowWidthPx] wide — text box and
@@ -153,8 +152,7 @@ internal fun potsikBubbleTextLimit(windowWidthPx: Float, wantedPx: Float): Float
  * the bubble that has to fit on the screen, and it is the bubble's half-width
  * that he stops short of the edge by.
  */
-internal fun potsikBubbleWidthFor(windowWidthPx: Float): Float =
-    potsikBubbleTextLimit(windowWidthPx = windowWidthPx, wantedPx = windowWidthPx) + BUBBLE_PADDING * 2f
+internal fun potsikBubbleWidthFor(windowWidthPx: Float): Float = potsikBubbleTextLimit(windowWidthPx = windowWidthPx, wantedPx = windowWidthPx) + BUBBLE_PADDING * 2f
 
 /**
  * The bubble's left edge: its middle on [centreX], but never off the window.
@@ -164,5 +162,4 @@ internal fun potsikBubbleWidthFor(windowWidthPx: Float): Float =
  * against a bubble wider than its window being pinned to the left edge and
  * cut on the right — the shape the owner's bug had.
  */
-internal fun potsikBubbleLeft(windowWidthPx: Float, bubbleWidthPx: Float, centreX: Float): Float =
-    (centreX - bubbleWidthPx / 2f).coerceIn(0f, maxOf(0f, windowWidthPx - bubbleWidthPx))
+internal fun potsikBubbleLeft(windowWidthPx: Float, bubbleWidthPx: Float, centreX: Float): Float = (centreX - bubbleWidthPx / 2f).coerceIn(0f, maxOf(0f, windowWidthPx - bubbleWidthPx))
