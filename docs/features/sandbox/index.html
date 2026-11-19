@@ -1135,6 +1135,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#how-each-panel-signs-a-browser-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How each panel signs a browser in
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#hermes-link-is-one-use" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1726,6 +1737,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#how-each-panel-signs-a-browser-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How each panel signs a browser in
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#hermes-link-is-one-use" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2002,11 +2024,74 @@ shown on request — the row fetches it when the button is tapped, so a panel th
 never started has none to show. It travels in the process environment only: not
 on the command line (so it is not in <code>ps</code>), and not in the panel log. Hermes has
 no panel password — each browser is signed in by a one-use link instead.</p>
+<p>Beside "Show password" the row has <strong>Copy</strong>, which is the way the password
+normally leaves the app: it is fetched on the tap, put on the clipboard and never
+rendered, so it works without revealing it. The clip is marked
+<code>ClipDescription.EXTRA_IS_SENSITIVE</code>, which keeps it out of the system clipboard
+history and replaces its contents in the paste preview (API 33+; older releases
+ignore the flag). The revealed value is wrapped in a <code>SelectionContainer</code> as
+well, so it can be selected by hand — the reason the copy button exists is that
+a 24-character password had to be retyped into a browser window, and a second
+route out costs nothing.</p>
+<h3 id="how-each-panel-signs-a-browser-in">How each panel signs a browser in</h3>
+<p>The three panels do not authenticate alike, and the row is built around that:</p>
+<table>
+<thead>
+<tr>
+<th>Panel</th>
+<th>What guards it</th>
+<th>Password in the URL?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenCode</td>
+<td>HTTP Basic on every request, HTML included</td>
+<td><strong>Yes</strong> — <code>http://opencode:&lt;password&gt;@127.0.0.1:4096/</code> opens already signed in; Chromium strips the userinfo from the address bar and from the history once the page has loaded</td>
+</tr>
+<tr>
+<td>Pi (pi-web)</td>
+<td>HTTP Basic on the API only; the HTML wants a session cookie</td>
+<td><strong>No</strong> — a password there is ignored for the page and left sitting in the address bar for nothing. The link points at <code>/login</code> instead</td>
+</tr>
+<tr>
+<td>Hermes</td>
+<td>nothing — each browser is signed in by a one-use link</td>
+<td><strong>Not applicable</strong> — the link <code>hermes webapp --no-open</code> prints <em>is</em> the sign-in</td>
+</tr>
+</tbody>
+</table>
+<p>The address the row shows (<code>WebPanels.address</code>) therefore stays credential-free:
+it is rendered on screen, screenshotted and read aloud. The link handed to the
+browser is minted on the tap by <code>WebPanelRuntime.link()</code> (<code>WebPanels.url</code>), which
+reads the password and, for OpenCode only, puts it in the userinfo —
+percent-encoded (<code>percentEncode</code>, the RFC 3986 unreserved set) because a raw <code>@</code>,
+<code>:</code> or <code>/</code> would end the userinfo early and the browser would dial a host that
+does not exist, leaving the panel unauthenticated with nothing saying why.</p>
+<p>A password in a URL is what RFC 7230 §2.7.1 tells senders not to generate. It is
+done here deliberately, and only for OpenCode: the panels listen on <code>127.0.0.1</code>,
+which proot makes the phone's own loopback, so nothing on the LAN can see the
+request; the password is generated per panel and used nowhere else; and the
+alternative is retyping 24 characters on a phone keyboard. The two conditions
+that keep it acceptable are that the URL is never logged — <code>openWebPanel</code> logs
+the panel id, not the address, and the panel log never sees it either — and that
+copying the password is always one tap away.</p>
+<p><strong>Why pi-web has no auto-login.</strong> Its HTML is not behind Basic auth at all: it
+serves a form that trades the password for a session cookie lasting 30 days.
+Credentials in the URL never reach that form, so the row says so in as many
+words ("sign in once — the browser remembers it for 30 days") and offers the copy
+button, rather than letting the owner wait for a login that is not coming. The
+form is not filled in for them either: pi-web has a global rate limiter that
+answers 429 and locks the panel for a minute after a failed attempt, so one
+silent try that fails is worse than a visible form that always works.</p>
 <h3 id="hermes-link-is-one-use">Hermes' link is one-use</h3>
 <p><code>hermes webapp --no-open</code> prints either a permanent sign-in address or a private
 link that works once and expires in 60 seconds. Which one it is cannot be known
 in advance, so the button mints a link on every tap and hands it straight to the
-browser — nothing is cached, because a cached link is spent by the first open.</p>
+browser — nothing is cached, because a cached link is spent by the first open.
+The row says so under the address ("signs this browser in once and lives 60
+seconds; if it did not open, tap the address again"), because a spent link and a
+broken panel look the same from the outside: nothing happens.</p>
 <h3 id="provider-and-model">Provider and model</h3>
 <p>There is no second configuration. pi-web reads <code>~/.pi/agent/models.json</code>, which
 <code>SandboxAgentConfig.pi()</code> already writes; OpenCode's web UI is the same binary
@@ -2157,7 +2242,7 @@ ready, and a live pid with a listening port means nothing is started twice.</p>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanels.kt</code></td>
-<td>The three agent web panels as declarations: preferred ports, the one command line each is started with, port choice, the password generator, and the parser for <code>hermes webapp</code>'s output (one-use link vs sign-in address).</td>
+<td>The three agent web panels as declarations: preferred ports, the one command line each is started with, port choice, the password generator, the two URLs each panel has (<code>address</code> for the row, <code>url</code> for the browser — credentials for OpenCode only, <code>percentEncode</code> for the userinfo), and the parser for <code>hermes webapp</code>'s output (one-use link vs sign-in address).</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanelRuntime.kt</code></td>
@@ -2169,7 +2254,7 @@ ready, and a live pid with a listening port means nothing is started twice.</p>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/ui/build/WebPanelsCard.kt</code></td>
-<td>The Pots Build rows: start/stop/retry, the tappable address that opens the device browser, the hidden-by-default password, and the autostart toggle.</td>
+<td>The Pots Build rows: start/stop/retry, the tappable address that opens the device browser, the per-panel sign-in hint, the hidden-by-default password with its copy button and selectable value, and the autostart toggle.</td>
 </tr>
 <tr>
 <td><code>composeApp/src/androidMain/kotlin/com/pusios/pots/SandboxController.android.kt</code></td>
