@@ -2,7 +2,9 @@ package com.pusios.pots.sandbox
 
 import com.pusios.pots.linux.ProotHandle
 import com.pusios.pots.linux.ProotLauncher
+import com.pusios.pots.tools.guestPidCommand
 import java.io.BufferedReader
+import java.io.File
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
@@ -58,19 +60,29 @@ class ProotExecutor(private val launcher: ProotLauncher) {
         extraEnv: Map<String, String> = emptyMap(),
         onStdout: (String) -> Unit,
         onStderr: (String) -> Unit,
-    ): ProotHandle = launcher.startStreaming(
-        command = command,
-        workingDir = workingDir,
-        extraEnv = extraEnv,
-    ) { process, cancelled ->
-        listOf(
-            CompletableFuture.runAsync {
-                streamLines(process.inputStream.bufferedReader(), cancelled, onStdout)
-            },
-            CompletableFuture.runAsync {
-                streamLines(process.errorStream.bufferedReader(), cancelled, onStderr)
-            },
-        )
+    ): ProotHandle {
+        // The guest records its own pid in the bind-mounted /tmp so cancelling the
+        // handle can end the command itself: killing only proot leaves it running
+        // as an orphan, still holding whatever port it opened. One name per
+        // session — several background commands can run at once.
+        val pidName = "pots-bg-${System.nanoTime()}"
+        val pidFile = File(launcher.tmpDir, pidName)
+        runCatching { pidFile.delete() }
+        return launcher.startStreaming(
+            command = guestPidCommand(pidName, command),
+            workingDir = workingDir,
+            extraEnv = extraEnv,
+            guestPidFile = pidFile,
+        ) { process, cancelled ->
+            listOf(
+                CompletableFuture.runAsync {
+                    streamLines(process.inputStream.bufferedReader(), cancelled, onStdout)
+                },
+                CompletableFuture.runAsync {
+                    streamLines(process.errorStream.bufferedReader(), cancelled, onStderr)
+                },
+            )
+        }
     }
 
     private fun streamLines(

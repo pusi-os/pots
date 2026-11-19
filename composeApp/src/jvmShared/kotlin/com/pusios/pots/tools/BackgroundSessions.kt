@@ -6,6 +6,9 @@ import java.util.concurrent.atomic.AtomicInteger
 /** How long a kill waits for the OS to reap the process before admitting it failed. */
 private const val KILL_WAIT_MILLIS = 5_000L
 
+/** How long a kill waits for the monitor to publish the exit code it just caused. */
+private const val EXIT_CODE_WAIT_MILLIS = 300L
+
 /**
  * A background process, as the session table sees it.
  *
@@ -140,7 +143,11 @@ class BackgroundSessionRegistry(
             )
         }
 
-        val exit = session.exitCode ?: -1
+        // The monitor owns the exit code and publishes it right after the death,
+        // so give it a moment: reporting -1 while the log already carries the real
+        // code would be two answers to one question. A killed process has no exit
+        // status of its own, so -1 is the honest answer when none arrives.
+        val exit = awaitExitCode(session)
         session.exitCode = exit
         session.finished = true
         return mapOf(
@@ -168,6 +175,15 @@ class BackgroundSessionRegistry(
     }
 
     private fun unknown(sessionId: String): Map<String, Any> = mapOf("success" to false, "error" to "Unknown session: $sessionId")
+
+    /** Waits briefly for the monitor to publish the real exit code; -1 when it does not. */
+    private fun awaitExitCode(session: BackgroundSession): Int {
+        val deadline = System.currentTimeMillis() + EXIT_CODE_WAIT_MILLIS
+        while (session.exitCode == null && System.currentTimeMillis() < deadline) {
+            runCatching { Thread.sleep(10) }
+        }
+        return session.exitCode ?: -1
+    }
 
     private fun BackgroundSession.toInfo(): Map<String, Any> = mapOf(
         "session_id" to id,

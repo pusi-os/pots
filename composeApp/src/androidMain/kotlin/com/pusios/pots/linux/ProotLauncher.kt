@@ -1,6 +1,9 @@
 package com.pusios.pots.linux
 
 import com.pusios.pots.smartTruncate
+import com.pusios.pots.tools.hostChildren
+import com.pusios.pots.tools.hostProcessAlive
+import com.pusios.pots.tools.killProcessTree
 import java.io.BufferedReader
 import java.io.File
 import java.io.IOException
@@ -56,14 +59,18 @@ class ProotHandle internal constructor(
         Thread(runnable, "pots-proot-write").apply { isDaemon = true }
     }
 
+    /** Guest pid read from [guestPidFile] on cancel — kept so [awaitDeath] can check it. */
+    @Volatile
+    private var guestPid: Int? = null
+
     fun isCancelled(): Boolean = cancelled.get()
 
     fun cancel() {
         cancelled.set(true)
-        // Destroying the proot process alone does not end a PTY session: proot
-        // survives destroyForcibly() here, and its guest children (the bridge and
-        // the shell under it) would outlive it as orphans anyway. Killing the
-        // bridge closes the PTY master, which hangs up the shell and lets proot exit.
+        // Destroying the proot process alone does not end a session: proot can
+        // survive destroyForcibly() here, and its guest children would outlive it
+        // as orphans anyway — still holding whatever port they opened. The guest
+        // wrote its own pid (see guestPidFile), so that whole tree goes first.
         killGuest()
         runCatching { writer.shutdownNow() }
         runCatching { process.inputStream.close() }
@@ -75,7 +82,14 @@ class ProotHandle internal constructor(
     private fun killGuest() {
         val file = guestPidFile ?: return
         val pid = runCatching { file.readText().trim().toIntOrNull() }.getOrNull()
-        if (pid != null && pid > 0) runCatching { android.os.Process.killProcess(pid) }
+        if (pid != null && pid > 0) {
+            guestPid = pid
+            // proot does not namespace pids, so a guest child is a host process:
+            // killing only the recorded pid would leave a background server
+            // holding its port. The recorded pid is the guest shell, so the tree
+            // under it is the command itself.
+            killProcessTree(pid, ::hostChildren) { android.os.Process.killProcess(it) }
+        }
         runCatching { file.delete() }
     }
 
@@ -115,14 +129,23 @@ class ProotHandle internal constructor(
      *
      * Unlike [awaitExit] this does not return early on cancel: a caller that is
      * about to tell the agent "stopped" has to know the process is really gone,
-     * or the port it holds is still taken.
+     * or the port it holds is still taken. proot itself can survive
+     * `destroyForcibly()` (see [cancel]), so a dead guest counts as dead: the
+     * guest is the one holding the port.
      */
     fun awaitDeath(timeoutMillis: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMillis
-        while (process.isAlive && System.currentTimeMillis() < deadline) {
+        while (System.currentTimeMillis() < deadline) {
+            if (isDead()) return true
             runCatching { process.waitFor(50, TimeUnit.MILLISECONDS) }
         }
-        return !process.isAlive
+        return isDead()
+    }
+
+    private fun isDead(): Boolean {
+        if (!process.isAlive) return true
+        val pid = guestPid ?: return false
+        return !hostProcessAlive(pid)
     }
 }
 
@@ -143,6 +166,12 @@ class ProotLauncher(
     /** Overrides and additions on top of the base environment. */
     private val env: Map<String, String> = emptyMap(),
 ) {
+
+    /**
+     * Host directory bind-mounted into the guest as `/tmp` — where a guest writes
+     * a pid file the host can then read.
+     */
+    val tmpDir: String get() = tmpPath
 
     fun start(
         command: String,

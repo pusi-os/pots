@@ -78,6 +78,31 @@ class BackgroundSessionRegistryTest {
     }
 
     @Test
+    fun killReportsTheExitCodeTheMonitorPublished() {
+        val registry = registry()
+        val session = registry.start("sleep 60")
+        session.process = object : BackgroundProcess {
+            override fun terminate() {
+                // The monitor only learns about the death after the kill observed
+                // it, so the code arrives a moment later — the race that used to
+                // surface as a -1 next to a real code in the log.
+                Thread {
+                    Thread.sleep(30)
+                    session.exitCode = 143
+                }.start()
+            }
+
+            override fun awaitDeath(timeoutMillis: Long) = true
+        }
+
+        val result = registry.kill(session.id)
+
+        assertEquals(true, result["success"])
+        assertEquals(143, result["exit_code"], "one question, one answer — not -1 here and 143 in the log")
+        assertEquals(143, registry.log(session.id, 0, 10)["exit_code"])
+    }
+
+    @Test
     fun killWithoutAProcessHandleFailsInsteadOfLying() {
         val registry = registry()
         val session = registry.start("sleep 60")
