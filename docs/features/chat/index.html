@@ -614,6 +614,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#empty-chat-onboarding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Empty Chat &amp; Onboarding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#key-files" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1576,6 +1587,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#empty-chat-onboarding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Empty Chat &amp; Onboarding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#key-files" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1604,7 +1626,7 @@
 
 
 <h1 id="chat-conversations">Chat &amp; Conversations</h1>
-<p><strong>Last verified:</strong> 2026-11-18</p>
+<p><strong>Last verified:</strong> 2026-11-19</p>
 <p>Pots's chat system manages the message history, conversation persistence, file attachments, and speech output. Conversations are service-independent — switching providers does not affect which conversation is loaded or restored. Multiple conversations are persisted and browsable via a history sheet.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="conversation">Conversation</h3>
@@ -1732,6 +1754,15 @@
 <li><strong>Drag-and-drop</strong>: supported for file attachments</li>
 <li><strong>History sheet</strong>: bottom sheet listing saved conversations with title, date, active highlight, and delete</li>
 </ul>
+<h2 id="empty-chat-onboarding">Empty Chat &amp; Onboarding</h2>
+<p>The empty-chat slot shows one of four things, chosen by <code>emptyChatSlot(phase, hasConfiguredService)</code> in <code>ui/chat/OnboardingState.kt</code>:</p>
+<ul>
+<li><strong>Wizard</strong> while the first-launch setup is active (auto-started on first run, or explicitly restarted from Settings → Maintenance). An explicit restart always wins, even when services are already configured</li>
+<li><strong>Farewell card</strong> («пока модель не подключена») only after the wizard was skipped or aborted <strong>and</strong> no service is configured — that is, only when the card is actually true</li>
+<li><strong>Success card</strong> right after the wizard finished</li>
+<li><strong>Plain empty state</strong> (logo, HandsFree, Media) otherwise — including a skipped wizard whose provider was added by hand afterwards: once any configured service exists, nothing onboarding-related is shown and the empty chat looks like it did before onboarding existed</li>
+<li>The onboarding phase itself is never rewritten for cosmetics — it records what the user really did, so a skipped wizard does not re-appear on the next launch</li>
+</ul>
 <h2 id="key-files">Key Files</h2>
 <table>
 <thead>
@@ -1772,6 +1803,10 @@
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/chat/ChatScreen.kt</code></td>
 <td>Chat UI composables, history sheet and heartbeat banner wiring</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/chat/OnboardingState.kt</code></td>
+<td>Onboarding phase/state and the empty-chat slot decision (<code>emptyChatSlot</code>)</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/.../ui/chat/composables/ChatHistorySheet.kt</code></td>
