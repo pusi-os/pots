@@ -62,8 +62,10 @@ privacy is enforced on the data instead: a required query, at most 10 results, o
 **Settings → Tools**, directly above the tool list: title, a one-line explanation, a status dot
 ("Access granted" / "No access to contacts") and an "Allow access" button that shows the system
 prompt. The row re-reads the state on every resume, so granting the permission in system settings
-and coming back updates it. On iOS, desktop and web the row is not rendered at all — those
-platforms have no contact tools.
+and coming back updates it. After a refusal the button turns into "Open settings": Android will not
+show the dialog a second time once the user dismissed it with "don't ask again", and a button that
+silently does nothing would leave the user stuck. On iOS, desktop and web the row is not rendered at
+all — those platforms have no contact tools.
 
 ## Adding a permission
 

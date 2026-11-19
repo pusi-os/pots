@@ -37,8 +37,8 @@ private fun searchByName(context: Context, query: String, limit: Int): List<Cont
     context.contentResolver.query(
         Phone.CONTENT_URI,
         projection,
-        "${Phone.DISPLAY_NAME} LIKE ?",
-        arrayOf("%$query%"),
+        "${Phone.DISPLAY_NAME} LIKE ? ESCAPE '\\'",
+        arrayOf(likePattern(query)),
         "${Phone.DISPLAY_NAME} ASC",
     )?.use { cursor ->
         val idIndex = cursor.getColumnIndexOrThrow(Phone.CONTACT_ID)
@@ -127,9 +127,9 @@ object ContactsSearchTool {
             contactsPermissionBlock(permissionController)?.let { return it }
             return try {
                 val contacts = if (PhoneNumbers.looksLikePhone(query)) {
-                    searchByNumber(context, PhoneNumbers.normalize(query) ?: query, PhoneNumbers.MAX_SEARCH_RESULTS)
+                    searchByNumber(context, PhoneNumbers.normalize(query) ?: query, PhoneNumbers.SEARCH_FETCH_LIMIT)
                 } else {
-                    searchByName(context, query, PhoneNumbers.MAX_SEARCH_RESULTS)
+                    searchByName(context, query, PhoneNumbers.SEARCH_FETCH_LIMIT)
                 }
                 contactsSearchResponse(contacts)
             } catch (_: SecurityException) {
@@ -177,7 +177,7 @@ object ContactCreateTool {
             contactsPermissionBlock(permissionController)?.let { return it }
             return try {
                 val existing = findExistingContact(
-                    searchByNumber(context, phone, PhoneNumbers.MAX_SEARCH_RESULTS),
+                    searchByNumber(context, phone, PhoneNumbers.SEARCH_FETCH_LIMIT),
                     phone,
                 )
                 if (existing != null) {
@@ -211,11 +211,22 @@ object ContactCreateTool {
                 val results = context.contentResolver.applyBatch(ContactsContract.AUTHORITY, operations)
                 val rawContactId = results.firstOrNull()?.uri?.let(ContentUris::parseId)
                     ?: return mapOf("success" to false, "error" to "Contact was not created")
-                val contactId = contactIdForRawContact(context, rawContactId) ?: rawContactId
+                val contactId = contactIdForRawContact(context, rawContactId)
+                if (contactId != null) {
+                    return mapOf(
+                        "success" to true,
+                        "created" to true,
+                        "contact" to ContactSummary(contactId, name, phone).toMap(),
+                    )
+                }
+                // The batch succeeded, so the contact exists — but its aggregated id could not
+                // be read back. Handing the agent a raw-contact id under the name "id" would
+                // give it a value that resolves to nothing on the next call.
                 mapOf(
                     "success" to true,
                     "created" to true,
-                    "contact" to ContactSummary(contactId, name, phone).toMap(),
+                    "contact" to mapOf("name" to name, "phone" to phone),
+                    "message" to "The contact was created; its id could not be read back.",
                 )
             } catch (_: SecurityException) {
                 mapOf("success" to false, "error" to CONTACTS_PERMISSION_DENIED)

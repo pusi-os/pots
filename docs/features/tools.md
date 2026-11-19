@@ -382,7 +382,8 @@ All three read and write through `ContactsContract`, which exists since API 5 �
 
 Privacy rules, enforced by the code rather than by the prompt:
 
-- **No full dumps.** `contacts_search` requires a query (a name fragment or a number) and returns at most 10 matches, each reduced to `id`, `name` and one `phone`. A blank query is refused; there is no "list all contacts" mode.
+- **No full dumps.** `contacts_search` requires a query (a name fragment or a number) and returns at most 10 matches, each reduced to `id`, `name` and one `phone`. A blank query is refused; there is no "list all contacts" mode. `%` and `_` are escaped in the `LIKE` pattern, so a query made of wildcards matches literal characters instead of the whole address book. When more than 10 contacts match, the answer carries `has_more: true` — the query fetches 11 rows so the flag can actually be raised.
+- **Names come from contacts that have a number.** The name search runs over `Phone.CONTENT_URI`, so a contact with no phone number is not found by name. That is deliberate: the tools exist to answer "what is X's number" and to dial.
 - **No logging.** Names and numbers are other people's personal data and are never written to logs or error messages.
 - **No country guessing.** `+7 (912) 345-67-89`, `8 912 345 67 89` and `89123456789` all normalize to `+79123456789`, but a number without a country code (`9123456789`) is kept as bare digits — guessing a country would store the wrong number.
 - **No duplicates.** `contact_create` looks the number up through `PhoneLookup` first; when the contact exists it returns that contact with `created: false` and writes nothing. This is what stops an agent asked three times from leaving three "мама" entries.

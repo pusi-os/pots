@@ -16,6 +16,13 @@ object PhoneNumbers {
     const val MAX_SEARCH_RESULTS = 10
 
     /**
+     * How many rows the Android queries fetch: one more than the model may see, so
+     * [contactsSearchResponse] can tell "exactly ten matches" from "ten and there are more".
+     * Fetching exactly [MAX_SEARCH_RESULTS] would make its `has_more` flag dead code.
+     */
+    const val SEARCH_FETCH_LIMIT = MAX_SEARCH_RESULTS + 1
+
+    /**
      * Strips formatting and turns the Russian trunk prefix into the country code:
      * `+7 (912) 345-67-89`, `8 912 345 67 89` and `89123456789` all become
      * `+79123456789`. A number with no country code (`9123456789`) is returned as
@@ -50,6 +57,19 @@ object PhoneNumbers {
         val left = normalize(a) ?: return false
         return left == normalize(b)
     }
+}
+
+/**
+ * A `LIKE` pattern for "the name contains [query]", with the wildcards escaped so that a
+ * query is a query: without this, `query = "%"` would match the whole address book and
+ * `_` would match anything. Pair it with `ESCAPE '\'` in the selection.
+ */
+internal fun likePattern(query: String): String {
+    val escaped = query
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    return "%$escaped%"
 }
 
 /**

@@ -348,6 +348,7 @@
     <string name="settings_contacts_granted">Access granted</string>
     <string name="settings_contacts_not_granted">No access to contacts</string>
     <string name="settings_contacts_allow">Allow access</string>
+    <string name="settings_contacts_open_settings">Open settings</string>
     <string name="qs_tile_label">Pots</string>
     <string name="qs_tile_description">Start a voice chat with Pots</string>
     <string name="settings_heartbeat">Heartbeat</string>

@@ -277,6 +277,7 @@
     <string name="settings_contacts_granted">Доступ выдан</string>
     <string name="settings_contacts_not_granted">Нет доступа к контактам</string>
     <string name="settings_contacts_allow">Разрешить доступ</string>
+    <string name="settings_contacts_open_settings">Открыть настройки</string>
     <string name="qs_tile_label">Потс</string>
     <string name="qs_tile_description">Начать голосовой чат с Потс</string>
     <string name="settings_scheduled_tasks">Запланированные задачи</string>

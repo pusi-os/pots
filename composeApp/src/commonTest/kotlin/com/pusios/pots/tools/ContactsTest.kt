@@ -60,6 +60,30 @@ class ContactsTest {
         assertFalse(PhoneNumbers.sameNumber("", "+79123456789"))
     }
 
+    // --- the LIKE pattern the Android query uses -------------------------------------
+
+    @Test
+    fun aPlainQueryBecomesAContainsPattern() {
+        assertEquals("%Иван%", likePattern("Иван"))
+    }
+
+    @Test
+    fun wildcardsInAQueryAreEscaped() {
+        // Unescaped, "%" would match the whole address book and "_" would match any character:
+        // the model could dump contacts without asking for any of them.
+        assertEquals("%\\%%", likePattern("%"))
+        assertEquals("%\\_%", likePattern("_"))
+        assertEquals("%\\%\\_%", likePattern("%_"))
+        assertEquals("%Ив\\_н%", likePattern("Ив_н"))
+    }
+
+    @Test
+    fun aBackslashInAQueryIsEscapedFirst() {
+        // "\\%" has to become "\\\\%": the backslash is escaped, then the percent sign.
+        assertEquals("%a\\\\b%", likePattern("a\\b"))
+        assertEquals("%\\\\\\%%", likePattern("\\%"))
+    }
+
     // --- deduplication ---------------------------------------------------------------
 
     @Test
@@ -96,6 +120,34 @@ class ContactsTest {
         assertEquals(PhoneNumbers.MAX_SEARCH_RESULTS, response["count"])
         assertEquals(10, (response["contacts"] as List<*>).size)
         assertEquals(true, response["has_more"])
+    }
+
+    @Test
+    fun theAndroidQueryFetchesOneRowMoreThanTheModelSees() {
+        // has_more can only be true if the query fetched the row that did not fit. Fetching
+        // exactly MAX_SEARCH_RESULTS makes the flag dead code, which is how it shipped once.
+        assertTrue(PhoneNumbers.SEARCH_FETCH_LIMIT > PhoneNumbers.MAX_SEARCH_RESULTS)
+        assertEquals(PhoneNumbers.MAX_SEARCH_RESULTS + 1, PhoneNumbers.SEARCH_FETCH_LIMIT)
+    }
+
+    @Test
+    fun elevenFetchedMatchesAreCappedAtTenAndReportedAsMore() {
+        // The exact shape a search returns at the fetch limit: eleven rows in, ten out.
+        val fetched = (1L..11L).map { ContactSummary(it, "Иван $it", "+790****000$it") }
+        val response = contactsSearchResponse(fetched)
+
+        assertEquals(PhoneNumbers.MAX_SEARCH_RESULTS, response["count"])
+        assertEquals(10, (response["contacts"] as List<*>).size)
+        assertEquals(true, response["has_more"])
+    }
+
+    @Test
+    fun exactlyTenMatchesAreNotReportedAsMore() {
+        val fetched = (1L..10L).map { ContactSummary(it, "Иван $it", "+790****000$it") }
+        val response = contactsSearchResponse(fetched)
+
+        assertEquals(10, response["count"])
+        assertEquals(false, response["has_more"])
     }
 
     @Test

@@ -38,6 +38,7 @@ import pots.composeapp.generated.resources.settings_contacts_allow
 import pots.composeapp.generated.resources.settings_contacts_description
 import pots.composeapp.generated.resources.settings_contacts_granted
 import pots.composeapp.generated.resources.settings_contacts_not_granted
+import pots.composeapp.generated.resources.settings_contacts_open_settings
 import pots.composeapp.generated.resources.settings_contacts_title
 
 /**
@@ -60,12 +61,16 @@ internal fun ContactsSettingsSection() {
     }
     var granted by remember(controller) { mutableStateOf(controller?.hasPermission() == true) }
     var requesting by remember { mutableStateOf(false) }
+    // A refusal that comes back instantly means the system will not show the dialog again;
+    // from then on the only path left is the app's page in the system settings.
+    var denied by remember(controller) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // The user may grant the permission from system settings and come back.
     if (controller != null) {
         LifecycleResumeEffect(controller) {
             granted = controller.hasPermission()
+            if (granted) denied = false
             onPauseOrDispose { }
         }
     }
@@ -110,18 +115,26 @@ internal fun ContactsSettingsSection() {
                 )
             }
             if (!granted) {
-                TextButton(
-                    onClick = {
-                        val contacts = controller ?: return@TextButton
-                        requesting = true
-                        scope.launch {
-                            granted = contacts.requestPermission()
-                            requesting = false
-                        }
-                    },
-                    enabled = !requesting,
-                ) {
-                    Text(stringResource(Res.string.settings_contacts_allow))
+                if (denied) {
+                    TextButton(onClick = { controller?.openAppSettings() }) {
+                        Text(stringResource(Res.string.settings_contacts_open_settings))
+                    }
+                } else {
+                    TextButton(
+                        onClick = {
+                            val contacts = controller ?: return@TextButton
+                            requesting = true
+                            scope.launch {
+                                val result = contacts.requestPermission()
+                                granted = result
+                                denied = !result
+                                requesting = false
+                            }
+                        },
+                        enabled = !requesting,
+                    ) {
+                        Text(stringResource(Res.string.settings_contacts_allow))
+                    }
                 }
             }
         }
