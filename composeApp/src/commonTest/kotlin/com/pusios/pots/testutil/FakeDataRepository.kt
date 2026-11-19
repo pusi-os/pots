@@ -1,5 +1,6 @@
 package com.pusios.pots.testutil
 
+import com.pusios.pots.build.WebPanelPreferences
 import com.pusios.pots.data.AgentProfile
 import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.AppLanguage
@@ -623,6 +624,14 @@ class FakeDataRepository : DataRepository {
 
     override fun setPotsBuildLaunchAgent(agentId: String?) {
         storedPotsBuildLaunchAgent = agentId
+    }
+
+    val storedWebPanelPreferences = mutableMapOf<String, WebPanelPreferences>()
+
+    override fun getWebPanelPreferences(panelId: String): WebPanelPreferences = storedWebPanelPreferences[panelId] ?: WebPanelPreferences()
+
+    override fun setWebPanelPreferences(panelId: String, prefs: WebPanelPreferences) {
+        storedWebPanelPreferences[panelId] = prefs
     }
 
     override fun getHeartbeatConfig(): HeartbeatConfig = HeartbeatConfig()

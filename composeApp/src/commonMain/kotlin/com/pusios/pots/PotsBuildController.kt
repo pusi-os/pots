@@ -75,6 +75,26 @@ interface PotsBuildController {
      * (rows/cols). Call when the terminal viewport is measured or resized.
      */
     fun resizeTerminal(columns: Int, rows: Int)
+
+    // --- agent web panels -------------------------------------------------
+
+    /** Starts the agent's web UI, picking a free port. A no-op while it is already up. */
+    fun startWebPanel(panelId: String)
+
+    /** Stops it with a real SIGTERM → wait → SIGKILL, and reports the port it freed. */
+    fun stopWebPanel(panelId: String)
+
+    /** Opens the panel in the device's own browser, minting a fresh Hermes link when needed. */
+    fun openWebPanel(panelId: String)
+
+    /** Whether the panel comes up with the sandbox. */
+    fun setWebPanelAutostart(panelId: String, enabled: Boolean)
+
+    /**
+     * The panel's password, for the reveal toggle. Deliberately not part of
+     * [PotsBuildState]: nothing that renders a screen has to hold it.
+     */
+    fun webPanelPassword(panelId: String): String?
 }
 
 /** Pots Build is Android-only; every other target gets this. */
@@ -96,6 +116,11 @@ class NoOpPotsBuildController : PotsBuildController {
     override fun leaveProject(project: String) {}
     override fun writeToTerminal(text: String) {}
     override fun resizeTerminal(columns: Int, rows: Int) {}
+    override fun startWebPanel(panelId: String) {}
+    override fun stopWebPanel(panelId: String) {}
+    override fun openWebPanel(panelId: String) {}
+    override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
+    override fun webPanelPassword(panelId: String): String? = null
 }
 
 expect fun createPotsBuildController(): PotsBuildController

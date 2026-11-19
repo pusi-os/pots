@@ -178,4 +178,18 @@ class PotsBuildViewModel(
     }
 
     fun resizeTerminal(columns: Int, rows: Int) = controller.resizeTerminal(columns, rows)
+
+    // --- agent web panels -------------------------------------------------
+
+    fun startWebPanel(panelId: String) = controller.startWebPanel(panelId)
+
+    fun stopWebPanel(panelId: String) = controller.stopWebPanel(panelId)
+
+    /** Hands the panel to the device's own browser; Hermes' link is minted per tap. */
+    fun openWebPanel(panelId: String) = controller.openWebPanel(panelId)
+
+    fun setWebPanelAutostart(panelId: String, enabled: Boolean) =
+        controller.setWebPanelAutostart(panelId, enabled)
+
+    fun webPanelPassword(panelId: String): String? = controller.webPanelPassword(panelId)
 }

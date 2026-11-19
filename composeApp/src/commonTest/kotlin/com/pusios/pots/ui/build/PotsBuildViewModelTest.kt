@@ -70,6 +70,11 @@ class PotsBuildViewModelTest {
         override fun leaveProject(project: String) {}
         override fun writeToTerminal(text: String) {}
         override fun resizeTerminal(columns: Int, rows: Int) {}
+        override fun startWebPanel(panelId: String) {}
+        override fun stopWebPanel(panelId: String) {}
+        override fun openWebPanel(panelId: String) {}
+        override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
+        override fun webPanelPassword(panelId: String): String? = null
     }
 
     @BeforeTest

@@ -12,6 +12,7 @@ import com.pusios.pots.SandboxStatus
 import com.pusios.pots.SandboxStatusLabel
 import com.pusios.pots.build.BuildAgents
 import com.pusios.pots.build.PotsBuildState
+import com.pusios.pots.build.WebPanels
 import com.pusios.pots.currentPlatform
 import com.pusios.pots.data.DataRepository
 import com.pusios.pots.linux.LinuxDistro
@@ -103,10 +104,26 @@ class SandboxViewModel(
         }
     }
 
-    /** The installed agents, in catalog order, each with whatever version it reported. */
+    /**
+     * The installed agents, in catalog order, each with whatever version it reported.
+     *
+     * Pi's row also carries pi-web's version: the panel is part of Pi's install,
+     * so it is read from the same map rather than kept in a second one.
+     */
     private fun PotsBuildState.agentCards(): ImmutableList<SandboxAgentUi> = BuildAgents.all
         .filter { it.id in installedAgents }
-        .map { SandboxAgentUi(id = it.id, title = it.title, version = agentVersions[it.id]) }
+        .map { agent ->
+            val piWeb = if (agent.id == BuildAgents.PI) {
+                agentVersions[WebPanels.PI_WEB_VERSION_KEY]?.let { "pi-web $it" }
+            } else {
+                null
+            }
+            SandboxAgentUi(
+                id = agent.id,
+                title = agent.title,
+                version = listOfNotNull(agentVersions[agent.id], piWeb).joinToString(" · ").ifEmpty { null },
+            )
+        }
         .toImmutableList()
 
     private fun applyStatus(status: SandboxStatus, base: SandboxUiState): SandboxUiState = base.copy(

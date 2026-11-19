@@ -12,6 +12,10 @@ import com.pusios.pots.build.BuildTerminalSession
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.build.SandboxAgentConfig
 import com.pusios.pots.build.SandboxAgentCredentials
+import com.pusios.pots.build.WebPanelPreferences
+import com.pusios.pots.build.WebPanelRuntime
+import com.pusios.pots.build.WebPanelStatus
+import com.pusios.pots.build.WebPanels
 import com.pusios.pots.build.terminal.DEFAULT_COLUMNS
 import com.pusios.pots.build.terminal.DEFAULT_ROWS
 import com.pusios.pots.build.terminal.MAX_COLUMNS
@@ -28,6 +32,7 @@ import com.pusios.pots.linux.LinuxInstaller
 import com.pusios.pots.linux.LinuxPaths
 import com.pusios.pots.linux.ProotHandle
 import com.pusios.pots.linux.ProotLauncher
+import com.pusios.pots.openUrl
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -221,6 +226,32 @@ class BuildEnvironmentManager(
     @Volatile
     var activeCredentials: (() -> SandboxAgentCredentials?)? = null
 
+    /**
+     * What Pots remembers about an agent's web panel — password and autostart.
+     * Supplied by the controller for the same reason as [activeCredentials].
+     */
+    @Volatile
+    var webPanelPreferences: (String) -> WebPanelPreferences = { WebPanelPreferences() }
+
+    @Volatile
+    var saveWebPanelPreferences: (String, WebPanelPreferences) -> Unit = { _, _ -> }
+
+    /**
+     * The agents' web panels. Started and stopped here because this is what owns
+     * the rootfs, the executor and the provider; the state machine itself is in
+     * [WebPanelRuntime], away from Android so it can be tested.
+     */
+    private val webPanels: WebPanelRuntime by lazy {
+        WebPanelRuntime(
+            guest = AndroidWebPanelGuest(paths) { extraEnv -> executor(extraEnv = extraEnv) },
+            prefs = { webPanelPreferences(it) },
+            savePrefs = { id, prefs -> saveWebPanelPreferences(id, prefs) },
+            installed = { _state.value.installedAgents },
+            publish = { panels -> _state.update { it.copy(webPanels = panels) } },
+            scope = scope,
+        )
+    }
+
     private val sessionsLock = Any()
     private val sessions = LinkedHashMap<String, BuildSession>()
     private var activeSessionId: String? = null
@@ -278,6 +309,10 @@ class BuildEnvironmentManager(
         if (installJob?.isActive == true) return
         installJob = scope.launch {
             closeAllSessions()
+            // A panel is a process outside this app: it has to be signalled before
+            // its rootfs disappears under it, or it keeps the port with nothing
+            // left to stop it.
+            stopWebPanels()
             paths.deleteInstall()
             paths.ensureLayout()
             _state.value = PotsBuildState(projects = scanProjects())
@@ -288,7 +323,16 @@ class BuildEnvironmentManager(
     /** Called when something else is about to delete the rootfs under us. */
     fun onEnvironmentRemoved() {
         closeAllSessions()
+        for (panel in WebPanels.all) {
+            if (_state.value.webPanels[panel.id]?.status is WebPanelStatus.Running) webPanels.stop(panel.id)
+        }
         _state.value = PotsBuildState(projects = scanProjects())
+    }
+
+    private suspend fun stopWebPanels() {
+        for (panel in WebPanels.all) {
+            if (_state.value.webPanels[panel.id] != null) webPanels.stopPanel(panel.id)
+        }
     }
 
     fun refresh() {
@@ -512,6 +556,28 @@ class BuildEnvironmentManager(
         }
     }
 
+    // --- agent web panels -------------------------------------------------
+
+    fun startWebPanel(panelId: String) = webPanels.start(panelId)
+
+    fun stopWebPanel(panelId: String) = webPanels.stop(panelId)
+
+    fun setWebPanelAutostart(panelId: String, enabled: Boolean) = webPanels.setAutostart(panelId, enabled)
+
+    fun webPanelPassword(panelId: String): String? = webPanels.password(panelId)
+
+    /**
+     * Opens the panel in the device's own browser. Hermes' address is minted per
+     * tap — its link is one-use — so the URL is fetched first and only then
+     * handed to the browser, never kept.
+     */
+    fun openWebPanel(panelId: String) {
+        scope.launch {
+            val url = webPanels.link(panelId) ?: return@launch
+            if (!openUrl(url)) Log.w(TAG, "no browser took $url")
+        }
+    }
+
     /**
      * Hands the session's PTY bridge its new geometry — it polls this file and
      * applies TIOCSWINSZ + SIGWINCH.
@@ -665,7 +731,11 @@ class BuildEnvironmentManager(
         val credentials = activeCredentials?.invoke() ?: return
         val marker = paths.readMarker() ?: return
         val home = paths.homeDir(marker)
-        for (file in SandboxAgentConfig.filesFor(agentId, credentials)) {
+        // Hermes' panel port lives in the same file. Writing the default over a
+        // port the panel had to move to would point the gateway at a busy port
+        // while the running panel listens on another one.
+        val webappPort = runningPanelPort(WebPanels.HERMES) ?: WebPanels.HERMES_PORT
+        for (file in SandboxAgentConfig.filesFor(agentId, credentials, webappPort)) {
             val target = File(home, file.path)
             runCatching {
                 target.parentFile?.mkdirs()
@@ -677,6 +747,12 @@ class BuildEnvironmentManager(
                 }
             }.onFailure { Log.w(TAG, "could not write ${file.path} for $agentId", it) }
         }
+    }
+
+    /** The port a panel is listening on right now, or null when it is not up. */
+    private fun runningPanelPort(panelId: String): Int? {
+        val running = _state.value.webPanels[panelId]?.status as? WebPanelStatus.Running ?: return null
+        return WebPanels.portOf(running.url)
     }
 
     // --- terminal --------------------------------------------------------
@@ -907,6 +983,7 @@ class BuildEnvironmentManager(
         // Debian only: an Alpine chat sandbox cannot host the agents, and Pots Build
         // then installs its own Debian somewhere else.
         val ready = paths.readMarker()?.distro == LinuxDistro.DEBIAN && File(paths.prootPath).canExecute()
+        val wasReady = _state.value.isReady
         _state.update {
             it.copy(
                 environment = if (ready) BuildEnvironmentState.Ready else BuildEnvironmentState.NotInstalled,
@@ -918,6 +995,8 @@ class BuildEnvironmentManager(
                 // Keep the card's numbers up while they are re-measured; an
                 // uninstalled system has none to keep.
                 systemInfo = if (ready) it.systemInfo else null,
+                // Same for the panels: with no Linux there is nothing to listen.
+                webPanels = if (ready) it.webPanels else persistentMapOf(),
                 lastError = error,
             )
         }
@@ -933,6 +1012,11 @@ class BuildEnvironmentManager(
         }
         val info = readSystemInfo()
         _state.update { it.copy(systemInfo = info) }
+        // What each panel is doing, now that the agents are known to be there.
+        webPanels.refresh()
+        // Autostart is asked for on the transition into Ready only. Doing it on
+        // every refresh would bring back a panel the user just stopped by hand.
+        if (!wasReady) webPanels.ensureAutostart()
     }
 
     /**
@@ -988,9 +1072,19 @@ class BuildEnvironmentManager(
         val executor = executor()
         // One probe per agent answers both questions at once: the binary runs, and
         // its own `--version` line is what the Settings card reports.
-        return BuildAgents.all.mapNotNull { agent ->
+        val detected = BuildAgents.all.mapNotNull { agent ->
             executor.ensureAgentBinary(agent.binary)?.let { agent.id to it }
         }.toMap()
+        // Pi's web panel is not an agent of its own — it is part of Pi's install —
+        // so its version rides in the same map under its own key, and the Settings
+        // card prints it next to Pi's.
+        if (BuildAgents.PI in detected) {
+            val probe = executor.execute("pi-web --version 2>&1", timeoutSeconds = 60)
+            AgentVersion.parse(probe.takeIf { it.success }?.stdout)?.let { version ->
+                detected + (WebPanels.PI_WEB_VERSION_KEY to version)
+            }
+        }
+        return detected
     }
 
     private fun scanProjects() = paths.projectsDir.listFiles()
@@ -1004,6 +1098,8 @@ class BuildEnvironmentManager(
         columns: Int = lastColumns.get(),
         rows: Int = lastRows.get(),
         session: BuildSession? = null,
+        /** Panel processes need their own password in the environment. */
+        extraEnv: Map<String, String> = emptyMap(),
     ): BuildProotExecutor {
         paths.copyLibtalloc()
         paths.ensureLayout()
@@ -1020,7 +1116,7 @@ class BuildEnvironmentManager(
                 // mounted noexec.
                 binds = listOf(paths.projectsDir.absolutePath to "/root/projects"),
                 extraArgs = DebianSpec.prootArgs,
-                env = DebianSpec.env + agentEnv(columns, rows, openUrlPath, session?.agentId),
+                env = DebianSpec.env + agentEnv(columns, rows, openUrlPath, session?.agentId) + extraEnv,
             ),
             tmpPath = paths.tmpDir.absolutePath,
             columns = columns,

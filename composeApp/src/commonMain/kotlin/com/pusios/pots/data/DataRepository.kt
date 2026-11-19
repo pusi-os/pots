@@ -1,5 +1,6 @@
 package com.pusios.pots.data
 
+import com.pusios.pots.build.WebPanelPreferences
 import com.pusios.pots.inference.DownloadError
 import com.pusios.pots.inference.DownloadedModel
 import com.pusios.pots.inference.EngineState
@@ -204,6 +205,13 @@ interface DataRepository {
     /** Agent a freshly opened Pots Build project starts with; null is a plain shell. */
     fun getPotsBuildLaunchAgent(): String?
     fun setPotsBuildLaunchAgent(agentId: String?)
+
+    /**
+     * Password and autostart of an agent's web panel. The password is generated
+     * once, on the panel's first start, and reused after that.
+     */
+    fun getWebPanelPreferences(panelId: String): WebPanelPreferences
+    fun setWebPanelPreferences(panelId: String, prefs: WebPanelPreferences)
 
     // Heartbeat
     fun getHeartbeatConfig(): HeartbeatConfig

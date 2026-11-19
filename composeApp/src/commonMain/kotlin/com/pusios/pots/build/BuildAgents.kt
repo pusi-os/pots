@@ -93,6 +93,13 @@ object BuildAgents {
         curl -fsSL https://pi.dev/install.sh -o /tmp/pots-pi-install.sh
         sh /tmp/pots-pi-install.sh < /dev/null
         rm -f /tmp/pots-pi-install.sh
+        # Pi's web panel. Installed with the same Node runtime Pi already needs, into
+        # that runtime's own prefix, so `pi-web` lands in the bin dir already on the
+        # sandbox PATH — and not in a second copy of Node. `latest` on purpose: the
+        # panel only gained --hostname/--no-open/PI_WEB_PASSWORD after 0.7.9. The
+        # prefix is named rather than inferred from the node binary's location, so a
+        # stray npmrc cannot install it somewhere PATH does not carry.
+        /root/.local/share/pi-node/bin/npm install -g --prefix /root/.local/share/pi-node --no-audit --no-fund @agegr/pi-web
     """
 
     /**
@@ -115,6 +122,11 @@ object BuildAgents {
         # The installer publishes the command for login shells; link it into the
         # bin dir Pots Build's own PATH carries so probes find it by name.
         ln -sfn /root/.hermes/hermes-agent/.hermes/bin/hermes /root/.local/bin/hermes
+        # Hermes' web panel: the renderer bundle `hermes webapp` serves. A failure
+        # here does not fail the agent — the panel then says it is not built
+        # instead of showing an empty page, and `hermes webapp --build-only` can be
+        # run again from a terminal.
+        /root/.local/bin/hermes webapp --build-only || echo "pots: webapp bundle not built"
     """
 
     val all: ImmutableList<BuildAgent> = persistentListOf(
@@ -129,15 +141,19 @@ object BuildAgents {
             title = "Pi",
             binary = "pi",
             installCommand = PI_INSTALL.trimIndent(),
+            // Node, Pi itself and then pi-web from npm, which resolves and
+            // unpacks a package tree of its own.
+            installTimeoutSeconds = 1800,
         ),
         BuildAgent(
             id = HERMES,
             title = "Hermes",
             binary = "hermes",
             installCommand = HERMES_INSTALL.trimIndent(),
-            // Its installer resolves uv and Python, installs the dependency tree
-            // and builds the command — none of it is a download.
-            installTimeoutSeconds = 2700,
+            // Its installer resolves uv and Python, installs the dependency tree,
+            // builds the command, and then builds the webapp renderer — none of it
+            // is a download.
+            installTimeoutSeconds = 3600,
         ),
     )
 

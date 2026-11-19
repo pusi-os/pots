@@ -74,6 +74,12 @@ data class PotsBuildState(
     val agentVersions: ImmutableMap<String, String> = persistentMapOf(),
     /** Folder names under the Linux home's `projects` directory. */
     val projects: ImmutableList<String> = persistentListOf(),
+    /**
+     * The coding agents' web panels, keyed by panel id — only the panels whose
+     * agent is installed. Each carries its own state, so a panel that failed says
+     * why while the others keep running.
+     */
+    val webPanels: ImmutableMap<String, WebPanelState> = persistentMapOf(),
     /** Live shells, oldest first. Sessions of every open project, not just the visible one. */
     val sessions: ImmutableList<BuildTerminalSession> = persistentListOf(),
     val activeSessionId: String? = null,

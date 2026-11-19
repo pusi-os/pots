@@ -39,6 +39,10 @@ class AndroidPotsBuildController : PotsBuildController {
             // every session start reads the live provider from Settings instead of
             // asking the user to configure each CLI separately.
             built.activeCredentials = { dataRepository.activeSandboxCredentials() }
+            // Panel passwords and autostart toggles are Pots settings, like the
+            // provider itself — nothing about them lives in the sandbox.
+            built.webPanelPreferences = { panelId -> dataRepository.getWebPanelPreferences(panelId) }
+            built.saveWebPanelPreferences = { panelId, prefs -> dataRepository.setWebPanelPreferences(panelId, prefs) }
             // Both directions are checked at fire time, not wired once: the chat
             // sandbox can be pointed at this install and away from it while the
             // app runs.
@@ -70,4 +74,15 @@ class AndroidPotsBuildController : PotsBuildController {
     override fun leaveProject(project: String) = manager.leaveProject(project)
     override fun writeToTerminal(text: String) = manager.writeToTerminal(text)
     override fun resizeTerminal(columns: Int, rows: Int) = manager.resizeTerminal(columns, rows)
+    override fun startWebPanel(panelId: String) {
+        manager.startWebPanel(panelId)
+    }
+
+    override fun stopWebPanel(panelId: String) {
+        manager.stopWebPanel(panelId)
+    }
+    override fun openWebPanel(panelId: String) = manager.openWebPanel(panelId)
+    override fun setWebPanelAutostart(panelId: String, enabled: Boolean) = manager.setWebPanelAutostart(panelId, enabled)
+
+    override fun webPanelPassword(panelId: String): String? = manager.webPanelPassword(panelId)
 }

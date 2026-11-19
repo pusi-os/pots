@@ -1,5 +1,6 @@
 package com.pusios.pots.data
 
+import com.pusios.pots.build.WebPanelPreferences
 import com.pusios.pots.defaultUiScale
 import com.pusios.pots.deleteAppStorageFolder
 import com.pusios.pots.linux.LinuxDistro
@@ -932,6 +933,24 @@ class AppSettings(internal val settings: Settings) {
         settings.putString(KEY_POTS_BUILD_LAUNCH_AGENT, agentId.orEmpty())
     }
 
+    /**
+     * What Pots remembers about an agent's web panel: the password it generated
+     * on first start, and whether the panel comes up with the sandbox.
+     *
+     * The password is stored rather than regenerated because the agent keeps
+     * answering with it — a new one every start would silently lock out a tab
+     * that is already open.
+     */
+    fun getWebPanelPreferences(panelId: String): WebPanelPreferences = WebPanelPreferences(
+        password = settings.getStringOrNull(KEY_WEB_PANEL_PASSWORD + panelId)?.takeIf { it.isNotEmpty() },
+        autostart = settings.getBoolean(KEY_WEB_PANEL_AUTOSTART + panelId, false),
+    )
+
+    fun setWebPanelPreferences(panelId: String, prefs: WebPanelPreferences) {
+        settings.putString(KEY_WEB_PANEL_PASSWORD + panelId, prefs.password.orEmpty())
+        settings.putBoolean(KEY_WEB_PANEL_AUTOSTART + panelId, prefs.autostart)
+    }
+
     fun getScheduledTasksJson(): String = settings.getString(KEY_SCHEDULED_TASKS, "[]")
 
     fun setScheduledTasksJson(json: String) {
@@ -1263,6 +1282,8 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_SANDBOX_BACKGROUND_ENABLED = "sandbox_background_enabled"
         const val KEY_SANDBOX_DISTRO = "sandbox_distro"
         const val KEY_POTS_BUILD_LAUNCH_AGENT = "pots_build_launch_agent"
+        const val KEY_WEB_PANEL_PASSWORD = "web_panel_password_"
+        const val KEY_WEB_PANEL_AUTOSTART = "web_panel_autostart_"
 
         // Basic memory guidance shared by every chat variant. The advanced `## Structured
         // Learning` block lives in `ChatSystemPromptBuilder.DEFAULT_STRUCTURED_LEARNING_SECTION`

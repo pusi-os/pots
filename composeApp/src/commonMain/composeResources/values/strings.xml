@@ -782,6 +782,15 @@
     <string name="pots_build_session_new_content_description">New session</string>
     <string name="pots_build_session_close_content_description">Close session</string>
     <string name="pots_build_system_title">Debian system</string>
+    <string name="pots_build_web_panels_title">Web panels</string>
+    <string name="pots_build_web_panels_description">Each agent's own web UI, listening on this phone's loopback. Opening it hands the address to your default browser.</string>
+    <string name="pots_build_web_panel_start">Start web UI</string>
+    <string name="pots_build_web_panel_stop">Stop</string>
+    <string name="pots_build_web_panel_retry">Retry</string>
+    <string name="pots_build_web_panel_starting">Starting…</string>
+    <string name="pots_build_web_panel_autostart">Start with the sandbox</string>
+    <string name="pots_build_web_panel_password_show">Show password</string>
+    <string name="pots_build_web_panel_password_hide">Hide password</string>
     <string name="pots_build_system_packages">%1$d packages installed</string>
     <string name="pots_build_system_disk_system">Linux system</string>
     <string name="pots_build_system_disk_projects">Projects</string>

@@ -8,9 +8,13 @@ import java.io.IOException
 import java.util.Base64
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /** Install logs are worth keeping in full; the shell tool's 15k cap is not enough. */
 private const val MAX_OUTPUT_CHARS = 200_000
+
+/** Cap on a background panel's log — enough to explain a failure, not to fill a phone. */
+private const val MAX_BACKGROUND_LOG_BYTES = 256L * 1024L
 
 /**
  * Pots Build's view of a rootfs: interactive sessions under a real PTY, raw
@@ -181,6 +185,47 @@ class BuildProotExecutor(
         // the bridge's real pid — that is what cancelling a session has to kill.
         val dollar = "${'$'}${'$'}"
         return """echo $dollar > /tmp/$pidFileName; exec python3 -c "import base64;exec(base64.b64decode('$scriptB64'))""""
+    }
+
+    /**
+     * Starts a long-running command (a web panel) with no PTY: raw pipes, its own
+     * pid written into the bind-mounted `/tmp`, and everything it prints appended
+     * to [logFile].
+     *
+     * No PTY on purpose. The PTY bridge is a python process with the command as
+     * its child, so the pid the guest records would be the bridge's, and a
+     * `kill -TERM` on it would leave the server holding its port as an orphan.
+     * Here the recorded pid *is* the server: the shell execs into it.
+     */
+    fun startBackground(command: String, pidFileName: String, logFile: File): ProotHandle {
+        val pidFile = File(tmpPath, pidFileName)
+        runCatching { pidFile.delete() }
+        runCatching {
+            logFile.parentFile?.mkdirs()
+            logFile.writeText("")
+        }
+        // A server that logs every request must not fill the phone: past the cap
+        // the rest is dropped, and the file stays readable.
+        val budget = AtomicLong(MAX_BACKGROUND_LOG_BYTES)
+        val append: (ByteArray, Int) -> Unit = { buf, n ->
+            if (budget.get() > 0) {
+                val size = minOf(n.toLong(), budget.get()).toInt()
+                budget.addAndGet(-size.toLong())
+                runCatching { logFile.appendBytes(buf.copyOf(size)) }
+            }
+        }
+        return launcher.startStreaming(
+            // `$$` is this shell's pid and `exec` keeps it for the command, so the
+            // file holds the server's real pid — what a stop has to signal.
+            command = "echo ${'$'}${'$'} > /tmp/$pidFileName; exec $command",
+            workingDir = "/root",
+            guestPidFile = pidFile,
+        ) { process, cancelled ->
+            listOf(
+                CompletableFuture.runAsync { streamBytes(process.inputStream, cancelled, append) },
+                CompletableFuture.runAsync { streamBytes(process.errorStream, cancelled, append) },
+            )
+        }
     }
 
     private fun streamBytes(

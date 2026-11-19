@@ -99,6 +99,11 @@ internal fun BuildProjectsContent(
     onRenameProject: (name: String, newName: String) -> Unit,
     onInstallAgent: (String) -> Unit,
     onUninstall: () -> Unit,
+    onStartWebPanel: (String) -> Unit,
+    onStopWebPanel: (String) -> Unit,
+    onOpenWebPanel: (String) -> Unit,
+    onSetWebPanelAutostart: (String, Boolean) -> Unit,
+    onWebPanelPassword: (String) -> String?,
     modifier: Modifier = Modifier,
 ) {
     var showUninstall by remember { mutableStateOf(false) }
@@ -212,6 +217,17 @@ internal fun BuildProjectsContent(
                     color = MaterialTheme.colorScheme.error,
                 )
             }
+        }
+
+        item {
+            WebPanelsCard(
+                panels = state.webPanels,
+                onStart = onStartWebPanel,
+                onStop = onStopWebPanel,
+                onOpen = onOpenWebPanel,
+                onSetAutostart = onSetWebPanelAutostart,
+                onPassword = onWebPanelPassword,
+            )
         }
 
         item {

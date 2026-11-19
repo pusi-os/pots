@@ -74,6 +74,11 @@ data class PotsBuildActions(
     val sendText: (String, TerminalModifiers) -> Unit,
     val sendMouse: (String) -> Unit,
     val resizeTerminal: (columns: Int, rows: Int) -> Unit,
+    val startWebPanel: (String) -> Unit,
+    val stopWebPanel: (String) -> Unit,
+    val openWebPanel: (String) -> Unit,
+    val setWebPanelAutostart: (String, Boolean) -> Unit,
+    val webPanelPassword: (String) -> String?,
 )
 
 /**
@@ -111,6 +116,11 @@ fun PotsBuildScreen(
             sendText = viewModel::sendText,
             sendMouse = viewModel::sendMouse,
             resizeTerminal = viewModel::resizeTerminal,
+            startWebPanel = viewModel::startWebPanel,
+            stopWebPanel = viewModel::stopWebPanel,
+            openWebPanel = viewModel::openWebPanel,
+            setWebPanelAutostart = viewModel::setWebPanelAutostart,
+            webPanelPassword = viewModel::webPanelPassword,
         )
     }
 
@@ -235,6 +245,11 @@ internal fun PotsBuildScreenContent(
                         onRenameProject = actions.renameProject,
                         onInstallAgent = actions.installAgent,
                         onUninstall = actions.uninstall,
+                        onStartWebPanel = actions.startWebPanel,
+                        onStopWebPanel = actions.stopWebPanel,
+                        onOpenWebPanel = actions.openWebPanel,
+                        onSetWebPanelAutostart = actions.setWebPanelAutostart,
+                        onWebPanelPassword = actions.webPanelPassword,
                     )
                 } else {
                     BuildSetupContent(

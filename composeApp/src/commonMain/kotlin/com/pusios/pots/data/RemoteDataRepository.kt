@@ -3,6 +3,7 @@
 package com.pusios.pots.data
 
 import com.pusios.pots.SandboxController
+import com.pusios.pots.build.WebPanelPreferences
 import com.pusios.pots.compressImageBytes
 import com.pusios.pots.currentPlatform
 import com.pusios.pots.data.providers.buildAnthropicMessages
@@ -2231,6 +2232,12 @@ class RemoteDataRepository(
 
     override fun setPotsBuildLaunchAgent(agentId: String?) {
         appSettings.setPotsBuildLaunchAgent(agentId)
+    }
+
+    override fun getWebPanelPreferences(panelId: String): WebPanelPreferences = appSettings.getWebPanelPreferences(panelId)
+
+    override fun setWebPanelPreferences(panelId: String, prefs: WebPanelPreferences) {
+        appSettings.setWebPanelPreferences(panelId, prefs)
     }
 
     override fun getHeartbeatConfig(): HeartbeatConfig = heartbeatManager.getConfig()

@@ -149,7 +149,7 @@ Plus a built-in **Free** tier that requires no API key.
 - **[The Cloud](features/potsik-cloud.md)** — Capsule on a double tap on Потсик: voice pill and text field (Android)
 - **[The screen mode](features/potsik-screenshot.md)** — «Экран»: one frame of the screen, one question about it (Android)
 - **[Linux Sandbox](features/sandbox.md)** — On-device Debian/Alpine shell for the AI and the user (Android)
-- **[Pots Build](features/pots-build.md)** — Coding environment with terminals and coding agents (Android)
+- **[Pots Build](features/pots-build.md)** — Coding environment with terminals, coding agents and their web panels (Android)
 - **[Notifications](features/notifications.md)** — Reading other apps' notifications (Android, FOSS build)
 - **[SMS](features/sms.md)** — Reading SMS and drafting replies for the user to send (Android, FOSS build)
 - **[Appearance](features/appearance.md)** — Theme picker

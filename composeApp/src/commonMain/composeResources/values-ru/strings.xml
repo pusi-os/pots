@@ -676,6 +676,15 @@
     <string name="pots_build_session_new_content_description">Новая сессия</string>
     <string name="pots_build_session_close_content_description">Закрыть сессию</string>
     <string name="pots_build_system_title">Система Debian</string>
+    <string name="pots_build_web_panels_title">Веб-панели</string>
+    <string name="pots_build_web_panels_description">Веб-интерфейс каждого агента, слушает только loopback телефона. Открывается в браузере по умолчанию.</string>
+    <string name="pots_build_web_panel_start">Запустить web UI</string>
+    <string name="pots_build_web_panel_stop">Остановить</string>
+    <string name="pots_build_web_panel_retry">Повторить</string>
+    <string name="pots_build_web_panel_starting">Поднимается…</string>
+    <string name="pots_build_web_panel_autostart">Поднимать при старте песочницы</string>
+    <string name="pots_build_web_panel_password_show">Показать пароль</string>
+    <string name="pots_build_web_panel_password_hide">Скрыть пароль</string>
     <string name="pots_build_system_packages">Установлено пакетов: %1$d</string>
     <string name="pots_build_system_disk_system">Система Linux</string>
     <string name="pots_build_system_disk_projects">Проекты</string>

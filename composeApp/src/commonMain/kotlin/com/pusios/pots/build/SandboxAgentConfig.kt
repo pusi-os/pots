@@ -90,13 +90,21 @@ object SandboxAgentConfig {
     /**
      * The files [agentId] needs to run on [credentials], or nothing when there is
      * no provider configured (or the agent takes no provider at all).
+     *
+     * [webappPort] is where Hermes' web panel should listen. It is a parameter
+     * because the panel moves to the next free port when its preferred one is
+     * taken, and a config written with the default would drag it back there.
      */
-    fun filesFor(agentId: String, credentials: SandboxAgentCredentials?): List<SandboxAgentFile> {
+    fun filesFor(
+        agentId: String,
+        credentials: SandboxAgentCredentials?,
+        webappPort: Int = WebPanels.HERMES_PORT,
+    ): List<SandboxAgentFile> {
         if (credentials == null) return emptyList()
         return when (agentId) {
             BuildAgents.OPENCODE -> opencode(credentials)
             BuildAgents.PI -> pi(credentials)
-            BuildAgents.HERMES -> hermes(credentials)
+            BuildAgents.HERMES -> hermes(credentials, webappPort)
             else -> emptyList()
         }
     }
@@ -200,7 +208,7 @@ object SandboxAgentConfig {
      * selects it. The key itself stays out of the YAML — `key_env` names the
      * variable and `.env` carries the value, which is how Hermes loads keys.
      */
-    private fun hermes(credentials: SandboxAgentCredentials): List<SandboxAgentFile> {
+    private fun hermes(credentials: SandboxAgentCredentials, webappPort: Int): List<SandboxAgentFile> {
         val keyEnv = apiKeyEnv(credentials.providerId)
         val config = buildString {
             appendLine("# Written by Pots from the app's active provider. Rewritten on every agent start.")
@@ -216,6 +224,7 @@ object SandboxAgentConfig {
             appendLine("    base_url: ${yamlQuote(credentials.endpoint)}")
             appendLine("    model: ${yamlQuote(credentials.model)}")
             appendLine("    key_env: $keyEnv")
+            append(webappConfig(webappPort))
         }
         val env = buildString {
             appendLine("# Written by Pots from the app's active provider. Rewritten on every agent start.")
@@ -228,6 +237,41 @@ object SandboxAgentConfig {
             SandboxAgentFile(path = ".hermes/config.yaml", content = config),
             SandboxAgentFile(path = ".hermes/.env", content = env),
         )
+    }
+
+    /**
+     * Hermes' web panel settings: on, on loopback, on [port], with no public URL.
+     *
+     * `public_url` stays empty on purpose — a filled one replaces the address in
+     * the link `hermes webapp` prints, and in a sandbox that link is a one-use
+     * ticket for this phone's own browser, not a hostname.
+     */
+    fun webappConfig(port: Int): String = buildString {
+        appendLine("# Written by Pots: the Webapp panel listens on loopback only.")
+        appendLine("webapp:")
+        appendLine("  enabled: true")
+        appendLine("  host: 127.0.0.1")
+        appendLine("  port: $port")
+        appendLine("  public_url: \"\"")
+    }
+
+    /**
+     * [yaml] with its top-level `webapp:` block replaced by one on [port].
+     *
+     * The panel rewrites the port this way when its preferred one is taken: the
+     * rest of the file is somebody else's (Hermes writes into it too), so only the
+     * block Pots owns is replaced — no YAML parser, no reformatting of the rest.
+     */
+    fun withWebappPort(yaml: String, port: Int): String {
+        val kept = mutableListOf<String>()
+        var inWebapp = false
+        for (line in yaml.lines()) {
+            val topLevel = line.isNotEmpty() && !line.first().isWhitespace() && !line.startsWith("#")
+            if (topLevel) inWebapp = line.trimEnd() == "webapp:"
+            if (!inWebapp) kept += line
+        }
+        val body = kept.joinToString("\n").trimEnd()
+        return (if (body.isEmpty()) "" else body + "\n") + webappConfig(port)
     }
 
     /**

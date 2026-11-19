@@ -170,6 +170,76 @@ The **Autostart settings** button opens the vendor's own autostart screen when t
 
 The service is `START_STICKY`, so a system kill during the day brings it back. A **reboot** does not: nothing restarts it at boot (Android 15 restricts which foreground service types may be launched from `BOOT_COMPLETED`, and `specialUse` is not one of them). The switch stays on in settings, and the next time the app is opened the controller re-applies it — so after a reboot the sandbox comes back when Pots is opened, not before. That is stated here rather than papered over with a boot receiver that the platform would refuse.
 
+## Agent web panels
+
+Pots Build starts the coding agents' own web UIs and hands the address to the
+device's browser: `opencode serve` (4096), `pi-web` (30141) and Hermes' `webapp`
+(9120). One row per installed agent sits in Pots Build's project list.
+
+### Where each panel comes from
+
+A panel is part of its agent's install, not a separate thing to set up. Pi's
+installer runs `npm install -g @agegr/pi-web` with the Node runtime Pi already
+needs, into that runtime's own prefix, so `pi-web` lands on the sandbox PATH next
+to `pi`; Settings → Sandbox prints its version beside Pi's. Hermes' install ends
+with `hermes webapp --build-only`, which builds the renderer bundle the panel
+serves — a failure there leaves the agent installed and the row says the bundle
+is missing rather than showing an empty page. OpenCode needs nothing: its web UI
+ships inside the binary.
+
+### Loopback only
+
+proot creates no network namespace: the guest and the phone share one network
+stack. A server bound to `127.0.0.1` inside the sandbox is therefore the phone's
+own loopback, and Chrome opens `http://127.0.0.1:<port>` directly. Nothing here
+binds `0.0.0.0` — that would publish an unauthenticated panel to the whole LAN.
+
+### Ports
+
+| Panel | Preferred | Started with |
+|---|---|---|
+| OpenCode | 4096 | `opencode serve --port N --hostname 127.0.0.1` |
+| Pi | 30141 | `pi-web --port N --hostname 127.0.0.1 --no-open` |
+| Hermes | 9120 | `hermes webapp --no-open` |
+
+A taken port moves the panel to the next free one (ten attempts, then an honest
+"all busy" error), and the row shows the port it actually got. Hermes takes its
+port from `webapp.port` in `~/.hermes/config.yaml`, so the panel replaces that
+one block (`SandboxAgentConfig.withWebappPort`) before starting it, and reports
+the port the printed link carries.
+
+### Passwords
+
+OpenCode and pi-web get a generated 24-character password on first start
+(`OPENCODE_SERVER_PASSWORD`, `PI_WEB_PASSWORD`), stored in Pots' settings and
+shown on request. It travels in the process environment only: not on the command
+line (so it is not in `ps`), and not in the panel log. Hermes has no panel
+password — each browser is signed in by a one-use link instead.
+
+### Hermes' link is one-use
+
+`hermes webapp --no-open` prints either a permanent sign-in address or a private
+link that works once and expires in 60 seconds. Which one it is cannot be known
+in advance, so the button mints a link on every tap and hands it straight to the
+browser — nothing is cached, because a cached link is spent by the first open.
+
+### Provider and model
+
+There is no second configuration. pi-web reads `~/.pi/agent/models.json`, which
+`SandboxAgentConfig.pi()` already writes; OpenCode's web UI is the same binary
+reading the same `~/.config/opencode/opencode.json`; Hermes' webapp runs on the
+same `~/.hermes/config.yaml` and `.env` as its CLI.
+
+### Stop and autostart
+
+A stop is a real `kill -TERM`, a wait, then `kill -KILL` — a server gets a chance
+to close its port — and the panel only reports stopped once the port is free.
+Hermes is the exception in the mechanics, not in the promise: its panel is the
+gateway, so the stop is `hermes gateway stop`, followed by the same port check on
+the address the row was showing.
+The "Start with the sandbox" toggle brings the panel up when the sandbox becomes
+ready, and a live pid with a listening port means nothing is started twice.
+
 ## Behavior
 
 - **Tool availability follows install state**: the assistant's sandbox tools (shell command, `manage_process`, and the SSH-host config tool) are advertised to the model only when the sandbox is actually installed (Ready) *and* the sandbox toggle is on. Before the sandbox is installed they are not sent at all — there is no point offering tools that can only return "not installed," and the enable/disable toggle is itself hidden until install completes. Once installed, the switch on the distribution's card is the on/off control.
@@ -231,6 +301,10 @@ The service is `START_STICKY`, so a system kill during the day brings it back. A
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/linux/RootfsDownloader.kt` / `TarExtractor.kt` | One download path with mirror fallback, one tar reader handling both `.tar.gz` and `.tar.xz`. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/linux/ProotLauncher.kt` | proot argv, binds and environment, plus the shared `ProotHandle` and one-shot `execute`. Both this sandbox and Pots Build's PTY executor start their processes here. `cancel()` ends the guest recorded in the pid file, not just proot. |
 | `composeApp/src/jvmShared/kotlin/com/pusios/pots/linux/GuestPath.kt` | Guest path → host file, following the binds, for both file browsers. Rejects traversal and anything resolving outside its root. |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanels.kt` | The three agent web panels as declarations: preferred ports, the one command line each is started with, port choice, the password generator, and the parser for `hermes webapp`'s output (one-use link vs sign-in address). |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanelRuntime.kt` | Panel state machine, free of Android: start/stop/refresh/autostart over a `WebPanelGuest`, with the "start at most once", "report the port it got" and "stopped means the port is free" rules unit-tested against a fake guest. |
+| `composeApp/src/androidMain/kotlin/com/pusios/pots/build/runtime/AndroidWebPanelGuest.kt` | The guest side of the above: shell calls and pid/port/log files under the bind-mounted `/tmp`, the `/dev/tcp` port probe, and the Hermes `webapp.port` rewrite. |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/build/WebPanelsCard.kt` | The Pots Build rows: start/stop/retry, the tappable address that opens the device browser, the hidden-by-default password, and the autostart toggle. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/SandboxController.android.kt` | Routes `executeCommand` and `executeCommandStreaming` through the persistent shell; one-shot fallbacks live alongside. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/ShellCommandTool.kt` | The `execute_shell_command` tool the assistant calls. Description, `fresh` flag, env/working-dir wrapping. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/SshConfigureHostTool.kt` | The `ssh_configure_host` tool. Validates inputs, calls the config manager, returns an example invocation for the LLM. |
