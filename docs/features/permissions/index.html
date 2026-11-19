@@ -1116,6 +1116,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#foreground-service-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Foreground-service types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#contacts" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1257,6 +1268,42 @@ value to the enum fails the Android build until the mapping is written — delib
 <td><code>READ_CONTACTS</code>, <code>WRITE_CONTACTS</code></td>
 <td>Android, all versions</td>
 <td><code>contacts_search</code>, <code>contact_create</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="foreground-service-types">Foreground-service types</h2>
+<p>Not runtime permissions, but the same kind of gate on Android 14+: a background
+service reaches the microphone, the screen or a long-running sync only through
+the type it declares in the manifest <strong>and</strong> passes to <code>startForeground</code>. A type
+in the manifest that is not passed at runtime is not granted.</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Type</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PotsOverlayService</code></td>
+<td><code>specialUse\|microphone</code></td>
+<td>the desktop pet window, and the cloud's voice loop that records from it</td>
+</tr>
+<tr>
+<td><code>PotsikScreenCaptureService</code></td>
+<td><code>mediaProjection</code></td>
+<td>the screen mode's MediaProjection session</td>
+</tr>
+<tr>
+<td><code>SandboxBackgroundService</code></td>
+<td><code>specialUse</code></td>
+<td>the local Linux sandbox staying alive</td>
+</tr>
+<tr>
+<td><code>ModelDownloadService</code></td>
+<td><code>dataSync</code></td>
+<td>model downloads</td>
 </tr>
 </tbody>
 </table>

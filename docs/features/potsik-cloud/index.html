@@ -1282,6 +1282,23 @@ decides that height and is tested without a device.</p>
 <code>Speaking</code> → <code>Listening</code>, the same loop the chat runs, with the same 15-second
 watchdog and the same barge-in order (speech stops first, the microphone opens
 after).</p>
+<p>The microphone is reached from the pet's foreground service, so on Android 14+
+the service has to carry the <code>microphone</code> foreground-service type — declared in
+the manifest <strong>and</strong> passed to <code>startForeground</code>. <code>PotsOverlayService</code> does both
+(<code>specialUse|microphone</code>): the window is the special use, the listening is the
+microphone. Without it <code>startListening</code> is accepted, the pill says «Слушаю…» and
+nothing is ever recorded — exactly the defect the owner reported.</p>
+<p>The microphone type is <em>attempted</em>, never assumed: it is a while-in-use
+permission, so <code>startForeground</code> throws <code>SecurityException</code> when <code>RECORD_AUDIO</code>
+has not been granted yet, and when the service is restarted from the background
+(<code>START_STICKY</code> after a process death). The service catches it, logs under
+<code>PotsBuild</code>, and starts again with the types that need no permission
+(<code>specialUse</code> alone on API 34+, the two-argument call below) — the pet stays on
+the desktop and the voice pill honestly says «Нет доступа к микрофону».</p>
+<p>Every recognition session gets a fresh <code>SpeechRecognizer</code> instance, and every
+failure is logged with its numeric code under the <code>PotsStt</code> tag: <code>cancel()</code> is
+asynchronous, so reusing one instance made the second «Голос» of a session answer
+<code>ERROR_RECOGNIZER_BUSY</code>, and the mapped enum alone could not say why.</p>
 <table>
 <thead>
 <tr>
@@ -1351,24 +1368,38 @@ added for the cloud.</p>
 </tbody>
 </table>
 <h2 id="flow-2-text">Flow 2 — text</h2>
-<p>The field is <strong>not</strong> in the overlay. <code>TYPE_APPLICATION_OVERLAY</code> is always drawn
-below the keyboard, so a field inside the capsule would be covered the moment
-the keyboard appeared. Instead the capsule opens a floating translucent activity
-(<code>PotsikTextInputActivity</code>: <code>Theme.Translucent.NoTitleBar</code>, <code>windowIsFloating</code>,
-<code>adjustResize</code>) with the field pinned to the bottom: the keyboard lifts it, back
-closes it, and the insets are the system's own business.</p>
+<p>«Текст» turns the capsule into a field: the cloud stays where it is, the window
+grows to <code>POTSIK_CLOUD_INPUT_WIDTH_DP</code> × <code>POTSIK_CLOUD_INPUT_HEIGHT_DP</code>
+(288 × 80 dp — one row, taller than the menu's 72 dp), takes input focus
+and the keyboard comes up. The answer to a typed question appears on the same
+pill the voice loop uses — <code>Thinking</code> → <code>Speaking</code> — because the question goes
+through <code>PotsikCloudAsker</code>, the one send path both flows share. The app is never
+opened.</p>
+<p>The field is the only phase that removes <code>FLAG_NOT_FOCUSABLE</code>: without that the
+window never receives the IME. Everything else keeps the flag, so the menu and
+the pills do not steal the keyboard (or the back key) from the app underneath.</p>
+<p><code>TYPE_APPLICATION_OVERLAY</code> is always drawn <strong>below</strong> the keyboard, and no inset
+ever reaches an overlay — so <code>adjustResize</code> cannot save a field that sits in the
+bottom half. <code>potsikCloudInputTop</code> is the lever: the window is raised so its
+bottom stays above <code>POTSIK_CLOUD_KEYBOARD_TOP_FRACTION</code> (half) of the screen. The
+capsule already lives above his head, so in the usual case the clamp does
+nothing; it only fires when he was dragged into the lower half.</p>
 <ul>
-<li>An empty field sends nothing (the button is disabled).</li>
+<li>An empty field sends nothing (the button is disabled, and the keyboard's
+  «Отправить» action does nothing).</li>
 <li>The draft lives in <code>PotsikCloudDraft</code>, process-wide: closing the field with
-  back or tapping away does not throw away what was typed.</li>
-<li>The answer is shown up to six lines with a scroll, with [Озвучить] when a
-  synthesizer is available and [Открыть в чате] for the full history.</li>
-<li>A question that could not be sent stays in the field and is marked as not
-  sent, with [Повторить].</li>
-<li>The microphone has exactly one owner: while the overlay's voice loop runs,
-  [Озвучить] says «Сначала остановите голосовой режим» instead of talking over
-  it.</li>
+  [×] or a tap outside does not throw away what was typed.</li>
+<li>Only the field's own question clears it: <code>onSendText</code> marks the question it
+  sent, and an answer to a voice or screenshot question leaves the draft alone.</li>
+<li>A question that could not be sent stays as the draft and is marked as not
+  sent on the pill, with [Повторить].</li>
+<li>The microphone has exactly one owner: the cloud's voice loop and the field are
+  never up at the same time.</li>
 </ul>
+<p>The translucent activity (<code>PotsikTextInputActivity</code>) is still what the <strong>screen</strong>
+mode opens for its question about the frame (<a href="../potsik-screenshot/">the screen mode</a>):
+that panel carries the thumbnail, the chips and [Открыть в чате], and it is a
+full activity by design.</p>
 <h2 id="where-the-code-is">Where the code is</h2>
 <table>
 <thead>
@@ -1400,7 +1431,7 @@ closes it, and the insets are the system's own business.</p>
 </tr>
 <tr>
 <td><code>composeApp/src/androidMain/.../overlay/PotsikTextInputActivity.kt</code></td>
-<td>The text field, as a translucent activity</td>
+<td>The question about a screenshot, as a translucent activity</td>
 </tr>
 <tr>
 <td><code>composeApp/src/androidMain/.../overlay/PotsOverlayService.kt</code></td>
