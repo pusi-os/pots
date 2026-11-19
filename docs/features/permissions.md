@@ -37,6 +37,20 @@ value to the enum fails the Android build until the mapping is written — delib
 | `READ_MEDIA_IMAGES` | `READ_MEDIA_IMAGES` (≤ Android 12: `READ_EXTERNAL_STORAGE`) | Android | `search_photos`, `import_photo` |
 | `CONTACTS` | `READ_CONTACTS`, `WRITE_CONTACTS` | Android, all versions | `contacts_search`, `contact_create` |
 
+## Foreground-service types
+
+Not runtime permissions, but the same kind of gate on Android 14+: a background
+service reaches the microphone, the screen or a long-running sync only through
+the type it declares in the manifest **and** passes to `startForeground`. A type
+in the manifest that is not passed at runtime is not granted.
+
+| Service | Type | Why |
+|---|---|---|
+| `PotsOverlayService` | `specialUse\|microphone` | the desktop pet window, and the cloud's voice loop that records from it |
+| `PotsikScreenCaptureService` | `mediaProjection` | the screen mode's MediaProjection session |
+| `SandboxBackgroundService` | `specialUse` | the local Linux sandbox staying alive |
+| `ModelDownloadService` | `dataSync` | model downloads |
+
 ## Contacts
 
 `READ_CONTACTS` and `WRITE_CONTACTS` are ordinary dangerous permissions, not hard-restricted,

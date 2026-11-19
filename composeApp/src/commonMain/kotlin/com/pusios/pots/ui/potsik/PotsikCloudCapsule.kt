@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -54,6 +56,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -124,6 +127,11 @@ fun PotsikCloudCapsule(
     voiceAvailable: Boolean,
     /** The frame the screen mode is holding, if any: the pill draws its thumbnail. */
     shot: PotsikShotUi?,
+    /** What is typed in [PotsikCloudPhase.TextInput]; the draft is process-wide. */
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onSendText: () -> Unit,
+    onCloseText: () -> Unit,
     onVoice: () -> Unit,
     onText: () -> Unit,
     onScreen: () -> Unit,
@@ -171,6 +179,13 @@ fun PotsikCloudCapsule(
                     onVoice = onVoice,
                     onText = onText,
                     onScreen = onScreen,
+                )
+
+                PotsikCloudPhase.TextInput -> PotsikCloudTextInput(
+                    draft = draft,
+                    onDraftChange = onDraftChange,
+                    onSend = onSendText,
+                    onClose = onCloseText,
                 )
 
                 else -> PotsikCloudPill(
@@ -288,6 +303,81 @@ private fun CloudActionButton(
             modifier = Modifier.size(POTSIK_CLOUD_BUTTON_DP.dp),
         ) {
             icon(tint)
+        }
+    }
+}
+
+/**
+ * The field of Flow 2, inside the capsule's own window.
+ *
+ * It is the same window the menu is drawn in, resized and made focusable by the
+ * overlay for this phase only: an overlay that is not focusable never receives
+ * the keyboard. The keyboard itself is drawn *above* any overlay, so the window
+ * is also kept in the top half of the screen — see [potsikCloudInputTop].
+ *
+ * The draft is not this composable's state: it lives in [PotsikCloudDraft] so
+ * that closing the cloud, or the process being killed, does not throw away what
+ * was typed.
+ */
+@Composable
+private fun PotsikCloudTextInput(
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onClose: () -> Unit,
+) {
+    // The field is the reason this phase exists, so it takes the keyboard by
+    // itself instead of asking for one more tap.
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        // The window's bounds were already changed by the phase before this
+        // runs, so the field is where the keyboard expects it.
+        runCatching { focusRequester.requestFocus() }
+        keyboard?.show()
+    }
+    val sendEnabled = potsikCloudSendEnabled(draft)
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(POTSIK_CLOUD_GAP_DP.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        OutlinedTextField(
+            value = draft,
+            onValueChange = onDraftChange,
+            modifier = Modifier
+                .weight(1f)
+                .focusRequester(focusRequester),
+            placeholder = { Text(stringResource(Res.string.potsik_cloud_input_placeholder)) },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium,
+            shape = RoundedCornerShape(16.dp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { if (sendEnabled) onSend() }),
+        )
+        IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
+            Icon(
+                imageVector = vectorResource(Res.drawable.ic_close),
+                contentDescription = stringResource(Res.string.potsik_cloud_close),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(
+            onClick = { if (sendEnabled) onSend() },
+            enabled = sendEnabled,
+            modifier = Modifier.size(POTSIK_CLOUD_BUTTON_DP.dp),
+        ) {
+            Icon(
+                imageVector = vectorResource(Res.drawable.ic_send),
+                contentDescription = stringResource(Res.string.potsik_cloud_send),
+                tint = if (sendEnabled) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                },
+            )
         }
     }
 }

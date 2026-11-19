@@ -30,6 +30,11 @@
         window while the app is in the background (opt-in, off by default). -->
    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+   <!-- The cloud's voice loop records from the pet's foreground service, which
+        is a background service by definition. Android 14+ hands the microphone
+        to a foreground service only when its type says microphone — without
+        this, startListening() is accepted and nothing is ever recorded. -->
+   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
    <!-- The screen mode: a MediaProjection session has to live under a
        foreground service of this type (Android 14+). -->
    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
@@ -164,11 +169,15 @@
             android:foregroundServiceType="dataSync" />
         <!-- The desktop pet window. specialUse and not dataSync: dataSync is
              capped at six hours a day on Android 15+, and a pet standing on
-             the desktop is not a sync. -->
+             the desktop is not a sync. `microphone` rides along because the
+             cloud's voice loop records from this service: on Android 14+ the
+             type is what grants a background service the microphone, and it
+             is added to specialUse rather than replacing it — the window is
+             still the special use, the listening is the microphone. -->
         <service
             android:name="com.pusios.pots.overlay.PotsOverlayService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse|microphone">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps the user's desktop pet character visible in a system overlay window while the app is in the background" />

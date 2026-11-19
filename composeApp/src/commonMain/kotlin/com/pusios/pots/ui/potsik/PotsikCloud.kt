@@ -60,9 +60,10 @@ const val POTSIK_CLOUD_SIDE_GAP_DP = 8f
  * What the pill shows, and therefore what the capsule is: the menu, one of the
  * three voice states, the text field, or the reason something did not work.
  *
- * [Menu] and [TextInput] are static — the frame clock must stay parked while
- * they are on screen (the overlay's battery invariant); only the three voice
- * states ask for frames.
+ * [Menu] and [TextInput] are static — the character's frame clock must stay
+ * parked while they are on screen (the overlay's battery invariant); only the
+ * three voice states ask him for frames. The text field's own window is not
+ * parked: it holds a field with a blinking cursor.
  */
 enum class PotsikCloudPhase {
     Menu,
@@ -296,8 +297,10 @@ data class PotsikCloudSize(val widthDp: Float, val heightDp: Float)
  * bounds stutters, so the content crossfades inside a window that has already
  * jumped ([POTSIK_CLOUD_PILL_WIDTH_DP] wide).
  *
- * The text field is not a window at all: it is a translucent activity, because
- * a `TYPE_APPLICATION_OVERLAY` window is always below the keyboard.
+ * The text field is a window of its own size like the rest, and the one phase
+ * that takes input focus; an overlay is drawn below the keyboard, so the field
+ * is kept in the top half of the screen ([potsikCloudInputTop]) instead of
+ * being lifted by insets it never receives.
  *
  * [voiceAvailable] is the one thing besides the phase that changes the height:
  * without a recognizer the menu carries a line of explanation above the capsule,
@@ -323,8 +326,42 @@ fun potsikCloudWindowSize(state: PotsikCloudState, voiceAvailable: Boolean = tru
     // pill of text: the caption «Скриншот 1080×2400» has to fit beside it.
     PotsikCloudPhase.Shot -> PotsikCloudSize(POTSIK_CLOUD_SHOT_WIDTH_DP, POTSIK_CLOUD_SHOT_HEIGHT_DP + POTSIK_CLOUD_TAIL_HEIGHT_DP)
 
-    // Not drawn in a window at all; the menu's size keeps the caller honest.
-    PotsikCloudPhase.TextInput -> PotsikCloudSize(POTSIK_CLOUD_WIDTH_DP, POTSIK_CLOUD_WINDOW_HEIGHT_DP)
+    // The field of Flow 2: wider than the menu (a sentence has to be readable
+    // while it is typed) and taller, because an OutlinedTextField needs 56 dp of
+    // its own inside the capsule's padding.
+    PotsikCloudPhase.TextInput -> PotsikCloudSize(POTSIK_CLOUD_INPUT_WIDTH_DP, POTSIK_CLOUD_INPUT_HEIGHT_DP)
+}
+
+/**
+ * The text field's width: the shot pill's 288 dp — the widest the capsule gets
+ * — so a typed question stays readable and the send button keeps its 48 dp.
+ */
+const val POTSIK_CLOUD_INPUT_WIDTH_DP = 288f
+
+/** The text field's window: a 56 dp field in an 8 dp padding, plus the tail. */
+const val POTSIK_CLOUD_INPUT_HEIGHT_DP = 80f
+
+/**
+ * How much of the screen's height the keyboard is assumed to take.
+ *
+ * An overlay window is always drawn *below* the IME, so `adjustResize` cannot
+ * save a field that sits under the keyboard: the only lever is where the window
+ * is. The top half of the screen is above every stock keyboard on a phone, and
+ * the capsule normally lives there anyway — it is anchored above his head.
+ */
+const val POTSIK_CLOUD_KEYBOARD_TOP_FRACTION = 0.5f
+
+/**
+ * Where the text field's window may start: high enough for its bottom to stay
+ * above the keyboard.
+ *
+ * Same reason the placement itself lives here rather than in the overlay — a
+ * rule that is only checked by eye is a rule that ends up under the keyboard on
+ * the one device that matters.
+ */
+fun potsikCloudInputTop(y: Int, windowHeightPx: Int, screenHeightPx: Int): Int {
+    val ceiling = (screenHeightPx * POTSIK_CLOUD_KEYBOARD_TOP_FRACTION).roundToInt() - windowHeightPx
+    return y.coerceAtMost(ceiling).coerceAtLeast(0)
 }
 
 /** The pill's fixed width: wide enough for two lines of an answer, not the whole screen. */

@@ -80,6 +80,18 @@ The pill is `HandsFreeController` in a window: `Listening` → `Thinking` →
 watchdog and the same barge-in order (speech stops first, the microphone opens
 after).
 
+The microphone is reached from the pet's foreground service, so on Android 14+
+the service has to carry the `microphone` foreground-service type — declared in
+the manifest **and** passed to `startForeground`. `PotsOverlayService` does both
+(`specialUse|microphone`): the window is the special use, the listening is the
+microphone. Without it `startListening` is accepted, the pill says «Слушаю…» and
+nothing is ever recorded — exactly the defect the owner reported.
+
+Every recognition session gets a fresh `SpeechRecognizer` instance, and every
+failure is logged with its numeric code under the `PotsStt` tag: `cancel()` is
+asynchronous, so reusing one instance made the second «Голос» of a session answer
+`ERROR_RECOGNIZER_BUSY`, and the mapped enum alone could not say why.
+
 | State | Pill | Character |
 |---|---|---|
 | `Listening` | pulse + three bars + «Слушаю…» | `IDLE_BREATHE` with the idle roll's own lean |
@@ -103,23 +115,37 @@ Failure branches, all of them keeping what the user said:
 
 ## Flow 2 — text
 
-The field is **not** in the overlay. `TYPE_APPLICATION_OVERLAY` is always drawn
-below the keyboard, so a field inside the capsule would be covered the moment
-the keyboard appeared. Instead the capsule opens a floating translucent activity
-(`PotsikTextInputActivity`: `Theme.Translucent.NoTitleBar`, `windowIsFloating`,
-`adjustResize`) with the field pinned to the bottom: the keyboard lifts it, back
-closes it, and the insets are the system's own business.
+«Текст» turns the capsule into a field: the cloud stays where it is, the window
+grows to 288 dp (one row, the same 72 dp height as the menu), takes input focus
+and the keyboard comes up. The answer to a typed question appears on the same
+pill the voice loop uses — `Thinking` → `Speaking` — because the question goes
+through `PotsikCloudAsker`, the one send path both flows share. The app is never
+opened.
 
-- An empty field sends nothing (the button is disabled).
+The field is the only phase that removes `FLAG_NOT_FOCUSABLE`: without that the
+window never receives the IME. Everything else keeps the flag, so the menu and
+the pills do not steal the keyboard (or the back key) from the app underneath.
+
+`TYPE_APPLICATION_OVERLAY` is always drawn **below** the keyboard, and no inset
+ever reaches an overlay — so `adjustResize` cannot save a field that sits in the
+bottom half. `potsikCloudInputTop` is the lever: the window is raised so its
+bottom stays above `POTSIK_CLOUD_KEYBOARD_TOP_FRACTION` (half) of the screen. The
+capsule already lives above his head, so in the usual case the clamp does
+nothing; it only fires when he was dragged into the lower half.
+
+- An empty field sends nothing (the button is disabled, and the keyboard's
+  «Отправить» action does nothing).
 - The draft lives in `PotsikCloudDraft`, process-wide: closing the field with
-  back or tapping away does not throw away what was typed.
-- The answer is shown up to six lines with a scroll, with [Озвучить] when a
-  synthesizer is available and [Открыть в чате] for the full history.
-- A question that could not be sent stays in the field and is marked as not
-  sent, with [Повторить].
-- The microphone has exactly one owner: while the overlay's voice loop runs,
-  [Озвучить] says «Сначала остановите голосовой режим» instead of talking over
-  it.
+  [×] or a tap outside does not throw away what was typed.
+- A question that could not be sent stays as the draft and is marked as not
+  sent on the pill, with [Повторить].
+- The microphone has exactly one owner: the cloud's voice loop and the field are
+  never up at the same time.
+
+The translucent activity (`PotsikTextInputActivity`) is still what the **screen**
+mode opens for its question about the frame ([the screen mode](potsik-screenshot.md)):
+that panel carries the thumbnail, the chips and [Открыть в чате], and it is a
+full activity by design.
 
 ## Where the code is
 
@@ -130,7 +156,7 @@ closes it, and the insets are the system's own business.
 | `composeApp/src/commonMain/.../ui/potsik/PotsikScreen.kt` | The screen mode of the third button — see [the screen mode](potsik-screenshot.md) |
 | `composeApp/src/commonMain/.../ui/potsik/PotsikCloudAsker.kt` | One question into the current chat, one answer out of it |
 | `composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt` | The window, the microphone, the lifetime |
-| `composeApp/src/androidMain/.../overlay/PotsikTextInputActivity.kt` | The text field, as a translucent activity |
+| `composeApp/src/androidMain/.../overlay/PotsikTextInputActivity.kt` | The question about a screenshot, as a translucent activity |
 | `composeApp/src/androidMain/.../overlay/PotsOverlayService.kt` | The character's window; owns the cloud's lifetime |
 | `composeApp/src/commonTest/.../ui/potsik/PotsikCloud*Test.kt` | Placement and state rules, no device needed |
 

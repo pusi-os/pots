@@ -464,12 +464,22 @@ class PotsOverlayService : Service() {
             .setOngoing(true)
             .build()
         try {
-            if (Build.VERSION.SDK_INT >= 34) {
-                startForeground(
-                    NOTIF_ID,
-                    notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
-                )
+            // The runtime declaration is what the manifest only permits: a
+            // type declared in the manifest and not passed here is not granted.
+            // SPECIAL_USE exists from API 34, MICROPHONE from API 30, and the
+            // three-argument startForeground from API 29 — below that there is
+            // nothing to declare.
+            val types = when {
+                Build.VERSION.SDK_INT >= 34 ->
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+
+                Build.VERSION.SDK_INT >= 30 -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+
+                else -> 0
+            }
+            if (types != 0) {
+                startForeground(NOTIF_ID, notification, types)
             } else {
                 startForeground(NOTIF_ID, notification)
             }

@@ -9,6 +9,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -49,6 +50,7 @@ import com.pusios.pots.ui.DarkColorScheme
 import com.pusios.pots.ui.LightColorScheme
 import com.pusios.pots.ui.potsik.PotsikCloudAsker
 import com.pusios.pots.ui.potsik.PotsikCloudCapsule
+import com.pusios.pots.ui.potsik.PotsikCloudDraft
 import com.pusios.pots.ui.potsik.PotsikCloudPhase
 import com.pusios.pots.ui.potsik.PotsikCloudState
 import com.pusios.pots.ui.potsik.PotsikCloudTrouble
@@ -59,7 +61,9 @@ import com.pusios.pots.ui.potsik.PotsikScreenStep
 import com.pusios.pots.ui.potsik.PotsikShotHolder
 import com.pusios.pots.ui.potsik.PotsikShotUi
 import com.pusios.pots.ui.potsik.isScreenTrouble
+import com.pusios.pots.ui.potsik.potsikCloudInputTop
 import com.pusios.pots.ui.potsik.potsikCloudPlacement
+import com.pusios.pots.ui.potsik.potsikCloudSendEnabled
 import com.pusios.pots.ui.potsik.potsikCloudWindowSize
 import com.pusios.pots.ui.potsik.potsikScreenshotSizeLabel
 import com.pusios.pots.ui.tts.DEFAULT_PIPER_VOICE_ID
@@ -88,8 +92,9 @@ import kotlin.math.roundToInt
  * the taps meant for him.
  *
  * The window is [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY], which
- * the system always draws below the status bar and — the reason the text field
- * is a separate activity — below the keyboard.
+ * the system always draws below the status bar and below the keyboard — which
+ * is why the text field's window is kept in the top half of the screen rather
+ * than being lifted by insets an overlay never receives.
  *
  * Everything that decides *what* the cloud shows lives in commonMain
  * ([PotsikCloudState], [potsikCloudPlacement], [PotsikCloudCapsule]); this file
@@ -318,6 +323,16 @@ internal class PotsikCloudOverlay(
         )
         params.x = placement.x
         params.y = placement.y
+        if (state.phase == PotsikCloudPhase.TextInput) {
+            // An overlay is drawn below the IME, so a field under the keyboard
+            // is a field nobody can see. The window moves up instead of the
+            // keyboard moving the window: insets never reach an overlay.
+            params.y = potsikCloudInputTop(
+                y = params.y,
+                windowHeightPx = params.height,
+                screenHeightPx = metrics.heightPixels,
+            )
+        }
     }
 
     // ---- the state -----------------------------------------------------------
@@ -332,7 +347,11 @@ internal class PotsikCloudOverlay(
         val density = context.resources.displayMetrics.density
         val width = (size.widthDp * density).roundToInt()
         val height = (size.heightDp * density).roundToInt()
-        if (params.width != width || params.height != height) {
+        val resized = params.width != width || params.height != height
+        // The field is the only phase that takes the keyboard; everything else
+        // must not steal focus (or the back key) from the app underneath.
+        val refocused = applyInputFocus(params, next.phase == PotsikCloudPhase.TextInput)
+        if (resized || refocused) {
             // The window's bounds jump; the content crossfades inside them.
             // Animating an overlay's own size stutters, so it is not done.
             params.width = width
@@ -340,8 +359,47 @@ internal class PotsikCloudOverlay(
             petParams()?.let { place(params, it) }
             runCatching { windowManager.updateViewLayout(view, params) }
         }
+        if (previous.phase == PotsikCloudPhase.TextInput && next.phase != PotsikCloudPhase.TextInput) {
+            hideKeyboard()
+        }
         if (previous.phase != PotsikCloudPhase.Listening && next.phase == PotsikCloudPhase.Listening) {
             view.haptic(HapticFeedbackConstants.SEGMENT_TICK)
+        }
+    }
+
+    /**
+     * Makes the window focusable exactly while the text field is on it.
+     *
+     * `FLAG_NOT_FOCUSABLE` is what keeps the capsule from taking the keyboard
+     * (and the back key) away from the app underneath while it is a menu or a
+     * pill — but a window under that flag never receives the IME either, so the
+     * field cannot be typed into. Returns true when the flags changed.
+     */
+    private fun applyInputFocus(params: WindowManager.LayoutParams, focused: Boolean): Boolean {
+        val focusable = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE == 0
+        if (focusable == focused) return false
+        params.flags = if (focused) {
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        } else {
+            params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        }
+        params.softInputMode = if (focused) {
+            // ADJUST_RESIZE is what the platform can offer a window of our own;
+            // the keyboard itself is drawn above an overlay, so the field is
+            // also kept out of its way in [place].
+            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE
+        } else {
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+        }
+        return true
+    }
+
+    /** Takes the keyboard down with the field. */
+    private fun hideKeyboard() {
+        runCatching {
+            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(shell?.windowToken, 0)
         }
     }
 
@@ -445,6 +503,9 @@ internal class PotsikCloudOverlay(
     }
 
     private suspend fun onAnswered(answer: PotsikCloudAsker.Answer.Answered) {
+        // The question has gone: the field is cleared only now, so a failed
+        // send keeps what was typed.
+        PotsikCloudDraft.clear()
         setState(PotsikCloudState(phase = PotsikCloudPhase.Speaking, reply = answer.text))
         // The controller speaks the reply and reopens the microphone when it is
         // done — the loop closing itself, exactly as in the app. Without a
@@ -469,14 +530,29 @@ internal class PotsikCloudOverlay(
         handsFree.start()
     }
 
+    /**
+     * «Текст»: the field opens in the cloud itself, not in the app.
+     *
+     * The window keeps its place over his head (raised into the top half, where
+     * the keyboard cannot reach it) and takes input focus for the phase. The
+     * plain text flow asks no question about a picture: whatever the screen
+     * mode left pending is not this question's attachment.
+     */
     fun onText() {
-        // The plain text flow asks no question about a picture: whatever the
-        // screen mode left pending is not this question's attachment.
         PotsikShotHolder.clear()
-        // The field is an activity, and the cloud's window goes down with it:
-        // one Потсик and one surface, as everywhere else in the app.
-        close()
-        onOpenText()
+        setState(PotsikCloudState(phase = PotsikCloudPhase.TextInput))
+    }
+
+    /** [Отправить] on the field: the same asker the voice loop uses, so the answer lands on the same pill. */
+    fun onSendText() {
+        val question = PotsikCloudDraft.text.value
+        if (!potsikCloudSendEnabled(question)) return
+        asker.ask(question)
+    }
+
+    /** [×] on the field: back to the menu. The draft is kept for the next time. */
+    fun onCloseText() {
+        setState(PotsikCloudState())
     }
 
     /**
@@ -585,7 +661,12 @@ internal class PotsikCloudOverlay(
     fun onPillTap() {
         when (state.phase) {
             PotsikCloudPhase.Shot -> openQuestionAboutShot()
-            PotsikCloudPhase.Speaking, PotsikCloudPhase.Listening -> handsFree.interrupt()
+
+            PotsikCloudPhase.Speaking, PotsikCloudPhase.Listening ->
+                // The voice loop's barge-in — but a reply to a typed question
+                // has no loop behind it, and [Стоп] must still dismiss it.
+                if (handsFree.isActive) handsFree.interrupt() else setState(PotsikCloudState())
+
             else -> Unit
         }
     }
@@ -648,10 +729,15 @@ internal class PotsikCloudOverlay(
         }
         CompositionLocalProvider(LocalAppLanguageCode provides languageCode) {
             MaterialTheme(colorScheme = if (dark) DarkColorScheme else LightColorScheme) {
+                val draft by PotsikCloudDraft.text.collectAsState()
                 PotsikCloudCapsule(
                     state = state,
                     voiceAvailable = voiceAvailable,
                     shot = screenShot.value,
+                    draft = draft,
+                    onDraftChange = PotsikCloudDraft::set,
+                    onSendText = tapped(::onSendText),
+                    onCloseText = tapped(::onCloseText),
                     onVoice = tapped(::onVoice),
                     onText = tapped(::onText),
                     onScreen = tapped(::onScreen),

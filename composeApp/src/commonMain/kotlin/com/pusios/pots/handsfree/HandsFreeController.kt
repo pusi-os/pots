@@ -270,6 +270,10 @@ class HandsFreeController(
         val recognizer = speechToText ?: return
         // A new id invalidates the callbacks of the session that is being replaced.
         val id = ++sessionId
+        // Best-effort: `cancel()` is asynchronous and does not guarantee the
+        // service has stopped by the time `start()` is called. The Android
+        // recognizer therefore creates a fresh instance per session instead of
+        // relying on this call (see AndroidSpeechToText.start).
         runCatching { recognizer.cancel() }
         startListenWatchdog(id)
         recognizer.start(

@@ -155,6 +155,29 @@ class PotsikCloudPlacementTest {
     }
 
     @Test
+    fun `the text field is wider than the menu and tall enough for the field`() {
+        val field = potsikCloudWindowSize(PotsikCloudState(phase = PotsikCloudPhase.TextInput))
+        assertEquals(POTSIK_CLOUD_INPUT_WIDTH_DP, field.widthDp)
+        assertTrue(field.widthDp > POTSIK_CLOUD_WIDTH_DP, "a sentence has to be readable while it is typed")
+        // A 56 dp OutlinedTextField plus the 8 dp padding on both sides and the tail.
+        assertEquals(POTSIK_CLOUD_INPUT_HEIGHT_DP, field.heightDp)
+        assertEquals(56f + POTSIK_CLOUD_GAP_DP * 2 + POTSIK_CLOUD_TAIL_HEIGHT_DP, field.heightDp)
+    }
+
+    @Test
+    fun `the text field's window is lifted above the keyboard`() {
+        // A field in the bottom half would be drawn under the IME: an overlay
+        // is always below the keyboard, and no inset ever moves it.
+        val height = 144
+        val screen = 2400
+        assertEquals(2400 / 2 - height, potsikCloudInputTop(y = 1900, windowHeightPx = height, screenHeightPx = screen))
+        // Already high enough: the placement above his head is left alone.
+        assertEquals(600, potsikCloudInputTop(y = 600, windowHeightPx = height, screenHeightPx = screen))
+        // A screen shorter than the window keeps the field on it.
+        assertEquals(0, potsikCloudInputTop(y = 900, windowHeightPx = 2000, screenHeightPx = screen))
+    }
+
+    @Test
     fun `the capsule is built from its own parts`() {
         // Three 48 dp slots, two 8 dp gaps, two 8 dp paddings.
         assertEquals(
