@@ -113,11 +113,17 @@
             android:theme="@style/PotsikTextInputTheme"
             android:windowSoftInputMode="adjustResize" />
         <!-- The consent dialog of the screen mode: an activity, because only an
-             activity can receive the result of the MediaProjection intent. -->
+             activity can receive the result of the MediaProjection intent.
+             It gets a task of its own (taskAffinity + singleInstance): launched
+             into the app's task, it would bring the app to the front, and the
+             frame taken right after the answer would show the last Pots screen
+             instead of the screen the user was on. -->
         <activity
             android:name="com.pusios.pots.overlay.PotsikScreenCaptureActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.pusios.pots.screenconsent"
             android:theme="@style/PotsikTextInputTheme" />
         <provider
             android:name="androidx.core.content.FileProvider"

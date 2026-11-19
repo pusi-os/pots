@@ -24,6 +24,33 @@ added.
 A chip **fills the draft** instead of sending at once: the question is the
 user's, and the field is where it is written.
 
+## The frame is the screen the user was on
+
+«Экран» is a button on a window that floats over *somebody else's* screen, so
+the frame has to be that screen — not ours, and not the app's. Three things keep
+it that way:
+
+- **The consent activity lives in a task of its own.** It is declared with its
+  own `taskAffinity` and `launchMode="singleInstance"`, and started with
+  `FLAG_ACTIVITY_NEW_TASK`. Without the affinity, the intent joins the app's
+  task: the system brings that whole task to the front, the transparent activity
+  sits on top of the last Pots screen, and the frame taken after the answer
+  shows the app's settings instead of the desktop the user was looking at. With
+  it, the consent task is the only thing that comes forward and what stays
+  underneath is the screen the user was on.
+- **Потсик is not in the picture.** Both overlay windows carry `FLAG_SECURE`, so
+  the system composites them out of the capture (see below).
+- **The first frame waits for the screen to settle.** The consent activity
+  finishes on the main thread of the same process, and its task leaves the front
+  a frame or two later; `PotsikScreenCaptureService` asks for the first frame
+  after `CONSENT_SETTLE_MS` (150 ms) instead of in the same frame the display is
+  created, so the shot is of the screen that is really there. Later taps in the
+  same session are not delayed: nothing is transitioning then.
+
+If a shot ever does come out wrong on a particular OEM build, the pill still
+says what it is doing («Нужно разрешение на снимок экрана» while the dialog is
+up) and offers [Повторить] on failure, so the feature never looks dead.
+
 ## Consent is granted once per mode
 
 The system dialog on every tap is a feature nobody uses, so the session is

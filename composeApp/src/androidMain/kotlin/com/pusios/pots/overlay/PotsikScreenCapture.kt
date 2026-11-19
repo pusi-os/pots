@@ -110,6 +110,15 @@ internal fun PotsikShot.preview(): ImageBitmap? = runCatching {
     BitmapFactory.decodeByteArray(png, 0, png.size)?.asImageBitmap()
 }.getOrNull()
 
-/** The consent dialog, as an intent for the activity that owns the result. */
+/**
+ * The consent dialog, as an intent for the activity that owns the result.
+ *
+ * `NEW_TASK` is what lets a service start an activity at all. The activity has
+ * a task affinity of its own (see the manifest), so this starts the dialog in a
+ * task of its own instead of bringing the app's task to the front: the screen
+ * under the dialog stays the one the user was on, and that is the screen the
+ * frame has to show. There is no `CLEAR_TOP` any more — a second launch reuses
+ * the single instance, and there is nothing above it to clear.
+ */
 internal fun potsikScreenConsentIntent(context: Context): Intent = Intent(context, PotsikScreenCaptureActivity::class.java)
-    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

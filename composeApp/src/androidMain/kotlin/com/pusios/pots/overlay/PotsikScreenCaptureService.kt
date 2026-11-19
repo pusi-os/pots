@@ -137,7 +137,13 @@ class PotsikScreenCaptureService : Service() {
         }
         this.display = display
         PotsikScreenProjection.attach(this)
-        PotsikScreenProjection.onReady()
+        // The dialog has just been answered, and the activity that raised it is
+        // finishing on this same thread: its task is leaving the front and the
+        // screen underneath is being redrawn. A frame asked for right now can
+        // still catch the consent window — or whatever was behind it — instead
+        // of the screen the user was on, so the first frame is asked for once a
+        // couple of frames have been drawn.
+        handler.postDelayed({ if (ready) PotsikScreenProjection.onReady() }, CONSENT_SETTLE_MS)
         return true
     }
 
@@ -278,5 +284,12 @@ class PotsikScreenCaptureService : Service() {
         /** 20 × 50 ms: a second for the first frame, then an honest failure. */
         private const val FIRST_FRAME_ATTEMPTS = 20
         private const val FIRST_FRAME_DELAY_MS = 50L
+
+        /**
+         * Three frames at 50 Hz, two at 60: enough for the consent window to
+         * leave the screen and for the app under it to redraw before the first
+         * frame is taken. Only the first frame after the consent pays it.
+         */
+        private const val CONSENT_SETTLE_MS = 150L
     }
 }

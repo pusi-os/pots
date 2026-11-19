@@ -177,4 +177,7 @@ full activity by design.
 
 The third button, «Экран», is [its own page](potsik-screenshot.md): it raises a
 system consent dialog, and a dialog on every tap is a feature nobody uses — so
-it has a mode of its own, with its own lifetime.
+it has a mode of its own, with its own lifetime. The frame is the screen the
+user was on when the tap happened: the consent activity lives in a task of its
+own and does not bring the app to the front, Потсик's windows are composited out
+of the capture, and the first frame waits for the screen to settle.
