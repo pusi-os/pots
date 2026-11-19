@@ -727,6 +727,17 @@
     <string name="settings_sandbox_uninstall_confirm">All data in the Linux sandbox will be lost. Are you sure you want to uninstall?</string>
     <string name="settings_sandbox_uninstall_confirm_shared">All data in the Linux sandbox will be lost, and Pots Build loses its Linux too — it uses the same one. Your projects are kept. Are you sure you want to uninstall?</string>
     <string name="settings_sandbox_cancel">Cancel</string>
+    <string name="settings_sandbox_background_title">Work in the background</string>
+    <string name="settings_sandbox_background_description">Keep the sandbox alive while the app is closed. Android needs a permanent notification for that, and without a battery-optimisation exemption it may still freeze the app.</string>
+    <string name="settings_sandbox_background_on">Running in the background</string>
+    <string name="settings_sandbox_background_off">Stops when you leave the app</string>
+    <string name="settings_sandbox_background_battery_warning">Battery optimisation is on for Pots, so Android can freeze or kill the sandbox even with this switch on. Allowing it is not required — it only makes the background mode last.</string>
+    <string name="settings_sandbox_background_allow">Allow background work</string>
+    <string name="settings_sandbox_background_battery_settings">Battery settings</string>
+    <string name="settings_sandbox_background_notifications_hidden">Notifications are off, so the status notification will not be visible. The sandbox keeps running; allow notifications to see it and to stop it from there.</string>
+    <string name="settings_sandbox_background_oem_title">The phone still kills it?</string>
+    <string name="settings_sandbox_background_oem_body">Xiaomi (MIUI/HyperOS): Settings → Apps → Pots → Autostart on, Battery saver → No restrictions.\nSamsung (One UI): Settings → Battery → Background usage limits → remove Pots from Sleeping apps; App info → Battery → Unrestricted.</string>
+    <string name="settings_sandbox_background_autostart">Autostart settings</string>
     <string name="settings_sandbox_disk_usage">%1$d MB</string>
     <string name="terminal_title">Terminal</string>
     <string name="terminal_help_text">The AI uses this environment to run commands.\nYou can also run commands manually below.</string>

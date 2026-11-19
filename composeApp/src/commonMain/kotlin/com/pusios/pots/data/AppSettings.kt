@@ -890,6 +890,17 @@ class AppSettings(internal val settings: Settings) {
     }
 
     /**
+     * Whether the sandbox keeps running while the app is in the background. Off by
+     * default: it costs a persistent notification and a battery-optimisation
+     * exemption request, which the user has to say yes to.
+     */
+    fun isSandboxBackgroundEnabled(): Boolean = settings.getBoolean(KEY_SANDBOX_BACKGROUND_ENABLED, false)
+
+    fun setSandboxBackgroundEnabled(enabled: Boolean) {
+        settings.putBoolean(KEY_SANDBOX_BACKGROUND_ENABLED, enabled)
+    }
+
+    /**
      * Which distribution the shell integration runs in. Each keeps its own
      * install, so changing this points the sandbox at the other one rather than
      * replacing anything — and an install always records its own distro, which
@@ -1249,6 +1260,7 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_MODEL_CONTEXT_PREFIX = "model_context_"
 
         const val KEY_SANDBOX_ENABLED = "sandbox_enabled"
+        const val KEY_SANDBOX_BACKGROUND_ENABLED = "sandbox_background_enabled"
         const val KEY_SANDBOX_DISTRO = "sandbox_distro"
         const val KEY_POTS_BUILD_LAUNCH_AGENT = "pots_build_launch_agent"
 

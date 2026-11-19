@@ -108,6 +108,22 @@ class ProotHandle internal constructor(
         readerFutures.forEach { runCatching { it.get(500, TimeUnit.MILLISECONDS) } }
         return runCatching { process.exitValue() }.getOrDefault(-1)
     }
+
+    /**
+     * Waits up to [timeoutMillis] for the OS to reap the process, and answers
+     * whether it did.
+     *
+     * Unlike [awaitExit] this does not return early on cancel: a caller that is
+     * about to tell the agent "stopped" has to know the process is really gone,
+     * or the port it holds is still taken.
+     */
+    fun awaitDeath(timeoutMillis: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        while (process.isAlive && System.currentTimeMillis() < deadline) {
+            runCatching { process.waitFor(50, TimeUnit.MILLISECONDS) }
+        }
+        return !process.isAlive
+    }
 }
 
 /**

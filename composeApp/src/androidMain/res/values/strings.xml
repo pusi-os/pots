@@ -13,4 +13,8 @@
     <string name="potsik_overlay_notification">Potsik is standing on the desktop</string>
     <string name="potsik_screen_channel_name">Screen capture</string>
     <string name="potsik_screen_notification">Potsik can take a screenshot of your screen</string>
+    <string name="sandbox_background_channel_name">Sandbox in the background</string>
+    <string name="sandbox_background_channel_description">Keeps the Linux sandbox alive while the app is not in the foreground</string>
+    <string name="sandbox_background_notification_text">Sandbox is running in the background</string>
+    <string name="sandbox_background_stop">Stop</string>
 </resources>

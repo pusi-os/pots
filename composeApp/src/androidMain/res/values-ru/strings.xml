@@ -13,4 +13,8 @@
     <string name="potsik_overlay_notification">Потсик стоит на рабочем столе</string>
     <string name="potsik_screen_channel_name">Снимок экрана</string>
     <string name="potsik_screen_notification">Потсик может снять ваш экран</string>
+    <string name="sandbox_background_channel_name">Песочница в фоне</string>
+    <string name="sandbox_background_channel_description">Держит Linux-песочницу живой, пока приложение свёрнуто</string>
+    <string name="sandbox_background_notification_text">Песочница работает в фоне</string>
+    <string name="sandbox_background_stop">Остановить</string>
 </resources>

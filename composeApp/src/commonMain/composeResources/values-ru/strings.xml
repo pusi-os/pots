@@ -424,6 +424,17 @@
     <string name="settings_sandbox_uninstall">Удалить</string>
     <string name="settings_sandbox_uninstall_confirm">Все данные в песочнице Linux будут потеряны. Вы уверены, что хотите удалить?</string>
     <string name="settings_sandbox_cancel">Отмена</string>
+    <string name="settings_sandbox_background_title">Работа в фоне</string>
+    <string name="settings_sandbox_background_description">Держать песочницу живой, пока приложение свёрнуто. Для этого Android требует постоянное уведомление, а без исключения из батарейной оптимизации он всё равно может заморозить приложение.</string>
+    <string name="settings_sandbox_background_on">Работает в фоне</string>
+    <string name="settings_sandbox_background_off">Останавливается, когда вы уходите из приложения</string>
+    <string name="settings_sandbox_background_battery_warning">Для Потс включена батарейная оптимизация, поэтому Android может заморозить или убить песочницу даже с включённым тумблером. Разрешение не обязательно — оно только продлевает работу в фоне.</string>
+    <string name="settings_sandbox_background_allow">Разрешить работу в фоне</string>
+    <string name="settings_sandbox_background_battery_settings">Настройки батареи</string>
+    <string name="settings_sandbox_background_notifications_hidden">Уведомления выключены, поэтому уведомление о статусе не будет видно. Песочница продолжит работать; разрешите уведомления, чтобы видеть статус и останавливать её оттуда.</string>
+    <string name="settings_sandbox_background_oem_title">Телефон всё равно убивает приложение?</string>
+    <string name="settings_sandbox_background_oem_body">Xiaomi (MIUI/HyperOS): Настройки → Приложения → Pots → Автозапуск включить, Экономия заряда → Без ограничений.\nSamsung (One UI): Настройки → Батарея → Ограничения фоновой активности → убрать Pots из «Спящих приложений»; Приложение → Батарея → Без ограничений.</string>
+    <string name="settings_sandbox_background_autostart">Настройки автозапуска</string>
     <string name="settings_sandbox_disk_usage">%1$d МБ</string>
     <string name="terminal_title">Терминал</string>
     <string name="terminal_help_text">ИИ использует эту среду для выполнения команд.\nВы также можете выполнять команды вручную ниже.</string>

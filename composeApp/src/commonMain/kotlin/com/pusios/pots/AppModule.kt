@@ -178,6 +178,7 @@ val appModule = module {
         )
     }
     single<DaemonController> { createDaemonController() }
+    single<SandboxBackgroundController> { createSandboxBackgroundController() }
     single<SandboxController> { createSandboxController() }
     single<PotsBuildController> { createPotsBuildController() }
     single<com.pusios.pots.companion.CompanionController> { com.pusios.pots.companion.createCompanionController(get<DataRepository>()) }

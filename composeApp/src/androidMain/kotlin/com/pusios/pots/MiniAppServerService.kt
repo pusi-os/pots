@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import com.pusios.pots.data.miniapp.MiniAppServer
 import com.pusios.pots.shared.R
@@ -24,9 +26,17 @@ class MiniAppServerService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        try {
-            startForeground(NOTIFICATION_ID, buildNotification())
-        } catch (_: Exception) {
+        val foreground = runCatching {
+            // specialUse since API 34, passed explicitly: the service declares the
+            // type in the manifest, and dataSync (the old type) is capped at six
+            // hours a day on Android 15+, which a local server cannot live with.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification())
+            }
+        }.isSuccess
+        if (!foreground) {
             stopSelf()
             return
         }

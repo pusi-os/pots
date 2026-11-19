@@ -23,18 +23,36 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.pusios.pots.Platform
+import com.pusios.pots.SandboxBackgroundController
+import com.pusios.pots.SandboxBackgroundState
+import com.pusios.pots.currentPlatform
 import com.pusios.pots.formatFileSize
 import com.pusios.pots.linux.LinuxDistro
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.sandbox.SandboxProgressRow
 import com.pusios.pots.ui.sandbox.sandboxStatusText
 import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_open
 import pots.composeapp.generated.resources.settings_sandbox_agent_version_unknown
 import pots.composeapp.generated.resources.settings_sandbox_agents_title
+import pots.composeapp.generated.resources.settings_sandbox_background_allow
+import pots.composeapp.generated.resources.settings_sandbox_background_autostart
+import pots.composeapp.generated.resources.settings_sandbox_background_battery_settings
+import pots.composeapp.generated.resources.settings_sandbox_background_battery_warning
+import pots.composeapp.generated.resources.settings_sandbox_background_description
+import pots.composeapp.generated.resources.settings_sandbox_background_notifications_hidden
+import pots.composeapp.generated.resources.settings_sandbox_background_oem_body
+import pots.composeapp.generated.resources.settings_sandbox_background_oem_title
+import pots.composeapp.generated.resources.settings_sandbox_background_off
+import pots.composeapp.generated.resources.settings_sandbox_background_on
+import pots.composeapp.generated.resources.settings_sandbox_background_title
 import pots.composeapp.generated.resources.settings_sandbox_cancel
 import pots.composeapp.generated.resources.settings_sandbox_description
 import pots.composeapp.generated.resources.settings_sandbox_disk_usage
@@ -104,6 +122,11 @@ internal fun SandboxSettingsCard(
                     onCheckedChange = onToggleSandbox,
                 )
             }
+        }
+
+        // Only meaningful once there is an install to keep alive.
+        if (sandboxState.sandboxReady) {
+            SandboxBackgroundSection()
         }
 
         // Offered at any time: each distribution keeps its own install, so this
@@ -327,6 +350,138 @@ private fun DistroOption(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+/**
+ * The sandbox's background mode.
+ *
+ * The toggle is the whole state: a missing battery-optimisation exemption or a
+ * silenced notification is reported, never used to refuse the mode. Both are
+ * re-read on every return to the screen, because both can be taken away in
+ * system settings while the app is running.
+ */
+@Composable
+private fun SandboxBackgroundSection() {
+    if (currentPlatform !is Platform.Mobile.Android) return
+
+    // Screenshot tests render without Koin; the block still has to draw.
+    val inspection = LocalInspectionMode.current
+    val controller = if (inspection) null else koinInject<SandboxBackgroundController>()
+    var state by remember(controller) { mutableStateOf(SandboxBackgroundState(supported = true)) }
+    var showOemChecklist by remember { mutableStateOf(false) }
+
+    if (controller != null) {
+        LifecycleResumeEffect(controller) {
+            // The user may have changed the exemption, the notification permission,
+            // or stopped the service from its notification while they were away.
+            state = controller.refresh()
+            onPauseOrDispose { }
+        }
+    }
+
+    Spacer(Modifier.height(12.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(Res.string.settings_sandbox_background_title),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = stringResource(
+                    if (state.working) {
+                        Res.string.settings_sandbox_background_on
+                    } else {
+                        Res.string.settings_sandbox_background_off
+                    },
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (state.working) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        Switch(
+            checked = state.enabled,
+            onCheckedChange = { enabled ->
+                state = if (controller != null) {
+                    controller.setEnabled(enabled)
+                    controller.refresh()
+                } else {
+                    state.copy(enabled = enabled)
+                }
+            },
+        )
+    }
+
+    Text(
+        text = stringResource(Res.string.settings_sandbox_background_description),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    // A warning, not a gate: the mode is on either way.
+    if (state.batteryWarning) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(Res.string.settings_sandbox_background_battery_warning),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+                onClick = { controller?.requestBatteryExemption() },
+                modifier = Modifier.handCursor(),
+            ) {
+                Text(stringResource(Res.string.settings_sandbox_background_allow))
+            }
+            TextButton(
+                onClick = { controller?.openBatterySettings() },
+                modifier = Modifier.handCursor(),
+            ) {
+                Text(stringResource(Res.string.settings_sandbox_background_battery_settings))
+            }
+        }
+    }
+
+    // The service runs without the permission; only the status is invisible.
+    if (state.notificationHidden) {
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(Res.string.settings_sandbox_background_notifications_hidden),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    // Text, not code: on these ROMs the only honest fix is a setting the user flips.
+    if (state.working) {
+        TextButton(
+            onClick = { showOemChecklist = !showOemChecklist },
+            modifier = Modifier.handCursor(),
+        ) {
+            Text(stringResource(Res.string.settings_sandbox_background_oem_title))
+        }
+        if (showOemChecklist) {
+            Text(
+                text = stringResource(Res.string.settings_sandbox_background_oem_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(
+                onClick = { controller?.openAutostartSettings() },
+                modifier = Modifier.handCursor(),
+            ) {
+                Text(stringResource(Res.string.settings_sandbox_background_autostart))
+            }
         }
     }
 }

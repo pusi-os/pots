@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import com.pusios.pots.data.TaskScheduler
 import com.pusios.pots.shared.R
@@ -23,10 +25,18 @@ class DaemonService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        val notification = buildNotification()
-        try {
-            startForeground(NOTIFICATION_ID, notification)
-        } catch (_: Exception) {
+        val foreground = runCatching {
+            // The type has to be passed explicitly from API 34; specialUse itself
+            // was added in 34, so older versions get the plain call. dataSync is
+            // not an option here: it is capped at six hours a day on Android 15+,
+            // and the daemon is meant to be up all day.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification())
+            }
+        }.isSuccess
+        if (!foreground) {
             stopSelf()
             return
         }
@@ -40,11 +50,6 @@ class DaemonService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    override fun onTimeout(startId: Int, fgsType: Int) {
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
-    }
 
     override fun onDestroy() {
         stopForeground(STOP_FOREGROUND_REMOVE)

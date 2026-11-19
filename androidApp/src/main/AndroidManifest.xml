@@ -17,6 +17,10 @@
    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
    <uses-permission android:name="android.permission.WRITE_CALENDAR"/>
    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+   <!-- Asks to be left out of battery optimisation (ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).
+        Without this permission the request is ignored by the system. Needed because a
+        background sandbox dies with the app process once Doze freezes it. -->
+   <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
    <!-- Microphone, for the hands-free voice mode. -->
    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
    <uses-permission android:name="com.android.alarm.permission.SET_ALARM"/>
@@ -119,14 +123,41 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        <!-- The mini-app server and the daemon are keep-alives for long-lived
+             local work, not syncs: dataSync is capped at six hours per day on
+             Android 15+ (onTimeout), which would stop them mid-day. specialUse
+             has no time budget. The attribute is only read from API 34, where
+             the type was added; older versions ignore it, and the services call
+             startForeground without a type below that (see the SDK_INT fork in
+             each service) — no second manifest entry is needed for old OSes. -->
         <service
             android:name="com.pusios.pots.MiniAppServerService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the local mini-app server reachable while the app is in the background" />
+        </service>
         <service
             android:name="com.pusios.pots.DaemonService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the app process alive so scheduled tasks, heartbeat and email polling run in the background" />
+        </service>
+        <!-- The sandbox's own keep-alive: its own service so that stopping the
+             sandbox does not stop the task daemon, and the other way round. -->
+        <service
+            android:name="com.pusios.pots.SandboxBackgroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the user's local Linux sandbox running while the app is in the background" />
+        </service>
+        <!-- Model downloads really are a sync, and the six-hour budget is the
+             right ceiling for one. -->
         <service
             android:name="com.pusios.pots.inference.ModelDownloadService"
             android:exported="false"

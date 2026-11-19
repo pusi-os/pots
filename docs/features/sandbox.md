@@ -114,6 +114,8 @@ The assistant's shell tool accepts a `fresh: true` argument that runs the comman
 
 `background: true` on the shell tool detaches the command into its own short-lived `proot` and returns a `session_id`. Background jobs do not share state with the persistent shell. The companion `manage_process` tool reports status, output, and lets the assistant kill them.
 
+`kill` ends the process for real: the handle's `cancel()` runs first (it kills the guest bridge, which closes the PTY and lets proot exit), then the manager waits up to five seconds for the OS to reap it. Only after that does it answer `success: true` with the exit code. If the process is still alive at the deadline the answer is `success: false` and the session stays killable — a "terminated" that leaves the port taken is worse than an honest failure. `remove` follows the same rule: a session with a live process is terminated first, and it is only dropped from the table once the process is gone. The session table itself (`BackgroundSessionRegistry`) is shared with desktop, so both platforms answer these calls identically; desktop additionally kills the whole process tree, because `sh -c` puts the real command in a child that would otherwise outlive the shell.
+
 ### Cancellation
 
 Hitting **Cancel** in the Terminal — or any cancel signal coming from the chat — sends `SIGINT` to the running command (technically: every direct child of the persistent bash, delivered from a sibling proot, since Pots has no PTY to drive line discipline). If the process ignores `SIGINT`, the cancel escalates to `SIGTERM` then `SIGKILL`. If even that fails, the whole shell is reset; the next command transparently restarts a fresh bash. At most a single command loses session state.
@@ -123,6 +125,40 @@ The same applies when the agent's shell call is abandoned — the user stops the
 ### Self-healing
 
 The shell session can break — the user types `exit`, a command crashes bash, the framing channel desyncs, or a per-call timeout expires with the shell still wedged. In every case the next command lazily starts a new shell. Working directory and exported env are lost in that one event; the system stays usable.
+
+## Background mode
+
+By default the sandbox lives inside the app process: when Android kills that process to reclaim memory, every `proot` and every bash dies with it. The **Work in the background** switch in Settings → Sandbox (Android only, offered once the sandbox is installed) keeps it alive instead, through a foreground service with a persistent notification that has its own **Stop** action. Stopping from the notification turns the switch off as well, so the card never claims a mode the user just ended.
+
+The switch is the whole gate. Two things Android can take away are *reported*, never used to refuse the mode:
+
+- **Battery-optimisation exemption** — `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (the app declares `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, which is what makes the request legal for a sideloaded build). Without it Doze can freeze or kill the app even with the switch on, so the card says so and offers both the dialog and the battery-settings list. The real state is `PowerManager.isIgnoringBatteryOptimizations(packageName)`.
+- **Notifications** — `POST_NOTIFICATIONS` only decides whether the status notification is *visible*. The service starts without it, and the card says the status will be hidden rather than blocking the mode.
+
+Both are re-read every time the screen resumes (`LifecycleResumeEffect`), not once at creation: an exemption revoked in system settings shows up as a warning on the next visit instead of a stale "all good".
+
+### Foreground service types and their limits
+
+| Type | API | Limit | Where used |
+| --- | --- | --- | --- |
+| `dataSync` | 29+ | **6 hours per 24** on Android 15+ (`onTimeout`), plus a 6-hour quota below that | `ModelDownloadService` — a model download really is a sync, and the cap is right for one |
+| `specialUse` | 34+ | none | `SandboxBackgroundService`, `DaemonService`, `MiniAppServerService` — keep-alives for long-lived local work |
+| `mediaProjection` | 29+ | tied to the projection session | `PotsikScreenCaptureService` (screen mode) |
+
+`specialUse` arrived in API 34, so the declaration forks by version *inside* the service, not in the manifest: the manifest attribute is ignored below 34 (nothing reads it), and `startForeground` is called with `FOREGROUND_SERVICE_TYPE_SPECIAL_USE` only from 34 up and without a type below it. One service entry therefore covers every supported version, and old OSes keep working.
+
+### OEM task killers
+
+Some vendors kill background apps regardless of Android's rules. The card carries a short checklist as text rather than trying to defeat the system in code:
+
+- **Xiaomi (MIUI/HyperOS)**: Settings → Apps → Pots → Autostart on; Battery saver → No restrictions.
+- **Samsung (One UI)**: Settings → Battery → Background usage limits → remove Pots from *Sleeping apps*; App info → Battery → Unrestricted.
+
+The **Autostart settings** button opens the vendor's own autostart screen when the ROM has one (MIUI's security centre, One UI's battery page) and falls back to this app's system page everywhere else.
+
+### Reboots and process death
+
+The service is `START_STICKY`, so a system kill during the day brings it back. A **reboot** does not: nothing restarts it at boot (Android 15 restricts which foreground service types may be launched from `BOOT_COMPLETED`, and `specialUse` is not one of them). The switch stays on in settings, and the next time the app is opened the controller re-applies it — so after a reboot the sandbox comes back when Pots is opened, not before. That is stated here rather than papered over with a boot receiver that the platform would refuse.
 
 ## Behavior
 
@@ -152,7 +188,7 @@ The shell session can break — the user types `exit`, a command crashes bash, t
 - **No PTY → fullscreen TUIs do not work.** `vim`, `less`, `nano`, anything ncurses-based, `cbonsai` in animated mode, and any `ssh -t host fullscreen-cmd` will either refuse to start ("inappropriate ioctl for device" / "stdout is not a tty") or spam escape codes that don't render. Use the non-interactive variants: `cat`/redirected editors, `ssh user@host 'remote-cmd'` without `-t`. A proper PTY layer was prototyped and reverted — the build-out tradeoffs (terminal emulator complexity, IME interaction, scrollback) didn't pencil out for v1.
 - **Process inspectors (`top`, `htop`) cannot see system-wide processes.** Android's `/proc` mount is `hidepid=2`, so `/proc/<pid>/` for processes owned by other UIDs is not visible. `proot` rewrites paths but can't bypass kernel UID enforcement. There is no fix without root. For workload monitoring inside the sandbox itself, use `ps`, `ps -p $$`, or `cat /proc/self/status`.
 - **Subprocess stdout buffering.** `python3` / `node` / etc. fully buffer stdout when stdin is a pipe — output looks "stuck" until the buffer fills or the process exits. Use `python3 -u` or `stdbuf -o0 <cmd>` for interactive testing.
-- **App backgrounding can end the session.** When Android kills the app process to reclaim memory, every `proot` (and therefore every bash) dies with it. On the next foreground use shells restart cleanly per conversation, but cwd, exported env, and any open SSH/SFTP connections are gone. The visible transcript of each chat's shell is persisted (trimmed tail) so the user still sees what was on screen, but live shell *state* is not. There is no foreground service holding sessions alive — the tradeoff for not asking for that permission.
+- **App backgrounding ends the session unless the background mode is on.** When Android kills the app process to reclaim memory, every `proot` (and therefore every bash) dies with it. With **Work in the background** on (see [Background mode](#background-mode)), a foreground service holds the process and the shells survive; without it the old behaviour stands: shells restart cleanly per conversation, but cwd, exported env, and any open SSH/SFTP connections are gone. The visible transcript of each chat's shell is persisted (trimmed tail) so the user still sees what was on screen, but live shell *state* is not. The mode is opt-in because it costs a permanent notification and, on many devices, a battery-optimisation exemption.
 - **Memory cost of multiple sessions.** Each live shell is a `proot+bash` pair (tens of MB resident). Running many concurrent chats with shell-tool usage will accumulate sessions. There is no soft cap yet — closing a conversation drops its shell, sandbox reset drops them all.
 - **Cancel without a PTY is best-effort.** A child that ignores `SIGINT`/`SIGTERM` forces a session reset; the user loses session state for that one command.
 - **Stray output from backgrounded jobs** (`sleep 60 &` then "Done" later) can attach itself to whatever command is running when the kernel finally reports the exit. Matches normal terminal behavior.
@@ -189,7 +225,11 @@ The shell session can break — the user types `exit`, a command crashes bash, t
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/ShellCommandTool.kt` | The `execute_shell_command` tool the assistant calls. Description, `fresh` flag, env/working-dir wrapping. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/SshConfigureHostTool.kt` | The `ssh_configure_host` tool. Validates inputs, calls the config manager, returns an example invocation for the LLM. |
 | `composeApp/src/jvmShared/kotlin/com/pusios/pots/sandbox/SshConfigManager.kt` | Pure-JVM writer for `~/.ssh/config` and `~/.ssh/known_hosts`. Owns the `# pots:<marker>:start/end` blocks (defaults + per-host) for idempotent upsert, file-mode lockdown, and the relative-to-`~/.ssh` identity-file resolution. |
-| `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/ProcessManager.kt` / `composeApp/src/jvmShared/kotlin/com/pusios/pots/tools/ProcessManagerTool.kt` | Background-job lifecycle: detached one-shot proot, in-memory session table, status/kill controls. |
+| `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/ProcessManager.kt` / `composeApp/src/jvmShared/kotlin/com/pusios/pots/tools/ProcessManagerTool.kt` | Background-job lifecycle: detached one-shot proot, status/kill controls. |
+| `composeApp/src/jvmShared/kotlin/com/pusios/pots/tools/BackgroundSessions.kt` | The session table both platforms share: bounded output, the `BackgroundProcess` handle, and `kill`/`remove` that wait for the process to die before answering. |
+| `composeApp/src/androidMain/kotlin/com/pusios/pots/SandboxBackgroundService.kt` | The background mode's foreground service (`specialUse`): persistent notification with a **Stop** action that also turns the switch off. |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/SandboxBackgroundController.kt` | The mode's state and controller contract. `SandboxBackgroundState.working` is the toggle alone; `batteryWarning` and `notificationHidden` are statements, not gates. |
+| `composeApp/src/androidMain/kotlin/com/pusios/pots/SandboxBackgroundController.android.kt` | Reads the live exemption and notification state, starts/stops the service, opens the battery and vendor-autostart screens. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/sandbox/SandboxTabsContent.kt` | The inline sandbox surface: Terminal / Files / Packages sub-tabs, the Session / Temporary chips, and the not-installed install prompt. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/sandbox/SandboxSessionViewModel.kt` | Terminal-tab ViewModel: line buffer, run/cancel state, stream draining. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/settings/TerminalSheet.kt` | Visible terminal UI with command echo, color-coded streams, and an interactive input row. |

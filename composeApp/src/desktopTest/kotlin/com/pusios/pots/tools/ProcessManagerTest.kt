@@ -58,6 +58,25 @@ class ProcessManagerTest {
         Thread.sleep(200)
         val killResult = pm.kill(sessionId)
         assertEquals(true, killResult["success"])
+        // The answer is only worth anything if the session really ended and the
+        // slot it held is free again.
+        assertEquals("finished", pm.log(sessionId, 0, 10)["status"])
+        assertEquals(0, (pm.list()["running"] as List<*>).size)
+    }
+
+    @Test
+    fun aSessionCanBeStartedAfterThePreviousOneWasKilled() {
+        val pm = ProcessManager()
+        val first = pm.startBackground("sleep 60", 120, null, emptyMap())
+        Thread.sleep(200)
+        assertEquals(true, pm.kill(first["session_id"] as String)["success"])
+
+        val second = pm.startBackground("echo again", 10, null, emptyMap())
+        val secondId = second["session_id"] as String
+        Thread.sleep(500)
+        val log = pm.log(secondId, 0, 10)
+        assertEquals("finished", log["status"])
+        assertTrue((log["stdout"] as String).contains("again"))
     }
 
     @Test
