@@ -965,6 +965,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#contacts-android" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contacts (Android)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#obsidian-android" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2115,6 +2126,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#contacts-android" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contacts (Android)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#obsidian-android" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2148,7 +2170,7 @@
 
 
 <h1 id="tools">Tools</h1>
-<p><strong>Last verified:</strong> 2026-11-11</p>
+<p><strong>Last verified:</strong> 2026-11-19</p>
 <p>Pots's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="tool">Tool</h3>
@@ -2707,6 +2729,14 @@
 <td>Android alarm / countdown-timer tool</td>
 </tr>
 <tr>
+<td><code>composeApp/src/androidMain/.../tools/ContactTools.kt</code></td>
+<td><code>contacts_search</code>, <code>contact_create</code>, <code>contact_dial</code></td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../tools/Contacts.kt</code></td>
+<td>Number normalization, the contact response shape, and the dedup lookup</td>
+</tr>
+<tr>
 <td><code>composeApp/src/androidMain/.../sandbox/LinuxSandboxManager.kt</code></td>
 <td>Sandbox lifecycle, setup, proot management</td>
 </tr>
@@ -2822,6 +2852,45 @@
 </table>
 <p>These tools use <code>READ_MEDIA_IMAGES</code> (or <code>READ_EXTERNAL_STORAGE</code> on Android 12 and older) and MediaStore. <code>save_to_downloads</code> requires Android 10 or newer.</p>
 <p><code>vector_search_storage</code> uses the local embedding model and index described in <a href="../vector-search/">vector-search.md</a>. It returns matching file URIs and similarity scores; the agent should use it first for requests about the user's photos or documents.</p>
+<h3 id="contacts-android">Contacts (Android)</h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>contacts_search</code></td>
+<td>Search the phone contacts by a name fragment or a number</td>
+<td>Enabled</td>
+</tr>
+<tr>
+<td><code>contact_create</code></td>
+<td>Create a contact with a name and one number</td>
+<td>Enabled</td>
+</tr>
+<tr>
+<td><code>contact_dial</code></td>
+<td>Open the dialer with a number filled in</td>
+<td>Enabled</td>
+</tr>
+</tbody>
+</table>
+<p>All three read and write through <code>ContactsContract</code>, which exists since API 5 — well below the app's <code>minSdk</code> — so there is no OS-version gate; the runtime <code>READ_CONTACTS</code>/<code>WRITE_CONTACTS</code> prompt is the only one. The permission row lives in <strong>Settings → Tools</strong>, above the tool list. See <a href="../permissions/">permissions.md</a>.</p>
+<p>Privacy rules, enforced by the code rather than by the prompt:</p>
+<ul>
+<li><strong>No full dumps.</strong> <code>contacts_search</code> requires a query (a name fragment or a number) and returns at most 10 matches, each reduced to <code>id</code>, <code>name</code> and one <code>phone</code>. A blank query is refused; there is no "list all contacts" mode. <code>%</code> and <code>_</code> are escaped in the <code>LIKE</code> pattern, so a query made of wildcards matches literal characters instead of the whole address book. When more than 10 contacts match, the answer carries <code>has_more: true</code> — the query fetches 11 rows so the flag can actually be raised.</li>
+<li><strong>Names come from contacts that have a number.</strong> The name search runs over <code>Phone.CONTENT_URI</code>, so a contact with no phone number is not found by name. That is deliberate: the tools exist to answer "what is X's number" and to dial.</li>
+<li><strong>No logging.</strong> Names and numbers are other people's personal data and are never written to logs or error messages.</li>
+<li><strong>No country guessing.</strong> <code>+7 (912) 345-67-89</code>, <code>8 912 345 67 89</code> and <code>89123456789</code> all normalize to <code>+79123456789</code>, but a number without a country code (<code>9123456789</code>) is kept as bare digits — guessing a country would store the wrong number.</li>
+<li><strong>No duplicates.</strong> <code>contact_create</code> looks the number up through <code>PhoneLookup</code> first; when the contact exists it returns that contact with <code>created: false</code> and writes nothing. This is what stops an agent asked three times from leaving three "мама" entries.</li>
+<li><strong>One batch, not two inserts.</strong> The raw contact and its name/phone rows go through a single <code>applyBatch</code>, so a failure can't leave a nameless or numberless contact behind.</li>
+<li><strong>Dialing is <code>ACTION_DIAL</code>.</strong> The number is filled into the system dialer and the call starts only when the user taps it. <code>CALL_PHONE</code> is deliberately not declared.</li>
+</ul>
+<p>Every tool answers a missing permission with <code>success: false</code> and a message the model can act on ("No access to contacts. Ask the user to allow contact access for Pots, then try again.") — after asking for the permission once. A denial never throws.</p>
 <h3 id="obsidian-android">Obsidian (Android)</h3>
 <table>
 <thead>
