@@ -100,6 +100,10 @@ private fun <T> List<Tool>.toRequestTools(convert: (Tool) -> T): List<T>? = mapN
  * Shared failure mapping for the OpenAI-compatible endpoints that have no bespoke error handling:
  * API exceptions propagate as-is, anything else (I/O, serialization) becomes a connection error.
  * Kept separate from [Requests.openAICompatibleChat], which additionally distinguishes timeouts.
+ *
+ * The original exception is classified and quoted rather than dropped: this is the only place
+ * that still knows *why* the call failed, and a nameless [OpenAICompatibleConnectionException]
+ * leaves the heartbeat journal with nothing to report.
  */
 private inline fun <T> openAICompatibleResult(block: () -> Result<T>): Result<T> = try {
     block()
@@ -109,8 +113,14 @@ private inline fun <T> openAICompatibleResult(block: () -> Result<T>): Result<T>
     // Stop/timeout must cancel the caller, not surface as a connection or API error.
     throw e
 } catch (e: Exception) {
-    Result.failure(OpenAICompatibleConnectionException())
+    Result.failure(connectionFailure(e))
 }
+
+/** Wraps a transport-level failure, keeping its classified reason and the provider's own words. */
+internal fun connectionFailure(e: Exception): OpenAICompatibleConnectionException = OpenAICompatibleConnectionException(
+    reason = e.providerFailureReason(),
+    detail = e.message?.takeIf { it.isNotBlank() } ?: e::class.simpleName,
+)
 
 class Requests {
 
@@ -188,7 +198,7 @@ class Requests {
     } catch (e: OpenAICompatibleApiException) {
         Result.failure(e)
     } catch (e: io.ktor.client.plugins.HttpRequestTimeoutException) {
-        Result.failure(OpenAICompatibleConnectionException())
+        Result.failure(connectionFailure(e))
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -234,7 +244,7 @@ class Requests {
     } catch (e: OpenAICompatibleApiException) {
         Result.failure(e)
     } catch (e: io.ktor.client.plugins.HttpRequestTimeoutException) {
-        Result.failure(OpenAICompatibleConnectionException())
+        Result.failure(connectionFailure(e))
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -322,14 +332,20 @@ class Requests {
         path
     }
 
-    private fun getApiKeyOrThrow(service: Service, credentials: ServiceCredentials): String? {
+    /**
+     * The key to send, or null when the service takes none. A keyless provider (local Ollama,
+     * LM Studio) must not receive an empty `Authorization` header — that reads as a malformed
+     * credential to several gateways and turns a working setup into a 401. Internal so the
+     * keyless/required/optional split is testable without a network.
+     */
+    internal fun getApiKeyOrThrow(service: Service, credentials: ServiceCredentials): String? {
         if (!service.requiresApiKey && !service.supportsOptionalApiKey) return null
         val key = credentials.apiKey
         if (service.requiresApiKey && key.isEmpty()) throw OpenAICompatibleInvalidApiKeyException()
         return key.ifEmpty { null }
     }
 
-    private fun getOptionalApiKey(service: Service, credentials: ServiceCredentials): String? {
+    internal fun getOptionalApiKey(service: Service, credentials: ServiceCredentials): String? {
         if (!service.requiresApiKey && !service.supportsOptionalApiKey) return null
         return credentials.apiKey.ifEmpty { null }
     }
@@ -399,7 +415,7 @@ class Requests {
             name.contains("SocketException", ignoreCase = true) ||
             name.contains("Unresolved", ignoreCase = true)
         return if (looksLikeNetworkFailure) {
-            OpenAICompatibleConnectionException()
+            connectionFailure(e)
         } else {
             OpenAICompatibleGenericException(
                 e.message?.takeIf { it.isNotBlank() } ?: "Unexpected error: $name",

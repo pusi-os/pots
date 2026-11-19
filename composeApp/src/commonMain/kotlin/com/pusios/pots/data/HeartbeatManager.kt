@@ -13,7 +13,10 @@ import kotlin.time.ExperimentalTime
 data class HeartbeatLogEntry(
     val timestampEpochMs: Long,
     val success: Boolean,
+    /** Failure line: `Reason: provider detail (provider / model)`. Null on a clean run. */
     val error: String? = null,
+    /** What the run did differently than asked — today only "fell back to X after Y". */
+    val note: String? = null,
 )
 
 @Serializable
@@ -157,11 +160,12 @@ class HeartbeatManager(
         )
     }
 
-    suspend fun recordHeartbeat(success: Boolean, error: String? = null) {
+    suspend fun recordHeartbeat(success: Boolean, error: String? = null, note: String? = null) {
         val entry = HeartbeatLogEntry(
             timestampEpochMs = Clock.System.now().toEpochMilliseconds(),
             success = success,
             error = error,
+            note = note,
         )
         log.update { (listOf(entry) + it).take(MAX_LOG_ENTRIES) }
     }

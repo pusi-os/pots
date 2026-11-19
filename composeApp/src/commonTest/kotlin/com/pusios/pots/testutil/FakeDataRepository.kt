@@ -662,7 +662,18 @@ class FakeDataRepository : DataRepository {
         instanceId: String?,
         conversationIdOverride: String?,
         modelIdOverride: String?,
-    ): String = ""
+    ): String {
+        askWithToolsCalls += instanceId
+        askWithToolsFailures[instanceId]?.let { throw it }
+        return askWithToolsResponse
+    }
+
+    /** Instance ids [askWithTools] was called with, in order — proves who was (not) tried. */
+    val askWithToolsCalls = mutableListOf<String?>()
+
+    /** Instance id (null = any) → the exception that instance should fail with. */
+    var askWithToolsFailures: Map<String?, Exception> = emptyMap()
+    var askWithToolsResponse: String = "HEARTBEAT_OK"
     override suspend fun askSilently(question: String): String = ""
     override suspend fun askSilentlyWithInstance(instanceId: String, prompt: String, timeoutMs: Long): String = ""
     override suspend fun addAssistantMessage(content: String) {}

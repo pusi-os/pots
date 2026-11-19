@@ -4,10 +4,17 @@ import com.pusios.pots.email.EmailPoller
 import com.pusios.pots.getBackgroundDispatcher
 import com.pusios.pots.isEmailSupported
 import com.pusios.pots.isSmsSupported
+import com.pusios.pots.network.ConfiguredInstanceNotFoundException
+import com.pusios.pots.network.NoConfiguredServiceException
+import com.pusios.pots.network.OpenAICompatibleConnectionException
+import com.pusios.pots.network.ProviderFailureReason
+import com.pusios.pots.network.isRetryableProviderFailure
+import com.pusios.pots.network.providerFailureReason
 import com.pusios.pots.sendHeartbeatNotification
 import com.pusios.pots.sms.SmsPoller
 import com.pusios.pots.ui.markdown.parseMarkdown
 import com.pusios.pots.ui.markdown.toSpeakableText
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -15,12 +22,16 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.min
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
+import kotlin.time.TimeSource
 
 @OptIn(ExperimentalTime::class)
 class TaskScheduler(
@@ -37,10 +48,31 @@ class TaskScheduler(
     private val backgroundDispatcher: CoroutineContext = getBackgroundDispatcher(),
 ) {
     private companion object {
+        /** Attempts against one instance, and only for failures a retry can plausibly fix. */
         const val PRIMARY_ATTEMPTS = 3
+
+        /**
+         * Wall clock one instance may spend failing before the fallback takes over. Without a
+         * budget, three attempts on a hanging endpoint meant three full request timeouts —
+         * minutes of silence on every heartbeat.
+         */
+        val PRIMARY_ATTEMPT_BUDGET = 90.seconds
+
+        /** Backoff before retry n; short, because [PRIMARY_ATTEMPT_BUDGET] is the real bound. */
+        val RETRY_BACKOFF = 2.seconds
+
         const val POLL_INTERVAL_MS = 60_000L
         const val MAX_BACKOFF_MS = 3_600_000L // 1 hour
         const val HEARTBEAT_CONTEXT_COUNT = 3
+
+        /** Shown in the journal when the primary fails and no reserve is configured. */
+        const val NO_FALLBACK_SUFFIX = "; no fallback model selected in Settings → Agent → Heartbeat"
+
+        /**
+         * Shown when the reserve points at the primary itself. Saying "no fallback selected"
+         * there would be a lie: one is selected, it just cannot take over.
+         */
+        const val RESERVE_EQUALS_PRIMARY_SUFFIX = "; reserve equals the primary instance"
 
         /** Per-task execution log size — surfaced in the task details sheet. */
         const val MAX_TASK_LOG_ENTRIES = 10
@@ -53,6 +85,15 @@ class TaskScheduler(
          */
         const val HEARTBEAT_NOTIFICATION_PREVIEW_CHARS = 240
     }
+
+    /** A successful run plus what the journal should say about it (e.g. that it fell back). */
+    private class ProviderRun(val content: String, val note: String? = null)
+
+    /**
+     * Every instance the run could use is out. Carries the finished journal line, because only
+     * the retry loop knows which instance failed and whether a fallback was configured.
+     */
+    private class ProviderRunFailedException(message: String) : Exception(message)
 
     /**
      * Process-lifetime scope. Decoupled from any caller's scope so scheduled tasks and
@@ -105,23 +146,7 @@ class TaskScheduler(
                     if (isLoadingCheck()) break
 
                     try {
-                        // Bind tool calls to the heartbeat conversation's sandbox session
-                        // — the scheduled-task result also lands in that conversation
-                        // (see `addAssistantMessage`), so routing its shell commands
-                        // there too keeps shell state coherent with the visible output.
-                        val taskConversationId = dataRepository.getOrCreateHeartbeatConversationId()
-                        val response = askWithRetry(
-                            prompt = task.prompt,
-                            primaryInstanceId = task.originInstanceId,
-                            fallbackInstanceId = heartbeatManager?.getConfig()?.heartbeatFallbackInstanceId,
-                            modelIdOverride = task.originModelId,
-                            conversationIdOverride = taskConversationId,
-                        )
-                        if (response.isNotBlank()) {
-                            val header = task.description.ifBlank { "Scheduled task" }
-                            dataRepository.addAssistantMessage("**$header**\n\n$response")
-                        }
-                        handleTaskCompletion(task)
+                        runScheduledTask(task)
                     } catch (e: Exception) {
                         // Stopped mid-run (daemon shut down): leave the task due so it runs next
                         // time instead of recording a failure and advancing past this occurrence.
@@ -148,42 +173,128 @@ class TaskScheduler(
         }
     }
 
+    /**
+     * One due scheduled task: ask the model, post the answer into the Pulse conversation,
+     * advance the schedule.
+     *
+     * The run's note (e.g. "fell back to … after Unauthorized …") goes into the task's own
+     * execution log, the same way the Pulse journal records it — a scheduled run that quietly
+     * switched models must not leave the owner guessing which model answered.
+     */
+    internal suspend fun runScheduledTask(task: ScheduledTask) {
+        // Bind tool calls to the heartbeat conversation's sandbox session
+        // — the scheduled-task result also lands in that conversation
+        // (see `addAssistantMessage`), so routing its shell commands
+        // there too keeps shell state coherent with the visible output.
+        val taskConversationId = dataRepository.getOrCreateHeartbeatConversationId()
+        val run = askWithRetry(
+            prompt = task.prompt,
+            primaryInstanceId = task.originInstanceId,
+            fallbackInstanceId = heartbeatManager?.getConfig()?.heartbeatFallbackInstanceId,
+            modelIdOverride = task.originModelId,
+            conversationIdOverride = taskConversationId,
+        )
+        val response = run.content
+        if (response.isNotBlank()) {
+            val header = task.description.ifBlank { "Scheduled task" }
+            dataRepository.addAssistantMessage("**$header**\n\n$response")
+        }
+        handleTaskCompletion(task, run.note)
+    }
+
+    /**
+     * One run against the primary instance, then the configured fallback.
+     *
+     * Retries are decided by the failure class: a rejected key, a missing model or a malformed
+     * response will not change on a second try, so those go straight to the fallback; only
+     * transport failures (unreachable, timeout, rate limit) are repeated, within
+     * [PRIMARY_ATTEMPT_BUDGET] of wall clock. Every failure is described for the journal —
+     * reason, the provider's own words, and the instance it ran through.
+     */
     private suspend fun askWithRetry(
         prompt: String,
         primaryInstanceId: String?,
         fallbackInstanceId: String?,
         modelIdOverride: String? = null,
         conversationIdOverride: String? = null,
-    ): String {
+    ): ProviderRun {
+        val startedAt = TimeSource.Monotonic.markNow()
         var lastFailure: Exception? = null
-        repeat(PRIMARY_ATTEMPTS) {
+        for (attempt in 1..PRIMARY_ATTEMPTS) {
+            val remaining = PRIMARY_ATTEMPT_BUDGET - startedAt.elapsedNow()
+            if (remaining <= Duration.ZERO) break
             try {
-                return dataRepository.askWithTools(
-                    prompt = prompt,
-                    instanceId = primaryInstanceId,
-                    modelIdOverride = modelIdOverride,
-                    conversationIdOverride = conversationIdOverride,
+                // A hanging endpoint must not own the whole budget: the attempt is bounded by
+                // what is left of it, so the fallback still gets its turn.
+                val content = withTimeoutOrNull(remaining) {
+                    dataRepository.askWithTools(
+                        prompt = prompt,
+                        instanceId = primaryInstanceId,
+                        modelIdOverride = modelIdOverride,
+                        conversationIdOverride = conversationIdOverride,
+                    )
+                } ?: throw OpenAICompatibleConnectionException(
+                    reason = ProviderFailureReason.Timeout,
+                    detail = "no answer within $PRIMARY_ATTEMPT_BUDGET",
                 )
+                return ProviderRun(content)
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (e is CancellationException) throw e
                 lastFailure = e
+                if (!e.isRetryableProviderFailure()) break
+                val backoff = RETRY_BACKOFF * attempt
+                if (startedAt.elapsedNow() + backoff >= PRIMARY_ATTEMPT_BUDGET) break
+                delay(backoff)
             }
         }
-        if (!fallbackInstanceId.isNullOrBlank() && fallbackInstanceId != primaryInstanceId) {
-            try {
-                return dataRepository.askWithTools(
-                    prompt = prompt,
-                    instanceId = fallbackInstanceId,
-                    modelIdOverride = null,
-                    conversationIdOverride = conversationIdOverride,
-                )
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                lastFailure = e
+        val primaryFailure = lastFailure ?: IllegalStateException("Model call failed")
+
+        // Nothing is configured at all: a fallback would fail the same way, and the journal
+        // line is already the whole answer — pointing at the fallback setting would mislead.
+        val nothingConfigured = primaryFailure is NoConfiguredServiceException
+        val reserveIsSameInstance = !fallbackInstanceId.isNullOrBlank() && fallbackInstanceId == primaryInstanceId
+        val canFallBack = !nothingConfigured && !fallbackInstanceId.isNullOrBlank() && !reserveIsSameInstance
+        if (!canFallBack) {
+            val suffix = when {
+                nothingConfigured -> ""
+                reserveIsSameInstance -> RESERVE_EQUALS_PRIMARY_SUFFIX
+                else -> NO_FALLBACK_SUFFIX
             }
+            throw ProviderRunFailedException(failureLine(primaryFailure, primaryInstanceId) + suffix)
         }
-        throw lastFailure ?: IllegalStateException("Model call failed")
+        try {
+            val content = dataRepository.askWithTools(
+                prompt = prompt,
+                instanceId = fallbackInstanceId,
+                modelIdOverride = null,
+                conversationIdOverride = conversationIdOverride,
+            )
+            return ProviderRun(
+                content = content,
+                note = "fell back to ${instanceLabel(fallbackInstanceId)} after ${failureLine(primaryFailure, primaryInstanceId)}",
+            )
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            throw ProviderRunFailedException(
+                failureLine(primaryFailure, primaryInstanceId) + "; fallback " + failureLine(e, fallbackInstanceId),
+            )
+        }
     }
+
+    /** Journal line for a failure: `<reason>: <provider detail> (<instance>)`. */
+    private fun failureLine(e: Exception, instanceId: String?): String = when (e) {
+        // Its message is already `<reason>: <detail>`, so prefixing the reason again would
+        // print it twice ("Unreachable: Unreachable: connection refused").
+        is OpenAICompatibleConnectionException -> describeFailure(e.reason, e.detail, instanceLabel(instanceId))
+
+        // Already a full sentence about routing; a reason prefix would only add noise.
+        is ConfiguredInstanceNotFoundException, is NoConfiguredServiceException -> e.message ?: e::class.simpleName.orEmpty()
+
+        else -> describeFailure(e.providerFailureReason(), e.message, instanceLabel(instanceId))
+    }
+
+    /** `Provider / model` for the journal, so the owner knows which model to look at. */
+    private fun instanceLabel(instanceId: String?): String? = serviceInstanceLabel(dataRepository.getServiceEntries(), instanceId)
 
     /**
      * Run one heartbeat cycle: build the prompt, call the AI, record the result, and
@@ -195,6 +306,7 @@ class TaskScheduler(
         val pendingEmails = emailStore?.getPending().orEmpty()
         val pendingSms = smsStore?.getPending().orEmpty()
         val pendingNotifications = notificationStore?.getPending().orEmpty()
+        val config = manager.getConfig()
         try {
             val recentResponses = dataRepository.savedConversations.value
                 .find { it.type == Conversation.TYPE_HEARTBEAT }
@@ -207,15 +319,15 @@ class TaskScheduler(
             // own persistent bash session rather than the chat the user happens to
             // be viewing right now.
             val heartbeatConversationId = dataRepository.getOrCreateHeartbeatConversationId()
-            val config = manager.getConfig()
-            val response = askWithRetry(
+            val run = askWithRetry(
                 prompt = heartbeatPrompt,
                 primaryInstanceId = config.heartbeatInstanceId,
                 fallbackInstanceId = config.heartbeatFallbackInstanceId,
                 conversationIdOverride = heartbeatConversationId,
             )
+            val response = run.content
             manager.markHeartbeatExecuted()
-            manager.recordHeartbeat(success = true)
+            manager.recordHeartbeat(success = true, note = run.note)
             if (response.isNotBlank() && "HEARTBEAT_OK" !in response) {
                 dataRepository.addAssistantMessage(response)
                 // Push-notify only when the user won't see the in-app banner.
@@ -265,7 +377,15 @@ class TaskScheduler(
             notificationStore?.sweep()
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            manager.recordHeartbeat(success = false, error = e.message ?: e.toString())
+            // The journal is the owner's only window into a background failure: name the reason
+            // and the instance, not the exception class. A run that exhausted every configured
+            // instance arrives already described (ProviderRunFailedException).
+            val description = if (e is ProviderRunFailedException) {
+                e.message.orEmpty()
+            } else {
+                failureLine(e, config.heartbeatInstanceId)
+            }
+            manager.recordHeartbeat(success = false, error = description)
         }
     }
 
@@ -394,9 +514,11 @@ class TaskScheduler(
         }
     }
 
-    private suspend fun handleTaskCompletion(task: ScheduledTask) {
+    private suspend fun handleTaskCompletion(task: ScheduledTask, note: String? = null) {
         val now = Clock.System.now()
-        val log = appendExecution(task, success = true, message = null)
+        // The run's note is the only thing a successful execution has to say; a plain run
+        // leaves it null so the log stays one line per execution.
+        val log = appendExecution(task, success = true, message = note)
         if (task.cron != null) {
             // Recurring task — compute next execution time
             val nextExecution = try {
@@ -447,4 +569,29 @@ class TaskScheduler(
             )
         }
     }
+}
+
+/**
+ * The heartbeat journal's failure line: `<reason>: <provider detail> (<instance>)`.
+ *
+ * The reason comes first so the owner can tell a rejected key from a dead endpoint at a
+ * glance; the provider's own words follow, because that is what names the fix ("model not
+ * found", "invalid api key"); the instance closes the line, because the run may have been
+ * pointed at a provider other than the one the owner had in mind.
+ */
+internal fun describeFailure(reason: ProviderFailureReason, detail: String?, target: String?): String = buildString {
+    append(reason.name)
+    val text = detail?.trim().orEmpty()
+    if (text.isNotEmpty()) append(": ").append(text)
+    if (!target.isNullOrBlank()) append(" (").append(target).append(')')
+}
+
+/**
+ * `<provider> / <model>` for a configured instance, or `instance <id>` when the pin no longer
+ * resolves — the journal has to say which model failed, and that it was the missing one.
+ */
+internal fun serviceInstanceLabel(entries: List<ServiceEntry>, instanceId: String?): String? {
+    val id = instanceId ?: return null
+    val entry = entries.find { it.instanceId == id } ?: return "instance $id"
+    return listOfNotNull(entry.serviceName, entry.modelId.takeIf { it.isNotBlank() }).joinToString(" / ")
 }
