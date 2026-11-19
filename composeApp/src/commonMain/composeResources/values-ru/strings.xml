@@ -272,6 +272,8 @@
     <string name="settings_assistant_open_settings">Открыть приложения по умолчанию</string>
     <string name="settings_assistant_needs_android">Не поддерживается на этой версии Android. Нужен Android %1$s.</string>
     <string name="settings_assistant_not_supported">Не поддерживается на этой платформе.</string>
+    <string name="settings_assistant_screen_context">Как ассистент, Потс читает текст экрана при каждом вызове.</string>
+    <string name="settings_assistant_screenshot_only">Без роли Потс может смотреть на экран только через скриншот.</string>
     <string name="settings_contacts_title">Контакты</string>
     <string name="settings_contacts_description">Агент может найти контакт по имени или номеру, создать контакт и открыть набор номера с заполненным номером. Всю записную книжку он не читает — только результаты запроса, который вы попросили.</string>
     <string name="settings_contacts_granted">Доступ выдан</string>
@@ -901,6 +903,8 @@
     <string name="potsik_cloud_speak_aloud">Озвучить</string>
     <string name="potsik_cloud_mic_busy">Сначала остановите голосовой режим</string>
     <string name="potsik_cloud_screen">Спросить про этот экран</string>
+    <string name="potsik_cloud_screen_context">Текст экрана снят при вызове Потса</string>
+    <string name="potsik_cloud_settings">Настройки</string>
     <string name="potsik_cloud_screen_waiting">Нужно разрешение на снимок экрана</string>
     <string name="potsik_cloud_screenshot_caption">Скриншот %1$s</string>
     <string name="potsik_cloud_screen_placeholder">Спросить про этот экран…</string>

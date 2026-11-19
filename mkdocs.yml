@@ -58,6 +58,7 @@ nav:
     - SMS: features/sms.md
     - Appearance: features/appearance.md
     - Потсики (Character): features/potsiki.md
+    - Android Assistant: features/assistant.md
     - Settings Export & Import: features/settings-export-import.md
     - Splinterlands: features/splinterlands.md
   - Desktop Release Smoke Test: desktop-release-smoketest.md

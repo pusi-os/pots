@@ -343,6 +343,8 @@
     <string name="settings_assistant_open_settings">Open default apps</string>
     <string name="settings_assistant_needs_android">Not supported on this Android. Needs Android %1$s.</string>
     <string name="settings_assistant_not_supported">Not supported on this platform.</string>
+    <string name="settings_assistant_screen_context">As the assistant, Pots reads the screen's text at every invocation.</string>
+    <string name="settings_assistant_screenshot_only">Without the role Pots can only look at the screen through a screenshot.</string>
     <string name="settings_contacts_title">Contacts</string>
     <string name="settings_contacts_description">The agent can look up a contact by name or number, create a contact, and open the dialer with a number filled in. It never reads the whole address book — only the matches of a query you asked for.</string>
     <string name="settings_contacts_granted">Access granted</string>
@@ -900,6 +902,8 @@
     <string name="potsik_cloud_speak_aloud">Read aloud</string>
     <string name="potsik_cloud_mic_busy">Stop the voice mode first</string>
     <string name="potsik_cloud_screen">Ask about this screen</string>
+    <string name="potsik_cloud_screen_context">Screen text taken when Pots was invoked</string>
+    <string name="potsik_cloud_settings">Settings</string>
     <string name="potsik_cloud_screen_waiting">Screen capture permission needed</string>
     <string name="potsik_cloud_screenshot_caption">Screenshot %1$s</string>
     <string name="potsik_cloud_screen_placeholder">Ask about this screen…</string>

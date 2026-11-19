@@ -38,6 +38,11 @@
    <!-- The screen mode: a MediaProjection session has to live under a
        foreground service of this type (Android 14+). -->
    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
+   <!-- Reading the screen as text when Pots is the device assistant: the
+        platform hands an AssistStructure to the voice-interaction session at
+        every invocation. normal, so it is granted at install; the user's own
+        consent is the "Use text from screen" switch on the assistant screen. -->
+   <uses-permission android:name="android.permission.READ_ASSIST_STRUCTURE_SCREEN_CONTENT"/>
 
    <!-- Bluetooth for companion pairing. CONNECT/ADVERTISE/SCAN are runtime permission on Android 12+. -->
    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
@@ -195,6 +200,44 @@
             android:name="com.pusios.pots.overlay.PotsikScreenCaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+        <!-- Pots as the device assistant. Declaring this service is the whole
+             qualification for the role: it is what puts Pots in the system's
+             assistant list and what makes the assist gesture (long-press Home,
+             swipe up from a bottom corner) route here instead of to the
+             ACTION_ASSIST activity above. The metadata's usesAssist* attributes
+             are not optional on targetSdk 37: without them the platform strips
+             assist data from every session. -->
+        <service
+            android:name="com.pusios.pots.assistant.PotsVoiceInteractionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/voice_interaction_service" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+        <!-- One session per invocation: it takes the screen's text and hands it
+             to Потсик. Bound by the system with BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS,
+             which is what lets the gesture bring the pet up from a background
+             process. -->
+        <service
+            android:name="com.pusios.pots.assistant.PotsVoiceInteractionSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <!-- The metadata has to name a recognition service even though Android
+             12+ ignores it: without one the system resets the assistant on this
+             app. Listening itself is the hands-free loop's own recognizer, so
+             this service only answers with an error. -->
+        <service
+            android:name="com.pusios.pots.assistant.PotsAssistRecognitionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_RECOGNITION_SERVICE">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+        </service>
         <uses-native-library android:name="libvndksupport.so" android:required="false"/>
         <uses-native-library android:name="libOpenCL.so" android:required="false"/>
     </application>

@@ -20,6 +20,12 @@ actual fun currentAssistantAvailability(): AssistantAvailability {
     return assistantAvailability(sdk, available, held)
 }
 
+/**
+ * The role decides: held → the assist snapshot brings the screen's text; not
+ * held → the screenshot flow is the only way to look at the screen.
+ */
+actual fun currentScreenContextAvailability(): ScreenContextAvailability = screenContextFor(currentAssistantAvailability())
+
 actual fun openDefaultAppsSettings() {
     val app = PotsAppContext.application ?: return
     val primary = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)

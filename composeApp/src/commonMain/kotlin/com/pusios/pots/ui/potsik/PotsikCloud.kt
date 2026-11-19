@@ -143,6 +143,12 @@ data class PotsikCloudState(
     val cancelOffered: Boolean = false,
     /** True when the text that failed to send is still there to be sent again. */
     val unsent: Boolean = false,
+    /**
+     * True while the text of the screen — taken at the assist invocation — is
+     * still attached to the next question. The pill says so, because a context
+     * nobody can see is a context nobody agreed to.
+     */
+    val assistContext: Boolean = false,
 )
 
 /** The voice button is dead without a recognizer — and says so, rather than failing at the tap. */
@@ -307,7 +313,34 @@ data class PotsikCloudSize(val widthDp: Float, val heightDp: Float)
  * and the window has to grow by [POTSIK_CLOUD_NOTICE_HEIGHT_DP] or the line is
  * clipped by the window's own bounds.
  */
-fun potsikCloudWindowSize(state: PotsikCloudState, voiceAvailable: Boolean = true): PotsikCloudSize = when (state.phase) {
+fun potsikCloudWindowSize(state: PotsikCloudState, voiceAvailable: Boolean = true): PotsikCloudSize {
+    val size = baseCloudSize(state, voiceAvailable)
+    // The assist note sits above the capsule like the no-recognizer line: the
+    // window has to grow by it, or the line is clipped by the window's own
+    // bounds and the user never learns the screen was read.
+    if (!potsikCloudShowsAssistNote(state)) return size
+    return PotsikCloudSize(size.widthDp, size.heightDp + POTSIK_CLOUD_NOTICE_HEIGHT_DP)
+}
+
+/**
+ * True when the cloud carries the line about the screen text taken at the
+ * assist invocation.
+ *
+ * Only the phases that draw the capsule plus a line above it: the text field
+ * and the shot pill are windows of their own size, and the consent phase is the
+ * system dialog's moment, not the context's.
+ */
+fun potsikCloudShowsAssistNote(state: PotsikCloudState): Boolean = state.assistContext && state.phase in ASSIST_NOTE_PHASES
+
+private val ASSIST_NOTE_PHASES = setOf(
+    PotsikCloudPhase.Menu,
+    PotsikCloudPhase.Listening,
+    PotsikCloudPhase.Thinking,
+    PotsikCloudPhase.Speaking,
+    PotsikCloudPhase.Error,
+)
+
+private fun baseCloudSize(state: PotsikCloudState, voiceAvailable: Boolean): PotsikCloudSize = when (state.phase) {
     PotsikCloudPhase.Menu ->
         if (voiceAvailable) {
             PotsikCloudSize(POTSIK_CLOUD_WIDTH_DP, POTSIK_CLOUD_WINDOW_HEIGHT_DP)

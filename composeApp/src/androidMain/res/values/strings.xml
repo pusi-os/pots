@@ -1,5 +1,9 @@
 <resources>
     <string name="app_name">Pots</string>
+    <!-- The block the cloud puts into the chat when the assistant gesture was
+         invoked over somebody else's screen. Read outside Compose, hence a
+         platform string and not a compose-resource one. -->
+    <string name="assist_screen_context_header">Screen text at the moment of the assistant invocation:</string>
     <string name="daemon_channel_name">Pots Background Service</string>
     <string name="daemon_channel_description">Keeps Pots running for scheduled task execution</string>
     <string name="daemon_notification_text">Daemon is running</string>
