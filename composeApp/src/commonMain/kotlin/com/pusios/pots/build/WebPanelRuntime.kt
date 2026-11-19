@@ -132,12 +132,17 @@ class WebPanelRuntime(
      * A URL to hand to the browser right now.
      *
      * Hermes mints a one-use link per call, so this is never cached for it; the
-     * other two answer with the address they are already listening on.
+     * other two answer with the address they are already listening on, with the
+     * credentials that address alone does not carry (see [WebPanels.url]). The
+     * password is fetched here rather than stored in [WebPanelStatus.Running], so
+     * the state — and every screen that renders it — stays credential-free.
      */
     suspend fun link(panelId: String): String? = mutex.withLock {
         val panel = WebPanels.get(panelId) ?: return@withLock null
         if (panel.id != WebPanels.HERMES) {
-            return@withLock (states[panel.id]?.status as? WebPanelStatus.Running)?.url
+            val url = (states[panel.id]?.status as? WebPanelStatus.Running)?.url ?: return@withLock null
+            val port = WebPanels.portOf(url) ?: return@withLock null
+            return@withLock WebPanels.url(panel, port, password(panel.id))
         }
         // One use, sixty seconds: a fresh one every tap, by construction.
         val output = guest.run(WebPanels.command(panel, panel.preferredPort), HERMES_LINK_TIMEOUT_SECONDS)
@@ -238,7 +243,7 @@ class WebPanelRuntime(
             )
             return
         }
-        setState(panel, WebPanelStatus.Running(WebPanels.url(port)))
+        setState(panel, WebPanelStatus.Running(WebPanels.address(port)))
     }
 
     private fun stopLocked(panelId: String) {
@@ -277,7 +282,7 @@ class WebPanelRuntime(
             setState(panel, WebPanelStatus.Failed("hermes webapp: ${reason.ifEmpty { "no link printed" }}"))
             return
         }
-        setState(panel, WebPanelStatus.Running(WebPanels.url(WebPanels.portOf(link.url) ?: port)))
+        setState(panel, WebPanelStatus.Running(WebPanels.address(WebPanels.portOf(link.url) ?: port)))
     }
 
     private fun probe(panel: WebPanel): WebPanelStatus {
@@ -293,7 +298,7 @@ class WebPanelRuntime(
         return if (guest.portFree(port)) {
             WebPanelStatus.Failed("pid $pid is alive, port $port is not listening")
         } else {
-            WebPanelStatus.Running(WebPanels.url(port))
+            WebPanelStatus.Running(WebPanels.address(port))
         }
     }
 

@@ -793,6 +793,10 @@
     <string name="pots_build_web_panel_autostart">Start with the sandbox</string>
     <string name="pots_build_web_panel_password_show">Show password</string>
     <string name="pots_build_web_panel_password_hide">Hide password</string>
+    <string name="pots_build_web_panel_password_copy">Copy</string>
+    <string name="pots_build_web_panel_password_copied">Copied</string>
+    <string name="pots_build_web_panel_pi_login_hint">Sign in once — the browser remembers it for 30 days.</string>
+    <string name="pots_build_web_panel_hermes_link_hint">The link signs this browser in once and lives 60 seconds. If it did not open, tap the address again.</string>
     <string name="pots_build_system_packages">%1$d packages installed</string>
     <string name="pots_build_system_disk_system">Linux system</string>
     <string name="pots_build_system_disk_projects">Projects</string>

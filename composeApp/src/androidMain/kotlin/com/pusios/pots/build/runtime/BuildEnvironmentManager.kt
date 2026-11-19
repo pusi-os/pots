@@ -597,11 +597,16 @@ class BuildEnvironmentManager(
      * Opens the panel in the device's own browser. Hermes' address is minted per
      * tap — its link is one-use — so the URL is fetched first and only then
      * handed to the browser, never kept.
+     *
+     * The URL is deliberately absent from every log line on this path: for
+     * OpenCode it carries the panel's password in its userinfo, and `logcat` is
+     * readable by whatever holds the debug bridge. The panel id says everything
+     * a reader of the log needs.
      */
     fun openWebPanel(panelId: String) {
         scope.launch {
             val url = webPanels.link(panelId) ?: return@launch
-            if (!openUrl(url)) Log.w(TAG, "no browser took $url")
+            if (!openUrl(url)) Log.w(TAG, "no browser took the $panelId panel link")
         }
     }
 

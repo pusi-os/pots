@@ -93,7 +93,42 @@ object WebPanels {
     /** The panel an installed agent brings, if it brings one. */
     fun forAgent(agentId: String?): WebPanel? = all.firstOrNull { it.agentId == agentId }
 
-    fun url(port: Int): String = "http://127.0.0.1:$port"
+    /**
+     * The address the row shows: where the panel listens, and nothing more.
+     *
+     * Kept free of credentials on purpose — this is the string that is rendered
+     * on screen, screenshotted and read aloud, so the password never rides in it.
+     */
+    fun address(port: Int): String = "http://127.0.0.1:$port"
+
+    /**
+     * The URL handed to the browser.
+     *
+     * Only OpenCode gets credentials in it: it asks for HTTP Basic on every
+     * request, the HTML included, so `user:password@host` signs the browser in
+     * and Chromium strips them from the address bar and history once the page
+     * has loaded. pi-web guards its API only — its HTML wants a session cookie —
+     * so its URL points at the login form instead: credentials in it would be
+     * ignored and would leave the password sitting in the address bar. Hermes
+     * needs neither, because the link `link()` mints *is* the sign-in.
+     *
+     * A null or empty password yields the plain address rather than a broken
+     * `user:@host` — the panel still opens, it just asks for the password.
+     */
+    fun url(panel: WebPanel, port: Int, password: String? = null): String = when (panel.id) {
+        OPENCODE ->
+            if (password.isNullOrEmpty()) {
+                address(port)
+            } else {
+                "http://$OPENCODE_USER:${percentEncode(password)}@127.0.0.1:$port/"
+            }
+        PI -> "${address(port)}/login"
+        HERMES -> address(port)
+        else -> error("no URL for panel ${panel.id}")
+    }
+
+    /** The user half of OpenCode's Basic credentials; its password is the one above. */
+    const val OPENCODE_USER = "opencode"
 
     /**
      * The port a URL points at, or null when it names none. Used to report the
@@ -154,6 +189,34 @@ object WebPanels {
     }
 }
 
+/**
+ * Percent-encodes everything but RFC 3986's unreserved characters.
+ *
+ * A generated password is drawn from an alphanumeric alphabet, so today it needs
+ * no escaping — but that alphabet is a constant someone will widen, and one raw
+ * `@`, `:` or `/` in the userinfo ends it early: the browser then dials a host
+ * that does not exist, or a different one, and nothing says why the panel came
+ * up unauthenticated. Encoding unconditionally means that cannot happen.
+ *
+ * Hand-rolled because commonMain has no `URLEncoder` (`java.net`) and the app
+ * targets iOS and wasm as well as Android.
+ */
+internal fun percentEncode(value: String): String = buildString {
+    for (byte in value.encodeToByteArray()) {
+        val code = byte.toInt() and 0xFF
+        val char = code.toChar()
+        val unreserved = char in 'A'..'Z' || char in 'a'..'z' || char in '0'..'9' ||
+            char == '-' || char == '.' || char == '_' || char == '~'
+        if (unreserved) {
+            append(char)
+        } else {
+            append('%').append(HEX_DIGITS[code shr 4]).append(HEX_DIGITS[code and 0x0F])
+        }
+    }
+}
+
+private const val HEX_DIGITS = "0123456789ABCDEF"
+
 /** What a panel is doing, as the Pots Build section shows it. */
 @Immutable
 sealed interface WebPanelStatus {
@@ -162,6 +225,11 @@ sealed interface WebPanelStatus {
     /** A start is in flight; the button is a spinner until it lands. */
     data object Starting : WebPanelStatus
 
+    /**
+     * [url] is the panel's address as the row shows it — no credentials in it,
+     * even for the panel that takes them (see [WebPanels.url] and
+     * [WebPanelRuntime.link]). The browser-bound link is minted on the tap.
+     */
     data class Running(val url: String) : WebPanelStatus
 
     /**

@@ -227,12 +227,61 @@ never started has none to show. It travels in the process environment only: not
 on the command line (so it is not in `ps`), and not in the panel log. Hermes has
 no panel password — each browser is signed in by a one-use link instead.
 
+Beside "Show password" the row has **Copy**, which is the way the password
+normally leaves the app: it is fetched on the tap, put on the clipboard and never
+rendered, so it works without revealing it. The clip is marked
+`ClipDescription.EXTRA_IS_SENSITIVE`, which keeps it out of the system clipboard
+history and replaces its contents in the paste preview (API 33+; older releases
+ignore the flag). The revealed value is wrapped in a `SelectionContainer` as
+well, so it can be selected by hand — the reason the copy button exists is that
+a 24-character password had to be retyped into a browser window, and a second
+route out costs nothing.
+
+### How each panel signs a browser in
+
+The three panels do not authenticate alike, and the row is built around that:
+
+| Panel | What guards it | Password in the URL? |
+|---|---|---|
+| OpenCode | HTTP Basic on every request, HTML included | **Yes** — `http://opencode:<password>@127.0.0.1:4096/` opens already signed in; Chromium strips the userinfo from the address bar and from the history once the page has loaded |
+| Pi (pi-web) | HTTP Basic on the API only; the HTML wants a session cookie | **No** — a password there is ignored for the page and left sitting in the address bar for nothing. The link points at `/login` instead |
+| Hermes | nothing — each browser is signed in by a one-use link | **Not applicable** — the link `hermes webapp --no-open` prints *is* the sign-in |
+
+The address the row shows (`WebPanels.address`) therefore stays credential-free:
+it is rendered on screen, screenshotted and read aloud. The link handed to the
+browser is minted on the tap by `WebPanelRuntime.link()` (`WebPanels.url`), which
+reads the password and, for OpenCode only, puts it in the userinfo —
+percent-encoded (`percentEncode`, the RFC 3986 unreserved set) because a raw `@`,
+`:` or `/` would end the userinfo early and the browser would dial a host that
+does not exist, leaving the panel unauthenticated with nothing saying why.
+
+A password in a URL is what RFC 7230 §2.7.1 tells senders not to generate. It is
+done here deliberately, and only for OpenCode: the panels listen on `127.0.0.1`,
+which proot makes the phone's own loopback, so nothing on the LAN can see the
+request; the password is generated per panel and used nowhere else; and the
+alternative is retyping 24 characters on a phone keyboard. The two conditions
+that keep it acceptable are that the URL is never logged — `openWebPanel` logs
+the panel id, not the address, and the panel log never sees it either — and that
+copying the password is always one tap away.
+
+**Why pi-web has no auto-login.** Its HTML is not behind Basic auth at all: it
+serves a form that trades the password for a session cookie lasting 30 days.
+Credentials in the URL never reach that form, so the row says so in as many
+words ("sign in once — the browser remembers it for 30 days") and offers the copy
+button, rather than letting the owner wait for a login that is not coming. The
+form is not filled in for them either: pi-web has a global rate limiter that
+answers 429 and locks the panel for a minute after a failed attempt, so one
+silent try that fails is worse than a visible form that always works.
+
 ### Hermes' link is one-use
 
 `hermes webapp --no-open` prints either a permanent sign-in address or a private
 link that works once and expires in 60 seconds. Which one it is cannot be known
 in advance, so the button mints a link on every tap and hands it straight to the
 browser — nothing is cached, because a cached link is spent by the first open.
+The row says so under the address ("signs this browser in once and lives 60
+seconds; if it did not open, tap the address again"), because a spent link and a
+broken panel look the same from the outside: nothing happens.
 
 ### Provider and model
 
@@ -312,10 +361,10 @@ ready, and a live pid with a listening port means nothing is started twice.
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/linux/RootfsDownloader.kt` / `TarExtractor.kt` | One download path with mirror fallback, one tar reader handling both `.tar.gz` and `.tar.xz`. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/linux/ProotLauncher.kt` | proot argv, binds and environment, plus the shared `ProotHandle` and one-shot `execute`. Both this sandbox and Pots Build's PTY executor start their processes here. `cancel()` ends the guest recorded in the pid file, not just proot. |
 | `composeApp/src/jvmShared/kotlin/com/pusios/pots/linux/GuestPath.kt` | Guest path → host file, following the binds, for both file browsers. Rejects traversal and anything resolving outside its root. |
-| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanels.kt` | The three agent web panels as declarations: preferred ports, the one command line each is started with, port choice, the password generator, and the parser for `hermes webapp`'s output (one-use link vs sign-in address). |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanels.kt` | The three agent web panels as declarations: preferred ports, the one command line each is started with, port choice, the password generator, the two URLs each panel has (`address` for the row, `url` for the browser — credentials for OpenCode only, `percentEncode` for the userinfo), and the parser for `hermes webapp`'s output (one-use link vs sign-in address). |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanelRuntime.kt` | Panel state machine, free of Android: start/stop/refresh/autostart over a `WebPanelGuest`, with the "start at most once", "report the port it got" and "stopped means the port is free" rules unit-tested against a fake guest. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/build/runtime/AndroidWebPanelGuest.kt` | The guest side of the above: shell calls and pid/port/log files under the bind-mounted `/tmp`, the `/dev/tcp` port probe, and the Hermes `webapp.port` rewrite. |
-| `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/build/WebPanelsCard.kt` | The Pots Build rows: start/stop/retry, the tappable address that opens the device browser, the hidden-by-default password, and the autostart toggle. |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/build/WebPanelsCard.kt` | The Pots Build rows: start/stop/retry, the tappable address that opens the device browser, the per-panel sign-in hint, the hidden-by-default password with its copy button and selectable value, and the autostart toggle. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/SandboxController.android.kt` | Routes `executeCommand` and `executeCommandStreaming` through the persistent shell; one-shot fallbacks live alongside. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/ShellCommandTool.kt` | The `execute_shell_command` tool the assistant calls. Description, `fresh` flag, env/working-dir wrapping. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/SshConfigureHostTool.kt` | The `ssh_configure_host` tool. Validates inputs, calls the config manager, returns an example invocation for the LLM. |

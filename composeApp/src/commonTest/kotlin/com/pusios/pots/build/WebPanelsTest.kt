@@ -355,6 +355,114 @@ class WebPanelsTest {
         assertTrue(guest.commands.isEmpty())
     }
 
+    // --- links ------------------------------------------------------------
+
+    // Only OpenCode takes credentials in the URL: it asks for HTTP Basic on every
+    // request, HTML included. pi-web's HTML wants a session cookie, so a password
+    // in its URL would be ignored *and* left sitting in the address bar; Hermes
+    // signs a browser in with the one-use link `link()` mints instead.
+
+    @Test
+    fun `OpenCode's link carries the password in its userinfo`() {
+        val opencode = WebPanels.get(WebPanels.OPENCODE)!!
+        assertEquals(
+            "http://opencode:hunter2@127.0.0.1:4096/",
+            WebPanels.url(opencode, 4096, "hunter2"),
+        )
+    }
+
+    @Test
+    fun `a password full of URL syntax is encoded instead of breaking the link`() {
+        val opencode = WebPanels.get(WebPanels.OPENCODE)!!
+        val password = "a@b:c/d%e f"
+
+        val url = WebPanels.url(opencode, 4096, password)
+        assertEquals("http://opencode:a%40b%3Ac%2Fd%25e%20f@127.0.0.1:4096/", url)
+        // The raw characters would have ended the userinfo early: `@` would make
+        // the browser dial `b:c` as the host, and the panel would come up
+        // unauthenticated with nothing saying why.
+        assertFalse(url.contains("b:c"), url)
+        assertEquals(4096, WebPanels.portOf(url))
+    }
+
+    @Test
+    fun `only unreserved characters are left as they are`() {
+        assertEquals("aZ0-._~", percentEncode("aZ0-._~"))
+        assertEquals("%40%3A%2F%25%20%3F%23%5B%5D", percentEncode("@:/% ?#[]"))
+        // Non-ASCII goes out as its UTF-8 bytes, not as the code point.
+        assertEquals("%D0%BF", percentEncode("п"))
+    }
+
+    @Test
+    fun `a generated password needs no encoding, and survives the URL intact`() {
+        val password = WebPanelPasswords.generate(Random(11))
+        assertEquals(password, percentEncode(password))
+
+        val opencode = WebPanels.get(WebPanels.OPENCODE)!!
+        val url = WebPanels.url(opencode, 4096, password)
+        assertContains(url, "opencode:$password@127.0.0.1:4096/")
+        assertEquals(4096, WebPanels.portOf(url))
+    }
+
+    @Test
+    fun `pi-web's link is the login form and carries no credentials`() {
+        val pi = WebPanels.get(WebPanels.PI)!!
+
+        val url = WebPanels.url(pi, 30141, "hunter2")
+        assertEquals("http://127.0.0.1:30141/login", url)
+        assertFalse(url.contains("hunter2"), "credentials there are ignored and only leak: $url")
+        assertFalse(url.contains("@"), url)
+        assertEquals(30141, WebPanels.portOf(url))
+    }
+
+    @Test
+    fun `Hermes' link is the plain address, because the minted link is the sign-in`() {
+        val hermes = WebPanels.get(WebPanels.HERMES)!!
+        assertEquals("http://127.0.0.1:9120", WebPanels.url(hermes, 9120))
+    }
+
+    @Test
+    fun `a panel with no password yet gets the plain address, not a broken userinfo`() {
+        val opencode = WebPanels.get(WebPanels.OPENCODE)!!
+
+        assertEquals("http://127.0.0.1:4096", WebPanels.url(opencode, 4096, null))
+        assertEquals("http://127.0.0.1:4096", WebPanels.url(opencode, 4096, ""))
+    }
+
+    @Test
+    fun `opening OpenCode hands the browser the password, while the row shows none`() = runTest {
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+        val password = runtime.password("opencode").orEmpty()
+
+        val link = runtime.link("opencode").orEmpty()
+        assertContains(link, "opencode:$password@127.0.0.1:4096/")
+        // The address the row renders — and a screenshot of it — must not hold it.
+        val shown = assertIs<WebPanelStatus.Running>(status("opencode")).url
+        assertFalse(shown.contains(password), shown)
+        assertEquals("http://127.0.0.1:4096", shown)
+    }
+
+    @Test
+    fun `opening pi-web hands the browser its login form`() = runTest {
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
+        runtime.startPanel("pi")
+        val password = runtime.password("pi").orEmpty()
+        assertTrue(password.isNotEmpty())
+
+        val link = runtime.link("pi").orEmpty()
+        assertEquals("http://127.0.0.1:30141/login", link)
+        assertFalse(link.contains(password), "pi-web ignores URL credentials: $link")
+    }
+
+    @Test
+    fun `a link for a panel that is not running is null, not a guess`() = runTest {
+        val runtime = runtime(this, FakeGuest())
+        assertNull(runtime.link("opencode"))
+    }
+
     // --- passwords --------------------------------------------------------
 
     @Test
