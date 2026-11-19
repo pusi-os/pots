@@ -16,6 +16,7 @@ internal actual fun platformHasPermission(permission: AppPermission): Boolean = 
     // Not implemented on iOS.
     AppPermission.RECORD_AUDIO,
     AppPermission.READ_MEDIA_IMAGES,
+    AppPermission.CONTACTS,
     -> false
 }
 

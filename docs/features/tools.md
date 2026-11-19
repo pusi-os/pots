@@ -1,6 +1,6 @@
 # Tools
 
-**Last verified:** 2026-11-11
+**Last verified:** 2026-11-19
 
 Pots's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -333,6 +333,8 @@ The interactive-mode top bar shows only the static title — loading is surfaced
 | `composeApp/src/androidMain/.../tools/SendNotificationTool.kt` | Android notification-posting tool |
 | `composeApp/src/androidMain/.../tools/CreateCalendarEventTool.kt` | Android calendar-event tool |
 | `composeApp/src/androidMain/.../tools/SetAlarmTool.kt` | Android alarm / countdown-timer tool |
+| `composeApp/src/androidMain/.../tools/ContactTools.kt` | `contacts_search`, `contact_create`, `contact_dial` |
+| `composeApp/src/commonMain/.../tools/Contacts.kt` | Number normalization, the contact response shape, and the dedup lookup |
 | `composeApp/src/androidMain/.../sandbox/LinuxSandboxManager.kt` | Sandbox lifecycle, setup, proot management |
 | `composeApp/src/androidMain/.../sandbox/ProotExecutor.kt` | Proot command building and execution |
 | `composeApp/src/androidMain/.../linux/` | Shared Linux runtime: distro specs, rootfs download and extraction, installer, proot launcher, guest-path resolution |
@@ -367,6 +369,27 @@ The interactive-mode top bar shows only the static title — loading is surfaced
 These tools use `READ_MEDIA_IMAGES` (or `READ_EXTERNAL_STORAGE` on Android 12 and older) and MediaStore. `save_to_downloads` requires Android 10 or newer.
 
 `vector_search_storage` uses the local embedding model and index described in [vector-search.md](vector-search.md). It returns matching file URIs and similarity scores; the agent should use it first for requests about the user's photos or documents.
+
+### Contacts (Android)
+
+| Tool | Description | Default |
+|---|---|---|
+| `contacts_search` | Search the phone contacts by a name fragment or a number | Enabled |
+| `contact_create` | Create a contact with a name and one number | Enabled |
+| `contact_dial` | Open the dialer with a number filled in | Enabled |
+
+All three read and write through `ContactsContract`, which exists since API 5 — well below the app's `minSdk` — so there is no OS-version gate; the runtime `READ_CONTACTS`/`WRITE_CONTACTS` prompt is the only one. The permission row lives in **Settings → Tools**, above the tool list. See [permissions.md](permissions.md).
+
+Privacy rules, enforced by the code rather than by the prompt:
+
+- **No full dumps.** `contacts_search` requires a query (a name fragment or a number) and returns at most 10 matches, each reduced to `id`, `name` and one `phone`. A blank query is refused; there is no "list all contacts" mode.
+- **No logging.** Names and numbers are other people's personal data and are never written to logs or error messages.
+- **No country guessing.** `+7 (912) 345-67-89`, `8 912 345 67 89` and `89123456789` all normalize to `+79123456789`, but a number without a country code (`9123456789`) is kept as bare digits — guessing a country would store the wrong number.
+- **No duplicates.** `contact_create` looks the number up through `PhoneLookup` first; when the contact exists it returns that contact with `created: false` and writes nothing. This is what stops an agent asked three times from leaving three "мама" entries.
+- **One batch, not two inserts.** The raw contact and its name/phone rows go through a single `applyBatch`, so a failure can't leave a nameless or numberless contact behind.
+- **Dialing is `ACTION_DIAL`.** The number is filled into the system dialer and the call starts only when the user taps it. `CALL_PHONE` is deliberately not declared.
+
+Every tool answers a missing permission with `success: false` and a message the model can act on ("No access to contacts. Ask the user to allow contact access for Pots, then try again.") — after asking for the permission once. A denial never throws.
 
 ### Obsidian (Android)
 

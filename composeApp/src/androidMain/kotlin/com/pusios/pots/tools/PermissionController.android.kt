@@ -62,6 +62,13 @@ private fun permissionsFor(permission: AppPermission): Array<String> = when (per
     } else {
         emptyArray()
     }
+
+    // The contact tools. Both are ordinary dangerous permissions since API 5, so the
+    // same pair is requested on every supported Android version.
+    AppPermission.CONTACTS -> arrayOf(
+        Manifest.permission.READ_CONTACTS,
+        Manifest.permission.WRITE_CONTACTS,
+    )
 }
 
 private val androidContext: Context by inject(Context::class.java)

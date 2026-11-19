@@ -223,6 +223,12 @@
     <string name="tool_create_calendar_event_description">Create a calendar event on the user's device</string>
     <string name="tool_set_alarm_name">Set Alarm</string>
     <string name="tool_set_alarm_description">Set an alarm or countdown timer on the device</string>
+    <string name="tool_contacts_search_name">Search Contacts</string>
+    <string name="tool_contacts_search_description">Search the phone contacts by name or number</string>
+    <string name="tool_contact_create_name">Create Contact</string>
+    <string name="tool_contact_create_description">Create a phone contact with a name and a number</string>
+    <string name="tool_contact_dial_name">Dial Number</string>
+    <string name="tool_contact_dial_description">Open the dialer with a number filled in; the user confirms the call</string>
     <string name="tool_open_file_name">Open File</string>
     <string name="tool_open_file_description">Open sandbox files in your default Android app</string>
     <string name="tool_execute_shell_command_name">Execute Shell Command</string>
@@ -337,6 +343,11 @@
     <string name="settings_assistant_open_settings">Open default apps</string>
     <string name="settings_assistant_needs_android">Not supported on this Android. Needs Android %1$s.</string>
     <string name="settings_assistant_not_supported">Not supported on this platform.</string>
+    <string name="settings_contacts_title">Contacts</string>
+    <string name="settings_contacts_description">The agent can look up a contact by name or number, create a contact, and open the dialer with a number filled in. It never reads the whole address book — only the matches of a query you asked for.</string>
+    <string name="settings_contacts_granted">Access granted</string>
+    <string name="settings_contacts_not_granted">No access to contacts</string>
+    <string name="settings_contacts_allow">Allow access</string>
     <string name="qs_tile_label">Pots</string>
     <string name="qs_tile_description">Start a voice chat with Pots</string>
     <string name="settings_heartbeat">Heartbeat</string>

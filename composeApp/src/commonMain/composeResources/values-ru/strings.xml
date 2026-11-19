@@ -204,6 +204,12 @@
     <string name="potsiki_speaking_content_description">Потсик говорит</string>
     <string name="tool_set_alarm_name">Установить будильник</string>
     <string name="tool_set_alarm_description">Установить будильник или таймер обратного отсчёта на устройстве</string>
+    <string name="tool_contacts_search_name">Поиск контактов</string>
+    <string name="tool_contacts_search_description">Искать контакты в телефонной книге по имени или номеру</string>
+    <string name="tool_contact_create_name">Создать контакт</string>
+    <string name="tool_contact_create_description">Создать контакт с именем и номером телефона</string>
+    <string name="tool_contact_dial_name">Набрать номер</string>
+    <string name="tool_contact_dial_description">Открыть набор номера с заполненным номером; вызов подтверждает пользователь</string>
     <string name="tool_open_file_name">Открыть файл</string>
     <string name="tool_open_file_description">Открыть файлы песочницы в стандартном приложении Android</string>
     <string name="tool_execute_shell_command_name">Выполнить команду</string>
@@ -266,6 +272,11 @@
     <string name="settings_assistant_open_settings">Открыть приложения по умолчанию</string>
     <string name="settings_assistant_needs_android">Не поддерживается на этой версии Android. Нужен Android %1$s.</string>
     <string name="settings_assistant_not_supported">Не поддерживается на этой платформе.</string>
+    <string name="settings_contacts_title">Контакты</string>
+    <string name="settings_contacts_description">Агент может найти контакт по имени или номеру, создать контакт и открыть набор номера с заполненным номером. Всю записную книжку он не читает — только результаты запроса, который вы попросили.</string>
+    <string name="settings_contacts_granted">Доступ выдан</string>
+    <string name="settings_contacts_not_granted">Нет доступа к контактам</string>
+    <string name="settings_contacts_allow">Разрешить доступ</string>
     <string name="qs_tile_label">Потс</string>
     <string name="qs_tile_description">Начать голосовой чат с Потс</string>
     <string name="settings_scheduled_tasks">Запланированные задачи</string>

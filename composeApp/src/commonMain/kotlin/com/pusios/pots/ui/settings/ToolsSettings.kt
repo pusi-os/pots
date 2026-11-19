@@ -175,6 +175,10 @@ internal fun ToolsContent(
 
         Spacer(Modifier.height(24.dp))
 
+        ContactsSettingsSection()
+
+        Spacer(Modifier.height(24.dp))
+
         // Native tools section
         Text(
             text = stringResource(Res.string.settings_tools_description),

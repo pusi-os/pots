@@ -6,6 +6,10 @@
         permission; required to reach self-hosted servers (Jan, Ollama, LM Studio, ...). -->
    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK"/>
    <uses-permission android:name="android.permission.READ_CALENDAR"/>
+   <!-- The contact tools: search reads, create writes. Dialing goes through
+        ACTION_DIAL, which needs no permission, so CALL_PHONE is deliberately absent. -->
+   <uses-permission android:name="android.permission.READ_CONTACTS"/>
+   <uses-permission android:name="android.permission.WRITE_CONTACTS"/>
    <!-- Photo search reads the user's image library. Downloads are written through MediaStore,
         which needs no storage permission on Android 10+. -->
    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>

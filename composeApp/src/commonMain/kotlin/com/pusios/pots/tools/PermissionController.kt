@@ -34,6 +34,13 @@ enum class AppPermission {
 
     /** Read access to the photo library, used by the search_photos tool. */
     READ_MEDIA_IMAGES,
+
+    /**
+     * Read *and* write access to the phone contacts, used by the contacts_search,
+     * contact_create and contact_dial tools. Both halves are requested together because
+     * Android shows one dialog per group anyway and the tools ship as a set.
+     */
+    CONTACTS,
 }
 
 /**

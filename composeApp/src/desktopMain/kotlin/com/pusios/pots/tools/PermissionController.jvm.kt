@@ -21,6 +21,9 @@ internal actual fun platformHasPermission(permission: AppPermission): Boolean = 
 
     // No photo library permission on desktop.
     AppPermission.READ_MEDIA_IMAGES -> true
+
+    // Contacts are an Android-only feature; the tools aren't registered here.
+    AppPermission.CONTACTS -> false
 }
 
 internal actual fun platformCanRequest(permission: AppPermission): Boolean = false

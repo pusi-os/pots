@@ -34,6 +34,9 @@ import com.pusios.pots.tools.AppPermission
 import com.pusios.pots.tools.AskSandboxAgentTool
 import com.pusios.pots.tools.CalendarRepository
 import com.pusios.pots.tools.CommonTools
+import com.pusios.pots.tools.ContactCreateTool
+import com.pusios.pots.tools.ContactDialTool
+import com.pusios.pots.tools.ContactsSearchTool
 import com.pusios.pots.tools.CreateCalendarEventTool
 import com.pusios.pots.tools.DeleteCalendarEventTool
 import com.pusios.pots.tools.ImportPhotoTool
@@ -199,6 +202,9 @@ actual fun getPlatformToolDefinitions(): List<ToolInfo> = CommonTools.commonTool
         VectorSearchTool.toolInfo,
         SearchPhotosTool.toolInfo,
         ImportPhotoTool.toolInfo,
+        ContactsSearchTool.toolInfo,
+        ContactCreateTool.toolInfo,
+        ContactDialTool.toolInfo,
         SaveToDownloadsTool.toolInfo,
         ListDownloadsTool.toolInfo,
         OpenFileTool.toolInfo,
@@ -300,6 +306,27 @@ actual fun getAvailableTools(): List<Tool> {
             val photoPermissionController: PermissionController =
                 KoinJavaComponent.get(PermissionController::class.java, permissionQualifier(AppPermission.READ_MEDIA_IMAGES))
             add(SearchPhotosTool.create(context, photoPermissionController))
+        }
+
+        // The contact tools share one permission controller: search needs READ_CONTACTS,
+        // create needs WRITE_CONTACTS, and AppPermission.CONTACTS asks for both.
+        if (
+            appSettings.isToolEnabled(ContactsSearchTool.ID) ||
+            appSettings.isToolEnabled(ContactCreateTool.ID) ||
+            appSettings.isToolEnabled(ContactDialTool.ID)
+        ) {
+            val contactsPermissionController: PermissionController =
+                KoinJavaComponent.get(PermissionController::class.java, permissionQualifier(AppPermission.CONTACTS))
+            if (appSettings.isToolEnabled(ContactsSearchTool.ID)) {
+                add(ContactsSearchTool.create(context, contactsPermissionController))
+            }
+            if (appSettings.isToolEnabled(ContactCreateTool.ID)) {
+                add(ContactCreateTool.create(context, contactsPermissionController))
+            }
+            // Dialing goes through ACTION_DIAL, which no permission guards.
+            if (appSettings.isToolEnabled(ContactDialTool.ID)) {
+                add(ContactDialTool.create(context))
+            }
         }
 
         if (appSettings.isToolEnabled(OpenFileTool.schema.name)) {
