@@ -263,6 +263,25 @@ class PotsOverlayService : Service() {
         return (sizeDp * resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
     }
 
+    /**
+     * Reads the stored position under the current rule, once.
+     *
+     * Before the window was wider than the character, [KEY_X] was his own left
+     * edge; it is the window's now. The difference is the empty strip beside
+     * him, and it is taken back here — once, on the first start after the
+     * update — or he would jump that far to the right and be clamped against
+     * the edge. The version flag is written in the same edit, so the next
+     * start reads the number as it stands.
+     */
+    private fun migrateStoredPosition(characterPx: Int, windowWidth: Int) {
+        val prefs = prefs()
+        if (prefs.getInt(KEY_GEOMETRY_VERSION, 0) >= GEOMETRY_VERSION) return
+        val side = ((windowWidth - characterPx) / 2).coerceAtLeast(0)
+        val edit = prefs.edit().putInt(KEY_GEOMETRY_VERSION, GEOMETRY_VERSION)
+        if (prefs.contains(KEY_X)) edit.putInt(KEY_X, prefs.getInt(KEY_X, 0) - side)
+        edit.apply()
+    }
+
     private fun showPet() {
         if (pet != null) return
         val w = wm ?: return
@@ -281,6 +300,9 @@ class PotsOverlayService : Service() {
         val winW = geometry.widthPx
         val winH = geometry.heightPx
         val prefs = prefs()
+        // A position saved before the window grew keeps its meaning: the
+        // number was his left edge, and it is read as the window's from here on.
+        migrateStoredPosition(characterPx, winW)
         // The first place is the right edge he used to stand at: his middle
         // half a character in from the screen's edge, and the window around
         // him — the window is wider than he is.
@@ -314,9 +336,9 @@ class PotsOverlayService : Service() {
         val owner = OverlayWindowOwner()
         val shell = OverlayPetShell(this)
         shell.windowParams = params
-        // The clamp works on the character inside the window, not on the
-        // window: the window is wider than he is, and only the body has to
-        // stay on the screen.
+        // The clamp works on the bubble around him, not on the window: the
+        // window is wider than he is, and what has to stay on the screen is
+        // the line he says.
         shell.characterPx = { characterPxNow() }
         shell.onDragStart = {
             // A drag with the cloud open would drag the capsule's window after
@@ -569,6 +591,18 @@ class PotsOverlayService : Service() {
         private const val PREFS = "potsik_overlay"
         private const val KEY_X = "x"
         private const val KEY_Y = "y"
+
+        /**
+         * Which rule the stored [KEY_X] was written under.
+         *
+         * Version 1 is the first one where the window is wider than the
+         * character: before it, `KEY_X` was the character's own left edge, and
+         * reading it as the window's left edge would slide him `(W − C) / 2`
+         * to the right — 29 dp at the default size — on the first start after
+         * the update. [migrateStoredPosition] takes that half back once.
+         */
+        private const val KEY_GEOMETRY_VERSION = "geometry_version"
+        private const val GEOMETRY_VERSION = 1
         private const val NOTIF_ID = 9101
 
         /** The notification channel id; the channel itself is made in PotsApplication. */
@@ -901,9 +935,9 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
  * resources, which the system has already refreshed when the callback arrives.
  * Top-level `private` keeps it off the API of both classes.
  *
- * It clamps the *character*, not the window: the window is wider and taller
- * than he is (the bubble's room), and letting it hang over an edge is what
- * lets him reach the edge ([clampPotsikWindowOffset]).
+ * It clamps the *bubble*, not the window: the window is wider and taller than
+ * he is (the bubble's room), and letting it hang over an edge is what lets him
+ * stand as close to it as a whole line allows ([clampPotsikWindowOffset]).
  */
 private fun clampToScreen(
     params: WindowManager.LayoutParams,

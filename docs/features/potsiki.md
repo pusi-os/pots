@@ -213,15 +213,16 @@ wider one winning:
   (`WAVE`: the hand reaching 28.8 units out of 56, plus half a hand) needs
   1.15 times his height. A window narrower than that cut his hands off in the
   poses he spends the day in.
-- **his speech bubble** — 190 dp. The bubble is drawn inside the same window
+- **his speech bubble** — 191 dp. The bubble is drawn inside the same window
   and its text box is `window / 1.12 − 20 px`: the pop scales the bubble to
   1.12 of its width about its middle, so the window has to hold the *popped*
-  bubble, not the resting one. At 190 dp the box is 150 dp of text (or more on
-  any screen denser than density 1), which is 90 % of the 313 lines in
-  `PotsikBanter` in two rows and every one of them in three — the three-row
-  cap stops costing text. The old rule (`window − 16`) let the resting bubble
-  run 4 px past the window and the peak 12 % past it, which is the clip on the
-  right the owner reported.
+  bubble, not the resting one. `(150 + 20) · 1.12 = 190.4`, so 191 dp is the
+  narrowest window that leaves the 150 dp of text the 313 lines were measured
+  against at the lowest density there is (any denser screen leaves more):
+  90 % of the lines fit in two rows and every one of them in three — the
+  three-row cap stops costing text. The old rule (`window − 16`) let the
+  resting bubble run 4 px past the window and the peak 12 % past it, which is
+  the clip on the right the owner reported.
 
 The height stays `C + 96 dp` — the body and the band above his head the bubble
 is drawn in. `potsikWindowGeometry` also caps the width by the screen, and
@@ -240,15 +241,30 @@ He stands in the middle of the window (`cx = size.width / 2`), so a window
 that changes width has to move its left edge by half the difference, or he
 would slide sideways as he is pinched: a pinch resizes the window and sets
 `x = centre − width / 2` on every frame, keeping his middle where it was
-(`potsikCharacterCxOnScreen`, `potsikWindowXForCentre`). The clamp that keeps
-him on the screen works on the **character**, not the window
-(`clampPotsikWindowOffset`): clamping the window would leave a dead strip of
-`(W − C) / 2` — 59 dp at the smallest size — that he could never be dragged
-onto. The window is allowed to hang over an edge (`FLAG_LAYOUT_NO_LIMITS`), so
-he reaches the edge of the screen while the empty corners of his window sit
-outside it. At that very edge the bubble is cut by the display itself — a
-bubble above his head has nowhere to go once he stands on the last pixel — but
-the window's edge is no longer what cuts it anywhere else.
+(`potsikCharacterCxOnScreen`, `potsikWindowXForCentre`). The capsule's side
+branches measure their 8 dp gap from his shoulders, not from the window's
+edges — the edges sit `(W − C) / 2` away from him, and the capsule used to
+hang 67 dp off him at the smallest size.
+
+**The clamp keeps the bubble on the screen, not the body.** Clamping the
+window would leave a dead strip of `(W − C) / 2` — 59 dp at the smallest
+size — that he could never be dragged onto; clamping only his body would put
+him on the last pixel and let the display cut half the line he says, because
+the bubble is drawn centred on him and its tail points at his head, so it
+cannot be moved off his middle to dodge an edge. So `clampPotsikWindowOffset`
+keeps half a bubble of screen on either side of his middle
+(`potsikBubbleWidthFor`, the widest bubble the text limit allows in this
+window): the body stops 49.5 / 19.5 / 4.5 dp short of the edge at
+72 / 132 / 320 dp, the window's empty corners hang over the edge
+(`FLAG_LAYOUT_NO_LIMITS`), and the bubble is flush with the edge and whole at
+every position. Trading a few dp of reach for a whole line is deliberate: a
+cut line is what the owner reported, a pet that stops 20 dp short is not.
+
+A position saved before the window grew is migrated once: `KEY_X` used to be
+the character's left edge and is the window's now, so
+`migrateStoredPosition()` takes `(W − C) / 2` back on the first start after
+the update (`KEY_GEOMETRY_VERSION`) — otherwise he would jump 29 dp to the
+right at the default size and be clamped against it.
 
 The mode needs Android's "display over other apps" permission, and the
 permission is granted on a system screen — so the settings screen re-reads it

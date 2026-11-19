@@ -130,8 +130,8 @@ internal const val POTSIK_BUBBLE_POP_PEAK = 1.12f
  * [POTSIK_BUBBLE_POP_PEAK] about that middle, so what has to fit is
  * `(limit + 2 · padding) · 1.12 ≤ window`. Solving for the limit gives the
  * rule below: the text box is `window / 1.12 − 20` px. The padding is a fixed
- * 20 px, so the box in dp grows with the density: at density 1 a 190 dp
- * window leaves 149.6 dp of text, and every denser screen leaves more. That
+ * 20 px, so the box in dp grows with the density: at density 1 a 191 dp
+ * window leaves 150.5 dp of text, and every denser screen leaves more. That
  * is where `POTSIK_MIN_WINDOW_WIDTH_DP` comes from.
  *
  * The floor of 32 dp keeps a window narrower than the padding from asking for
@@ -140,6 +140,21 @@ internal const val POTSIK_BUBBLE_POP_PEAK = 1.12f
  */
 internal fun potsikBubbleTextLimit(windowWidthPx: Float, wantedPx: Float): Float =
     (wantedPx.coerceAtMost(windowWidthPx) / POTSIK_BUBBLE_POP_PEAK - BUBBLE_PADDING * 2f).coerceAtLeast(32f)
+
+/**
+ * The widest the bubble gets in a window [windowWidthPx] wide — text box and
+ * padding, before the pop.
+ *
+ * It is [potsikBubbleTextLimit] with nothing wanted: the limit of the widest
+ * line the window allows, plus the padding on both sides, which is `window /
+ * 1.12` for any window wide enough to matter. The clamp that keeps him on the
+ * screen needs this number rather than the character's width, because the
+ * bubble is drawn centred on him and cannot be moved off his middle — so it is
+ * the bubble that has to fit on the screen, and it is the bubble's half-width
+ * that he stops short of the edge by.
+ */
+internal fun potsikBubbleWidthFor(windowWidthPx: Float): Float =
+    potsikBubbleTextLimit(windowWidthPx = windowWidthPx, wantedPx = windowWidthPx) + BUBBLE_PADDING * 2f
 
 /**
  * The bubble's left edge: its middle on [centreX], but never off the window.

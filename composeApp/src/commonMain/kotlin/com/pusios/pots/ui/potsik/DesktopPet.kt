@@ -204,10 +204,11 @@ fun clampWindowOffset(
  *   (`WAVE`, the hand reaching 28.8 units out of 56 plus half a hand) needs
  *   1.15 times his height, and a window narrower than that cut his hands off
  *   in the poses he spends the day in;
- * - **his speech bubble** — 190 dp. The bubble is drawn inside the same
+ * - **his speech bubble** — 191 dp. The bubble is drawn inside the same
  *   window, and the widest of the 313 lines in `PotsikBanter` needs 150 dp of
  *   text: that is 90 % of the lines in two rows and every one of them in
- *   three, so the three-row cap costs nothing.
+ *   three, so the three-row cap costs nothing. 191 dp is that number with the
+ *   padding and the pop's 1.12 taken out.
  *
  * The height stays `C + 96 dp` — the body and the band the bubble is drawn in.
  * [screenWidthPx] caps the width, so the window is never wider than the screen
@@ -243,16 +244,28 @@ fun potsikCharacterCxOnScreen(windowX: Int, windowWidthPx: Int): Int = windowX +
 fun potsikWindowXForCentre(characterCxOnScreen: Int, windowWidthPx: Int): Int = characterCxOnScreen - windowWidthPx / 2
 
 /**
- * Where the character's window may sit: he stays on the screen, the window's
- * empty corners may hang over the edge.
+ * Where the character's window may sit: his *bubble* stays on the screen, the
+ * window's empty corners may hang over the edge.
  *
  * The window is wider and taller than he is (the bubble's room), so clamping
  * the *window* into the screen — [clampWindowOffset], the rule the capsule
  * obeys — would leave a dead strip of `(W − C) / 2` on each side that he can
- * never reach: 59 dp of screen at the smallest size. What has to stay on the
- * screen is the character, so this clamps his box inside the window — centred
- * across, standing on the window's floor — and lets the window itself stick
- * out. `FLAG_LAYOUT_NO_LIMITS` is what makes that legal.
+ * never reach: 59 dp of screen at the smallest size.
+ *
+ * Clamping only his body is not enough either. The bubble is drawn centred on
+ * him and its tail points at his head, so it cannot be moved off his middle to
+ * dodge an edge; what has to fit is the bubble's width around his middle. The
+ * body therefore stops half a bubble short of the edge — 49.5 / 19.5 / 4.5 dp
+ * at 72 / 132 / 320 dp — and the line he says is whole at every position. A
+ * body-only clamp would put him on the last pixel and let the display cut half
+ * of the bubble, which is the owner's complaint moved from the window's edge
+ * to the screen's.
+ *
+ * The bubble's width is [potsikBubbleWidthFor] — the widest bubble the text
+ * limit allows in this window, so the rule holds for the longest line and is
+ * merely conservative for the short ones.
+ *
+ * `FLAG_LAYOUT_NO_LIMITS` is what makes the window hanging over an edge legal.
  */
 fun clampPotsikWindowOffset(
     x: Int,
@@ -263,11 +276,17 @@ fun clampPotsikWindowOffset(
     screenWidth: Int,
     screenHeight: Int,
 ): IntOffset {
-    val side = (windowWidth - characterPx).coerceAtLeast(0) / 2
-    val minX = -side
-    val maxX = screenWidth - characterPx - side
+    // His middle on the screen must sit at least half a bubble in from either
+    // edge. On a screen narrower than the bubble the two bounds meet in the
+    // middle instead of running into the negatives. The half is rounded up:
+    // rounding down would leave the bubble half a pixel over the edge, which
+    // is the clip this whole rule is about.
+    val halfBubble = ceil(potsikBubbleWidthFor(windowWidth.toFloat()) / 2f).toInt()
+    val reach = halfBubble.coerceAtMost(screenWidth / 2)
+    val minX = reach - windowWidth / 2
+    val maxX = screenWidth - reach - windowWidth / 2
     // His feet stand on the window's floor and the band above his head may
-    // hang over the top edge: he reaches both edges, no dead strip.
+    // hang over the top edge: he reaches the top and the bottom.
     val minY = characterPx - windowHeight
     val maxY = screenHeight - windowHeight
     return IntOffset(clampToRange(x, minX, maxX), clampToRange(y, minY, maxY))
@@ -332,11 +351,12 @@ internal const val POTSIK_WINDOW_ARMS_FACTOR = 1.15f
 /**
  * The narrowest the window may be, in dp.
  *
- * 190 dp of window is 150 dp of text (or more, on any screen denser than
- * density 1) once the bubble's padding and the pop's peak are taken out —
- * 90 % of the 313 lines in two rows, all of them in three. The width is the
- * price of the bubble, and it is paid in taps: the strip beside the character
- * inside the window belongs to him.
+ * 191 dp of window is 150 dp of text at the lowest density there is
+ * (`(150 + 20) · 1.12 = 190.4`): the padding is a fixed 20 px and the pop
+ * scales the bubble to 1.12 of its width, so the window has to be 190.4 dp
+ * before the text box reaches the 150 dp the 313 lines were measured against —
+ * 90 % of them in two rows, all of them in three. The width is the price of
+ * the bubble, and it is paid in taps: the strip beside the character inside
+ * the window belongs to him.
  */
-internal const val POTSIK_MIN_WINDOW_WIDTH_DP = 190f
-
+internal const val POTSIK_MIN_WINDOW_WIDTH_DP = 191f

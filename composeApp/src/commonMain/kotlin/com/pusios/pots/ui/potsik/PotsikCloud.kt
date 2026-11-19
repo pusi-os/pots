@@ -214,6 +214,11 @@ data class PotsikCloudPlacement(val x: Int, val y: Int, val side: PotsikCloudSid
  * of room at every edge — he can be dragged past the edge of the screen
  * (`FLAG_LAYOUT_NO_LIMITS`), the capsule cannot.
  *
+ * [petWidth] is the *window's* width and it is wider than the body (the
+ * bubble's room), so the body is measured from the window's middle: the gaps
+ * and the side branches count from his shoulders, not from the empty strip
+ * beside him.
+ *
  * All arguments are pixels; [density] only turns the dp margins into them.
  */
 fun potsikCloudPlacement(
@@ -237,6 +242,12 @@ fun potsikCloudPlacement(
     val headTop = petY + (petHeight - characterPx)
     val headCentreX = petX + petWidth / 2
 
+    // The body, not the window: the window is wider than he is (the bubble's
+    // room, [potsikWindowGeometry]), and measuring the gap from its edge would
+    // hang the capsule (W − C) / 2 farther from him than the 8 dp the rule is.
+    val bodyLeft = petX + (petWidth - characterPx) / 2
+    val bodyRight = bodyLeft + characterPx
+
     val aboveX = headCentreX - cloudWidthPx / 2
     val aboveY = headTop - aboveGap - cloudHeightPx
     if (aboveY >= margin) {
@@ -245,11 +256,11 @@ fun potsikCloudPlacement(
 
     // Beside him: the capsule's middle lines up with the middle of his head.
     val sideY = headTop + characterPx / 2 - cloudHeightPx / 2
-    val rightX = petX + petWidth + sideGap
+    val rightX = bodyRight + sideGap
     if (rightX + cloudWidthPx <= screenWidth - margin) {
         return clampCloud(rightX, sideY, cloudWidthPx, cloudHeightPx, screenWidth, screenHeight, margin, PotsikCloudSide.Right)
     }
-    val leftX = petX - sideGap - cloudWidthPx
+    val leftX = bodyLeft - sideGap - cloudWidthPx
     if (leftX >= margin) {
         return clampCloud(leftX, sideY, cloudWidthPx, cloudHeightPx, screenWidth, screenHeight, margin, PotsikCloudSide.Left)
     }
