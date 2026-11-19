@@ -18,20 +18,54 @@ import java.io.File
 internal fun guestPidCommand(pidFileName: String, command: String): String = "echo \$\$ > /tmp/$pidFileName; $command"
 
 /**
- * Kills [root] and every descendant, deepest first.
+ * Kills [root] and every descendant, deepest first, and answers with every pid
+ * it tried to end.
  *
  * Bottom-up because a parent that is still alive can re-spawn what was just
  * killed. [childrenOf] and [kill] are parameters so the order can be tested
  * without spawning anything; production callers pass [hostChildren] and the
  * platform's kill.
+ *
+ * The returned pids are what a cancel has to wait for: a signal is delivered
+ * asynchronously, so the tree is not gone the instant this returns.
  */
 internal fun killProcessTree(
     root: Int,
     childrenOf: (Int) -> List<Int>,
     kill: (Int) -> Unit,
-) {
-    childrenOf(root).forEach { killProcessTree(it, childrenOf, kill) }
-    runCatching { kill(root) }
+): List<Int> {
+    val killed = mutableListOf<Int>()
+    fun walk(pid: Int) {
+        childrenOf(pid).forEach { walk(it) }
+        // A pid that vanishes mid-walk still gets its attempt recorded, so the
+        // caller waits on the whole tree rather than on a subset.
+        runCatching { kill(pid) }
+        killed += pid
+    }
+    walk(root)
+    return killed
+}
+
+/**
+ * Whether a cancel actually ended everything it killed.
+ *
+ * Every pid in [killedPids] has to be gone, not just proot: proot is lighter and
+ * dies first, while a SIGKILLed child can still be readable in /proc for a
+ * moment — answering "dead" on proot alone is what made the next start fail with
+ * the port still taken.
+ *
+ * With no recorded tree (an older session, a PTY that died before writing a pid
+ * file) only proot can be watched, which is the old, weaker guarantee.
+ */
+internal fun guestTreeIsDead(
+    killedPids: List<Int>,
+    prootAlive: Boolean,
+    guestPid: Int?,
+    isAlive: (Int) -> Boolean,
+): Boolean {
+    killedPids.forEach { if (isAlive(it)) return false }
+    if (!prootAlive) return true
+    return guestPid != null && !isAlive(guestPid)
 }
 
 /** Direct children of [parent], read from /proc — no busybox, no extra process. */

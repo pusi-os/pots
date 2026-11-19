@@ -1,6 +1,7 @@
 package com.pusios.pots.linux
 
 import com.pusios.pots.smartTruncate
+import com.pusios.pots.tools.guestTreeIsDead
 import com.pusios.pots.tools.hostChildren
 import com.pusios.pots.tools.hostProcessAlive
 import com.pusios.pots.tools.killProcessTree
@@ -63,6 +64,13 @@ class ProotHandle internal constructor(
     @Volatile
     private var guestPid: Int? = null
 
+    /**
+     * Pids the cancel ended. Death is not believed until every one of them is
+     * gone: proot dies first, its children a moment later.
+     */
+    @Volatile
+    private var killedPids: List<Int> = emptyList()
+
     fun isCancelled(): Boolean = cancelled.get()
 
     fun cancel() {
@@ -88,7 +96,7 @@ class ProotHandle internal constructor(
             // killing only the recorded pid would leave a background server
             // holding its port. The recorded pid is the guest shell, so the tree
             // under it is the command itself.
-            killProcessTree(pid, ::hostChildren) { android.os.Process.killProcess(it) }
+            killedPids = killProcessTree(pid, ::hostChildren) { android.os.Process.killProcess(it) }
         }
         runCatching { file.delete() }
     }
@@ -142,11 +150,7 @@ class ProotHandle internal constructor(
         return isDead()
     }
 
-    private fun isDead(): Boolean {
-        if (!process.isAlive) return true
-        val pid = guestPid ?: return false
-        return !hostProcessAlive(pid)
-    }
+    private fun isDead(): Boolean = guestTreeIsDead(killedPids, process.isAlive, guestPid, ::hostProcessAlive)
 }
 
 /**

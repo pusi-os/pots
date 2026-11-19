@@ -31,9 +31,10 @@ class ProcessTreeTest {
         val children = mapOf(1 to listOf(2, 3), 2 to listOf(4), 3 to emptyList(), 4 to emptyList())
         val killed = mutableListOf<Int>()
 
-        killProcessTree(root = 1, childrenOf = { children[it].orEmpty() }, kill = { killed += it })
+        val ended = killProcessTree(root = 1, childrenOf = { children[it].orEmpty() }, kill = { killed += it })
 
         assertEquals(listOf(4, 2, 3, 1), killed, "a child has to die before its parent can re-spawn it")
+        assertEquals(listOf(4, 2, 3, 1), ended, "the caller waits on every pid the walk ended, root last")
     }
 
     @Test
@@ -42,13 +43,40 @@ class ProcessTreeTest {
         val children = mapOf(1 to listOf(2))
         val killed = mutableListOf<Int>()
 
-        killProcessTree(
+        val ended = killProcessTree(
             root = 1,
             childrenOf = { children[it].orEmpty() },
             kill = { if (it == 2) error("already gone") else killed += it },
         )
 
         assertEquals(listOf(1), killed, "the root still gets its kill attempt")
+        assertEquals(listOf(2, 1), ended, "a pid that vanished is still one the caller waits on")
+    }
+
+    @Test
+    fun deathIsNotBelievedWhileAKilledChildIsStillAlive() {
+        // The reviewer's measurement: proot is dead, a killed child is still in R.
+        // Answering "dead" here is the false success the card exists to remove.
+        val alive = setOf(30)
+
+        val dead = guestTreeIsDead(killedPids = listOf(30, 20, 10), prootAlive = false, guestPid = 10) { it in alive }
+
+        assertFalse(dead, "a child that still holds the port means the kill has not happened yet")
+    }
+
+    @Test
+    fun deathIsBelievedOnceEveryKilledPidIsGone() {
+        val dead = guestTreeIsDead(killedPids = listOf(30, 20, 10), prootAlive = true, guestPid = 10) { false }
+
+        assertTrue(dead, "proot may outlive destroyForcibly on a PTY session; the tree is what matters")
+    }
+
+    @Test
+    fun anUnrecordedTreeFallsBackToWatchingProot() {
+        // No pid file was readable: only proot can be watched, which is the old,
+        // weaker guarantee — but it must not claim a live proot is dead.
+        assertTrue(guestTreeIsDead(emptyList(), prootAlive = false, guestPid = null) { true })
+        assertFalse(guestTreeIsDead(emptyList(), prootAlive = true, guestPid = null) { false })
     }
 
     @Test
@@ -85,7 +113,9 @@ class ProcessTreeTest {
             killProcessTree(pid, ::hostChildren) { ProcessHandle.of(it.toLong()).ifPresent { h -> h.destroyForcibly() } }
 
             assertTrue(awaitDead(pid), "the recorded process must be gone")
-            tree.forEach { assertFalse(hostProcessAlive(it), "child $it outlived the kill and would keep the port") }
+            // SIGKILL is delivered asynchronously: the child is still readable in
+            // /proc for a moment after the kill, so it has to be waited for too.
+            tree.forEach { assertTrue(awaitDead(it), "child $it outlived the kill and would keep the port") }
         } finally {
             process.destroyForcibly()
             process.waitFor()
