@@ -768,6 +768,8 @@
     <string name="pots_build_step_configure">Configuring Debian…</string>
     <string name="pots_build_step_base_packages">Installing base packages…</string>
     <string name="pots_build_step_install_agent">Installing %1$s…</string>
+    <string name="pots_build_install_log_title">Install log</string>
+    <string name="pots_build_install_log_truncated">Earlier lines dropped — showing the last %1$d KB</string>
     <string name="pots_build_projects_new_placeholder">New project name</string>
     <string name="pots_build_projects_create">Create</string>
     <string name="pots_build_projects_empty">No projects yet. Tap + to create one.</string>

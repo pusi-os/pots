@@ -1,30 +1,47 @@
 package com.pusios.pots.ui.build
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.pusios.pots.build.BuildAgents
 import com.pusios.pots.build.BuildEnvironmentState
 import com.pusios.pots.build.BuildStep
+import com.pusios.pots.build.INSTALL_LOG_MAX_CHARS
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.sandbox.SandboxProgressRow
 import com.pusios.pots.ui.settings.SettingsCard
+import kotlinx.collections.immutable.ImmutableSet
+import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.pots_build_install_log_title
+import pots.composeapp.generated.resources.pots_build_install_log_truncated
 import pots.composeapp.generated.resources.pots_build_setup_agents_description
 import pots.composeapp.generated.resources.pots_build_setup_agents_title
 import pots.composeapp.generated.resources.pots_build_setup_description
@@ -35,8 +52,6 @@ import pots.composeapp.generated.resources.pots_build_step_configure
 import pots.composeapp.generated.resources.pots_build_step_download
 import pots.composeapp.generated.resources.pots_build_step_extract
 import pots.composeapp.generated.resources.pots_build_step_install_agent
-import kotlinx.collections.immutable.ImmutableSet
-import org.jetbrains.compose.resources.stringResource
 
 /**
  * First screen a user lands on: install Debian, optionally with coding agents.
@@ -124,8 +139,80 @@ internal fun BuildSetupContent(
                 color = MaterialTheme.colorScheme.error,
             )
         }
+
+        // Under the progress bar while it runs, and left in place afterwards:
+        // a failure's log is the reason the error line above cannot give.
+        if (state.installLog.isNotEmpty()) {
+            InstallLogPane(log = state.installLog, dropped = state.installLogDropped)
+        }
     }
 }
+
+/**
+ * The installer's console, as far as the last [INSTALL_LOG_MAX_CHARS] reach.
+ *
+ * Selection is on so a failure can be copied out of the app; the view follows
+ * the tail until the reader scrolls up, because a live log that keeps pulling
+ * itself down cannot be read while an install is running.
+ */
+@Composable
+private fun InstallLogPane(log: String, dropped: Boolean) {
+    val scroll = rememberScrollState()
+    var followTail by remember { mutableStateOf(true) }
+    // Recomputed from the scroll state rather than from drag gestures: this also
+    // covers a fling, and it is the same rule for a mouse wheel on desktop.
+    LaunchedEffect(scroll.value, scroll.maxValue) {
+        followTail = scroll.value >= scroll.maxValue - FOLLOW_TAIL_SLOP_PX
+    }
+    LaunchedEffect(log) {
+        if (followTail) scroll.scrollTo(scroll.maxValue)
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+            .padding(8.dp),
+    ) {
+        Text(
+            text = stringResource(Res.string.pots_build_install_log_title),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (dropped) {
+            Text(
+                text = stringResource(
+                    Res.string.pots_build_install_log_truncated,
+                    INSTALL_LOG_MAX_CHARS / 1024,
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(INSTALL_LOG_HEIGHT)
+                .verticalScroll(scroll),
+        ) {
+            SelectionContainer {
+                Text(
+                    text = log,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+    }
+}
+
+/** Tall enough for a failure's last lines, short enough to leave the button visible. */
+private val INSTALL_LOG_HEIGHT = 148.dp
+
+/** Within this many pixels of the end counts as "following the tail". */
+private const val FOLLOW_TAIL_SLOP_PX = 24
 
 /**
  * The Compose resource formatter substitutes `%1$d` but passes the `%%` escape through verbatim,

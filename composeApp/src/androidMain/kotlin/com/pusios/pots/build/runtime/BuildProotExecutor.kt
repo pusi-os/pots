@@ -188,6 +188,39 @@ class BuildProotExecutor(
     }
 
     /**
+     * Runs an installer to completion, handing every byte it writes to
+     * [onOutput] as it arrives.
+     *
+     * No PTY here, unlike [executeStreaming]: installers are scripts, and a
+     * terminal on the other end turns a prompt into a wait for an answer nobody
+     * will give, where a pipe turns it into an error. The command therefore runs
+     * through `/bin/sh -c`, exactly as [execute] would run it — only the output
+     * is no longer collected and thrown away until the end.
+     *
+     * The shell records its own pid first and does not `exec`, so the recorded
+     * pid is the parent of everything the installer starts: cancelling kills the
+     * tree, not just proot.
+     */
+    fun startInstall(
+        command: String,
+        workingDir: String = "/root",
+        onOutput: (ByteArray, Int) -> Unit,
+    ): ProotHandle {
+        val pidFile = File(tmpPath, pidFileName)
+        runCatching { pidFile.delete() }
+        return launcher.startStreaming(
+            command = "echo ${'$'}${'$'} > /tmp/$pidFileName; $command",
+            workingDir = workingDir,
+            guestPidFile = pidFile,
+        ) { process, cancelled ->
+            listOf(
+                CompletableFuture.runAsync { streamBytes(process.inputStream, cancelled, onOutput) },
+                CompletableFuture.runAsync { streamBytes(process.errorStream, cancelled, onOutput) },
+            )
+        }
+    }
+
+    /**
      * Starts a long-running command (a web panel) with no PTY: raw pipes, its own
      * pid written into the bind-mounted `/tmp`, and everything it prints appended
      * to [logFile].

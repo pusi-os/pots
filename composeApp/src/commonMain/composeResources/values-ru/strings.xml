@@ -662,6 +662,8 @@
     <string name="pots_build_step_configure">Настройка Debian…</string>
     <string name="pots_build_step_base_packages">Установка базовых пакетов…</string>
     <string name="pots_build_step_install_agent">Установка %1$s…</string>
+    <string name="pots_build_install_log_title">Лог установки</string>
+    <string name="pots_build_install_log_truncated">Ранние строки отброшены — показаны последние %1$d КБ</string>
     <string name="pots_build_projects_new_placeholder">Имя нового проекта</string>
     <string name="pots_build_projects_create">Создать</string>
     <string name="pots_build_projects_empty">Пока нет проектов. Нажмите +, чтобы создать.</string>

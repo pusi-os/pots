@@ -9,6 +9,7 @@ import com.pusios.pots.build.BuildEnvironmentState
 import com.pusios.pots.build.BuildStep
 import com.pusios.pots.build.BuildSystemInfo
 import com.pusios.pots.build.BuildTerminalSession
+import com.pusios.pots.build.InstallLog
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.build.SandboxAgentConfig
 import com.pusios.pots.build.SandboxAgentCredentials
@@ -45,6 +46,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +64,7 @@ import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 private const val TAG = "PotsBuild"
 
@@ -80,6 +83,25 @@ private const val HYPERLINK_TTL_MS = 2 * 60 * 1000L
  * proot process per project the user has forgotten about.
  */
 private const val IDLE_PROJECT_TTL_MS = 60 * 60 * 1000L
+
+/**
+ * How often a running install's log reaches the screen. git and uv write in
+ * bursts of kilobytes; republishing per chunk would recompose the setup screen
+ * dozens of times a second for output nobody can read that fast.
+ */
+private const val INSTALL_LOG_FLUSH_MS = 200L
+
+/**
+ * An install that has printed nothing for this long is treated as hung. It is
+ * the only signal available for a step blocked on a socket — the installer's
+ * own `curl` calls have no timeout — and it is deliberately far longer than the
+ * quietest real step: `npm install` in a pipe prints nothing at all until it is
+ * done, so a shorter silence would kill a working Pi install on a slow phone.
+ */
+private const val INSTALL_STALL_MS = 20 * 60 * 1000L
+
+/** How often a waiting install re-checks its deadline and its silence. */
+private const val INSTALL_POLL_MS = 1000L
 
 /**
  * One live PTY session: its own VT screen, geometry, and capture files. Several
@@ -284,6 +306,9 @@ class BuildEnvironmentManager(
     fun install(agentIds: Set<String>) {
         if (installJob?.isActive == true) return
         installJob = scope.launch {
+            // A new install owns the log: the previous one's reason is not this
+            // one's, and leaving it would read as if the new run already failed.
+            _state.update { it.copy(installLog = "", installLogDropped = false) }
             try {
                 installInternal(agentIds) { isActive }
             } catch (e: CancellationException) {
@@ -677,7 +702,9 @@ class BuildEnvironmentManager(
                 "/root/.pi/agent /root/.opencode/bin /usr/local/bin",
             timeoutSeconds = 30,
         )
-        val result = executor.execute(agent.installCommand, timeoutSeconds = agent.installTimeoutSeconds)
+        val log = InstallLog()
+        publishInstallLog(log)
+        val outcome = streamInstall(agent, executor, log)
         // Vendor scripts may leave the binary only in their private dir and only
         // update shell rc files — which Pots Build never sources. Link into PATH
         // and re-probe so a successful download still counts as installed. The
@@ -686,7 +713,7 @@ class BuildEnvironmentManager(
         val probe = executor.ensureAgentBinary(agent.binary)
         val installed = probe != null
         if (!installed) {
-            Log.w(TAG, "${agent.id} install failed (exit detail): ${result.failureDetail()}")
+            Log.w(TAG, "${agent.id} install failed (exit detail): ${outcome.describe()}")
             val probeOutput = executor.execute(
                 "command -v ${agent.binary} 2>/dev/null; " +
                     "ls -la /root/.local/bin /root/.local/share/pi-node/bin /root/.opencode/bin /usr/local/bin 2>/dev/null; " +
@@ -695,6 +722,11 @@ class BuildEnvironmentManager(
                 timeoutSeconds = 30,
             )
             Log.w(TAG, "${agent.id} post-install probe: ${probeOutput.stdout} ${probeOutput.stderr}")
+            // "Could not install X" on its own says nothing; the log stays on
+            // screen next to it, so the reason goes there.
+            log.appendText("pots: ${agent.id} is not on PATH after the install (${outcome.describe()})\n")
+            log.appendText(probeOutput.stdout.ifBlank { probeOutput.stderr }.takeLast(2_000) + "\n")
+            publishInstallLog(log)
         }
         // The agent is only worth having if it can answer on the provider the app
         // is already using, so the config lands with the install, not on first run.
@@ -703,6 +735,88 @@ class BuildEnvironmentManager(
             setAgentVersion(agent.id, AgentVersion.parse(probe))
         }
         installed
+    }
+
+    /**
+     * Runs [agent]'s installer with its output streamed into [log] and published
+     * to the setup screen while it runs.
+     *
+     * The log is flushed at most every [INSTALL_LOG_FLUSH_MS]: git writes in
+     * bursts of kilobytes, and republishing on every chunk would recompose the
+     * screen hundreds of times a second. The last flush always happens, so the
+     * line the install stopped on is the one on screen when it does.
+     *
+     * The wait is polled rather than blocked so the install can be given up on:
+     * a step that prints nothing for [INSTALL_STALL_MS] is treated as hung, and
+     * a hung guest is killed before it is reported, or the next attempt starts
+     * on top of it.
+     */
+    private suspend fun streamInstall(
+        agent: BuildAgent,
+        executor: BuildProotExecutor,
+        log: InstallLog,
+    ): InstallOutcome {
+        val chunks = Channel<ByteArray>(Channel.UNLIMITED)
+        val lastOutputAt = AtomicLong(System.currentTimeMillis())
+        val handle = try {
+            executor.startInstall(agent.installCommand) { buf, n ->
+                lastOutputAt.set(System.currentTimeMillis())
+                chunks.trySend(buf.copyOf(n))
+            }
+        } catch (e: Exception) {
+            return InstallOutcome(exit = -1, error = e.message ?: "could not start the installer")
+        }
+        return coroutineScope {
+            launch {
+                var lastFlush = 0L
+                for (chunk in chunks) {
+                    log.append(chunk)
+                    val now = System.currentTimeMillis()
+                    if (now - lastFlush >= INSTALL_LOG_FLUSH_MS) {
+                        lastFlush = now
+                        publishInstallLog(log)
+                    }
+                }
+                publishInstallLog(log)
+            }
+            val deadline = System.currentTimeMillis() + agent.installTimeoutSeconds * 1000
+            var outcome = InstallOutcome(exit = -1, timeoutSeconds = agent.installTimeoutSeconds)
+            try {
+                while (true) {
+                    val exit = handle.awaitExitOrNull(INSTALL_POLL_MS)
+                    if (exit != null) {
+                        outcome = InstallOutcome(exit, timeoutSeconds = agent.installTimeoutSeconds)
+                        break
+                    }
+                    val now = System.currentTimeMillis()
+                    if (now >= deadline) {
+                        outcome = InstallOutcome(-1, timedOut = true, timeoutSeconds = agent.installTimeoutSeconds)
+                        break
+                    }
+                    if (now - lastOutputAt.get() >= INSTALL_STALL_MS) {
+                        outcome = InstallOutcome(-1, stalled = true, timeoutSeconds = agent.installTimeoutSeconds)
+                        break
+                    }
+                }
+            } catch (e: CancellationException) {
+                // The user's Cancel has to mean the installer stops, not that the
+                // app stops listening while git keeps writing into the rootfs.
+                handle.cancel()
+                throw e
+            } finally {
+                chunks.close()
+            }
+            if (outcome.timedOut || outcome.stalled) {
+                handle.cancel()
+                log.appendText("pots: install ended (${outcome.describe()})\n")
+                publishInstallLog(log)
+            }
+            outcome
+        }
+    }
+
+    private fun publishInstallLog(log: InstallLog) {
+        _state.update { it.copy(installLog = log.text(), installLogDropped = log.dropped) }
     }
 
     /** Records what [agentId]'s own `--version` said; a null [version] clears the entry. */
@@ -1154,6 +1268,28 @@ class BuildEnvironmentManager(
             emptyMap()
         }
         return base + providerKey
+    }
+}
+
+/**
+ * How a streamed install command ended.
+ *
+ * [exit] is the shell's own status; -1 when there is none to report — the
+ * process never started, or it was killed for running too long.
+ */
+private class InstallOutcome(
+    val exit: Int,
+    val timedOut: Boolean = false,
+    val stalled: Boolean = false,
+    val error: String? = null,
+    val timeoutSeconds: Long = 0,
+) {
+    /** One line naming why it ended, for the log and logcat alike. */
+    fun describe(): String = when {
+        error != null -> error
+        stalled -> "no output for ${INSTALL_STALL_MS / 60_000} min"
+        timedOut -> "timed out after ${timeoutSeconds}s"
+        else -> "exit $exit"
     }
 }
 

@@ -132,6 +132,23 @@ class ProotHandle internal constructor(
     }
 
     /**
+     * Waits up to [timeoutMillis] for the process, answering null while it is
+     * still running.
+     *
+     * A caller that has to watch its own deadline — an installer that must give
+     * up on a hung download — polls through this instead of blocking in
+     * [awaitExit] and losing the chance to cancel.
+     */
+    fun awaitExitOrNull(timeoutMillis: Long): Int? {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        while (System.currentTimeMillis() < deadline) {
+            if (cancelled.get() || !process.isAlive) return awaitExit()
+            runCatching { process.waitFor(100, TimeUnit.MILLISECONDS) }
+        }
+        return if (cancelled.get() || !process.isAlive) awaitExit() else null
+    }
+
+    /**
      * Waits up to [timeoutMillis] for the OS to reap the process, and answers
      * whether it did.
      *
@@ -241,6 +258,10 @@ class ProotLauncher(
     private fun buildArgs(command: String, workingDir: String): Array<String> = buildList {
         add(prootPath)
         addAll(extraArgs)
+        // Nothing a guest started may outlive proot: killing the app during an
+        // install used to leave git and uv running with half a pack file and a
+        // lock file behind, and the next run repaired on top of that.
+        add("--kill-on-exit")
         add("--rootfs=$rootfsPath")
         add("--bind=/dev")
         add("--bind=/proc")

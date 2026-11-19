@@ -54,7 +54,7 @@ Debian has one install on this device, so whenever the shell integration is poin
 
 Pointing the shell integration at Alpine instead splits them: the chat sandbox runs in its Alpine, and Pots Build keeps (or bootstraps) its own Debian. Both exist at once, which is exactly what makes switching back and forth free.
 
-Package installs are serialized across the two, because a shared rootfs means the Settings "Install Packages" action and a Pots Build agent install could otherwise reach `dpkg` at the same moment and both fail on its lock.
+Package installs are serialized across the two, because a shared rootfs means the Settings "Install Packages" action and a Pots Build agent install could otherwise reach `dpkg` at the same moment and both fail on its lock. Each surface reports its own progress: an agent install in Pots Build also streams its console output into the setup screen and leaves it there if it fails, so the reason is on screen rather than only in logcat — see [Install log](pots-build.md#install-log).
 
 Pots Build itself is never re-pointed by a switch. Its Linux is wherever Debian lives, whether or not the chat sandbox is currently sharing it, so a running project terminal is unaffected by anything the Settings picker does.
 

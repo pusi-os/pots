@@ -87,6 +87,14 @@ data class PotsBuildState(
     val systemInfo: BuildSystemInfo? = null,
     /** Last install failure, in shell/English wording — cleared when work restarts. */
     val lastError: String? = null,
+    /**
+     * The tail of the running agent installer's console output. Kept after the
+     * install ends — a failed install's log is the explanation the error line
+     * above it cannot give — and cleared when the next install starts.
+     */
+    val installLog: String = "",
+    /** True when [installLog] lost its head to stay inside the buffer. */
+    val installLogDropped: Boolean = false,
 ) {
     val isReady: Boolean get() = environment is BuildEnvironmentState.Ready
     val isInstalling: Boolean get() = environment is BuildEnvironmentState.Installing

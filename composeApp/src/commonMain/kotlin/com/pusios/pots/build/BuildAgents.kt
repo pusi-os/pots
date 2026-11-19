@@ -110,15 +110,59 @@ object BuildAgents {
      *
      * The clone is the only part done here: the installer is idempotent and
      * updates an existing checkout itself, so a rerun is safe.
+     *
+     * Two things about this command are not obvious and are both needed on a
+     * phone inside proot:
+     *
+     * - **uv must copy, not hardlink.** `hermes pm` installs the Python tree
+     *   with uv, which normally hardlinks its cache into the venv; the kernel
+     *   answers `EPERM` inside an Android app's data dir. proot's
+     *   `--link2symlink` covers `link()` *and* `linkat()`, so the refusal is not
+     *   a missing proot flag — uv has to be told to copy. It cannot be told
+     *   through the environment: `pm` strips every `UV_*` variable from the
+     *   environment it hands uv (`pm/environment.py`, `_base_environment` keeps
+     *   index settings only), which is why upstream's `UV_LINK_MODE=copy` report
+     *   saw no effect. A project-level `uv.toml` is read by uv itself, so that
+     *   is where the setting lives; it is git-ignored through
+     *   `.git/info/exclude` because the installer stashes and resets a dirty
+     *   checkout on every rerun and would otherwise take the file away.
+     * - **`--channel main`.** The default stable channel makes the installer
+     *   fetch a release tag's entire history into the shallow clone — 643k
+     *   objects, over 45 minutes on a phone — and then keep the existing
+     *   checkout anyway. `main` follows the branch and skips that fetch.
      */
     private const val HERMES_INSTALL = """
         set -e
         export DEBIAN_FRONTEND=noninteractive
+        # Harmless where it arrives (the installer's own uv calls read it) and
+        # the only lever if a future pm forwards it to its uv children.
+        export UV_LINK_MODE=copy
+        export UV_NO_CACHE=1
         mkdir -p /root/.hermes /root/.local/bin
         if [ ! -d /root/.hermes/hermes-agent/.git ]; then
           git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /root/.hermes/hermes-agent
         fi
-        bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use
+        printf 'link-mode = "copy"\nno-cache = true\n' > /root/.hermes/hermes-agent/uv.toml
+        grep -qxF uv.toml /root/.hermes/hermes-agent/.git/info/exclude 2>/dev/null \
+          || echo uv.toml >> /root/.hermes/hermes-agent/.git/info/exclude
+        # A failed attempt leaves a half-built PM runtime and a uv cache seeded
+        # from it; the retry then hardlinks that environment back into the cache
+        # and gets EPERM again. Nothing is installed yet, so nothing is lost by
+        # starting the rebuild clean.
+        if [ ! -x /root/.hermes/hermes-agent/.hermes/bin/hermes ]; then
+          rm -rf /root/.hermes/installs/*/pm-runtime /root/.hermes/cache/uv
+        fi
+        # Whether a hardlink works at all in this guest decides whether the copy
+        # mode above is even the right remedy, so the log has to carry the answer.
+        echo "pots: link probe"
+        ( cd /root || exit 1
+          echo a > pots-link-probe
+          if ln -f pots-link-probe pots-link-probe-2 2>&1; then echo "  ln: ok"; else echo "  ln: FAILED (exit ${'$'}?)"; fi
+          ls -li pots-link-probe pots-link-probe-2 2>&1
+          if python3 -c "import os; os.link('pots-link-probe','pots-link-probe-3')" 2>&1; then echo "  os.link: ok"; else echo "  os.link: FAILED (exit ${'$'}?)"; fi
+          rm -f pots-link-probe pots-link-probe-2 pots-link-probe-3 )
+        # stdin closed: no answer is coming from a sandbox if the installer asks.
+        bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use --channel main < /dev/null
         # The installer publishes the command for login shells; link it into the
         # bin dir Pots Build's own PATH carries so probes find it by name.
         ln -sfn /root/.hermes/hermes-agent/.hermes/bin/hermes /root/.local/bin/hermes
