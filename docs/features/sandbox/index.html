@@ -1079,6 +1079,100 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#agent-web-panels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent web panels
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Agent web panels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-each-panel-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where each panel comes from
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loopback-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loopback only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#passwords" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passwords
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hermes-link-is-one-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hermes' link is one-use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provider-and-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider and model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stop-and-autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stop and autostart
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1576,6 +1670,100 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#agent-web-panels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent web panels
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Agent web panels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-each-panel-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where each panel comes from
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loopback-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loopback only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#passwords" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passwords
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hermes-link-is-one-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hermes' link is one-use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provider-and-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider and model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stop-and-autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stop and autostart
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1749,6 +1937,88 @@
 <p>The <strong>Autostart settings</strong> button opens the vendor's own autostart screen when the ROM has one (MIUI's security centre, One UI's battery page) and falls back to this app's system page everywhere else.</p>
 <h3 id="reboots-and-process-death">Reboots and process death</h3>
 <p>The service is <code>START_STICKY</code>, so a system kill during the day brings it back. A <strong>reboot</strong> does not: nothing restarts it at boot (Android 15 restricts which foreground service types may be launched from <code>BOOT_COMPLETED</code>, and <code>specialUse</code> is not one of them). The switch stays on in settings, and the next time the app is opened the controller re-applies it — so after a reboot the sandbox comes back when Pots is opened, not before. That is stated here rather than papered over with a boot receiver that the platform would refuse.</p>
+<h2 id="agent-web-panels">Agent web panels</h2>
+<p>Pots Build starts the coding agents' own web UIs and hands the address to the
+device's browser: <code>opencode serve</code> (4096), <code>pi-web</code> (30141) and Hermes' <code>webapp</code>
+(9120). One row per installed agent sits in Pots Build's project list.</p>
+<h3 id="where-each-panel-comes-from">Where each panel comes from</h3>
+<p>A panel is part of its agent's install, not a separate thing to set up. Pi's
+installer runs <code>npm install -g @agegr/pi-web</code> with the Node runtime Pi already
+needs, into that runtime's own prefix, so <code>pi-web</code> lands on the sandbox PATH next
+to <code>pi</code>; Settings → Sandbox prints its version beside Pi's. Hermes' install ends
+with <code>hermes webapp --build-only</code>, which builds the renderer bundle the panel
+serves — a failure there leaves the agent installed and the row says the bundle
+is missing rather than showing an empty page. OpenCode needs nothing: its web UI
+ships inside the binary.</p>
+<h3 id="loopback-only">Loopback only</h3>
+<p>proot creates no network namespace: the guest and the phone share one network
+stack. A server bound to <code>127.0.0.1</code> inside the sandbox is therefore the phone's
+own loopback, and Chrome opens <code>http://127.0.0.1:&lt;port&gt;</code> directly. Nothing here
+binds <code>0.0.0.0</code> — that would publish an unauthenticated panel to the whole LAN.</p>
+<h3 id="ports">Ports</h3>
+<table>
+<thead>
+<tr>
+<th>Panel</th>
+<th>Preferred</th>
+<th>Started with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenCode</td>
+<td>4096</td>
+<td><code>opencode serve --port N --hostname 127.0.0.1</code></td>
+</tr>
+<tr>
+<td>Pi</td>
+<td>30141</td>
+<td><code>pi-web --port N --hostname 127.0.0.1 --no-open</code></td>
+</tr>
+<tr>
+<td>Hermes</td>
+<td>9120</td>
+<td><code>hermes webapp --no-open</code></td>
+</tr>
+</tbody>
+</table>
+<p>A taken port moves the panel to the next free one (ten attempts, then an honest
+"all busy" error), and the row shows the port it actually got. Hermes takes its
+port from <code>webapp.port</code> in <code>~/.hermes/config.yaml</code>, so the panel replaces that
+one block (<code>SandboxAgentConfig.withWebappPort</code>) before starting it, and reports
+the port the printed link carries.</p>
+<p>The probe itself runs under <code>/bin/bash</code>, not <code>/bin/sh</code>: it connects through
+bash's <code>/dev/tcp</code>, which is not POSIX and which the image's <code>/bin/sh</code> (dash) does
+not have — under dash the redirect fails, which would read as "nothing is
+listening" and as "the port is free" at the same time. Only a refused connection
+counts as free; a probe that did not run at all (bash missing, proot error,
+timeout) is reported as taken, so a broken probe can never hand out a port
+someone else is on.</p>
+<h3 id="passwords">Passwords</h3>
+<p>OpenCode and pi-web get a generated 24-character password on first start
+(<code>OPENCODE_SERVER_PASSWORD</code>, <code>PI_WEB_PASSWORD</code>), stored in Pots' settings and
+shown on request — the row fetches it when the button is tapped, so a panel that
+never started has none to show. It travels in the process environment only: not
+on the command line (so it is not in <code>ps</code>), and not in the panel log. Hermes has
+no panel password — each browser is signed in by a one-use link instead.</p>
+<h3 id="hermes-link-is-one-use">Hermes' link is one-use</h3>
+<p><code>hermes webapp --no-open</code> prints either a permanent sign-in address or a private
+link that works once and expires in 60 seconds. Which one it is cannot be known
+in advance, so the button mints a link on every tap and hands it straight to the
+browser — nothing is cached, because a cached link is spent by the first open.</p>
+<h3 id="provider-and-model">Provider and model</h3>
+<p>There is no second configuration. pi-web reads <code>~/.pi/agent/models.json</code>, which
+<code>SandboxAgentConfig.pi()</code> already writes; OpenCode's web UI is the same binary
+reading the same <code>~/.config/opencode/opencode.json</code>; Hermes' webapp runs on the
+same <code>~/.hermes/config.yaml</code> and <code>.env</code> as its CLI.</p>
+<h3 id="stop-and-autostart">Stop and autostart</h3>
+<p>A stop is a real <code>kill -TERM</code>, a wait, then <code>kill -KILL</code> — a server gets a chance
+to close its port — and the panel only reports stopped once the port is free.
+Hermes is the exception in the mechanics, not in the promise: its panel is the
+gateway, so the stop is <code>hermes gateway stop</code>, followed by the same port check on
+the address the row was showing.
+The "Start with the sandbox" toggle brings the panel up when the sandbox becomes
+ready, and a live pid with a listening port means nothing is started twice.</p>
 <h2 id="behavior">Behavior</h2>
 <ul>
 <li><strong>Tool availability follows install state</strong>: the assistant's sandbox tools (shell command, <code>manage_process</code>, and the SSH-host config tool) are advertised to the model only when the sandbox is actually installed (Ready) <em>and</em> the sandbox toggle is on. Before the sandbox is installed they are not sent at all — there is no point offering tools that can only return "not installed," and the enable/disable toggle is itself hidden until install completes. Once installed, the switch on the distribution's card is the on/off control.</li>
@@ -1883,6 +2153,22 @@
 <tr>
 <td><code>composeApp/src/jvmShared/kotlin/com/pusios/pots/linux/GuestPath.kt</code></td>
 <td>Guest path → host file, following the binds, for both file browsers. Rejects traversal and anything resolving outside its root.</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanels.kt</code></td>
+<td>The three agent web panels as declarations: preferred ports, the one command line each is started with, port choice, the password generator, and the parser for <code>hermes webapp</code>'s output (one-use link vs sign-in address).</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanelRuntime.kt</code></td>
+<td>Panel state machine, free of Android: start/stop/refresh/autostart over a <code>WebPanelGuest</code>, with the "start at most once", "report the port it got" and "stopped means the port is free" rules unit-tested against a fake guest.</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/kotlin/com/pusios/pots/build/runtime/AndroidWebPanelGuest.kt</code></td>
+<td>The guest side of the above: shell calls and pid/port/log files under the bind-mounted <code>/tmp</code>, the <code>/dev/tcp</code> port probe, and the Hermes <code>webapp.port</code> rewrite.</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/ui/build/WebPanelsCard.kt</code></td>
+<td>The Pots Build rows: start/stop/retry, the tappable address that opens the device browser, the hidden-by-default password, and the autostart toggle.</td>
 </tr>
 <tr>
 <td><code>composeApp/src/androidMain/kotlin/com/pusios/pots/SandboxController.android.kt</code></td>
