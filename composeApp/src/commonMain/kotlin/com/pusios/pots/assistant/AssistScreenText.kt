@@ -67,11 +67,15 @@ private val WHITESPACE = Regex("\\s+")
  * * a line seen before is dropped — the same word in a header and in a list
  *   row is one word of context, and duplicates are pure prompt cost;
  * * the walk stops at [nodeLimit] nodes or [limit] characters, whichever comes
- *   first, and [ASSIST_TEXT_TRUNCATED_MARK] says so.
+ *   first, and [ASSIST_TEXT_TRUNCATED_MARK] says so. This is the *only* place
+ *   that limits a snapshot: the Android walk builds the whole tree, so the cut
+ *   and the mark always come from the same decision.
  *
  * An empty tree, a secure window's empty stub and a snapshot that was never
  * delivered all give `""` — the caller must treat that as "no context", not as
- * an empty screen.
+ * an empty screen. A snapshot that was cut before anything readable was found
+ * is `""` too: a mark on its own would put «truncated» in the prompt as if the
+ * screen had said it.
  */
 fun assistScreenText(
     roots: List<AssistNode>,
@@ -116,6 +120,9 @@ fun assistScreenText(
     }
 
     val text = out.toString()
+    // Nothing readable is no context, cut or not: a mark on its own would put
+    // "[… truncated]" in the prompt as if the screen had said it.
+    if (text.isEmpty()) return ""
     return if (cut) text + ASSIST_TEXT_TRUNCATED_MARK else text
 }
 

@@ -38,6 +38,8 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.pusios.pots.LocalAppLanguageCode
+import com.pusios.pots.assistant.AssistInvocationAction
+import com.pusios.pots.assistant.assistInvocationAction
 import com.pusios.pots.assistant.questionWithScreenContext
 import com.pusios.pots.data.AppLanguage
 import com.pusios.pots.data.AppSettings
@@ -259,13 +261,36 @@ internal class PotsikCloudOverlay(
      * assist, a device that never sends assist data. Then the cloud opens
      * exactly as a double tap opens it, which is the honest degradation — the
      * gesture is not a promise that the screen was readable.
+     *
+     * A dialogue already in progress keeps the microphone: the gesture then
+     * only attaches the snapshot to the next question and leaves the pill
+     * showing whatever it is showing. Calling [HandsFreeController.start] on a
+     * live loop would `cancel()` a running recognition session and open another
+     * on top of it — the asynchronous `cancel()` is exactly what produced
+     * `ERROR_RECOGNIZER_BUSY` on the microphone button before. The one
+     * exception is a reply being spoken: a person who invokes the assistant
+     * wants to be heard, so the answer is cut short and the microphone opens
+     * ([HandsFreeController.interruptAndListen]).
      */
     fun onAssistInvocation(screenText: String?) {
         assistScreenText = screenText?.takeIf { it.isNotBlank() }
-        // The menu state first, so the note above the capsule is up before the
-        // microphone reports its own phase.
-        setState(PotsikCloudState())
-        onVoice()
+        when (assistInvocationAction(handsFree.status.value)) {
+            // Re-applied, not reset: [setState] keeps the phase it is given,
+            // and the snapshot flag is added by it.
+            AssistInvocationAction.AttachOnly -> setState(state)
+
+            AssistInvocationAction.StartListening -> {
+                // The menu state first, so the note above the capsule is up
+                // before the microphone reports its own phase.
+                setState(PotsikCloudState())
+                onVoice()
+            }
+
+            AssistInvocationAction.InterruptAndListen -> {
+                setState(PotsikCloudState())
+                handsFree.interruptAndListen()
+            }
+        }
     }
 
     /**

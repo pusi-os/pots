@@ -1,5 +1,7 @@
 # Pots as the Android assistant
 
+**Last verified:** 2026-11-19
+
 What changes when Pots holds the system's assistant role, what the role buys,
 and what stays the same without it.
 
@@ -87,9 +89,28 @@ surfaces:
 
 The microphone is the hands-free loop's own (`HandsFreeController`), the same
 one the microphone button in the cloud uses. There is exactly one owner of the
-microphone: if the loop is already running, the invocation does not start a
-second session and does not call `cancel()` + `start()` — an asynchronous
-`cancel()` is what produced `ERROR_RECOGNIZER_BUSY` before.
+microphone, and what the gesture does is decided by the loop's state
+(`assistInvocationAction`, `commonMain`, tested on a desktop):
+
+| Loop state | What the gesture does |
+|---|---|
+| `Idle`, `Error` | opens the microphone (`start()`) — the pill goes to Listening |
+| `Speaking` | cuts the answer short (`interruptAndListen()`) and listens — the person invoked the assistant because they want to be heard |
+| `Listening`, `Thinking`, `NoMatch` | does not touch the microphone at all: the snapshot is attached to the next question and the pill keeps its phase |
+
+The third row is the rule that matters: `cancel()` is asynchronous, so starting
+a new recognition session on top of a live one produced `ERROR_RECOGNIZER_BUSY`
+on the microphone button before, and the same would happen here. `NoMatch` is in
+that row because the loop reopens the microphone by itself two seconds later;
+`Thinking` because the question has already been asked. `Error` is deliberately
+*not* "in progress" — the loop has already stopped listening there, so a fresh
+gesture is a fresh attempt.
+
+`interruptAndListen()` exists for the second row: `start()` during speech would
+raise the recognizer on top of a live synthesizer, and `stop()` + `start()` would
+clear the transcript, drop to `Idle` and ask for the microphone permission again
+on every gesture. It silences the voice first, then opens the microphone, which
+keeps the "recognizer and synthesizer never run at once" invariant.
 
 If the microphone permission was revoked, nothing crashes and nothing stays
 silent: the pill says «Нет доступа к микрофону» and offers [Настройки], which
@@ -120,6 +141,13 @@ desktop):
 | a repeated line is kept once | the same word in a header and in a list row is one word of context |
 | whitespace collapsed, empty lines dropped | a snapshot is full of layout text that says nothing |
 | ≤ 1500 nodes, ≤ 6 KB, then `[… screen text truncated]` | a prompt, not a book; the mark says the model is looking at a part |
+
+The node cap lives in one place, on purpose: `assistScreenText` stops *reading*
+at 1500 nodes or 6 KB, whichever comes first, and that same decision adds the
+`[… screen text truncated]` mark. The Android walk has no budget of its own —
+two independent limits on one path is exactly how a snapshot gets trimmed by one
+of them while the other says nothing about it. A snapshot with nothing readable
+in it is `""`, never a bare mark: there is no text that was cut.
 
 A `FLAG_SECURE` window arrives as an empty stub — there is nothing to read, and
 nothing is invented. That is also why the cloud can open with no context at
@@ -161,3 +189,27 @@ benefit is exactly that: text instead of a picture.
   `onHandleScreenshot` exist, but the screenshot the app actually uses is the
   MediaProjection one — a second pipeline nobody reads would only add latency
   to every invocation.
+
+## Key Files
+
+| File | Purpose |
+|---|---|
+| `androidApp/src/main/AndroidManifest.xml` | the `VoiceInteractionService` declaration, `BIND_VOICE_INTERACTION`, `android.voice_interaction` metadata, `READ_ASSIST_STRUCTURE_SCREEN_CONTENT` |
+| `androidApp/src/main/res/xml/voice_interaction_service.xml` | `<voice-interaction-service>`: session service, recognition stub, `supportsAssist`, `usesAssistData`, `usesAssistStructureScreenContent` |
+| `composeApp/src/androidMain/.../assistant/PotsVoiceInteractionService.kt` | the service the system binds; no logic of its own |
+| `composeApp/src/androidMain/.../assistant/PotsVoiceInteractionSessionService.kt` | one session per invocation |
+| `composeApp/src/androidMain/.../assistant/PotsVoiceInteractionSession.kt` | waits for the snapshot, then hands the invocation over |
+| `composeApp/src/androidMain/.../assistant/PotsAssistInvocation.kt` | picks the surface: the cloud over the pet, or the app's own assist path |
+| `composeApp/src/androidMain/.../assistant/AssistStructureText.kt` | the `AssistStructure` walk: builds `AssistNode`s, no limits of its own |
+| `composeApp/src/androidMain/.../assistant/PotsAssistRecognitionService.kt` | the stub the metadata has to name; answers every request with an error |
+| `composeApp/src/commonMain/.../assistant/AssistScreenText.kt` | `assistScreenText()` — the pure rules (order, dedup, blocked subtrees, limits, mark) |
+| `composeApp/src/commonMain/.../assistant/AssistInvocationPolicy.kt` | `assistInvocationAction()` — what the gesture does to the microphone, by loop state |
+| `composeApp/src/commonMain/.../handsfree/HandsFreeController.kt` | the voice loop; `interruptAndListen()` is the gesture's entry during speech |
+| `composeApp/src/commonMain/.../assistant/ScreenContextAvailability.kt` | which mechanism is in force, by what is available |
+| `composeApp/src/commonMain/.../assistant/AssistantAvailability.kt` | whether Pots can hold the role at all (API level, whether it does) |
+| `composeApp/src/androidMain/.../overlay/PotsOverlayService.kt` | opens the cloud from an invocation |
+| `composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt` | the cloud's window, the microphone, the assist snapshot's lifetime |
+| `composeApp/src/commonMain/.../ui/potsik/PotsikCloudCapsule.kt` | the pill and the «Текст экрана снят при вызове Потса» note |
+| `composeApp/src/commonMain/.../ui/settings/AssistantSettings.kt` | the settings card and the button that opens the system's default-apps screen |
+| `composeApp/src/commonTest/.../assistant/AssistScreenTextTest.kt` | the pure rules, including the cut marks and the empty cases |
+

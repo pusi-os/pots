@@ -14,23 +14,22 @@ import android.app.assist.AssistStructure
  * public "give me the screen now" call — so this is called exactly once, from
  * `PotsVoiceInteractionSession`, and the result travels with the question.
  *
- * A `FLAG_SECURE` window arrives as an empty stub and an `importantForAssist=false`
- * node arrives flagged as blocked; both end up as no text, which is the honest
- * answer.
+ * The walk has no budget of its own: the node limit lives in
+ * [assistScreenText] and nowhere else, so exactly one place decides what was
+ * cut and that same place adds the mark. Two independent limits on one path is
+ * how a snapshot gets silently trimmed by one of them while the other says
+ * nothing about it.
+ *
+ * A `FLAG_SECURE` window arrives as an empty stub and an
+ * `importantForAssist=false` node arrives flagged as blocked; both end up as no
+ * text, which is the honest answer.
  */
-internal fun assistNodesFrom(
-    structure: AssistStructure?,
-    nodeLimit: Int = ASSIST_NODE_LIMIT,
-): List<AssistNode> {
-    if (structure == null || nodeLimit <= 0) return emptyList()
-    // A shared budget across windows: split screen is one screen, not two
-    // screens' worth of prompt.
-    val budget = intArrayOf(nodeLimit)
+internal fun assistNodesFrom(structure: AssistStructure?): List<AssistNode> {
+    if (structure == null) return emptyList()
     val roots = mutableListOf<AssistNode>()
     for (window in 0 until structure.windowNodeCount) {
-        if (budget[0] <= 0) break
         val root = runCatching { structure.getWindowNodeAt(window).rootViewNode }.getOrNull() ?: continue
-        roots += assistNodeFrom(root, budget)
+        roots += assistNodeFrom(root)
     }
     return roots
 }
@@ -38,20 +37,12 @@ internal fun assistNodesFrom(
 /** [assistScreenText] of a whole snapshot: the one call the session makes. */
 internal fun assistScreenTextFrom(structure: AssistStructure?): String = assistScreenText(assistNodesFrom(structure))
 
-private fun assistNodeFrom(node: AssistStructure.ViewNode, budget: IntArray): AssistNode {
-    budget[0]--
-    val children = if (budget[0] > 0) {
-        (0 until node.childCount).mapNotNull { index ->
-            node.getChildAt(index)?.let { child -> assistNodeFrom(child, budget) }
-        }
-    } else {
-        emptyList()
-    }
-    return AssistNode(
-        text = node.text?.toString(),
-        contentDescription = node.contentDescription?.toString(),
-        hint = node.hint,
-        blocked = node.isAssistBlocked,
-        children = children,
-    )
-}
+private fun assistNodeFrom(node: AssistStructure.ViewNode): AssistNode = AssistNode(
+    text = node.text?.toString(),
+    contentDescription = node.contentDescription?.toString(),
+    hint = node.hint,
+    blocked = node.isAssistBlocked,
+    children = (0 until node.childCount).mapNotNull { index ->
+        node.getChildAt(index)?.let { child -> assistNodeFrom(child) }
+    },
+)

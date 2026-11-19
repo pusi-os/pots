@@ -124,6 +124,18 @@ class AssistScreenTextTest {
     }
 
     @Test
+    fun `a cut with nothing readable in it is still no context`() {
+        // A secure window says nothing, and a mark on its own would put
+        // «truncated» in the prompt as if the screen had said it.
+        assertEquals("", assistScreenText(listOf(AssistNode(), AssistNode(text = "  ")), nodeLimit = 1))
+    }
+
+    @Test
+    fun `a character limit that cuts everything is no context, not a bare mark`() {
+        assertEquals("", assistScreenText(listOf(AssistNode(text = "long line")), limit = 4))
+    }
+
+    @Test
     fun `the question keeps the user's words and the screen apart`() {
         val text = questionWithScreenContext(
             question = "  Что тут написано?  ",
