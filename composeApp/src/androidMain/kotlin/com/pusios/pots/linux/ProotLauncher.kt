@@ -260,7 +260,9 @@ class ProotLauncher(
         addAll(extraArgs)
         // Nothing a guest started may outlive proot: killing the app during an
         // install used to leave git and uv running with half a pack file and a
-        // lock file behind, and the next run repaired on top of that.
+        // lock file behind, and the next run repaired on top of that. A
+        // background process in a project terminal dies with its session for the
+        // same reason — the guest does not outlive the proot that carries it.
         add("--kill-on-exit")
         add("--rootfs=$rootfsPath")
         add("--bind=/dev")

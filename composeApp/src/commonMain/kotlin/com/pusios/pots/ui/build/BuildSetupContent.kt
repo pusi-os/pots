@@ -151,12 +151,17 @@ internal fun BuildSetupContent(
 /**
  * The installer's console, as far as the last [INSTALL_LOG_MAX_CHARS] reach.
  *
+ * Shared by both surfaces an install can end on: the setup screen while it runs,
+ * and the project list, where a failure lands because a ready Debian is what the
+ * screen switches to. A failure that shows its reason on only one of them would
+ * be missing exactly where the owner sees it.
+ *
  * Selection is on so a failure can be copied out of the app; the view follows
  * the tail until the reader scrolls up, because a live log that keeps pulling
  * itself down cannot be read while an install is running.
  */
 @Composable
-private fun InstallLogPane(log: String, dropped: Boolean) {
+internal fun InstallLogPane(log: String, dropped: Boolean) {
     val scroll = rememberScrollState()
     var followTail by remember { mutableStateOf(true) }
     // Recomputed from the scroll state rather than from drag gestures: this also

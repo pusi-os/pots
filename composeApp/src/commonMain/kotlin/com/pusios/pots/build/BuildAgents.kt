@@ -126,6 +126,17 @@ object BuildAgents {
      *   is where the setting lives; it is git-ignored through
      *   `.git/info/exclude` because the installer stashes and resets a dirty
      *   checkout on every rerun and would otherwise take the file away.
+     *
+     *   That file reaches only the stages uv runs in the checkout. The stage the
+     *   device failed on is `pm`'s own runtime (`installs/<id>/pm-runtime`),
+     *   which `pm` builds with `no_config=True` and therefore with
+     *   `uv --no-config` — no config file is read there, and the same
+     *   `_base_environment` strips the variables. The lever for that stage is
+     *   the clean slate below: the failed attempt's `pm-runtime` and uv cache are
+     *   deleted, because uv seeds a cache by hardlinking out of an existing
+     *   environment, which is the direction the device log shows. The link probe
+     *   below then says, on the next attempt, whether copying was even the right
+     *   remedy.
      * - **`--channel main`.** The default stable channel makes the installer
      *   fetch a release tag's entire history into the shallow clone — 643k
      *   objects, over 45 minutes on a phone — and then keep the existing

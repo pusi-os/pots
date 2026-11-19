@@ -64,4 +64,25 @@ class InstallLogTest {
         assertTrue(text.startsWith("kept\n") || log.dropped)
         assertTrue(text.length <= 40 + 200, "buffer grew past its cap: ${text.length}")
     }
+
+    @Test
+    fun `a character split across two reads survives the boundary`() {
+        val log = InstallLog()
+        val line = "лог установлен\n".encodeToByteArray()
+        // A 4 KB read can end inside "о" (d0 be); only the lead byte arrives first.
+        log.append(line, 3)
+        log.append(line.copyOfRange(3, line.size))
+        assertEquals("лог установлен\n", log.text())
+    }
+
+    @Test
+    fun `a half-read character is held back instead of shown as a replacement`() {
+        val log = InstallLog()
+        log.appendText("ok ")
+        val check = "✓".encodeToByteArray()
+        log.append(check, 1)
+        assertEquals("ok ", log.text())
+        log.append(check.copyOfRange(1, check.size))
+        assertEquals("ok ✓", log.text())
+    }
 }

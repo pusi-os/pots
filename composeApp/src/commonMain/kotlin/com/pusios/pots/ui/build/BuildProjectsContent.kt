@@ -219,6 +219,16 @@ internal fun BuildProjectsContent(
             }
         }
 
+        // A failed agent install ends here, not on the setup screen: Debian is
+        // already installed, so sync() reports Ready and this is the surface the
+        // user is left looking at. The error line above names no cause, so the
+        // log that does has to be on this screen too.
+        if (state.lastError != null && state.installLog.isNotEmpty()) {
+            item {
+                InstallLogPane(log = state.installLog, dropped = state.installLogDropped)
+            }
+        }
+
         item {
             WebPanelsCard(
                 panels = state.webPanels,

@@ -1,6 +1,6 @@
 # Linux Sandbox
 
-**Last verified:** 2026-11-01
+**Last verified:** 2026-11-19
 
 Pots ships a self-contained Linux environment on Android so the assistant — and the user, via the in-app Terminal — can run real shell commands. The agent can install packages, write and run scripts, hit the network, and reach external servers over SSH/SFTP/FTP. The sandbox runs the user-space `proot` runtime against a rootfs extracted into the app's private storage; no root or system access is required.
 
@@ -54,7 +54,7 @@ Debian has one install on this device, so whenever the shell integration is poin
 
 Pointing the shell integration at Alpine instead splits them: the chat sandbox runs in its Alpine, and Pots Build keeps (or bootstraps) its own Debian. Both exist at once, which is exactly what makes switching back and forth free.
 
-Package installs are serialized across the two, because a shared rootfs means the Settings "Install Packages" action and a Pots Build agent install could otherwise reach `dpkg` at the same moment and both fail on its lock. Each surface reports its own progress: an agent install in Pots Build also streams its console output into the setup screen and leaves it there if it fails, so the reason is on screen rather than only in logcat — see [Install log](pots-build.md#install-log).
+Package installs are serialized across the two, because a shared rootfs means the Settings "Install Packages" action and a Pots Build agent install could otherwise reach `dpkg` at the same moment and both fail on its lock. Each surface reports its own progress: an agent install in Pots Build also streams its console output into the screen — the setup surface while it runs, and the project list if it fails — and leaves it there if it fails, so the reason is on screen rather than only in logcat — see [Install log](pots-build.md#install-log).
 
 Pots Build itself is never re-pointed by a switch. Its Linux is wherever Debian lives, whether or not the chat sandbox is currently sharing it, so a running project terminal is unaffected by anything the Settings picker does.
 
@@ -67,6 +67,8 @@ Each chat conversation gets its own long-running `bash` process. The agent's she
 So `cd /tmp` followed by `pwd` in the same chat returns `/tmp`. The assistant does not need to chain `cd dir && command` unless it specifically wants the directory change to be one-shot.
 
 A shell is created lazily on first use and lives for the duration of the app process. When a conversation is deleted, its shell is closed. Sandbox reset closes every live shell.
+
+Closing a session ends everything it started, background `&` jobs included: proot runs with `--kill-on-exit`, so the guest tree does not outlive the proot that carries it and a server started in a shell is not left holding its port.
 
 The bash *process* itself dies with the app — cwd and exported env do not survive. The visible *transcript* of the current chat's session is kept in memory with a hard cap of 500 lines per session, and persisted to the conversation (capped at roughly 10,000 characters of trimmed output — about a screen and a half of scrollback) so re-opening an old chat after a restart still shows the tail of what was on screen, even though running another command starts a fresh shell. Persistence is debounced (~500 ms) so rapid output bursts coalesce into a single write rather than thrashing storage.
 

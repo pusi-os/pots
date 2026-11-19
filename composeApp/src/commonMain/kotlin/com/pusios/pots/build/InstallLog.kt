@@ -11,6 +11,11 @@ package com.pusios.pots.build
  * minutes and only its end explains a failure; [dropped] tells the screen that
  * earlier lines were cut, so a truncated log never reads as a complete one.
  *
+ * Bytes arrive in 4 KB reads, so a chunk can end inside a multi-byte character.
+ * The incomplete tail is held back and prepended to the next chunk instead of
+ * being decoded into `U+FFFD` — the log is read by a human, and a mangled word
+ * in a Russian installer message is the one line that mattered.
+ *
  * Not thread-safe on purpose: the only writer is the single collector
  * coroutine in `BuildEnvironmentManager`, which is also what publishes it.
  */
@@ -22,13 +27,20 @@ class InstallLog(private val maxChars: Int = INSTALL_LOG_MAX_CHARS) {
     /** The line still being written — no newline has ended it yet. */
     private val pending = StringBuilder()
 
+    /** Bytes of a character the last chunk ended in the middle of. */
+    private var carry: ByteArray = EMPTY_BYTES
+
     /** True once the head of the log has been cut to stay inside [maxChars]. */
     var dropped: Boolean = false
         private set
 
     fun append(bytes: ByteArray, length: Int = bytes.size) {
         if (length <= 0) return
-        appendText(bytes.decodeToString(0, length, throwOnInvalidSequence = false))
+        val chunk = if (carry.isEmpty()) bytes.copyOf(length) else carry + bytes.copyOf(length)
+        carry = EMPTY_BYTES
+        val cut = incompleteTailStart(chunk)
+        if (cut < chunk.size) carry = chunk.copyOfRange(cut, chunk.size)
+        if (cut > 0) appendText(chunk.decodeToString(0, cut, throwOnInvalidSequence = false))
     }
 
     fun appendText(text: String) {
@@ -69,6 +81,34 @@ class InstallLog(private val maxChars: Int = INSTALL_LOG_MAX_CHARS) {
 
 /** Bytes of console output kept for the screen — a screenful of a failure, not a file. */
 const val INSTALL_LOG_MAX_CHARS = 64 * 1024
+
+private val EMPTY_BYTES = ByteArray(0)
+
+/**
+ * Index of the first byte of a UTF-8 character that [bytes] ends in the middle
+ * of, or `bytes.size` when it ends on a character boundary.
+ *
+ * Only a trailing run of continuation bytes can be such a tail: walk back over
+ * them, read the lead byte, and compare the length it promises with what is
+ * there. Anything that does not look like a lead byte is left to the decoder —
+ * it is already broken input, and holding it back would swallow it for good.
+ */
+private fun incompleteTailStart(bytes: ByteArray): Int {
+    var i = bytes.size - 1
+    var continuations = 0
+    while (i >= 0 && (bytes[i].toInt() and 0xC0) == 0x80 && continuations < 3) {
+        i--
+        continuations++
+    }
+    if (i < 0) return bytes.size
+    val needed = when (bytes[i].toInt() and 0xFF) {
+        in 0xC2..0xDF -> 2
+        in 0xE0..0xEF -> 3
+        in 0xF0..0xF4 -> 4
+        else -> return bytes.size
+    }
+    return if (bytes.size - i < needed) i else bytes.size
+}
 
 /** Longer than this a single line is cut: a log line is read, not scrolled. */
 private const val MAX_LINE_CHARS = 200
