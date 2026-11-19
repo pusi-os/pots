@@ -193,15 +193,78 @@ again.
 The bounds live in one place, `clampPlacement()`, because three different
 callers have to obey the same rule: the drag, the agent's tool and the
 layout's own defaults. The desktop window obeys the same rule in
-`clampWindowOffset()`.
+`clampPotsikWindowOffset()` — applied to the character inside the window,
+because that window is wider than he is (see below).
 
 ## Above other windows (Android)
 
 **Settings → Потсик → Above other windows** keeps the character on the
 desktop in a system overlay window while the app is away; opening the app
-takes him back inside. The window is exactly his size plus the band his
-speech bubble is drawn in, because the OS delivers every tap inside the
-window's rect to the app, transparent pixels included.
+takes him back inside. The window is sized from the character **and** the room
+his speech bubble and his arms need (`potsikWindowGeometry`), because the OS
+delivers every tap inside the window's rect to the app, transparent pixels
+included — so the rect is the smallest one that holds the whole bubble, and no
+smaller.
+
+That makes the window wider than he is, and the width is two numbers, the
+wider one winning:
+
+- **his arms** — `1.15 · C`. The widest pose he draws without a costume
+  (`WAVE`: the hand reaching 28.8 units out of 56, plus half a hand) needs
+  1.15 times his height. A window narrower than that cut his hands off in the
+  poses he spends the day in.
+- **his speech bubble** — 191 dp. The bubble is drawn inside the same window
+  and its text box is `window / 1.12 − 20 px`: the pop scales the bubble to
+  1.12 of its width about its middle, so the window has to hold the *popped*
+  bubble, not the resting one. `(150 + 20) · 1.12 = 190.4`, so 191 dp is the
+  narrowest window that leaves the 150 dp of text the 313 lines were measured
+  against at the lowest density there is (any denser screen leaves more):
+  90 % of the lines fit in two rows and every one of them in three — the
+  three-row cap stops costing text. The old rule (`window − 16`) let the
+  resting bubble run 4 px past the window and the peak 12 % past it, which is
+  the clip on the right the owner reported.
+
+The height stays `C + 96 dp` — the body and the band above his head the bubble
+is drawn in. `potsikWindowGeometry` also caps the width by the screen, and
+never lets it fall below the character's own width.
+
+**The strip beside him inside the window belongs to him.** Android 12 and
+later drop a touch that lands on a system-alert window it cannot trust, and
+the only lever is the rect: the window is as small as the bubble allows and
+not smaller, and every tap inside it is his. `FLAG_NOT_TOUCHABLE` does not
+pass taps through (they are dropped, not forwarded), a touchable region does
+not carve holes in the rect, and lowering the window's `alpha` under 0.8 would
+work only by making him semi-transparent — so the rect stays minimal and the
+rest of the screen keeps its taps.
+
+He stands in the middle of the window (`cx = size.width / 2`), so a window
+that changes width has to move its left edge by half the difference, or he
+would slide sideways as he is pinched: a pinch resizes the window and sets
+`x = centre − width / 2` on every frame, keeping his middle where it was
+(`potsikCharacterCxOnScreen`, `potsikWindowXForCentre`). The capsule's side
+branches measure their 8 dp gap from his shoulders, not from the window's
+edges — the edges sit `(W − C) / 2` away from him, and the capsule used to
+hang 67 dp off him at the smallest size.
+
+**The clamp keeps the bubble on the screen, not the body.** Clamping the
+window would leave a dead strip of `(W − C) / 2` — 59 dp at the smallest
+size — that he could never be dragged onto; clamping only his body would put
+him on the last pixel and let the display cut half the line he says, because
+the bubble is drawn centred on him and its tail points at his head, so it
+cannot be moved off his middle to dodge an edge. So `clampPotsikWindowOffset`
+keeps half a bubble of screen on either side of his middle
+(`potsikBubbleWidthFor`, the widest bubble the text limit allows in this
+window): the body stops 49.5 / 19.5 / 4.5 dp short of the edge at
+72 / 132 / 320 dp, the window's empty corners hang over the edge
+(`FLAG_LAYOUT_NO_LIMITS`), and the bubble is flush with the edge and whole at
+every position. Trading a few dp of reach for a whole line is deliberate: a
+cut line is what the owner reported, a pet that stops 20 dp short is not.
+
+A position saved before the window grew is migrated once: `KEY_X` used to be
+the character's left edge and is the window's now, so
+`migrateStoredPosition()` takes `(W − C) / 2` back on the first start after
+the update (`KEY_GEOMETRY_VERSION`) — otherwise he would jump 29 dp to the
+right at the default size and be clamped against it.
 
 The mode needs Android's "display over other apps" permission, and the
 permission is granted on a system screen — so the settings screen re-reads it
@@ -228,12 +291,12 @@ recreates it (a recreated window would break the touch stream and the
 composition); the size is computed from the distance between the fingers, so
 moving the window under them changes nothing, and the shell hands the second
 finger's stream to the pinch instead of eating it as a drag. Letting go
-clamps the window back into the screen, so the character cannot be dragged
-off an edge and lost — and a rotation or a display-size change goes through
-the same clamp (`onConfigurationChanged`), because the window keeps absolute
-coordinates and a character put down low in portrait would otherwise sit past
-the bottom edge in landscape. The new place is written to the prefs, so he
-comes back where he was left.
+clamps the character back onto the screen, so he cannot be dragged off an edge
+and lost — and a rotation or a display-size change goes through the same clamp
+(`onConfigurationChanged`), because the window keeps absolute coordinates and
+a character put down low in portrait would otherwise sit past the bottom edge
+in landscape. The new place is written to the prefs, so he comes back where he
+was left.
 
 The window keeps its own frame tempo. Inside the app the character's clock
 parks between breathing ticks — a few frames a second — which is free on a
@@ -350,7 +413,7 @@ The app has no catch counter, so every costume is available from the start.
 | `composeApp/.../ui/potsik/PotsikShapes.kt` | The drawing primitives the firmware's `TFT_eSPI` calls became |
 | `composeApp/.../ui/potsik/PotsikModel.kt` | The moods, the emote poses, the costumes and the settings |
 | `composeApp/.../ui/potsik/PotsikLook.kt` | `PotsikLook` — everything the user can change, and `withSizeMigrated()` |
-| `composeApp/.../ui/potsik/DesktopPet.kt` | The desktop window's numbers: his size, the pinch (`pinchedPotsikSize`), the window clamp (`clampWindowOffset`), the idle tempo and the park (`potsikIdleFrameMs`, `potsikParkSleepMs`), the carry and screen state, and the drag's animation |
+| `composeApp/.../ui/potsik/DesktopPet.kt` | The desktop window's numbers: his size, the pinch (`pinchedPotsikSize`), the window's size (`potsikWindowGeometry`) and the clamp that keeps the character on the screen (`clampPotsikWindowOffset`), the idle tempo and the park (`potsikIdleFrameMs`, `potsikParkSleepMs`), the carry and screen state, and the drag's animation |
 | `composeApp/.../ui/potsik/DesktopPetPlatform.kt` | What the platform offers (`desktopPetAvailability()`), the row it implies (`desktopPetRow()`), the permission and the service calls |
 | `composeApp/.../androidMain/.../overlay/PotsOverlayService.kt` | The system window itself: the service, the shell view with the drag and the pinch (one `updateViewLayout` per frame), the screen receiver, the foreground notification |
 | `composeApp/.../jvmShared/.../overlay/PotsOverlayForegroundTypes.kt` | `foregroundTypes()` — which `startForeground` types the service declares, pure and tested |

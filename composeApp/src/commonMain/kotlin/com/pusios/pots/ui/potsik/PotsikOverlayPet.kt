@@ -27,9 +27,15 @@ import kotlinx.coroutines.flow.merge
 import kotlin.time.TimeSource
 
 /**
- * The character as the desktop window shows him: standing at the bottom of
- * a window that is exactly his size, with the band above his head reserved
- * for the speech bubble.
+ * The character as the desktop window shows him: standing at the bottom of a
+ * window that is wider than he is, with the band above his head reserved for
+ * the speech bubble.
+ *
+ * The window's width is not his width: it is [potsikWindowGeometry] — wide
+ * enough for the bubble he talks in and for the arms he throws around — so the
+ * bubble and the poses are drawn whole instead of being cut by the window's
+ * edge. He stands in the middle of it (`cx = size.width / 2`) and the bubble
+ * is measured against the same width.
  *
  * The same renderer and the same engine the chat runs, but not the same clock:
  * this surface floats over somebody else's app on a screen that is lit, so at
@@ -203,7 +209,9 @@ fun PotsikOverlayPet(
                 val eased = if (pop < 0.75f) {
                     0.55f + (pop / 0.75f) * 0.57f
                 } else {
-                    1.12f - 0.12f * ((pop - 0.75f) / 0.25f)
+                    // The peak is the number the bubble's text limit is derived
+                    // from: the window must hold the popped bubble.
+                    POTSIK_BUBBLE_POP_PEAK - (POTSIK_BUBBLE_POP_PEAK - 1f) * ((pop - 0.75f) / 0.25f)
                 }
                 drawPotsikBubble(
                     textMeasurer = textMeasurer,

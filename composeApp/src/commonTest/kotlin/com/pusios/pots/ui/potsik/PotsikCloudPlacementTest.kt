@@ -71,7 +71,9 @@ class PotsikCloudPlacementTest {
         // capsule must still open somewhere sensible.
         val placement = place(petX = 300, petY = -100)
         assertEquals(PotsikCloudSide.Right, placement.side)
-        assertEquals(300 + petWidth + sideGap, placement.x)
+        // The gap is measured from his shoulder — the window is his width here.
+        val bodyRight = 300 + (petWidth - characterPx) / 2 + characterPx
+        assertEquals(bodyRight + sideGap, placement.x)
         // Vertically centred on his head.
         val headTop = -100 + (petHeight - characterPx)
         assertEquals(headTop + characterPx / 2, placement.y + cloudHeight / 2)
@@ -81,7 +83,35 @@ class PotsikCloudPlacementTest {
     fun `to the left when the right side is taken`() {
         val placement = place(petX = 700, petY = -100)
         assertEquals(PotsikCloudSide.Left, placement.side)
-        assertEquals(700 - sideGap - cloudWidth, placement.x)
+        val bodyLeft = 700 + (petWidth - characterPx) / 2
+        assertEquals(bodyLeft - sideGap - cloudWidth, placement.x)
+    }
+
+    @Test
+    fun `the side branches count from his body, not from the window's edge`() {
+        // The window is wider than he is (the bubble's room), so its edges sit
+        // (W − C) / 2 away from him: measuring the 8 dp gap from them hung the
+        // capsule 67 dp off his shoulder at the smallest size.
+        val window = 382 // a 191 dp window at 2× around a 300 px body
+        val bodyLeft = 300 + (window - characterPx) / 2
+        val bodyRight = bodyLeft + characterPx
+
+        val right = place(petX = 300, petY = -100, petWidth = window)
+        assertEquals(PotsikCloudSide.Right, right.side)
+        assertEquals(bodyRight + sideGap, right.x)
+        assertTrue(
+            right.x < 300 + window + sideGap,
+            "the gap must not be measured from the window's edge: x=${right.x}",
+        )
+
+        // The same on the left: 700 px from the left, the right side is taken.
+        val left = place(petX = 700, petY = -100, petWidth = window)
+        assertEquals(PotsikCloudSide.Left, left.side)
+        assertEquals(700 + (window - characterPx) / 2 - sideGap - cloudWidth, left.x)
+        assertTrue(
+            left.x > 700 - sideGap - cloudWidth,
+            "the capsule must not start at the window's edge: x=${left.x}",
+        )
     }
 
     @Test

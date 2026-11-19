@@ -258,7 +258,9 @@ fun PotsikOverlay(
                     val eased = if (pop < 0.75f) {
                         0.55f + (pop / 0.75f) * 0.57f
                     } else {
-                        1.12f - 0.12f * ((pop - 0.75f) / 0.25f)
+                        // The same peak the bubble's text limit is derived
+                        // from: the popped bubble has to fit its width.
+                        POTSIK_BUBBLE_POP_PEAK - (POTSIK_BUBBLE_POP_PEAK - 1f) * ((pop - 0.75f) / 0.25f)
                     }
                     drawPotsikBubble(
                         textMeasurer = textMeasurer,
