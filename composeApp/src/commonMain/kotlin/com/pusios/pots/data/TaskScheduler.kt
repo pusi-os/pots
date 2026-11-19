@@ -146,23 +146,7 @@ class TaskScheduler(
                     if (isLoadingCheck()) break
 
                     try {
-                        // Bind tool calls to the heartbeat conversation's sandbox session
-                        // — the scheduled-task result also lands in that conversation
-                        // (see `addAssistantMessage`), so routing its shell commands
-                        // there too keeps shell state coherent with the visible output.
-                        val taskConversationId = dataRepository.getOrCreateHeartbeatConversationId()
-                        val response = askWithRetry(
-                            prompt = task.prompt,
-                            primaryInstanceId = task.originInstanceId,
-                            fallbackInstanceId = heartbeatManager?.getConfig()?.heartbeatFallbackInstanceId,
-                            modelIdOverride = task.originModelId,
-                            conversationIdOverride = taskConversationId,
-                        ).content
-                        if (response.isNotBlank()) {
-                            val header = task.description.ifBlank { "Scheduled task" }
-                            dataRepository.addAssistantMessage("**$header**\n\n$response")
-                        }
-                        handleTaskCompletion(task)
+                        runScheduledTask(task)
                     } catch (e: Exception) {
                         // Stopped mid-run (daemon shut down): leave the task due so it runs next
                         // time instead of recording a failure and advancing past this occurrence.
@@ -187,6 +171,35 @@ class TaskScheduler(
                 }
             }
         }
+    }
+
+    /**
+     * One due scheduled task: ask the model, post the answer into the Pulse conversation,
+     * advance the schedule.
+     *
+     * The run's note (e.g. "fell back to … after Unauthorized …") goes into the task's own
+     * execution log, the same way the Pulse journal records it — a scheduled run that quietly
+     * switched models must not leave the owner guessing which model answered.
+     */
+    internal suspend fun runScheduledTask(task: ScheduledTask) {
+        // Bind tool calls to the heartbeat conversation's sandbox session
+        // — the scheduled-task result also lands in that conversation
+        // (see `addAssistantMessage`), so routing its shell commands
+        // there too keeps shell state coherent with the visible output.
+        val taskConversationId = dataRepository.getOrCreateHeartbeatConversationId()
+        val run = askWithRetry(
+            prompt = task.prompt,
+            primaryInstanceId = task.originInstanceId,
+            fallbackInstanceId = heartbeatManager?.getConfig()?.heartbeatFallbackInstanceId,
+            modelIdOverride = task.originModelId,
+            conversationIdOverride = taskConversationId,
+        )
+        val response = run.content
+        if (response.isNotBlank()) {
+            val header = task.description.ifBlank { "Scheduled task" }
+            dataRepository.addAssistantMessage("**$header**\n\n$response")
+        }
+        handleTaskCompletion(task, run.note)
     }
 
     /**
@@ -501,9 +514,11 @@ class TaskScheduler(
         }
     }
 
-    private suspend fun handleTaskCompletion(task: ScheduledTask) {
+    private suspend fun handleTaskCompletion(task: ScheduledTask, note: String? = null) {
         val now = Clock.System.now()
-        val log = appendExecution(task, success = true, message = null)
+        // The run's note is the only thing a successful execution has to say; a plain run
+        // leaves it null so the log stays one line per execution.
+        val log = appendExecution(task, success = true, message = note)
         if (task.cron != null) {
             // Recurring task — compute next execution time
             val nextExecution = try {
