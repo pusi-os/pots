@@ -1190,10 +1190,12 @@ private fun ChatModeScreen(
                     ) {
                         if (uiState.history.isEmpty()) {
                             // First-launch surface: the onboarding wizard (or its final cards)
-                            // takes the slot while nothing can answer; plain EmptyState otherwise.
+                            // takes the slot while nothing can answer; a configured service always
+                            // wins and leaves the plain EmptyState, so a skipped wizard whose
+                            // provider was added by hand does not keep claiming the model is off.
                             val onboarding = uiState.onboarding
-                            when {
-                                onboarding.phase == OnboardingPhase.Active -> Box(
+                            when (emptyChatSlot(onboarding.phase, uiState.availableServices.isNotEmpty())) {
+                                EmptyChatSlot.Wizard -> Box(
                                     modifier = Modifier.fillMaxWidth().weight(1f),
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -1204,7 +1206,7 @@ private fun ChatModeScreen(
                                     )
                                 }
 
-                                onboarding.phase == OnboardingPhase.Skipped || onboarding.phase == OnboardingPhase.Aborted -> Box(
+                                EmptyChatSlot.FarewellCard -> Box(
                                     modifier = Modifier.fillMaxWidth().weight(1f),
                                     contentAlignment = Alignment.TopCenter,
                                 ) {
@@ -1215,14 +1217,14 @@ private fun ChatModeScreen(
                                     )
                                 }
 
-                                onboarding.phase == OnboardingPhase.Finished -> Box(
+                                EmptyChatSlot.SuccessCard -> Box(
                                     modifier = Modifier.fillMaxWidth().weight(1f),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     OnboardingSuccessCard()
                                 }
 
-                                else -> EmptyState(
+                                EmptyChatSlot.StartSurface -> EmptyState(
                                     modifier = Modifier.fillMaxWidth().weight(1f),
                                     onStartHandsFree = {
                                         textToSpeech?.stop()

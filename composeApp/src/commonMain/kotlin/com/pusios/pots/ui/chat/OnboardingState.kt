@@ -15,6 +15,31 @@ import org.jetbrains.compose.resources.StringResource
 enum class OnboardingPhase { Hidden, Active, Skipped, Aborted, Finished }
 
 /**
+ * What fills the empty chat: the wizard, its farewell card, or the plain start surface.
+ * Kept apart from [ChatScreen] so the choice is testable without Compose.
+ */
+internal enum class EmptyChatSlot { Wizard, FarewellCard, SuccessCard, StartSurface }
+
+/**
+ * Picks the empty-chat content. A configured service ([hasConfiguredService]) means the chat can
+ * answer, so the «model is not connected» farewell card would be a lie — the user gets the plain
+ * start surface instead. An explicitly started wizard ([OnboardingPhase.Active]) always wins.
+ */
+internal fun emptyChatSlot(
+    phase: OnboardingPhase,
+    hasConfiguredService: Boolean,
+): EmptyChatSlot = when (phase) {
+    OnboardingPhase.Active -> EmptyChatSlot.Wizard
+
+    OnboardingPhase.Skipped, OnboardingPhase.Aborted ->
+        if (hasConfiguredService) EmptyChatSlot.StartSurface else EmptyChatSlot.FarewellCard
+
+    OnboardingPhase.Finished -> EmptyChatSlot.SuccessCard
+
+    else -> EmptyChatSlot.StartSurface
+}
+
+/**
  * The wizard slice of [ChatUiState]. The phase decides which card the empty-chat slot renders;
  * everything else is step-local detail. Persistence lives in AppSettings (KEY_ONBOARDING_*),
  * this object only mirrors it for the UI.

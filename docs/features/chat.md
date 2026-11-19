@@ -1,6 +1,6 @@
 # Chat & Conversations
 
-**Last verified:** 2026-11-18
+**Last verified:** 2026-11-19
 
 Pots's chat system manages the message history, conversation persistence, file attachments, and speech output. Conversations are service-independent — switching providers does not affect which conversation is loaded or restored. Multiple conversations are persisted and browsable via a history sheet.
 
@@ -138,6 +138,16 @@ The session totals reset when a new chat is started and are restored from the ne
 - **Drag-and-drop**: supported for file attachments
 - **History sheet**: bottom sheet listing saved conversations with title, date, active highlight, and delete
 
+## Empty Chat & Onboarding
+
+The empty-chat slot shows one of four things, chosen by `emptyChatSlot(phase, hasConfiguredService)` in `ui/chat/OnboardingState.kt`:
+
+- **Wizard** while the first-launch setup is active (auto-started on first run, or explicitly restarted from Settings → Maintenance). An explicit restart always wins, even when services are already configured
+- **Farewell card** («пока модель не подключена») only after the wizard was skipped or aborted **and** no service is configured — that is, only when the card is actually true
+- **Success card** right after the wizard finished
+- **Plain empty state** (logo, HandsFree, Media) otherwise — including a skipped wizard whose provider was added by hand afterwards: once any configured service exists, nothing onboarding-related is shown and the empty chat looks like it did before onboarding existed
+- The onboarding phase itself is never rewritten for cosmetics — it records what the user really did, so a skipped wizard does not re-appear on the next launch
+
 ## Key Files
 
 | File | Purpose |
@@ -150,6 +160,7 @@ The session totals reset when a new chat is started and are restored from the ne
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | History management, conversation save/restore/delete, title derivation, message sending |
 | `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Chat UI state, send/retry/regenerate/cancel/loadConversation/deleteConversation actions |
 | `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Chat UI composables, history sheet and heartbeat banner wiring |
+| `composeApp/src/commonMain/.../ui/chat/OnboardingState.kt` | Onboarding phase/state and the empty-chat slot decision (`emptyChatSlot`) |
 | `composeApp/src/commonMain/.../ui/chat/composables/ChatHistorySheet.kt` | Bottom sheet listing saved conversations |
 | `composeApp/src/commonMain/.../ui/chat/composables/HeartbeatBanner.kt` | Dismissable banner for heartbeat notifications |
 | `composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt` | Top bar with history, new chat, sandbox, TTS, hands-free, and settings icons |
