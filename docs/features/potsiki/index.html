@@ -1749,6 +1749,31 @@ the same clamp (<code>onConfigurationChanged</code>), because the window keeps a
 coordinates and a character put down low in portrait would otherwise sit past
 the bottom edge in landscape. The new place is written to the prefs, so he
 comes back where he was left.</p>
+<p>The window keeps its own frame tempo. Inside the app the character's clock
+parks between breathing ticks — a few frames a second — which is free on a
+screen the chat already owns; on a window floating over somebody else's app
+that same tempo sampled an 1100 ms breath four times, and the owner saw the
+staircase. The window therefore asks for a frame every <code>WINDOW_IDLE_FRAME_MS</code>
+(33 ms, ~30 fps) while it is at rest: <code>potsikIdleFrameMs(overlayWindow = true)</code>
+feeds the engine's <code>idleFrameMs</code>, half the cost of an honest 60 fps and 33
+samples per breath, so the steps are gone. The in-app surface passes nothing
+and keeps the breathing roll — parking there is right, because the app is
+drawing a screen nobody touched.</p>
+<p>The clock parks outright only while the screen is dark. The service reports
+<code>PowerManager.isInteractive</code> — seeded when the receiver is registered, flipped
+on <code>ACTION_SCREEN_OFF</code> and <code>ACTION_SCREEN_ON</code>, and reset to "lit" when the
+receiver goes away, so the flag can never stay stuck on a window that is no
+longer there — through <code>PotsikScreen</code>, and <code>potsikParkSleepMs</code> turns it into
+the sleep: a lit screen sleeps to the engine's next deadline (33 ms on the
+window), a dark one sleeps until the screen comes back or something touches
+him. That is the whole of the old economy mode, kept where it belongs; nothing
+drops into it while somebody is looking at him.</p>
+<p>The window's own transactions are coalesced too. A drag writes the params on
+every touch event — that is the last place the finger put him — and applies
+them with a single <code>updateViewLayout</code> on the next frame (<code>postOnAnimation</code>),
+because a queue of window-manager transactions behind a fast finger is what
+made the window trail it. The pinch goes through the same door, so the window
+and the character inside it grow on the same frame.</p>
 <h2 id="the-agents-tool">The agent's tool</h2>
 <p><strong>Settings → Tools</strong> has a switch for <strong>Потсик</strong>; the on-device model can be
 given the same tool in <strong>Settings → Локальная модель</strong>. It is off by default.</p>
@@ -2007,7 +2032,7 @@ The app has no catch counter, so every costume is available from the start.</p>
 </tr>
 <tr>
 <td><code>composeApp/.../ui/potsik/DesktopPet.kt</code></td>
-<td>The desktop window's numbers: his size, the pinch (<code>pinchedPotsikSize</code>), the window clamp (<code>clampWindowOffset</code>), the carry state and the drag's animation</td>
+<td>The desktop window's numbers: his size, the pinch (<code>pinchedPotsikSize</code>), the window clamp (<code>clampWindowOffset</code>), the idle tempo and the park (<code>potsikIdleFrameMs</code>, <code>potsikParkSleepMs</code>), the carry and screen state, and the drag's animation</td>
 </tr>
 <tr>
 <td><code>composeApp/.../ui/potsik/DesktopPetPlatform.kt</code></td>
@@ -2015,7 +2040,11 @@ The app has no catch counter, so every costume is available from the start.</p>
 </tr>
 <tr>
 <td><code>composeApp/.../androidMain/.../overlay/PotsOverlayService.kt</code></td>
-<td>The system window itself: the service, the shell view with the drag and the pinch, the foreground notification</td>
+<td>The system window itself: the service, the shell view with the drag and the pinch (one <code>updateViewLayout</code> per frame), the screen receiver, the foreground notification</td>
+</tr>
+<tr>
+<td><code>composeApp/.../jvmShared/.../overlay/PotsOverlayForegroundTypes.kt</code></td>
+<td><code>foregroundTypes()</code> — which <code>startForeground</code> types the service declares, pure and tested</td>
 </tr>
 <tr>
 <td><code>composeApp/.../ui/potsik/PotsikAnimation.kt</code></td>
