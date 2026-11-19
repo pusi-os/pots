@@ -28,9 +28,10 @@ data class AssistNode(
 /**
  * How many nodes one snapshot may contribute.
  *
- * A long list scrolls, and the assist snapshot is the whole hierarchy: without
- * a cap a chat screen can be tens of thousands of nodes, and the walk itself
- * becomes the cost.
+ * A long list scrolls, and the assist snapshot is the whole hierarchy: a chat
+ * screen can be tens of thousands of nodes, and every one of them would be a
+ * line of the prompt. The cap bounds what this pass reads, not what the Android
+ * walk builds — that tree is already complete when the snapshot arrives here.
  */
 const val ASSIST_NODE_LIMIT = 1_500
 

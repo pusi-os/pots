@@ -203,7 +203,7 @@ benefit is exactly that: text instead of a picture.
 | `composeApp/src/androidMain/.../assistant/AssistStructureText.kt` | the `AssistStructure` walk: builds `AssistNode`s, no limits of its own |
 | `composeApp/src/androidMain/.../assistant/PotsAssistRecognitionService.kt` | the stub the metadata has to name; answers every request with an error |
 | `composeApp/src/commonMain/.../assistant/AssistScreenText.kt` | `assistScreenText()` — the pure rules (order, dedup, blocked subtrees, limits, mark) |
-| `composeApp/src/commonMain/.../assistant/AssistInvocationPolicy.kt` | `assistInvocationAction()` — what the gesture does to the microphone, by loop state |
+| `composeApp/src/commonMain/.../assistant/AssistInvocationAction.kt` | `assistInvocationAction()` — what the gesture does to the microphone, by loop state |
 | `composeApp/src/commonMain/.../handsfree/HandsFreeController.kt` | the voice loop; `interruptAndListen()` is the gesture's entry during speech |
 | `composeApp/src/commonMain/.../assistant/ScreenContextAvailability.kt` | which mechanism is in force, by what is available |
 | `composeApp/src/commonMain/.../assistant/AssistantAvailability.kt` | whether Pots can hold the role at all (API level, whether it does) |
