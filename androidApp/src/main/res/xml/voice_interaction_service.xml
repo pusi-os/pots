@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Pots as the device assistant.
+
+    This file is what the system reads when it builds the assistant list: a
+    voice-interaction service whose metadata says `supportsAssist` qualifies for
+    the role, and one that says nothing about assist data gets nothing.
+
+    On targetSdk 37 (Pots targets 37) the platform no longer hands assist data
+    to assistants implicitly: `usesAssistData` and `usesAssistStructureScreenContent`
+    are what make the screen's text arrive with the invocation, and
+    `READ_ASSIST_STRUCTURE_SCREEN_CONTENT` in the manifest is the permission
+    behind them. Without both the gesture still works — the session opens and
+    the microphone listens — but the AssistStructure is an empty stub.
+
+    `usesAssistScreenshots` is deliberately absent: the screenshot path of this
+    app is MediaProjection (the cloud's «Экран»), which works with or without
+    the role, and a second screenshot pipeline nobody reads would only cost the
+    user a moment of latency on every invocation.
+
+    `recognitionService` is required by the parser even though Android 12+ never
+    calls it: leaving it out makes the system reset the assistant on this app.
+    It points at a stub that answers with an error — the actual listening is the
+    hands-free loop's own recognizer.
+-->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:recognitionService="com.pusios.pots.assistant.PotsAssistRecognitionService"
+    android:sessionService="com.pusios.pots.assistant.PotsVoiceInteractionSessionService"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true"
+    android:usesAssistData="true"
+    android:usesAssistStructureScreenContent="true" />

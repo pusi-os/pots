@@ -1,4 +1,5 @@
 <resources>
+    <string name="assist_screen_context_header">Текст экрана на момент вызова ассистента:</string>
     <string name="daemon_channel_name">Фоновая служба Потс</string>
     <string name="daemon_channel_description">Поддерживает работу Потс для выполнения запланированных задач</string>
     <string name="daemon_notification_text">Фоновая служба работает</string>

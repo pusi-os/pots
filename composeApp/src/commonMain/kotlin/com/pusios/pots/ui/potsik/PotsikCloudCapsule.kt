@@ -88,6 +88,7 @@ import pots.composeapp.generated.resources.potsik_cloud_open_in_chat
 import pots.composeapp.generated.resources.potsik_cloud_permission_denied
 import pots.composeapp.generated.resources.potsik_cloud_retry
 import pots.composeapp.generated.resources.potsik_cloud_screen
+import pots.composeapp.generated.resources.potsik_cloud_screen_context
 import pots.composeapp.generated.resources.potsik_cloud_screen_denied
 import pots.composeapp.generated.resources.potsik_cloud_screen_failed
 import pots.composeapp.generated.resources.potsik_cloud_screen_off
@@ -97,6 +98,7 @@ import pots.composeapp.generated.resources.potsik_cloud_screen_revoked
 import pots.composeapp.generated.resources.potsik_cloud_screen_waiting
 import pots.composeapp.generated.resources.potsik_cloud_screenshot_caption
 import pots.composeapp.generated.resources.potsik_cloud_send
+import pots.composeapp.generated.resources.potsik_cloud_settings
 import pots.composeapp.generated.resources.potsik_cloud_speak_aloud
 import pots.composeapp.generated.resources.potsik_cloud_stop
 import pots.composeapp.generated.resources.potsik_cloud_text
@@ -139,6 +141,7 @@ fun PotsikCloudCapsule(
     onCancel: () -> Unit,
     onRetry: () -> Unit,
     onRemoveShot: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(POTSIK_CLOUD_RADIUS_DP.dp)
@@ -146,6 +149,10 @@ fun PotsikCloudCapsule(
         PotsikCloudPhase.Error -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.96f)
         else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     }
+    // One line above the capsule, at most: the no-recognizer explanation wins,
+    // because without it nothing at all will happen when the voice button is
+    // tapped — the screen's text being in hand is not the problem then.
+    val assistNote = voiceAvailable && potsikCloudShowsAssistNote(state)
     Column(modifier = modifier.fillMaxSize()) {
         // The dead voice button explains itself here: a grey circle alone tells
         // a sighted user nothing, and the mode cannot be started to reach an
@@ -155,6 +162,19 @@ fun PotsikCloudCapsule(
         if (!voiceAvailable && state.phase == PotsikCloudPhase.Menu) {
             Text(
                 text = stringResource(Res.string.potsik_cloud_no_recognizer),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(POTSIK_CLOUD_NOTICE_HEIGHT_DP.dp)
+                    .padding(bottom = 4.dp),
+            )
+        } else if (assistNote) {
+            // The context was taken at the invocation and is attached to the
+            // next question: saying so is the honest half of having it.
+            Text(
+                text = stringResource(Res.string.potsik_cloud_screen_context),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -195,6 +215,7 @@ fun PotsikCloudCapsule(
                     onCancel = onCancel,
                     onRetry = onRetry,
                     onRemoveShot = onRemoveShot,
+                    onOpenSettings = onOpenSettings,
                 )
             }
         }
@@ -398,6 +419,7 @@ private fun PotsikCloudPill(
     onCancel: () -> Unit,
     onRetry: () -> Unit,
     onRemoveShot: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val content = if (state.phase == PotsikCloudPhase.Error) {
         MaterialTheme.colorScheme.onErrorContainer
@@ -451,6 +473,14 @@ private fun PotsikCloudPill(
             state.phase == PotsikCloudPhase.Thinking && state.cancelOffered -> TextButton(onClick = onCancel) {
                 Text(stringResource(Res.string.potsik_cloud_cancel), color = content, fontSize = 13.sp)
             }
+
+            // The microphone was refused: [Повторить] would be the same refused
+            // tap, so the pill offers the one thing that helps — the system page
+            // that grants it. The user comes back and taps the microphone.
+            state.phase == PotsikCloudPhase.Error && state.trouble == PotsikCloudTrouble.PermissionDenied ->
+                TextButton(onClick = onOpenSettings) {
+                    Text(stringResource(Res.string.potsik_cloud_settings), color = content, fontSize = 13.sp)
+                }
 
             state.phase == PotsikCloudPhase.Error -> TextButton(onClick = onRetry) {
                 Text(stringResource(Res.string.potsik_cloud_retry), color = content, fontSize = 13.sp)

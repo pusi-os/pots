@@ -185,6 +185,25 @@ class PotsikCloudPlacementTest {
     }
 
     @Test
+    fun `a snapshot from the assist invocation adds the note above the pill`() {
+        val without = potsikCloudWindowSize(PotsikCloudState(phase = PotsikCloudPhase.Listening))
+        val with = potsikCloudWindowSize(
+            PotsikCloudState(phase = PotsikCloudPhase.Listening, assistContext = true),
+        )
+        assertTrue(potsikCloudShowsAssistNote(PotsikCloudState(phase = PotsikCloudPhase.Listening, assistContext = true)))
+        assertEquals(without.widthDp, with.widthDp)
+        assertEquals(without.heightDp + POTSIK_CLOUD_NOTICE_HEIGHT_DP, with.heightDp)
+        // No snapshot, no note — the window is the plain pill.
+        assertTrue(!potsikCloudShowsAssistNote(PotsikCloudState(phase = PotsikCloudPhase.Listening)))
+        // The field and the shot pill are windows of their own size: no line.
+        assertTrue(!potsikCloudShowsAssistNote(PotsikCloudState(phase = PotsikCloudPhase.TextInput, assistContext = true)))
+        assertEquals(
+            potsikCloudWindowSize(PotsikCloudState(phase = PotsikCloudPhase.TextInput)),
+            potsikCloudWindowSize(PotsikCloudState(phase = PotsikCloudPhase.TextInput, assistContext = true)),
+        )
+    }
+
+    @Test
     fun `the text field is wider than the menu and tall enough for the field`() {
         val field = potsikCloudWindowSize(PotsikCloudState(phase = PotsikCloudPhase.TextInput))
         assertEquals(POTSIK_CLOUD_INPUT_WIDTH_DP, field.widthDp)

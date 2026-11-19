@@ -470,6 +470,23 @@ class PotsOverlayService : Service() {
     }
 
     /**
+     * The assist gesture: the cloud opens over the pet that is already standing
+     * on somebody else's screen, already listening, with the text of that screen
+     * in hand.
+     *
+     * False when there is no pet to put a cloud over — the mode is off, the
+     * permission is gone, or the app is in front. The caller then opens the app
+     * instead; the gesture never ends in nothing.
+     */
+    private fun openAssistCloud(screenText: String?): Boolean {
+        if (pet == null) return false
+        if (cloud == null) toggleCloud()
+        val overlay = cloud ?: return false
+        overlay.onAssistInvocation(screenText)
+        return true
+    }
+
+    /**
      * The character is being carried: the capsule fades out instead of
      * disappearing in one frame. The service drops its reference at once, so
      * every other path (a rotation, screen off, the app coming back) still
@@ -623,6 +640,16 @@ class PotsOverlayService : Service() {
         /** Foreground flip from [com.pusios.pots.PotsApplication], same process. */
         fun onAppForeground() {
             instance?.onForegroundChanged()
+        }
+
+        /**
+         * Opens the cloud from an assist invocation, with the text of the screen
+         * it was invoked over. False when there is no pet on screen to open a
+         * cloud over — the caller then opens the app instead.
+         */
+        fun openAssistCloud(screenText: String?): Boolean {
+            val service = instance ?: return false
+            return service.openAssistCloud(screenText)
         }
 
         /**

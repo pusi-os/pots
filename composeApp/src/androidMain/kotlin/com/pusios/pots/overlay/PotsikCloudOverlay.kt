@@ -38,6 +38,9 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.pusios.pots.LocalAppLanguageCode
+import com.pusios.pots.assistant.AssistInvocationAction
+import com.pusios.pots.assistant.assistInvocationAction
+import com.pusios.pots.assistant.questionWithScreenContext
 import com.pusios.pots.data.AppLanguage
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.DataRepository
@@ -46,6 +49,9 @@ import com.pusios.pots.handsfree.HandsFreeController
 import com.pusios.pots.handsfree.HandsFreeStatus
 import com.pusios.pots.handsfree.SpeechToTextError
 import com.pusios.pots.handsfree.createSpeechToText
+import com.pusios.pots.shared.R
+import com.pusios.pots.tools.AppPermission
+import com.pusios.pots.tools.PermissionController
 import com.pusios.pots.ui.DarkColorScheme
 import com.pusios.pots.ui.LightColorScheme
 import com.pusios.pots.ui.potsik.PotsikCloudAsker
@@ -150,7 +156,9 @@ internal class PotsikCloudOverlay(
             scope = scope,
             textToSpeech = textToSpeech,
             speechToText = speechToText,
-            onSubmit = { question -> asker.ask(question) },
+            // Every question leaves through here, so the assist snapshot — when
+            // there is one — is attached to whichever question comes first.
+            onSubmit = { question -> asker.ask(questionWithScreen(question)) },
             // An overlay window cannot raise the system permission dialog —
             // only an activity can. Without the permission the pill says so
             // and offers [Повторить]; the dialog itself lives in the app.
@@ -175,6 +183,17 @@ internal class PotsikCloudOverlay(
 
     /** The frame on the pill, already decoded for Compose. */
     private val screenShot = mutableStateOf<PotsikShotUi?>(null)
+
+    /**
+     * The text of the screen taken at the assist invocation, while it is still
+     * owed to the next question.
+     *
+     * Null when there is none: the cloud was opened by a double tap, the
+     * snapshot never arrived, or it has already gone out with a question. It is
+     * a single moment of the screen — the platform takes it once — so it is
+     * spent, not reused.
+     */
+    private var assistScreenText: String? = null
 
     private var watcherJob: Job? = null
 
@@ -231,11 +250,85 @@ internal class PotsikCloudOverlay(
         watchVoice()
     }
 
+    /**
+     * The assist gesture: the cloud opens over the pet that is already standing
+     * on somebody else's screen, with the text of that screen in hand, and the
+     * microphone opens straight away — the same path the microphone button
+     * takes.
+     *
+     * The text is the platform's one-shot snapshot of the top activity taken at
+     * invocation time. It may also be null: a secure window, an app that blocks
+     * assist, a device that never sends assist data. Then the cloud opens
+     * exactly as a double tap opens it, which is the honest degradation — the
+     * gesture is not a promise that the screen was readable.
+     *
+     * A dialogue already in progress keeps the microphone: the gesture then
+     * only attaches the snapshot to the next question and leaves the pill
+     * showing whatever it is showing. Calling [HandsFreeController.start] on a
+     * live loop would `cancel()` a running recognition session and open another
+     * on top of it — the asynchronous `cancel()` is exactly what produced
+     * `ERROR_RECOGNIZER_BUSY` on the microphone button before. The one
+     * exception is a reply being spoken: a person who invokes the assistant
+     * wants to be heard, so the answer is cut short and the microphone opens
+     * ([HandsFreeController.interruptAndListen]).
+     */
+    fun onAssistInvocation(screenText: String?) {
+        assistScreenText = screenText?.takeIf { it.isNotBlank() }
+        when (assistInvocationAction(handsFree.status.value)) {
+            // Re-applied, not reset: [setState] keeps the phase it is given,
+            // and the snapshot flag is added by it.
+            AssistInvocationAction.AttachOnly -> setState(state)
+
+            AssistInvocationAction.StartListening -> {
+                // The menu state first, so the note above the capsule is up
+                // before the microphone reports its own phase.
+                setState(PotsikCloudState())
+                onVoice()
+            }
+
+            AssistInvocationAction.InterruptAndListen -> {
+                setState(PotsikCloudState())
+                handsFree.interruptAndListen()
+            }
+        }
+    }
+
+    /**
+     * The question as the chat receives it: with the screen's text attached when
+     * one is still in hand.
+     *
+     * The snapshot is spent by the first question — it is a picture of one
+     * moment, and a second question asked a minute later is about a different
+     * screen. The header is the app's own string, so the person reading the chat
+     * sees where the block came from.
+     */
+    private fun questionWithScreen(question: String): String {
+        val screen = assistScreenText ?: return question
+        assistScreenText = null
+        return questionWithScreenContext(
+            question = question,
+            screenContext = screen,
+            header = context.getString(R.string.assist_screen_context_header),
+        )
+    }
+
+    /**
+     * The pill's [Настройки]: the microphone was refused, and an overlay window
+     * cannot raise the system permission dialog — only the app's settings page
+     * can. The user grants it there and taps the microphone again.
+     */
+    fun onOpenSettings() {
+        runCatching { PermissionController(AppPermission.RECORD_AUDIO).openAppSettings() }
+    }
+
     /** Takes the window down now — no fade: the caller is a rotation, the app coming back or screen off. */
     fun close() {
         val view = shell ?: return
         shell = null
         fading = false
+        // A snapshot that was never asked about goes with the window: the next
+        // cloud is a new invocation with a new moment of the screen.
+        assistScreenText = null
         // The screen mode belongs to this window: its listener goes first, so a
         // session that lands after this point has nobody to hand a frame to.
         PotsikScreenProjection.listener = null
@@ -340,7 +433,12 @@ internal class PotsikCloudOverlay(
 
     // ---- the state -----------------------------------------------------------
 
-    private fun setState(next: PotsikCloudState) {
+    private fun setState(requested: PotsikCloudState) {
+        // The assist snapshot belongs to the cloud, not to one pill state: the
+        // voice loop rebuilds the state on every status change, and the note
+        // above the capsule must not vanish because the loop moved from
+        // Listening to Thinking.
+        val next = if (assistScreenText == null) requested else requested.copy(assistContext = true)
         val previous = cloudState.value
         cloudState.value = next
         if (previous.phase != next.phase) onPhase(next.phase)
@@ -546,10 +644,13 @@ internal class PotsikCloudOverlay(
 
     /** [Отправить] on the field: the same asker the voice loop uses, so the answer lands on the same pill. */
     fun onSendText() {
-        val question = PotsikCloudDraft.text.value
-        if (!potsikCloudSendEnabled(question)) return
-        // The asker trims, and the answer carries the trimmed text: mark that form.
-        PotsikCloudDraft.markSent(question.trim())
+        val draft = PotsikCloudDraft.text.value
+        if (!potsikCloudSendEnabled(draft)) return
+        // The assist snapshot, if any, goes out with this question — and the
+        // field is marked with what was actually sent, so the answer to it
+        // clears the field and nothing else does.
+        val question = questionWithScreen(draft).trim()
+        PotsikCloudDraft.markSent(question)
         asker.ask(question)
     }
 
@@ -749,6 +850,7 @@ internal class PotsikCloudOverlay(
                     onCancel = tapped(::onCancel),
                     onRetry = tapped(::onRetry),
                     onRemoveShot = tapped(::onRemoveShot),
+                    onOpenSettings = tapped(::onOpenSettings),
                     modifier = Modifier.graphicsLayer {
                         alpha = appear.value
                         val scale = 0.92f + 0.08f * appear.value

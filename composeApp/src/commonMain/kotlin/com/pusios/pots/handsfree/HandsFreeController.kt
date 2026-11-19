@@ -185,6 +185,33 @@ class HandsFreeController(
         listen()
     }
 
+    /**
+     * Cuts the answer short and opens the microphone.
+     *
+     * A fresh assistant invocation during speech is a new question, not a
+     * request to finish the sentence. Unlike [interrupt] this starts the loop
+     * from any state, and unlike [start] it does not go through the permission
+     * round-trip — the loop was already running, so the microphone was already
+     * granted. Speech stops before the recognizer starts, so the "never both at
+     * once" invariant holds; [listen] bumps the session id, so the cancelled
+     * answer's callbacks are ignored.
+     *
+     * [stop] is deliberately not called first: it clears the transcript and
+     * drops to `Idle`, after which [start] asks for the permission again — an
+     * extra round-trip on every invocation.
+     */
+    fun interruptAndListen() {
+        if (!isSupported) return
+        speakJob?.cancel()
+        speakJob = null
+        textToSpeech?.stop()
+        listenWatchdog?.cancel()
+        listenWatchdog = null
+        _error.value = null
+        _status.value = HandsFreeStatus.Listening
+        listen()
+    }
+
     /** Resumes the loop after an error. */
     fun resume() {
         if (!isSupported) return
