@@ -31,6 +31,7 @@ import com.pusios.pots.mcp.McpTool
 import com.pusios.pots.network.AllServicesFailedException
 import com.pusios.pots.network.AnthropicInsufficientCreditsException
 import com.pusios.pots.network.AnthropicInvalidApiKeyException
+import com.pusios.pots.network.ConfiguredInstanceNotFoundException
 import com.pusios.pots.network.ContextWindowExceededException
 import com.pusios.pots.network.FileTooLargeException
 import com.pusios.pots.network.GeminiInvalidApiKeyException
@@ -52,6 +53,7 @@ import com.pusios.pots.network.dtos.gemini.extractText
 import com.pusios.pots.network.dtos.openaicompatible.extractInlineToolCalls
 import com.pusios.pots.network.dtos.openairesponses.OpenAIResponsesResponseDto
 import com.pusios.pots.network.dtos.toTokenUsage
+import com.pusios.pots.network.isRetryableProviderFailure
 import com.pusios.pots.network.toUiError
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
@@ -1429,24 +1431,11 @@ class RemoteDataRepository(
      * Failures that a retry a second later cannot fix: exhausted credit, rejected credentials, and
      * requests the provider refused as malformed, too large or disallowed. Retrying these only
      * delays the fallback chain (~3 s per service). Unknown/generic errors stay retryable.
+     *
+     * Delegates to [isRetryableProviderFailure] so the chat retry loop and the heartbeat's
+     * scheduler-level retries cannot drift apart.
      */
-    private fun isNonRetryableException(e: Exception): Boolean = when (e) {
-        is AnthropicInsufficientCreditsException,
-        is OpenAICompatibleQuotaExhaustedException,
-        is AnthropicInvalidApiKeyException,
-        is GeminiInvalidApiKeyException,
-        is OpenAICompatibleInvalidApiKeyException,
-        is OpenAICompatibleModelNotFoundException,
-        is OpenAICompatibleRequestTooLargeException,
-        is OpenAICompatibleContentModerationException,
-        is OpenAICompatibleBadRequestException,
-        is ContextWindowExceededException,
-        is UnsupportedFileTypeException,
-        is FileTooLargeException,
-        -> true
-
-        else -> false
-    }
+    private fun isNonRetryableException(e: Exception): Boolean = !e.isRetryableProviderFailure()
 
     /**
      * Retries an API call with simple exponential backoff.
@@ -2415,15 +2404,9 @@ class RemoteDataRepository(
         conversationIdOverride: String?,
         modelIdOverride: String?,
     ): String {
-        // Selection: explicit instance > first remote > first on-device. The simple-tool
-        // allowlist works at any context size, so on-device is always eligible. No
-        // configured instance means nothing can run — report that instead of guessing.
-        val instances = getConfiguredServiceInstances()
-        val targetInstance = instanceId?.let { id -> instances.find { it.instanceId == id } }
-            ?: instances.firstOrNull { Service.fromId(it.serviceId)?.isOnDevice == false }
-            ?: instances.firstOrNull { Service.fromId(it.serviceId)?.isOnDevice == true }
-            ?: return ""
-        val service = Service.fromId(targetInstance.serviceId) ?: return ""
+        val targetInstance = resolveAskInstance(getConfiguredServiceInstances(), instanceId)
+        val service = Service.fromId(targetInstance.serviceId)
+            ?: throw NoConfiguredServiceException("unknown service ${targetInstance.serviceId}")
         val targetInstanceId = targetInstance.instanceId
         val messages = listOf(History(role = History.Role.USER, content = prompt))
         val systemPrompt = getActiveSystemPrompt()
@@ -2639,4 +2622,21 @@ class RemoteDataRepository(
     override suspend fun deleteLocalModel(modelId: String) {
         localInferenceEngine?.deleteModel(modelId)
     }
+}
+
+/**
+ * Which configured instance a background run (heartbeat, scheduled task) must use.
+ *
+ * An explicit pin has to resolve: reporting on "the first remote" because the chosen provider
+ * was deleted or re-created under a new id is worse than failing, since the owner would be
+ * looking at the wrong model's behaviour. "First remote, then on-device" only answers the
+ * question "no preference expressed". An empty catalogue is an error too — it used to be an
+ * empty string, which the scheduler recorded as a successful run that did nothing.
+ */
+internal fun resolveAskInstance(instances: List<ServiceInstance>, instanceId: String?): ServiceInstance {
+    if (instances.isEmpty()) throw NoConfiguredServiceException("no configured service instances")
+    if (instanceId == null) {
+        return instances.firstOrNull { Service.fromId(it.serviceId)?.isOnDevice == false } ?: instances.first()
+    }
+    return instances.find { it.instanceId == instanceId } ?: throw ConfiguredInstanceNotFoundException(instanceId)
 }

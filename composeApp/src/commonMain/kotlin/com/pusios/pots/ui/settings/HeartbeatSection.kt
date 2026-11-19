@@ -324,6 +324,18 @@ internal fun HeartbeatSection(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
+                            // A successful run can still have something to say — today, that it
+                            // fell back to the reserve model. Hiding it would make the switch
+                            // invisible, which is the same blind spot as the nameless error.
+                            if (entry.success && entry.note != null) {
+                                Text(
+                                    text = entry.note,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }

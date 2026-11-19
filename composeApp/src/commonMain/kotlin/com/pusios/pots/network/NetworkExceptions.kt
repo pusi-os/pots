@@ -50,7 +50,18 @@ class OpenAICompatibleGenericException(message: String, cause: Throwable? = null
 class OpenAICompatibleInvalidApiKeyException : OpenAICompatibleApiException()
 class OpenAICompatibleRateLimitExceededException : OpenAICompatibleApiException()
 class OpenAICompatibleQuotaExhaustedException : OpenAICompatibleApiException()
-class OpenAICompatibleConnectionException : OpenAICompatibleApiException()
+
+/**
+ * The call never produced a usable answer: the endpoint was unreachable, the request timed
+ * out, or the response could not be understood. [reason] and [detail] exist because a bare
+ * class name in the heartbeat journal tells the owner nothing — "provider down", "bad key"
+ * and "model does not exist" all used to arrive as this one nameless type.
+ */
+class OpenAICompatibleConnectionException(
+    val reason: ProviderFailureReason = ProviderFailureReason.Unknown,
+    val detail: String? = null,
+) : OpenAICompatibleApiException(describeConnectionFailure(reason, detail))
+
 class OpenAICompatibleModelNotFoundException : OpenAICompatibleApiException()
 class OpenAICompatibleEmptyResponseException : OpenAICompatibleApiException()
 class OpenAICompatibleRequestTooLargeException : OpenAICompatibleApiException()
@@ -66,13 +77,137 @@ class FileTooLargeException : ApiException(null)
 class AllServicesFailedException : ApiException(null)
 
 /**
+ * Machine-readable reason behind a failed provider call. The heartbeat journal prints it as
+ * the first word of the failure line, so "bad key" and "provider down" are told apart at a
+ * glance instead of both arriving as one exception class name.
+ */
+enum class ProviderFailureReason {
+    Unreachable,
+    Timeout,
+    Unauthorized,
+    ModelNotFound,
+    RateLimited,
+    BadResponse,
+    Unknown,
+    ;
+
+    /**
+     * Whether repeating the same call against the same instance can plausibly help.
+     * [Unknown] stays retryable on purpose: an unclassified failure used to be retried, and a
+     * spare attempt costs less than silently dropping a retry that would have worked.
+     */
+    val isRetryable: Boolean
+        get() = this == Unreachable || this == Timeout || this == RateLimited || this == Unknown
+}
+
+/** The journal/UI line for a connection failure: `Reason: provider detail`. */
+internal fun describeConnectionFailure(reason: ProviderFailureReason, detail: String?): String = detail?.trim()?.takeIf { it.isNotEmpty() }?.let { "${reason.name}: $it" } ?: reason.name
+
+/**
+ * Classifies any provider failure. Typed API exceptions are classified by their type — a 401
+ * is [ProviderFailureReason.Unauthorized] whether it arrived as an invalid-key exception or as
+ * a raw transport error — and everything else by its cause.
+ */
+fun Throwable.providerFailureReason(): ProviderFailureReason = when (this) {
+    is OpenAICompatibleConnectionException -> reason
+
+    is GeminiInvalidApiKeyException,
+    is AnthropicInvalidApiKeyException,
+    is OpenAICompatibleInvalidApiKeyException,
+    -> ProviderFailureReason.Unauthorized
+
+    is OpenAICompatibleModelNotFoundException -> ProviderFailureReason.ModelNotFound
+
+    is GeminiRateLimitExceededException,
+    is AnthropicRateLimitExceededException,
+    is AnthropicOverloadedException,
+    is OpenAICompatibleRateLimitExceededException,
+    is OpenAICompatibleQuotaExhaustedException,
+    is AnthropicInsufficientCreditsException,
+    -> ProviderFailureReason.RateLimited
+
+    is InferenceTimeoutException, is OpenAICompatibleTimeoutException -> ProviderFailureReason.Timeout
+
+    // The provider answered, but with "I am down" — the endpoint is unusable, not misconfigured.
+    is OpenAICompatibleServiceUnavailableException, is OpenAICompatibleProviderErrorException -> ProviderFailureReason.Unreachable
+
+    is OpenAICompatibleEmptyResponseException,
+    is OpenAICompatibleBadRequestException,
+    is OpenAICompatibleRequestTooLargeException,
+    is OpenAICompatibleContentModerationException,
+    is ContextWindowExceededException,
+    is UnsupportedFileTypeException,
+    is FileTooLargeException,
+    -> ProviderFailureReason.BadResponse
+
+    else -> transportFailureReason()
+}
+
+/**
+ * Classification for exceptions no provider type describes — transport and serialization
+ * failures, which reach the callers as whatever Ktor or kotlinx.serialization threw.
+ */
+internal fun Throwable.transportFailureReason(): ProviderFailureReason {
+    val name = this::class.simpleName.orEmpty()
+    val text = message.orEmpty()
+    return when {
+        name.contains("Timeout", ignoreCase = true) || text.contains("timed out", ignoreCase = true) -> ProviderFailureReason.Timeout
+
+        name.contains("Serializ", ignoreCase = true) ||
+            name.contains("JsonConvert", ignoreCase = true) ||
+            name.contains("JsonDecod", ignoreCase = true) -> ProviderFailureReason.BadResponse
+
+        name.endsWith("IOException") ||
+            name.contains("ConnectException", ignoreCase = true) ||
+            name.contains("UnknownHost", ignoreCase = true) ||
+            name.contains("NoRoute", ignoreCase = true) ||
+            name.contains("SocketException", ignoreCase = true) ||
+            name.contains("Unresolved", ignoreCase = true) ||
+            name.contains("Handshake", ignoreCase = true) -> ProviderFailureReason.Unreachable
+
+        else -> ProviderFailureReason.Unknown
+    }
+}
+
+/**
+ * Whether a failed call is worth repeating against the same instance. Rejected credentials, a
+ * missing model, a malformed request and exhausted credit all fail identically a second later,
+ * so they go straight to the fallback instead of burning the retry budget.
+ *
+ * Everything not listed here is retried: this list is the explicit "a repeat cannot help" set,
+ * so an unclassified failure keeps the old behaviour of getting another attempt.
+ */
+fun Exception.isRetryableProviderFailure(): Boolean = when (this) {
+    // Quota and credit exhaustion look like a rate limit but will not clear on a retry.
+    is OpenAICompatibleQuotaExhaustedException,
+    is AnthropicInsufficientCreditsException,
+    is NoConfiguredServiceException,
+    is ConfiguredInstanceNotFoundException,
+    -> false
+
+    // The provider answered with nothing. Classified as BadResponse by shape, but a retry is
+    // exactly what helps here, so it must not join the straight-to-fallback group above.
+    is OpenAICompatibleEmptyResponseException -> true
+
+    else -> providerFailureReason().isRetryable
+}
+
+/**
+ * The instance a background run was pinned to no longer exists — its provider was removed,
+ * re-created under a new id, or settings were imported from another device. Deliberately not
+ * "use whatever remote is configured instead": the run reports the missing pin rather than
+ * silently reporting on a model the owner did not choose.
+ */
+class ConfiguredInstanceNotFoundException(val instanceId: String) : ApiException("configured instance not found: $instanceId")
+
+/**
  * The request could not be routed at all: the fallback chain was empty — no
  * services are configured, or none of the configured instances has a valid API
  * key. Deliberately distinct from [OpenAICompatibleEmptyResponseException]
  * ("a provider answered with nothing") so the UI can offer provider setup
  * instead of claiming a response was lost.
  */
-class NoConfiguredServiceException : ApiException(null)
+class NoConfiguredServiceException(message: String? = null) : ApiException(message)
 
 sealed interface UiError {
     data class Resource(val resource: StringResource) : UiError
@@ -101,6 +236,10 @@ fun Exception.isFreeCapacityError(): Boolean = when (this) {
     is OpenAICompatibleGenericException,
     is OpenAICompatibleBadRequestException,
     -> messageLooksLikeFreeCapacity(message)
+
+    // A connection failure carries a diagnostic reason and the provider's raw words, not a
+    // capacity verdict: never offer the free-provider upsell for one.
+    is OpenAICompatibleConnectionException -> false
 
     else -> messageLooksLikeFreeCapacity(message)
 }

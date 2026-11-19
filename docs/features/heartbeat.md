@@ -1,6 +1,6 @@
 # Heartbeat
 
-**Last verified:** 2026-10-25
+**Last verified:** 2026-11-19
 
 > Heartbeat is user-controlled (on/off toggle, interval, active hours live in the settings UI). The AI cannot enable, disable, or reschedule it. To customise *what happens on each heartbeat*, the AI creates heartbeat-triggered scheduled tasks via `schedule_task` with `on_heartbeat: true` — these are `HEARTBEAT`-trigger tasks (see [tasks.md](tasks.md)) and their prompts are appended to every heartbeat run under `## Heartbeat Additions`. Each addition is a first-class task the user can see, edit, and cancel.
 
@@ -28,8 +28,12 @@ Heartbeat configuration is stored as a serialized JSON object in app settings. V
 - **Interval**: 30 minutes between heartbeats (UI slider offers 5m, 10m, 15m, 30m, 45m, 1h, 2h, 4h)
 - **Active hours start**: 8 (hour, 24h format; UI range slider covers 0–23)
 - **Active hours end**: 22 (hour, 24h format; UI range slider covers 0–24, where 24 renders as 0:00 and means end-of-day)
-- **Model**: optional override for which service+model to use for heartbeats. When not set, the default path prefers the first configured **remote** service, then falls back to the first on-device (LiteRT) instance if no remote is configured. Useful for selecting a cheaper or faster model for background checks
-- **Fallback model**: optional second service+model. The primary is attempted up to three times, then the fallback once. When unset, or equal to the primary, only the primary is tried
+- **Model**: optional override for which service+model to use for heartbeats. When set, the run goes to *that instance and its own selected model* — not to the chat's global model. When not set, the default path prefers the first configured **remote** service, then falls back to the first on-device (LiteRT) instance if no remote is configured. Useful for selecting a cheaper or faster model for background checks
+- **Fallback model**: optional second service+model. Tried once after the primary gives up (see the retry policy below). When unset, or equal to the primary, only the primary is tried
+
+**If the selected instance disappears** (provider removed, instance re-created with a new id, settings imported from another device) the run does **not** silently substitute another provider. With no reserve configured it fails and the journal says `configured instance not found: <id>`; with a reserve configured the run goes through that reserve and records a success whose note says `fell back to <reserve> after configured instance not found: <id>`. Either way the journal names the missing pin, so the owner never reads the behaviour of a model they did not choose without being told. The slot is cleared the next time the settings screen loads.
+
+**Provider classes** — the same path serves all of them: an OpenAI-compatible remote, the on-device LiteRT model, and a keyless endpoint (a local Ollama/LM Studio instance, `requiresApiKey = false`). A keyless instance sends **no** `Authorization` header at all — an empty header reads as a malformed credential to several gateways and would turn a working local setup into a 401.
 
 UI validation rules:
 
@@ -38,7 +42,7 @@ UI validation rules:
 
 ## Execution Flow
 
-1. The task scheduler polls every 60 seconds. Heartbeat and due scheduled tasks share the retry policy: three primary-model attempts followed by one fallback attempt.
+1. The task scheduler polls every 60 seconds. Heartbeat and due scheduled tasks share one retry policy: up to three attempts against the primary instance, then one attempt against the fallback. Which failures are repeated is decided by class, not by count — see [Retry and fallback policy](#retry-and-fallback-policy).
 2. On each poll, it checks: is the overall scheduling-enabled toggle on (the tasks setting that gates all scheduled work)? Is heartbeat enabled? Is the current hour within active hours? Has the configured interval elapsed since the last heartbeat?
 3. If all conditions are met and no other API call is in progress, a heartbeat prompt is built and sent to the AI with the full tool-calling loop. Tool calls (e.g. shell commands) are bound to the heartbeat conversation's own session, not to whichever chat the user is viewing
 4. The last heartbeat timestamp is updated and a log entry is recorded
@@ -74,13 +78,41 @@ The heartbeat prompt is assembled by a pure, unit-tested builder; every conditio
 
 For the full contract of every prompt variation in Pots (chat remote/local, heartbeat, Splinterlands) see [system-prompts.md](system-prompts.md).
 
+## Retry and fallback policy
+
+The failure class decides whether the same instance is tried again. Every failure carries a `ProviderFailureReason`, and that reason is what the journal prints first.
+
+| Reason | Cause | Retried? | What the journal shows |
+|---|---|---|---|
+| `Unauthorized` | 401, rejected/absent API key | no — goes straight to the fallback | `Unauthorized: 401 Unauthorized (Polza.ai / gpt-4o)` |
+| `ModelNotFound` | 404, the model id is not served by this provider | no | `ModelNotFound: …` |
+| `BadResponse` | 400/413/422, content policy, unreadable JSON | no | `BadResponse: <provider text>` |
+| `BadResponse` (empty body) | the provider answered with nothing at all | yes — the one `BadResponse` shape a retry helps | `BadResponse (Polza.ai / gpt-4o)` |
+| `RateLimited` | 429, provider overloaded | yes | `RateLimited: 429 Too Many Requests` |
+| `Timeout` | request or socket timeout, attempt exceeded the budget | yes | `Timeout: no answer within 90s` |
+| `Unreachable` | DNS, refused connection, TLS failure, 5xx from the provider | yes | `Unreachable: connection refused` |
+| `Unknown` | anything unclassified | yes (preserves the old behaviour) | `Unknown: <detail>` |
+
+Retries stop at three attempts **and** at a 90-second wall-clock budget for the primary instance; a single attempt is bounded by whatever is left of that budget, so a hanging endpoint can no longer own three full request timeouts. Backoff is 2 s, then 4 s. Quota/credit exhaustion (`RateLimited` in shape) is **not** retried — a retry cannot restore the balance.
+
+The reason appears **once** in the line. A connection failure already carries `<reason>: <detail>` inside its own message, so the journal prints `<reason>: <detail> (<provider / model>)` and never `<reason>: <reason>: …`.
+
+When the primary gives up:
+
+- **fallback configured** → one attempt against it. If it answers, the entry is a success with a note: `fell back to OpenAI-Compatible API / llama3 after Unauthorized: 401 Unauthorized (Polza.ai / gpt-4o)`. If it fails too, the journal carries both lines: `<primary line>; fallback <fallback line>`.
+- **no fallback configured** → the line ends with `; no fallback model selected in Settings → Agent → Heartbeat`.
+- **fallback set to the primary itself** → the line ends with `; reserve equals the primary instance` — a reserve *is* selected, it just cannot take over, and saying "no fallback selected" there would be a lie.
+- **nothing configured at all** → `no configured service instances` (previously an empty string recorded as a successful run that did nothing).
+
 ## Heartbeat Log
 
 - Stores up to 5 most recent heartbeat entries
-- Each entry records success/failure, a timestamp, and an optional error message
+- Each entry records success/failure, a timestamp, an optional error line, and an optional note
 - Displayed in the settings UI under the heartbeat section
 - Entries show an OK/FAIL indicator and a formatted local timestamp
-- Failed entries display the error message (up to 3 lines, ellipsized) below the timestamp in the error color
+- Failed entries display `<reason>: <provider detail> (<provider / model>)` (up to 3 lines, ellipsized) below the timestamp in the error color. The reason is a `ProviderFailureReason` name — `Unauthorized`, `ModelNotFound`, `RateLimited`, `Timeout`, `Unreachable`, `BadResponse`, `Unknown` — never a bare exception class name
+- Successful entries with a note (today: a fallback switch) show that note in the muted color, so a run that silently used the reserve is visible
+- Two routing failures are reported verbatim rather than with a reason prefix, because the message is already the whole answer: `configured instance not found: <id>` and `no configured service instances`
 
 ## Promote Learning
 
