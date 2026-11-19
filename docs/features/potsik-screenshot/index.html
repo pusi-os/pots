@@ -1105,6 +1105,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-frame-is-the-screen-the-user-was-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The frame is the screen the user was on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#consent-is-granted-once-per-mode" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1233,6 +1244,31 @@ added.</p>
 </table>
 <p>A chip <strong>fills the draft</strong> instead of sending at once: the question is the
 user's, and the field is where it is written.</p>
+<h2 id="the-frame-is-the-screen-the-user-was-on">The frame is the screen the user was on</h2>
+<p>«Экран» is a button on a window that floats over <em>somebody else's</em> screen, so
+the frame has to be that screen — not ours, and not the app's. Three things keep
+it that way:</p>
+<ul>
+<li><strong>The consent activity lives in a task of its own.</strong> It is declared with its
+  own <code>taskAffinity</code> and <code>launchMode="singleInstance"</code>, and started with
+  <code>FLAG_ACTIVITY_NEW_TASK</code>. Without the affinity, the intent joins the app's
+  task: the system brings that whole task to the front, the transparent activity
+  sits on top of the last Pots screen, and the frame taken after the answer
+  shows the app's settings instead of the desktop the user was looking at. With
+  it, the consent task is the only thing that comes forward and what stays
+  underneath is the screen the user was on.</li>
+<li><strong>Потсик is not in the picture.</strong> Both overlay windows carry <code>FLAG_SECURE</code>, so
+  the system composites them out of the capture (see below).</li>
+<li><strong>The first frame waits for the screen to settle.</strong> The consent activity
+  finishes on the main thread of the same process, and its task leaves the front
+  a frame or two later; <code>PotsikScreenCaptureService</code> asks for the first frame
+  after <code>CONSENT_SETTLE_MS</code> (150 ms) instead of in the same frame the display is
+  created, so the shot is of the screen that is really there. Later taps in the
+  same session are not delayed: nothing is transitioning then.</li>
+</ul>
+<p>If a shot ever does come out wrong on a particular OEM build, the pill still
+says what it is doing («Нужно разрешение на снимок экрана» while the dialog is
+up) and offers [Повторить] on failure, so the feature never looks dead.</p>
 <h2 id="consent-is-granted-once-per-mode">Consent is granted once per mode</h2>
 <p>The system dialog on every tap is a feature nobody uses, so the session is
 created once and lives while the cloud is open:</p>
