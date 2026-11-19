@@ -129,6 +129,17 @@ object WebPanels {
     const val HERMES_HELP = "hermes webapp --help"
 
     /**
+     * The renderer bundle `hermes webapp` serves, inside the checkout Hermes'
+     * installer lays down. `hermes webapp --build-only` produces it; when that
+     * step failed the install is still usable but the panel would open blank, so
+     * the row says so instead.
+     */
+    const val HERMES_BUNDLE = "/root/.hermes/hermes-agent/apps/desktop/dist-webapp/index.html"
+
+    /** True when the bundle above is there — the honest answer to "is it built?". */
+    const val HERMES_BUNDLE_CHECK = "test -f $HERMES_BUNDLE"
+
+    /**
      * [preferred] when free, otherwise the next free port within
      * [PORT_ATTEMPTS]; null when that whole window is taken, which the caller
      * reports as an error instead of starting on a port nobody can open.

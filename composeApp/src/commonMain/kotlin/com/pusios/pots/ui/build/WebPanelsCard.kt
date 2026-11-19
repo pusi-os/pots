@@ -106,7 +106,9 @@ private fun WebPanelRow(
     onSetAutostart: (String, Boolean) -> Unit,
     onPassword: (String) -> String?,
 ) {
-    var revealed by remember(panel.id, state.status) { mutableStateOf(false) }
+    // The password is fetched when the button is tapped, not while composing: the
+    // getter reads stored settings, and composing must stay free of side effects.
+    var revealedPassword by remember(panel.id, state.status) { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -169,9 +171,12 @@ private fun WebPanelRow(
                         .handCursor(),
                 )
                 if (panel.passwordEnv != null) {
-                    PasswordLine(panel = panel, revealed = revealed, onPassword = onPassword) {
-                        revealed = !revealed
-                    }
+                    PasswordLine(
+                        password = revealedPassword,
+                        onToggle = {
+                            revealedPassword = if (revealedPassword == null) onPassword(panel.id) else null
+                        },
+                    )
                 }
             }
 
@@ -206,9 +211,7 @@ private fun WebPanelRow(
 /** Hidden by default: a password on screen is a password in a screenshot. */
 @Composable
 private fun PasswordLine(
-    panel: WebPanel,
-    revealed: Boolean,
-    onPassword: (String) -> String?,
+    password: String?,
     onToggle: () -> Unit,
 ) {
     Row(
@@ -216,9 +219,9 @@ private fun PasswordLine(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (revealed) {
+        if (password != null) {
             Text(
-                text = onPassword(panel.id).orEmpty(),
+                text = password,
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -228,7 +231,7 @@ private fun PasswordLine(
         TextButton(onClick = onToggle, modifier = Modifier.handCursor()) {
             Text(
                 stringResource(
-                    if (revealed) {
+                    if (password != null) {
                         Res.string.pots_build_web_panel_password_hide
                     } else {
                         Res.string.pots_build_web_panel_password_show

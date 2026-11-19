@@ -562,7 +562,9 @@ class BuildEnvironmentManager(
 
     fun stopWebPanel(panelId: String) = webPanels.stop(panelId)
 
-    fun setWebPanelAutostart(panelId: String, enabled: Boolean) = webPanels.setAutostart(panelId, enabled)
+    fun setWebPanelAutostart(panelId: String, enabled: Boolean) {
+        webPanels.setAutostart(panelId, enabled)
+    }
 
     fun webPanelPassword(panelId: String): String? = webPanels.password(panelId)
 

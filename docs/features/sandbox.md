@@ -208,13 +208,22 @@ port from `webapp.port` in `~/.hermes/config.yaml`, so the panel replaces that
 one block (`SandboxAgentConfig.withWebappPort`) before starting it, and reports
 the port the printed link carries.
 
+The probe itself runs under `/bin/bash`, not `/bin/sh`: it connects through
+bash's `/dev/tcp`, which is not POSIX and which the image's `/bin/sh` (dash) does
+not have — under dash the redirect fails, which would read as "nothing is
+listening" and as "the port is free" at the same time. Only a refused connection
+counts as free; a probe that did not run at all (bash missing, proot error,
+timeout) is reported as taken, so a broken probe can never hand out a port
+someone else is on.
+
 ### Passwords
 
 OpenCode and pi-web get a generated 24-character password on first start
 (`OPENCODE_SERVER_PASSWORD`, `PI_WEB_PASSWORD`), stored in Pots' settings and
-shown on request. It travels in the process environment only: not on the command
-line (so it is not in `ps`), and not in the panel log. Hermes has no panel
-password — each browser is signed in by a one-use link instead.
+shown on request — the row fetches it when the button is tapped, so a panel that
+never started has none to show. It travels in the process environment only: not
+on the command line (so it is not in `ps`), and not in the panel log. Hermes has
+no panel password — each browser is signed in by a one-use link instead.
 
 ### Hermes' link is one-use
 

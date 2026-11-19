@@ -49,6 +49,25 @@ interface WebPanelGuest {
 }
 
 /**
+ * A loopback probe that answers in three distinguishable ways.
+ *
+ * `/dev/tcp` is a bash extension and the sandbox's `/bin/sh` is dash, so the
+ * probe names bash explicitly — under `/bin/sh` the redirect simply fails, which
+ * would read as "nothing is listening" forever. Exit codes: 0 = something
+ * answered, 3 = the connection was refused (nothing listening), anything else =
+ * the probe itself did not run (bash missing, proot error, timeout) and proves
+ * nothing at all.
+ */
+internal fun portProbeCommand(port: Int): String =
+    "/bin/bash -c 'if (exec 3<>/dev/tcp/127.0.0.1/$port) 2>/dev/null; then exit 0; else exit 3; fi'"
+
+/**
+ * Only a refused connection means free. An unanswered probe must never be read
+ * as "the port is free" — that is how a panel ends up started on top of another.
+ */
+internal fun portIsFree(exitCode: Int): Boolean = exitCode == 3
+
+/**
  * Starts, stops and reports the coding agents' web panels.
  *
  * The rules it exists to keep:
@@ -75,13 +94,6 @@ class WebPanelRuntime(
     private val mutex = Mutex()
     private val states = LinkedHashMap<String, WebPanelState>()
 
-    /**
-     * Passwords minted during this run, keyed by panel id. Settings hold the
-     * durable copy; this is what makes the value stable before a save has
-     * round-tripped, so two calls a moment apart cannot disagree.
-     */
-    private val passwords = LinkedHashMap<String, String>()
-
     fun refresh() = scope.launch { refreshPanels() }
 
     fun start(panelId: String) = scope.launch { startPanel(panelId) }
@@ -91,17 +103,29 @@ class WebPanelRuntime(
     /** Brings up every panel whose toggle is on, and leaves the running ones alone. */
     fun ensureAutostart() = scope.launch { ensureAutostartPanels() }
 
-    fun setAutostart(panelId: String, enabled: Boolean) {
-        val panel = WebPanels.get(panelId) ?: return
-        savePrefs(panel.id, prefs(panel.id).copy(autostart = enabled))
-        publishStates { states[panel.id] = (states[panel.id] ?: WebPanelState(panel.id)).copy(autostart = enabled) }
+    /** Goes through the same lock as the rest of the state machine — one owner, no races. */
+    fun setAutostart(panelId: String, enabled: Boolean) = scope.launch {
+        mutex.withLock {
+            val panel = WebPanels.get(panelId) ?: return@withLock
+            savePrefs(panel.id, prefs(panel.id).copy(autostart = enabled))
+            publishStates {
+                states[panel.id] = (states[panel.id] ?: WebPanelState(panel.id)).copy(autostart = enabled)
+            }
+        }
     }
 
-    /** The panel's password, generating and storing one on first ask. */
+    /**
+     * The password a panel was given on its first start, or null when it has
+     * never started.
+     *
+     * Generated in one place only — [startLocked], under the lock — so two
+     * readers can never be handed two different values, and nothing here writes
+     * to shared state.
+     */
     fun password(panelId: String): String? {
         val panel = WebPanels.get(panelId) ?: return null
         if (panel.passwordEnv == null) return null
-        return passwordFor(panel)
+        return prefs(panel.id).password?.takeIf { it.isNotEmpty() }
     }
 
     /**
@@ -185,6 +209,17 @@ class WebPanelRuntime(
                 setState(panel, WebPanelStatus.Failed("this Hermes build has no webapp command"))
                 return
             }
+            // The command exists but the renderer was never built: the link would
+            // open on a blank page, which reads as a broken app. Say it instead.
+            if (!guest.run(WebPanels.HERMES_BUNDLE_CHECK, STATUS_TIMEOUT_SECONDS).success) {
+                setState(
+                    panel,
+                    WebPanelStatus.Failed(
+                        "Hermes' webapp is not built — run `hermes webapp --build-only` in the sandbox",
+                    ),
+                )
+                return
+            }
             startHermes(panel, port)
             return
         }
@@ -263,16 +298,16 @@ class WebPanelRuntime(
     }
 
     /**
-     * The panel's password: the one it was given before, or a fresh one stored on
-     * first ask. Stable for the life of the install — the agent keeps answering
-     * with it, so a new one per start would lock out an already open browser tab.
+     * The panel's password: the one it was given on its first start, or a fresh
+     * one stored now. Stable for the life of the install — the agent keeps
+     * answering with it, so a new one per start would lock out an already open
+     * browser tab. Only ever called under the lock, from [startLocked].
      */
     private fun passwordFor(panel: WebPanel): String {
-        passwords[panel.id]?.let { return it }
         val stored = prefs(panel.id).password?.takeIf { it.isNotEmpty() }
-        val password = stored ?: WebPanelPasswords.generate()
-        passwords[panel.id] = password
-        if (stored == null) savePrefs(panel.id, prefs(panel.id).copy(password = password))
+        if (stored != null) return stored
+        val password = WebPanelPasswords.generate()
+        savePrefs(panel.id, prefs(panel.id).copy(password = password))
         return password
     }
 
@@ -289,9 +324,10 @@ class WebPanelRuntime(
 
     /** Polls the guest's loopback until something answers there, or gives up. */
     private fun waitForPort(port: Int, seconds: Long): String = buildString {
-        append("i=0; while [ ${'$'}i -lt $seconds ]; do ")
+        // bash by name: `/dev/tcp` is not POSIX, and the guest's `/bin/sh` is dash.
+        append("/bin/bash -c 'i=0; while [ ${'$'}i -lt $seconds ]; do ")
         append("if (exec 3<>/dev/tcp/127.0.0.1/$port) 2>/dev/null; then exit 0; fi; ")
-        append("sleep 1; i=${'$'}((i+1)); done; exit 1")
+        append("sleep 1; i=${'$'}((i+1)); done; exit 1'")
     }
 
     /** `kill -TERM`, wait, then `kill -KILL` — a server gets a chance to close its port. */

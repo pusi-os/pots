@@ -60,6 +60,13 @@ object SandboxAgentConfig {
     const val PLACEHOLDER_API_KEY = "pots-no-key"
 
     /**
+     * The comment that introduces the `webapp:` block. Kept as one constant
+     * because [withWebappPort] has to recognise and drop it along with the block
+     * it belongs to — otherwise every rewrite leaves another copy behind.
+     */
+    private const val WEBAPP_MARKER = "# Written by Pots: the Webapp panel listens on loopback only."
+
+    /**
      * Env var Hermes reads the API key from; `key_env` in its config points here.
      * OpenCode names the same variable in its own config (`{env:...}`) so the app
      * keeps one namespace for provider keys instead of one per agent — the value
@@ -247,7 +254,7 @@ object SandboxAgentConfig {
      * ticket for this phone's own browser, not a hostname.
      */
     fun webappConfig(port: Int): String = buildString {
-        appendLine("# Written by Pots: the Webapp panel listens on loopback only.")
+        appendLine(WEBAPP_MARKER)
         appendLine("webapp:")
         appendLine("  enabled: true")
         appendLine("  host: 127.0.0.1")
@@ -261,11 +268,14 @@ object SandboxAgentConfig {
      * The panel rewrites the port this way when its preferred one is taken: the
      * rest of the file is somebody else's (Hermes writes into it too), so only the
      * block Pots owns is replaced — no YAML parser, no reformatting of the rest.
+     * The block's own marker comment is dropped with it and re-emitted by
+     * [webappConfig], so rewriting twice does not pile up copies.
      */
     fun withWebappPort(yaml: String, port: Int): String {
         val kept = mutableListOf<String>()
         var inWebapp = false
         for (line in yaml.lines()) {
+            if (line.trimEnd() == WEBAPP_MARKER) continue
             val topLevel = line.isNotEmpty() && !line.first().isWhitespace() && !line.startsWith("#")
             if (topLevel) inWebapp = line.trimEnd() == "webapp:"
             if (!inWebapp) kept += line

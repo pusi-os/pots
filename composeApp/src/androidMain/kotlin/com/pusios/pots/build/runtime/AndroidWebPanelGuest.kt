@@ -5,6 +5,8 @@ import com.pusios.pots.build.SandboxAgentConfig
 import com.pusios.pots.build.WebPanel
 import com.pusios.pots.build.WebPanelGuest
 import com.pusios.pots.build.WebPanels
+import com.pusios.pots.build.portIsFree
+import com.pusios.pots.build.portProbeCommand
 import com.pusios.pots.linux.LinuxPaths
 import com.pusios.pots.tools.hostProcessAlive
 import java.io.File
@@ -71,10 +73,24 @@ class AndroidWebPanelGuest(
 
     override fun alive(pid: Int): Boolean = hostProcessAlive(pid)
 
-    /** The guest's own loopback check: a bash `/dev/tcp` connect fails when nothing listens. */
-    override fun portFree(port: Int): Boolean = !executor(emptyMap())
-        .execute("(exec 3<>/dev/tcp/127.0.0.1/$port) 2>/dev/null", timeoutSeconds = 20)
-        .success
+    /**
+     * The guest's own loopback check: a bash `/dev/tcp` connect is refused when
+     * nothing listens, and only a refusal counts as free. A probe that did not
+     * run at all (bash missing, proot error, timeout — exit -1) says nothing
+     * about the port, so it is reported as taken: `pickPort` then walks on and
+     * fails loudly instead of handing out a port someone else is on.
+     */
+    override fun portFree(port: Int): Boolean {
+        val result = executor(emptyMap()).execute(portProbeCommand(port), timeoutSeconds = 20)
+        if (result.exitCode != 0 && result.exitCode != 3) {
+            Log.w(
+                TAG,
+                "port probe on $port gave no answer (exit ${result.exitCode}): " +
+                    (result.error ?: result.stderr.take(200)),
+            )
+        }
+        return portIsFree(result.exitCode)
+    }
 
     override fun forget(panel: WebPanel) {
         runCatching { File(paths.tmpDir, panel.pidFile).delete() }

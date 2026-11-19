@@ -56,6 +56,52 @@ class WebPanelsTest {
         assertNull(WebPanels.pickPort(65535) { true })
     }
 
+    // --- the probe itself -------------------------------------------------
+
+    // These two are string tests on purpose: the probe lives in the command that
+    // goes to the guest, and the fake guest answers instead of executing it. A
+    // probe written for `/bin/sh` (dash, in the image) fails to open `/dev/tcp`
+    // at all — which reads as "nothing is listening" and as "the port is free",
+    // both wrong — and no fake would ever notice.
+
+    @Test
+    fun `the port probe runs under bash, because dev tcp is not POSIX`() {
+        val command = portProbeCommand(4096)
+        assertTrue(command.startsWith("/bin/bash -c '"), command)
+        assertContains(command, "/dev/tcp/127.0.0.1/4096")
+        assertFalse(command.contains("/bin/sh"), command)
+    }
+
+    @Test
+    fun `only a refused connection means the port is free`() {
+        assertTrue(portIsFree(3), "connection refused")
+        assertFalse(portIsFree(0), "something answered")
+        assertFalse(portIsFree(127), "command not found — the probe never ran")
+        assertFalse(portIsFree(-1), "proot error or timeout")
+    }
+
+    @Test
+    fun `waiting for a panel runs under bash too`() = runTest {
+        val guest = FakeGuest()
+        runtime(this, guest).startPanel("opencode")
+
+        val waited = guest.runs.single { it.contains("/dev/tcp") }
+        assertTrue(waited.startsWith("/bin/bash -c '"), waited)
+    }
+
+    @Test
+    fun `a probe that cannot run never hands out the port`() = runTest {
+        // Every probe failing the way a broken shell fails: nothing may be
+        // reported free, so the panel ends as a sentence, not on a taken port.
+        val guest = FakeGuest().apply { probeAnswers = false }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("opencode"))
+        assertContains(failed.reason, "all busy")
+        assertTrue(guest.commands.isEmpty(), "no server on a port nobody could check")
+    }
+
     // --- commands ---------------------------------------------------------
 
     @Test
@@ -323,12 +369,22 @@ class WebPanelsTest {
 
     @Test
     fun `the password is generated once and then reused`() = runTest {
-        val runtime = runtime(this, FakeGuest())
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
         val first = runtime.password("opencode")
+        runtime.stopPanel("opencode")
+        runtime.startPanel("opencode")
         val second = runtime.password("opencode")
 
         assertTrue(!first.isNullOrEmpty())
         assertEquals(first, second)
+    }
+
+    @Test
+    fun `a panel that never started has no password yet`() = runTest {
+        val runtime = runtime(this, FakeGuest())
+        assertNull(runtime.password("opencode"))
     }
 
     @Test
@@ -415,6 +471,18 @@ class WebPanelsTest {
     }
 
     @Test
+    fun `a Hermes whose webapp was never built says so instead of opening a blank page`() = runTest {
+        val guest = FakeGuest().apply { hasBundle = false }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "not built")
+        assertContains(failed.reason, "--build-only")
+        assertFalse(guest.runs.any { it.startsWith("hermes webapp --no-open") }, "no link on a blank page")
+    }
+
+    @Test
     fun `starting Hermes reports the port its link actually carries`() = runTest {
         val guest = FakeGuest().apply {
             busy += 9120
@@ -449,6 +517,14 @@ class WebPanelsTest {
         assertFalse(twice.contains("9121"), twice)
     }
 
+    @Test
+    fun `rewriting the webapp port does not pile up the block's comment`() {
+        val once = SandboxAgentConfig.withWebappPort("model:\n  default: 'x'\n", 9121)
+        val twice = SandboxAgentConfig.withWebappPort(once, 9122)
+
+        assertEquals(1, twice.lines().count { it.startsWith("# Written by Pots") }, twice)
+    }
+
     // --- helpers ----------------------------------------------------------
 
     /** What the runtime last published; one runtime per test, so one map is enough. */
@@ -460,16 +536,22 @@ class WebPanelsTest {
         scope: CoroutineScope,
         guest: WebPanelGuest,
         installed: Set<String> = BuildAgents.all.map { it.id }.toSet(),
-        prefs: (String) -> WebPanelPreferences = { WebPanelPreferences() },
-    ): WebPanelRuntime = WebPanelRuntime(
-        guest = guest,
-        prefs = prefs,
-        savePrefs = { _, _ -> },
-        installed = { installed },
-        publish = { panels -> published = panels },
-        scope = scope,
-        startTimeoutSeconds = 5,
-    )
+        prefs: ((String) -> WebPanelPreferences)? = null,
+    ): WebPanelRuntime {
+        // Settings live here, the way they live in the app: a password written on
+        // one start has to be readable on the next read, or "generated once"
+        // cannot be told from "generated every time".
+        val saved = mutableMapOf<String, WebPanelPreferences>()
+        return WebPanelRuntime(
+            guest = guest,
+            prefs = { id -> prefs?.invoke(id) ?: saved[id] ?: WebPanelPreferences() },
+            savePrefs = { id, preferences -> saved[id] = preferences },
+            installed = { installed },
+            publish = { panels -> published = panels },
+            scope = scope,
+            startTimeoutSeconds = 5,
+        )
+    }
 
     /**
      * A guest that answers the way a Debian rootfs would, without one: ports,
@@ -488,6 +570,10 @@ class WebPanelsTest {
         var listensAfterLaunch = true
         var ignoreSignals = false
         var hasWebapp = true
+        var hasBundle = true
+
+        /** When false, every probe fails the way a shell without `/dev/tcp` does. */
+        var probeAnswers = true
         var status = ""
         var log = ""
         var forgotten = false
@@ -499,10 +585,11 @@ class WebPanelsTest {
             runs += command
             return when {
                 command == WebPanels.HERMES_HELP -> WebPanelGuest.Output(hasWebapp, "usage: hermes webapp")
+                command == WebPanels.HERMES_BUNDLE_CHECK -> WebPanelGuest.Output(hasBundle)
                 command.startsWith("hermes webapp --no-open") ->
                     WebPanelGuest.Output(true, hermesLinks.removeFirstOrNull().orEmpty())
                 command == "hermes webapp --status" -> WebPanelGuest.Output(status.isNotEmpty(), status)
-                command.startsWith("i=0; while") -> WebPanelGuest.Output(listening.isNotEmpty())
+                command.startsWith("/bin/bash -c 'i=0; while") -> WebPanelGuest.Output(listening.isNotEmpty())
                 command.startsWith("kill -TERM") -> {
                     if (!ignoreSignals) {
                         alive.clear()
@@ -535,7 +622,7 @@ class WebPanelsTest {
 
         override fun alive(pid: Int): Boolean = pid in alive
 
-        override fun portFree(port: Int): Boolean = port !in listening && port !in busy
+        override fun portFree(port: Int): Boolean = probeAnswers && port !in listening && port !in busy
 
         override fun forget(panel: WebPanel) {
             forgotten = true
