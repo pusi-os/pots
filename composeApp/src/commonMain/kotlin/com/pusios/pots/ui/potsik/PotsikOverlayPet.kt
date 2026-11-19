@@ -23,6 +23,7 @@ import com.pusios.pots.LocalAppLanguageCode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
 import kotlin.time.TimeSource
 
 /**
@@ -30,10 +31,13 @@ import kotlin.time.TimeSource
  * a window that is exactly his size, with the band above his head reserved
  * for the speech bubble.
  *
- * The same renderer and the same engine the chat runs, and the same parked
- * frame clock — at rest he breathes at a few frames a second and asks for no
- * frames in between, which is what keeps a window floating over somebody
- * else's app from redrawing the whole time.
+ * The same renderer and the same engine the chat runs, but not the same clock:
+ * this surface floats over somebody else's app on a screen that is lit, so at
+ * rest it keeps [WINDOW_IDLE_FRAME_MS] (30 frames a second) instead of the
+ * in-app breathing roll — the breath is the same 1100 ms, sampled 33 times
+ * instead of four, and the staircase the owner saw is gone. The clock parks
+ * outright only while the screen is dark, where nothing of him is visible at
+ * all ([potsikParkSleepMs], [PotsikScreen]).
  *
  * He is alone here: no anchors, no room to walk — the window is the room.
  * A tap pets him; the window itself is dragged by the platform shell around
@@ -59,7 +63,12 @@ fun PotsikOverlayPet(
 ) {
     val isRussian = LocalAppLanguageCode.current.lowercase().startsWith("ru")
     val behaviour = look.behaviour()
-    val engine = remember(behaviour, isRussian) { PotsikEngine(behaviour) { isRussian } }
+    // The window's own tempo, not the in-app breathing roll: this is the one
+    // surface that floats over a screen somebody is looking at, and four
+    // frames a second there is a stutter.
+    val engine = remember(behaviour, isRussian) {
+        PotsikEngine(behaviour, idleFrameMs = potsikIdleFrameMs(overlayWindow = true)) { isRussian }
+    }
 
     // His own clock, running on the wall: the window has no test clock to
     // borrow, and the poses only ever need the time that has passed.
@@ -90,14 +99,24 @@ fun PotsikOverlayPet(
                 engine.tick(now)
                 engine.isAnimating(now)
             }
-            if (!animating) {
-                // Parked on the engine's own deadlines, the way the in-app
-                // overlay parks: the breathing tick wakes him a few times a
-                // second, and anything from the outside wakes him at once.
+            // Two reasons to stop asking for frames, and only one of them is
+            // the old economy mode: a dark screen shows nothing of him, so the
+            // clock sleeps outright; a lit screen only pauses between the
+            // deadlines of the tempo this surface keeps (33 ms on the window),
+            // because somebody is looking at him.
+            //
+            // Read from the state, not from a captured value: the loop is not
+            // restarted when the screen flips, so the screen coming back wakes
+            // the park through the signal below.
+            val screenOn = PotsikScreen.interactive.value
+            if (!animating || !screenOn) {
                 val parkedAt = timeBase.elapsedNow().inWholeMilliseconds
                 val deadline = engine.nextEventAt(parkedAt)
-                parkUntil(deadline?.minus(parkedAt)?.coerceAtLeast(1L)) {
-                    engine.motion.dropWhile { it == seenMotion }.first()
+                parkUntil(potsikParkSleepMs(screenOn, deadline, parkedAt)) {
+                    merge(
+                        engine.motion.dropWhile { it == seenMotion },
+                        PotsikScreen.interactive.dropWhile { it == screenOn },
+                    ).first()
                 }
             }
         }

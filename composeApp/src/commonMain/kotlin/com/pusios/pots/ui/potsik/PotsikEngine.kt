@@ -41,6 +41,17 @@ data class PotsikBox(
 internal class PotsikEngine(
     /** The settings that change how he behaves. */
     private val settings: PotsikSettings,
+    /**
+     * How often he wakes himself while he is at rest, in milliseconds.
+     *
+     * Null is the in-app breathing roll — [BREATHE_MIN_MS] to
+     * [BREATHE_MAX_MS], four to eight frames a second — which is right for a
+     * character sharing a screen with the chat: the app is drawing a screen
+     * nobody touched, and the clock parks between the ticks. The window over
+     * other apps passes [WINDOW_IDLE_FRAME_MS] instead, because that 1100 ms
+     * breath sampled four times is what the owner saw as a stutter.
+     */
+    private val idleFrameMs: Long? = null,
     /** True when the app is in Russian. */
     private val isRussian: () -> Boolean,
 ) {
@@ -188,8 +199,9 @@ internal class PotsikEngine(
      * them is a character that never wakes on its own: no touch, no banter.
      *
      * At rest the breathing tick keeps the deadline close — [BREATHE_MIN_MS]
-     * to [BREATHE_MAX_MS] out — so a quiet screen shows him at a few frames
-     * a second: alive, but nothing like the full-rate redraw that kept the
+     * to [BREATHE_MAX_MS] out, or [idleFrameMs] when the surface that draws
+     * him asked for a steadier one — so a quiet screen shows him at that
+     * tempo: alive, but nothing like the full-rate redraw that kept the
      * phone warm. The throw needs no deadline here: while it runs,
      * [isAnimating] is true and the clock does not park at all.
      */
@@ -208,10 +220,16 @@ internal class PotsikEngine(
         if (dropStart != 0L) consider(dropStart + DROP_MS + LAND_MS)
         if (flickStart != 0L) consider(flickStart + FLICK_OUT_MS + FLICK_HOLD_MS + FLICK_BACK_MS)
         if (mood == PotsikMood.IDLE && !isAnimating(now)) {
-            consider(now + BREATHE_MIN_MS + random.nextInt((BREATHE_MAX_MS - BREATHE_MIN_MS).toInt() + 1))
+            consider(now + (idleFrameMs ?: breathingStepMs()))
         }
         return next
     }
+
+    /**
+     * The in-app breathing tick: 125–250 ms, jittered so a screen full of
+     * characters does not breathe in lockstep.
+     */
+    private fun breathingStepMs(): Long = BREATHE_MIN_MS + random.nextInt((BREATHE_MAX_MS - BREATHE_MIN_MS).toInt() + 1)
 
     private val _motion = MutableStateFlow(0)
 

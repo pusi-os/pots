@@ -51,7 +51,7 @@ fun PotsikAvatar(
 
     val isRussian = LocalAppLanguageCode.current.lowercase().startsWith("ru")
     val behaviour = look.behaviour()
-    val engine = remember(behaviour, isRussian) { PotsikEngine(behaviour, { isRussian }) }
+    val engine = remember(behaviour, isRussian) { PotsikEngine(behaviour, isRussian = { isRussian }) }
 
     // The character's own clock. It runs on the wall, not on the frames, so
     // an animation that starts while the frame clock is parked still gets

@@ -235,6 +235,34 @@ coordinates and a character put down low in portrait would otherwise sit past
 the bottom edge in landscape. The new place is written to the prefs, so he
 comes back where he was left.
 
+The window keeps its own frame tempo. Inside the app the character's clock
+parks between breathing ticks — a few frames a second — which is free on a
+screen the chat already owns; on a window floating over somebody else's app
+that same tempo sampled an 1100 ms breath four times, and the owner saw the
+staircase. The window therefore asks for a frame every `WINDOW_IDLE_FRAME_MS`
+(33 ms, ~30 fps) while it is at rest: `potsikIdleFrameMs(overlayWindow = true)`
+feeds the engine's `idleFrameMs`, half the cost of an honest 60 fps and 33
+samples per breath, so the steps are gone. The in-app surface passes nothing
+and keeps the breathing roll — parking there is right, because the app is
+drawing a screen nobody touched.
+
+The clock parks outright only while the screen is dark. The service reports
+`PowerManager.isInteractive` — seeded when the receiver is registered, flipped
+on `ACTION_SCREEN_OFF` and `ACTION_SCREEN_ON`, and reset to "lit" when the
+receiver goes away, so the flag can never stay stuck on a window that is no
+longer there — through `PotsikScreen`, and `potsikParkSleepMs` turns it into
+the sleep: a lit screen sleeps to the engine's next deadline (33 ms on the
+window), a dark one sleeps until the screen comes back or something touches
+him. That is the whole of the old economy mode, kept where it belongs; nothing
+drops into it while somebody is looking at him.
+
+The window's own transactions are coalesced too. A drag writes the params on
+every touch event — that is the last place the finger put him — and applies
+them with a single `updateViewLayout` on the next frame (`postOnAnimation`),
+because a queue of window-manager transactions behind a fast finger is what
+made the window trail it. The pinch goes through the same door, so the window
+and the character inside it grow on the same frame.
+
 ## The agent's tool
 
 **Settings → Tools** has a switch for **Потсик**; the on-device model can be
@@ -322,9 +350,10 @@ The app has no catch counter, so every costume is available from the start.
 | `composeApp/.../ui/potsik/PotsikShapes.kt` | The drawing primitives the firmware's `TFT_eSPI` calls became |
 | `composeApp/.../ui/potsik/PotsikModel.kt` | The moods, the emote poses, the costumes and the settings |
 | `composeApp/.../ui/potsik/PotsikLook.kt` | `PotsikLook` — everything the user can change, and `withSizeMigrated()` |
-| `composeApp/.../ui/potsik/DesktopPet.kt` | The desktop window's numbers: his size, the pinch (`pinchedPotsikSize`), the window clamp (`clampWindowOffset`), the carry state and the drag's animation |
+| `composeApp/.../ui/potsik/DesktopPet.kt` | The desktop window's numbers: his size, the pinch (`pinchedPotsikSize`), the window clamp (`clampWindowOffset`), the idle tempo and the park (`potsikIdleFrameMs`, `potsikParkSleepMs`), the carry and screen state, and the drag's animation |
 | `composeApp/.../ui/potsik/DesktopPetPlatform.kt` | What the platform offers (`desktopPetAvailability()`), the row it implies (`desktopPetRow()`), the permission and the service calls |
-| `composeApp/.../androidMain/.../overlay/PotsOverlayService.kt` | The system window itself: the service, the shell view with the drag and the pinch, the foreground notification |
+| `composeApp/.../androidMain/.../overlay/PotsOverlayService.kt` | The system window itself: the service, the shell view with the drag and the pinch (one `updateViewLayout` per frame), the screen receiver, the foreground notification |
+| `composeApp/.../jvmShared/.../overlay/PotsOverlayForegroundTypes.kt` | `foregroundTypes()` — which `startForeground` types the service declares, pure and tested |
 | `composeApp/.../ui/potsik/PotsikAnimation.kt` | `PotsikAction` — the catalogue the agent's tool names |
 | `composeApp/.../ui/potsik/PotsikAvatar.kt` | The character on his own, and the frozen-pose preview |
 | `composeApp/.../ui/potsik/PotsikStage.kt` | Where he is: the anchors, the pinned position, the size, the engine, and the bounds (`clampPlacement`) that keep him on the screen |

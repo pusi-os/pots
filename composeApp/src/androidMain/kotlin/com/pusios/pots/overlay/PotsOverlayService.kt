@@ -9,13 +9,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.DisplayMetrics
 import android.util.Log
@@ -57,6 +57,7 @@ import com.pusios.pots.ui.potsik.PotsikCarry
 import com.pusios.pots.ui.potsik.PotsikCloudPhase
 import com.pusios.pots.ui.potsik.PotsikOverlayPet
 import com.pusios.pots.ui.potsik.PotsikPinch
+import com.pusios.pots.ui.potsik.PotsikScreen
 import com.pusios.pots.ui.potsik.clampWindowOffset
 import com.pusios.pots.ui.potsik.desktopPetCharacterSize
 import com.pusios.pots.ui.potsik.pinchedPotsikSize
@@ -129,10 +130,21 @@ class PotsOverlayService : Service() {
     /** What the cloud shows, as Compose state: the character's window redraws from it. */
     private val cloudPhase = mutableStateOf<PotsikCloudPhase?>(null)
 
-    /** Screen off: the cloud closes and the microphone stops with it. */
+    /**
+     * Screen off closes the cloud and the microphone with it; both actions
+     * also tell the common layer whether the screen is lit, which is the one
+     * thing that lets the character's clock stop asking for frames.
+     */
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_SCREEN_OFF) closeCloud()
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    closeCloud()
+                    PotsikScreen.setInteractive(false)
+                }
+
+                Intent.ACTION_SCREEN_ON -> PotsikScreen.setInteractive(true)
+            }
         }
     }
     private var screenReceiverRegistered = false
@@ -432,8 +444,19 @@ class PotsOverlayService : Service() {
     private fun registerScreenReceiver() {
         if (screenReceiverRegistered) return
         runCatching {
-            registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
+            registerReceiver(
+                screenReceiver,
+                IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_SCREEN_ON)
+                },
+            )
             screenReceiverRegistered = true
+            // The receiver only hears the flips, so the state it reports has
+            // to start from the truth: a window born on a dark screen must not
+            // breathe, and one born on a lit screen after a stop that happened
+            // in the dark must not come back frozen.
+            PotsikScreen.setInteractive(screenIsOn())
         }
     }
 
@@ -441,7 +464,14 @@ class PotsOverlayService : Service() {
         if (!screenReceiverRegistered) return
         runCatching { unregisterReceiver(screenReceiver) }
         screenReceiverRegistered = false
+        // Nothing is left listening, so the flag goes back to its safe
+        // default: a "dark" nobody can flip back is a character who never
+        // wakes again.
+        PotsikScreen.setInteractive(true)
     }
+
+    /** `PowerManager.isInteractive` — true while the screen is lit. */
+    private fun screenIsOn(): Boolean = (getSystemService(POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
 
     // ---- foreground notification --------------------------------------------
 
@@ -466,12 +496,10 @@ class PotsOverlayService : Service() {
             .build()
         // Types that need no runtime permission: the fallback the service can
         // always declare. SPECIAL_USE appears only in API 34, and the
-        // three-argument startForeground only in API 29.
-        val baseTypes = if (Build.VERSION.SDK_INT >= 34) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-        } else {
-            0
-        }
+        // three-argument startForeground only in API 29 — the choice itself is
+        // `foregroundTypes`, pure and tested, because a wrong mask here is a
+        // crash the compiler cannot see.
+        val sdkInt = Build.VERSION.SDK_INT
         try {
             // The microphone is a while-in-use permission, not a normal one:
             // the system throws SecurityException when RECORD_AUDIO is not
@@ -479,34 +507,34 @@ class PotsOverlayService : Service() {
             // which is exactly what a START_STICKY restart after a process
             // death is. The pet must not disappear over the microphone, so the
             // type is attempted, not assumed.
-            if (Build.VERSION.SDK_INT >= 30) {
-                startForeground(
-                    NOTIF_ID,
-                    notification,
-                    baseTypes or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
-                )
-            } else if (baseTypes != 0) {
-                startForeground(NOTIF_ID, notification, baseTypes)
-            } else {
-                startForeground(NOTIF_ID, notification)
-            }
+            startForegroundWith(notification, foregroundTypes(sdkInt, withMicrophone = true))
         } catch (e: SecurityException) {
             // Without the microphone the voice flow reports «нет доступа к
             // микрофону» honestly (SpeechToTextError.PermissionDenied); the
             // window itself still exists.
             Log.w("PotsBuild", "microphone FGS type refused, starting without it", e)
             runCatching {
-                if (baseTypes != 0) {
-                    startForeground(NOTIF_ID, notification, baseTypes)
-                } else {
-                    startForeground(NOTIF_ID, notification)
-                }
+                startForegroundWith(notification, foregroundTypes(sdkInt, withMicrophone = false))
             }.onFailure { failed ->
                 // Even the fallback was refused: nothing is left to declare,
                 // and an uncaught throw here would crash the whole app.
                 Log.w("PotsBuild", "overlay foreground start failed", failed)
                 stopSelf()
             }
+        }
+    }
+
+    /**
+     * `startForeground` with the types, or the two-argument form when there are
+     * none to declare: the three-argument call exists from API 29 only, and a
+     * zero mask declares nothing anyway. The version is checked here as well
+     * as in [foregroundTypes], so the call is guarded where lint can see it.
+     */
+    private fun startForegroundWith(notification: Notification, types: Int) {
+        if (types != 0 && Build.VERSION.SDK_INT >= 29) {
+            startForeground(NOTIF_ID, notification, types)
+        } else {
+            startForeground(NOTIF_ID, notification)
         }
     }
 
@@ -611,6 +639,30 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
     private var pinchDone = false
     private var pinchStartSpan = 0f
     private var pinchStartSizeDp = 0f
+
+    /** A window transaction is already queued for the next frame. */
+    private var layoutPending = false
+
+    /**
+     * Applies the window's place and size at most once per frame.
+     *
+     * A finger reports dozens of moves between two frames, and every
+     * `updateViewLayout` is a window-manager transaction on the UI thread —
+     * the queue of them is what made the window trail the finger and judder
+     * at the edges. The params are still written on every event (they are the
+     * last place the finger put him), and the transaction runs on the next
+     * frame with whatever the last event left there. One transaction per
+     * frame is exactly what the screen can show.
+     */
+    private fun scheduleLayoutUpdate() {
+        if (layoutPending) return
+        layoutPending = true
+        postOnAnimation {
+            layoutPending = false
+            val params = windowParams ?: return@postOnAnimation
+            runCatching { windowManager.updateViewLayout(this, params) }
+        }
+    }
 
     fun attachContent(owner: OverlayWindowOwner, content: @Composable () -> Unit) {
         // The three tree owners go on THIS view — the window's root — and not
@@ -732,7 +784,7 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         // He stops at the edge instead of going over it: a pet dragged off the
         // screen is a pet the user cannot get back.
         clampToScreen(params, resources.displayMetrics)
-        runCatching { windowManager.updateViewLayout(this, params) }
+        scheduleLayoutUpdate()
         onDragMoved?.invoke()
     }
 
@@ -740,7 +792,7 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         dragging = false
         PotsikCarry.setCarried(false)
         clampToScreen(params, resources.displayMetrics)
-        runCatching { windowManager.updateViewLayout(this, params) }
+        scheduleLayoutUpdate()
         if (save) onDragEnd?.invoke(params.x, params.y)
     }
 
@@ -766,7 +818,7 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         params.width = widthPx
         params.height = widthPx + (DESKTOP_PET_BUBBLE_ROOM_DP * density).roundToInt()
         clampToScreen(params, resources.displayMetrics)
-        runCatching { windowManager.updateViewLayout(this, params) }
+        scheduleLayoutUpdate()
         // The character inside is drawn from this, so the window and the
         // drawing grow together instead of the window outrunning him.
         PotsikPinch.set(sizeDp)
@@ -778,7 +830,7 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         pinchDone = true
         val params = windowParams ?: return
         clampToScreen(params, resources.displayMetrics)
-        runCatching { windowManager.updateViewLayout(this, params) }
+        scheduleLayoutUpdate()
         onSizeChanged?.invoke(params.width.toFloat())
     }
 

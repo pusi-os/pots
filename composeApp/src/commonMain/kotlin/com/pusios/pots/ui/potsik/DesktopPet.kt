@@ -75,6 +75,36 @@ object PotsikPinch {
 }
 
 /**
+ * Whether the screen the window stands on is lit.
+ *
+ * The platform shell owns the answer — `PowerManager.isInteractive`, which
+ * flips on `ACTION_SCREEN_OFF` and `ACTION_SCREEN_ON` — and reports it here.
+ * It is the one condition under which the character's clock may stop asking
+ * for frames at all: a dark screen shows nothing of him, so a full park costs
+ * nothing. Everything else (a lit screen nobody touches) keeps the clock
+ * ticking at the window's own tempo, because the owner's rule is that he
+ * breathes smoothly the whole way and does not drop into a money-saving mode
+ * while somebody is looking at him.
+ *
+ * Defaults to `true`: a surface that never reports the screen must never leave
+ * the character parked. Whoever owns the receiver resets it on the way out for
+ * the same reason — a flag stuck at "dark" with the window gone is a character
+ * who comes back frozen.
+ */
+object PotsikScreen {
+
+    private val _interactive = MutableStateFlow(true)
+
+    /** True while the screen is on. */
+    val interactive: StateFlow<Boolean> = _interactive.asStateFlow()
+
+    /** The platform reports every screen-off and screen-on it sees. */
+    fun setInteractive(interactive: Boolean) {
+        _interactive.value = interactive
+    }
+}
+
+/**
  * What a finger carrying the character does to him.
  *
  * The carry is the renderer's own pose — `PotsikFrame.dangle`, both arms
@@ -157,6 +187,41 @@ fun clampWindowOffset(
     val maxY = (screenHeight - windowHeight).coerceAtLeast(0)
     return IntOffset(x.coerceIn(0, maxX), y.coerceIn(0, maxY))
 }
+
+/**
+ * How often a parked clock wakes him while he is at rest, on the surface that
+ * draws him: the in-app breathing roll, or the window's own tempo.
+ *
+ * `null` leaves the engine its breathing tick — `BREATHE_MIN_MS` to
+ * `BREATHE_MAX_MS`, four to eight frames a second. That is right inside the
+ * app, where the character shares a screen with the chat and the clock parks
+ * between the ticks; on a window floating over somebody else's app it is the
+ * stutter the owner reported: a 1100 ms breath sampled four times is a
+ * staircase, not a breath.
+ *
+ * A window gets [WINDOW_IDLE_FRAME_MS] — 30 frames a second, half the cost of
+ * an honest 60, and 33 samples per breath, so there are no steps left to see.
+ */
+internal fun potsikIdleFrameMs(overlayWindow: Boolean): Long? = if (overlayWindow) WINDOW_IDLE_FRAME_MS else null
+
+/** 33 ms ≈ 30 fps: a third of a 100 ms tick, and 33 samples per 1100 ms breath. */
+internal const val WINDOW_IDLE_FRAME_MS = 33L
+
+/**
+ * How long the parked clock sleeps, in milliseconds, or `null` to wait for a
+ * signal alone.
+ *
+ * Two conditions, and they are different questions:
+ *
+ * - a **lit** screen keeps the engine's own next deadline — the breathing tick
+ *   in the app, [WINDOW_IDLE_FRAME_MS] on the window. He is being looked at,
+ *   so the clock keeps turning at the tempo of the surface that draws him;
+ * - a **dark** screen is the one case where nothing of him is visible: the
+ *   clock takes the sleep that costs nothing and wakes on the screen coming
+ *   back or on something touching him. That is the whole of the old v3.13.1
+ *   economy mode, kept where it belongs.
+ */
+internal fun potsikParkSleepMs(screenInteractive: Boolean, nextEventAt: Long?, now: Long): Long? = if (!screenInteractive) null else nextEventAt?.minus(now)?.coerceAtLeast(1L)
 
 /** The base size the chat gives him — [PotsikOverlay]'s own default. */
 const val DESKTOP_PET_BASE_SIZE_DP = 132f
