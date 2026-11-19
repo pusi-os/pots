@@ -146,6 +146,8 @@ nothing; it only fires when he was dragged into the lower half.
   «Отправить» action does nothing).
 - The draft lives in `PotsikCloudDraft`, process-wide: closing the field with
   [×] or a tap outside does not throw away what was typed.
+- Only the field's own question clears it: `onSendText` marks the question it
+  sent, and an answer to a voice or screenshot question leaves the draft alone.
 - A question that could not be sent stays as the draft and is marked as not
   sent on the pill, with [Повторить].
 - The microphone has exactly one owner: the cloud's voice loop and the field are

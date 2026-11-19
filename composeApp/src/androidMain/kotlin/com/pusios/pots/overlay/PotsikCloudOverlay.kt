@@ -249,6 +249,9 @@ internal class PotsikCloudOverlay(
         handsFree.stop()
         PotsikCloudVoice.setActive(false)
         asker.reset()
+        // A question nobody will answer now must not leave a marker behind that
+        // clears the draft when the same text is asked by voice later.
+        PotsikCloudDraft.forgetSent()
         cloudState.value = PotsikCloudState()
         runCatching { windowManager.removeView(view) }
         owner?.destroy()
@@ -503,15 +506,13 @@ internal class PotsikCloudOverlay(
     }
 
     private suspend fun onAnswered(answer: PotsikCloudAsker.Answer.Answered) {
-        // The question has gone: the field is cleared only now, so a failed
-        // send keeps what was typed.
-        PotsikCloudDraft.clear()
+        // Only the field's own question clears the field: a voice or screenshot
+        // answer must not throw away what the user typed and left unsent.
+        PotsikCloudDraft.clearIfAnswerTo(answer.question)
         setState(PotsikCloudState(phase = PotsikCloudPhase.Speaking, reply = answer.text))
-        // The controller speaks the reply and reopens the microphone when it is
-        // done — the loop closing itself, exactly as in the app. Without a
-        // synthesizer it goes straight back to listening, so the pill is what
-        // the reply is read on; the controller already allows that
-        // (isSupported only needs a recognizer).
+        // A reply is spoken and the microphone reopened only when the voice loop
+        // is running: onAssistantReply returns at once otherwise (a typed
+        // question leaves it Idle), so the answer just stays on the pill.
         handsFree.onAssistantReply(answer.messageId, answer.text)
     }
 
@@ -547,6 +548,8 @@ internal class PotsikCloudOverlay(
     fun onSendText() {
         val question = PotsikCloudDraft.text.value
         if (!potsikCloudSendEnabled(question)) return
+        // The asker trims, and the answer carries the trimmed text: mark that form.
+        PotsikCloudDraft.markSent(question.trim())
         asker.ask(question)
     }
 
@@ -676,6 +679,7 @@ internal class PotsikCloudOverlay(
         handsFree.stop()
         PotsikCloudVoice.setActive(false)
         asker.reset()
+        PotsikCloudDraft.forgetSent()
         setState(PotsikCloudState())
     }
 

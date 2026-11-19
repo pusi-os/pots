@@ -395,12 +395,39 @@ object PotsikCloudDraft {
 
     val text: StateFlow<String> = _text.asStateFlow()
 
+    /** The question the field last sent; [clearIfAnswerTo] consumes it. */
+    private var sentQuestion: String? = null
+
     fun set(value: String) {
         _text.value = value
     }
 
     fun clear() {
         _text.value = ""
+    }
+
+    /** Remembers [question] as sent from the field, so only its own answer clears the draft. */
+    fun markSent(question: String) {
+        sentQuestion = question
+    }
+
+    /** Forgets the marker when the question is abandoned (close, cancel). */
+    fun forgetSent() {
+        sentQuestion = null
+    }
+
+    /**
+     * Clears the draft only when [question] is the one the field itself sent.
+     *
+     * Voice questions and screenshot questions travel through the same asker,
+     * and their answers must not touch what the user typed — the draft is kept
+     * on purpose when the field is closed. Returns true when it cleared.
+     */
+    fun clearIfAnswerTo(question: String): Boolean {
+        if (sentQuestion == null || sentQuestion != question) return false
+        sentQuestion = null
+        clear()
+        return true
     }
 }
 

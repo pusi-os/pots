@@ -90,4 +90,32 @@ class PotsikCloudStateTest {
         PotsikCloudDraft.clear()
         assertEquals("", PotsikCloudDraft.text.value)
     }
+
+    @Test
+    fun `an answer to a voice question keeps what was typed`() {
+        PotsikCloudDraft.set("недописанная фраза")
+        PotsikCloudDraft.markSent("другой вопрос")
+        assertFalse(PotsikCloudDraft.clearIfAnswerTo("вопрос голосом"))
+        assertEquals("недописанная фраза", PotsikCloudDraft.text.value)
+        PotsikCloudDraft.clear()
+        PotsikCloudDraft.forgetSent()
+    }
+
+    @Test
+    fun `the answer to the typed question clears the field`() {
+        PotsikCloudDraft.set("что тут на экране")
+        PotsikCloudDraft.markSent("что тут на экране")
+        assertTrue(PotsikCloudDraft.clearIfAnswerTo("что тут на экране"))
+        assertEquals("", PotsikCloudDraft.text.value)
+    }
+
+    @Test
+    fun `a question abandoned before its answer does not clear the field`() {
+        PotsikCloudDraft.set("черновик")
+        PotsikCloudDraft.markSent("тот же текст")
+        PotsikCloudDraft.forgetSent()
+        assertFalse(PotsikCloudDraft.clearIfAnswerTo("тот же текст"))
+        assertEquals("черновик", PotsikCloudDraft.text.value)
+        PotsikCloudDraft.clear()
+    }
 }
