@@ -1116,6 +1116,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-menu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The menu
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#lifecycle" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1243,6 +1254,18 @@ not an option — it stopped working on Android 12.</p>
 </table>
 <p>Never below him: from below the capsule covers his body and his own speech
 bubble.</p>
+<h2 id="the-menu">The menu</h2>
+<p>Three 48 dp actions in the spec's 176×64 capsule: «Голос» and «Текст» are filled
+tonal (<code>primaryContainer</code>), «Экран» is <strong>outlined</strong> — the spec's secondary action
+for the one button that raises a system dialog, and last in the row so a stray
+tap near the edge does not start a screen capture
+(<code>pots-overlay-menu-ux.md</code> §7).</p>
+<p>Without a recognizer the voice button is dead (grey glyph, no shape, alpha 0.38)
+and the menu carries the explanation <strong>above</strong> the capsule, growing the window
+by 36 dp (<code>POTSIK_CLOUD_NOTICE_HEIGHT_DP</code>). Above, not under the tail: the
+window's bottom edge is anchored 8 dp above his head, so a line below the tail
+would pull the tail off the head. <code>potsikCloudWindowSize(state, voiceAvailable)</code>
+decides that height and is tested without a device.</p>
 <h2 id="lifecycle">Lifecycle</h2>
 <p>The capsule is taken down when:</p>
 <ul>
@@ -1303,7 +1326,7 @@ added for the cloud.</p>
 <tbody>
 <tr>
 <td>No recognizer on the device</td>
-<td>the voice button is dead (alpha 0.38) and the third slot says why</td>
+<td>the voice button is dead (alpha 0.38, <code>contentDescription</code> «Голосовой режим недоступен») and the line above the capsule says «На этом устройстве нет распознавания речи». The mode cannot be started, so no error pill is reachable from here; <code>NoRecognizer</code> is left for a recognizer that fails mid-session</td>
 </tr>
 <tr>
 <td>Nothing recognised</td>
@@ -1364,6 +1387,10 @@ closes it, and the insets are the system's own business.</p>
 <td>The capsule and the pill (Compose, no platform code)</td>
 </tr>
 <tr>
+<td><code>composeApp/src/commonMain/.../ui/potsik/PotsikScreen.kt</code></td>
+<td>The screen mode of the third button — see <a href="../potsik-screenshot/">the screen mode</a></td>
+</tr>
+<tr>
 <td><code>composeApp/src/commonMain/.../ui/potsik/PotsikCloudAsker.kt</code></td>
 <td>One question into the current chat, one answer out of it</td>
 </tr>
@@ -1387,10 +1414,11 @@ closes it, and the insets are the system's own business.</p>
 </table>
 <h2 id="what-is-not-here">What is not here</h2>
 <ul>
-<li>The «Экран» button (screenshot through <code>MediaProjection</code>) is its own card; the
-  capsule reserves the third slot for it and draws it empty until then.</li>
 <li>No «Открыть Pots» action in the capsule (a v1.1 candidate).</li>
 </ul>
+<p>The third button, «Экран», is <a href="../potsik-screenshot/">its own page</a>: it raises a
+system consent dialog, and a dialog on every tap is a feature nobody uses — so
+it has a mode of its own, with its own lifetime.</p>
 
 
 
