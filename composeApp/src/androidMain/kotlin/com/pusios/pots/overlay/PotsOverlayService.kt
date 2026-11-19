@@ -18,6 +18,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -463,28 +464,49 @@ class PotsOverlayService : Service() {
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .build()
+        // Types that need no runtime permission: the fallback the service can
+        // always declare. SPECIAL_USE appears only in API 34, and the
+        // three-argument startForeground only in API 29.
+        val baseTypes = if (Build.VERSION.SDK_INT >= 34) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        } else {
+            0
+        }
         try {
-            // The runtime declaration is what the manifest only permits: a
-            // type declared in the manifest and not passed here is not granted.
-            // SPECIAL_USE exists from API 34, MICROPHONE from API 30, and the
-            // three-argument startForeground from API 29 — below that there is
-            // nothing to declare.
-            val types = when {
-                Build.VERSION.SDK_INT >= 34 ->
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-
-                Build.VERSION.SDK_INT >= 30 -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-
-                else -> 0
-            }
-            if (types != 0) {
-                startForeground(NOTIF_ID, notification, types)
+            // The microphone is a while-in-use permission, not a normal one:
+            // the system throws SecurityException when RECORD_AUDIO is not
+            // granted, and also when this start comes from the background —
+            // which is exactly what a START_STICKY restart after a process
+            // death is. The pet must not disappear over the microphone, so the
+            // type is attempted, not assumed.
+            if (Build.VERSION.SDK_INT >= 30) {
+                startForeground(
+                    NOTIF_ID,
+                    notification,
+                    baseTypes or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+                )
+            } else if (baseTypes != 0) {
+                startForeground(NOTIF_ID, notification, baseTypes)
             } else {
                 startForeground(NOTIF_ID, notification)
             }
-        } catch (t: Throwable) {
-            stopSelf()
+        } catch (e: SecurityException) {
+            // Without the microphone the voice flow reports «нет доступа к
+            // микрофону» honestly (SpeechToTextError.PermissionDenied); the
+            // window itself still exists.
+            Log.w("PotsBuild", "microphone FGS type refused, starting without it", e)
+            runCatching {
+                if (baseTypes != 0) {
+                    startForeground(NOTIF_ID, notification, baseTypes)
+                } else {
+                    startForeground(NOTIF_ID, notification)
+                }
+            }.onFailure { failed ->
+                // Even the fallback was refused: nothing is left to declare,
+                // and an uncaught throw here would crash the whole app.
+                Log.w("PotsBuild", "overlay foreground start failed", failed)
+                stopSelf()
+            }
         }
     }
 

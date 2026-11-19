@@ -87,6 +87,14 @@ the manifest **and** passed to `startForeground`. `PotsOverlayService` does both
 microphone. Without it `startListening` is accepted, the pill says «Слушаю…» and
 nothing is ever recorded — exactly the defect the owner reported.
 
+The microphone type is *attempted*, never assumed: it is a while-in-use
+permission, so `startForeground` throws `SecurityException` when `RECORD_AUDIO`
+has not been granted yet, and when the service is restarted from the background
+(`START_STICKY` after a process death). The service catches it, logs under
+`PotsBuild`, and starts again with the types that need no permission
+(`specialUse` alone on API 34+, the two-argument call below) — the pet stays on
+the desktop and the voice pill honestly says «Нет доступа к микрофону».
+
 Every recognition session gets a fresh `SpeechRecognizer` instance, and every
 failure is logged with its numeric code under the `PotsStt` tag: `cancel()` is
 asynchronous, so reusing one instance made the second «Голос» of a session answer
@@ -116,7 +124,8 @@ Failure branches, all of them keeping what the user said:
 ## Flow 2 — text
 
 «Текст» turns the capsule into a field: the cloud stays where it is, the window
-grows to 288 dp (one row, the same 72 dp height as the menu), takes input focus
+grows to `POTSIK_CLOUD_INPUT_WIDTH_DP` × `POTSIK_CLOUD_INPUT_HEIGHT_DP`
+(288 × 80 dp — one row, taller than the menu's 72 dp), takes input focus
 and the keyboard comes up. The answer to a typed question appears on the same
 pill the voice loop uses — `Thinking` → `Speaking` — because the question goes
 through `PotsikCloudAsker`, the one send path both flows share. The app is never
