@@ -1428,13 +1428,14 @@
 
 
 <h1 id="daemon-mode">Daemon Mode</h1>
-<p><strong>Last verified:</strong> 2026-10-02</p>
+<p><strong>Last verified:</strong> 2026-11-19</p>
 <p>Pots's daemon mode keeps the app running in the background on Android so that scheduled tasks, heartbeat checks, and email polling continue to execute even when the app is not in the foreground. On other platforms (desktop, iOS, web), daemon mode is a no-op.</p>
 <h2 id="concepts">Concepts</h2>
 <h3 id="daemon-controller">Daemon Controller</h3>
 <p>A platform-abstracted start/stop switch. On Android, it starts and stops an Android foreground service. On all other platforms, it does nothing.</p>
 <h3 id="foreground-service">Foreground Service</h3>
-<p>An Android service that runs with a persistent notification, preventing the system from killing the process. Pots's service uses the data-sync foreground service type and a low-importance notification channel to minimize user disruption.</p>
+<p>An Android service that runs with a persistent notification, preventing the system from killing the process. Pots's service uses the <code>specialUse</code> foreground service type with a <code>PROPERTY_SPECIAL_USE_FGS_SUBTYPE</code> justification and a low-importance notification channel to minimize user disruption.</p>
+<p>It used to be <code>dataSync</code>, which was wrong twice over: keeping the app process alive is not a sync, and on Android 15+ <code>dataSync</code> has a six-hour budget per 24 hours with an <code>onTimeout</code> callback that obliges the service to stop — a daemon meant to be up all day would have gone quiet every afternoon. <code>specialUse</code> has no time budget. The type arrived in API 34, so <code>startForeground</code> passes <code>FOREGROUND_SERVICE_TYPE_SPECIAL_USE</code> from 34 up and is called without a type below that; the manifest attribute is simply ignored by older versions, which is why one service entry covers every supported OS.</p>
 <h2 id="service-lifecycle">Service Lifecycle</h2>
 <ol>
 <li>When daemon mode is enabled in settings, the foreground service is started</li>
@@ -1444,7 +1445,7 @@
 <li>When daemon mode is disabled, the service is stopped and the foreground notification is removed</li>
 <li>On Android 12+, starting the service can be refused when the app isn't in the foreground; the refusal is swallowed so the daemon can be retried later (e.g. on the next return to the foreground)</li>
 <li>If the service cannot promote itself to the foreground once created, it stops itself immediately</li>
-<li>If Android signals that the data-sync foreground service has used up its allowed run time (Android 15+), the service removes its notification and stops itself; it comes back the next time the app is brought to the foreground</li>
+<li>There is no time budget to honour: <code>specialUse</code> is not one of the types Android 15 caps, so there is no <code>onTimeout</code> path and the service stays up until it is stopped or the process dies</li>
 </ol>
 <h2 id="auto-start">Auto-Start</h2>
 <p>Every time the main activity is brought to the foreground, if daemon mode is enabled in settings, the service is (re)started. This runs on app launch as well as on every subsequent return to the foreground, so the daemon recovers from situations where OEM battery managers or aggressive task killers have terminated the service while the app was in the background.</p>
@@ -1467,13 +1468,14 @@
 <li>The notification is required by Android for foreground services and cannot be hidden</li>
 </ul>
 <h2 id="permissions">Permissions</h2>
-<p>The app declares two foreground-service permissions in the Android manifest:</p>
+<p>The app declares these foreground-service permissions in the Android manifest:</p>
 <ul>
 <li><code>FOREGROUND_SERVICE</code> — required for all foreground services</li>
-<li><code>FOREGROUND_SERVICE_DATA_SYNC</code> — required for the data-sync service type</li>
+<li><code>FOREGROUND_SERVICE_SPECIAL_USE</code> — required for the <code>specialUse</code> type the daemon uses</li>
+<li><code>FOREGROUND_SERVICE_DATA_SYNC</code> — still declared, for <code>ModelDownloadService</code>, where the six-hour sync budget is the right ceiling</li>
 </ul>
-<p>The notification permission (<code>POST_NOTIFICATIONS</code>) is also declared and is requested when daemon mode is switched on (see below).</p>
-<p>No wake locks or battery optimization exemptions are requested. The service relies on Android's standard process management and sticky restart behavior.</p>
+<p>The notification permission (<code>POST_NOTIFICATIONS</code>) is also declared and is requested when daemon mode is switched on (see below). It decides whether the notification is <em>visible</em>, not whether the service may start: Android does not gate a foreground service on it.</p>
+<p>No wake locks or battery optimization exemptions are requested for the daemon. (The sandbox's separate background mode does ask for the exemption, because a frozen app takes the sandbox down with it — see <a href="../sandbox/#background-mode">sandbox.md</a>.)</p>
 <h2 id="settings-ui">Settings UI</h2>
 <p>A toggle labeled "Daemon Mode" appears in the General tab of settings, only on Android. The description reads: "Keep Pots running in the background so scheduled tasks execute even when the app is not in the foreground." Toggling it starts or stops the foreground service and persists the preference. On Android 13+, turning the toggle on also requests the notification permission, since the foreground service's persistent notification cannot be displayed without it.</p>
 <h2 id="key-files">Key Files</h2>

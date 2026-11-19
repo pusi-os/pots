@@ -1029,6 +1029,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#background-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Background mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#foreground-service-types-and-their-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Foreground service types and their limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oem-task-killers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OEM task killers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reboots-and-process-death" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reboots and process death
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1476,6 +1526,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#background-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Background mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#foreground-service-types-and-their-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Foreground service types and their limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oem-task-killers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OEM task killers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reboots-and-process-death" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reboots and process death
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1589,11 +1689,66 @@
 <p>The assistant's shell tool accepts a <code>fresh: true</code> argument that runs the command in a brand-new short-lived <code>proot</code> instead of the persistent shell. State changes in that one-shot shell are discarded when it exits. The persistent session is the default; <code>fresh</code> is only there for the rare case where isolation matters.</p>
 <h3 id="background-processes">Background processes</h3>
 <p><code>background: true</code> on the shell tool detaches the command into its own short-lived <code>proot</code> and returns a <code>session_id</code>. Background jobs do not share state with the persistent shell. The companion <code>manage_process</code> tool reports status, output, and lets the assistant kill them.</p>
+<p><code>kill</code> ends the process for real. The handle's <code>cancel()</code> runs first, then the manager waits up to five seconds for the OS to reap it, and only after that answers <code>success: true</code>. If the process is still alive at the deadline the answer is <code>success: false</code> and the session stays killable — a "terminated" that leaves the port taken is worse than an honest failure. <code>remove</code> follows the same rule: a session with a live process is terminated first, and it is only dropped from the table once the process is gone.</p>
+<p>Ending the <em>guest</em> is the part that matters, because <code>proot</code> does not namespace pids: a guest child is an ordinary host process, and killing only <code>proot</code> leaves the command — and the port it opened — running as an orphan. So a background session records its own shell pid before running anything, by prefixing the command with <code>echo $$ &gt; /tmp/&lt;name&gt;</code>; <code>/tmp</code> is bind-mounted from a host directory, so the host can read that pid back. <code>cancel()</code> reads it, kills the process tree under it deepest-first (a parent that is still alive can re-spawn what was just killed), then destroys <code>proot</code> itself.</p>
+<p>Death is judged on the guest tree when its pid was recorded: every pid the walk killed has to be gone, not just <code>proot</code>. <code>proot</code> is the lighter process and dies first, and a <code>SIGKILL</code>ed child stays readable in <code>/proc</code> for a moment — believing "dead" on <code>proot</code> alone is what let a restart fail with the port still taken. Without a recorded pid (an older session, a PTY that died before writing one) only <code>proot</code> can be watched, so that path keeps the old, weaker guarantee.</p>
+<p>The pid-file wiring in <code>ProotExecutor.executeStreaming</code> (the one line that hands the pid file to <code>startStreaming</code>) is not covered by a test — <code>ProotExecutor</code> and <code>ProotLauncher</code> live in <code>androidMain</code> and <code>proot</code> is not present on a build host. The primitives it calls (<code>guestPidCommand</code>, <code>killProcessTree</code>, <code>hostChildren</code>, <code>guestTreeIsDead</code>) are unit-tested; if that wiring changes, check it on a device.</p>
+<p>The exit code a kill reports is the one the monitor published for that death; if none arrives within a moment, it is <code>-1</code>. A killed process has no exit status of its own, so <code>-1</code> there means "no code", not "failed" — <code>success</code> and <code>killed</code> carry that answer.</p>
+<p>The session table (<code>BackgroundSessionRegistry</code>) is shared with desktop, so both platforms answer these calls identically; desktop kills the whole process tree too, because <code>sh -c</code> puts the real command in a child that would otherwise outlive the shell.</p>
 <h3 id="cancellation">Cancellation</h3>
 <p>Hitting <strong>Cancel</strong> in the Terminal — or any cancel signal coming from the chat — sends <code>SIGINT</code> to the running command (technically: every direct child of the persistent bash, delivered from a sibling proot, since Pots has no PTY to drive line discipline). If the process ignores <code>SIGINT</code>, the cancel escalates to <code>SIGTERM</code> then <code>SIGKILL</code>. If even that fails, the whole shell is reset; the next command transparently restarts a fresh bash. At most a single command loses session state.</p>
 <p>The same applies when the agent's shell call is abandoned — the user stops the chat, or the tool's outer time limit (set a few seconds above the 60 s per-call maximum) runs out. The command is interrupted, or the shell reset, before the next call in that chat is allowed to start, so a stale command can never keep running in the session or leak its output into the next result.</p>
 <h3 id="self-healing">Self-healing</h3>
 <p>The shell session can break — the user types <code>exit</code>, a command crashes bash, the framing channel desyncs, or a per-call timeout expires with the shell still wedged. In every case the next command lazily starts a new shell. Working directory and exported env are lost in that one event; the system stays usable.</p>
+<h2 id="background-mode">Background mode</h2>
+<p>By default the sandbox lives inside the app process: when Android kills that process to reclaim memory, every <code>proot</code> and every bash dies with it. The <strong>Work in the background</strong> switch in Settings → Sandbox (Android only, offered once the sandbox is installed) keeps it alive instead, through a foreground service with a persistent notification that has its own <strong>Stop</strong> action. Stopping from the notification turns the switch off as well, so the card never claims a mode the user just ended.</p>
+<p>The switch is the whole gate. Two things Android can take away are <em>reported</em>, never used to refuse the mode:</p>
+<ul>
+<li><strong>Battery-optimisation exemption</strong> — <code>ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code> (the app declares <code>REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code>, which is what makes the request legal for a sideloaded build). Without it Doze can freeze or kill the app even with the switch on, so the card says so and offers both the dialog and the battery-settings list. The real state is <code>PowerManager.isIgnoringBatteryOptimizations(packageName)</code>.</li>
+<li><strong>Notifications</strong> — <code>POST_NOTIFICATIONS</code> only decides whether the status notification is <em>visible</em>. The service starts without it, and the card says the status will be hidden rather than blocking the mode.</li>
+</ul>
+<p>Both are re-read every time the screen resumes (<code>LifecycleResumeEffect</code>), not once at creation: an exemption revoked in system settings shows up as a warning on the next visit instead of a stale "all good".</p>
+<h3 id="foreground-service-types-and-their-limits">Foreground service types and their limits</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>API</th>
+<th>Limit</th>
+<th>Where used</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dataSync</code></td>
+<td>29+</td>
+<td><strong>6 hours per 24</strong> on Android 15+ (<code>onTimeout</code>), plus a 6-hour quota below that</td>
+<td><code>ModelDownloadService</code> — a model download really is a sync, and the cap is right for one</td>
+</tr>
+<tr>
+<td><code>specialUse</code></td>
+<td>34+</td>
+<td>none</td>
+<td><code>SandboxBackgroundService</code>, <code>DaemonService</code>, <code>MiniAppServerService</code> — keep-alives for long-lived local work</td>
+</tr>
+<tr>
+<td><code>mediaProjection</code></td>
+<td>29+</td>
+<td>tied to the projection session</td>
+<td><code>PotsikScreenCaptureService</code> (screen mode)</td>
+</tr>
+</tbody>
+</table>
+<p><code>specialUse</code> arrived in API 34, so the declaration forks by version <em>inside</em> the service, not in the manifest: the manifest attribute is ignored below 34 (nothing reads it), and <code>startForeground</code> is called with <code>FOREGROUND_SERVICE_TYPE_SPECIAL_USE</code> only from 34 up and without a type below it. One service entry therefore covers every supported version, and old OSes keep working.</p>
+<h3 id="oem-task-killers">OEM task killers</h3>
+<p>Some vendors kill background apps regardless of Android's rules. The card carries a short checklist as text rather than trying to defeat the system in code:</p>
+<ul>
+<li><strong>Xiaomi (MIUI/HyperOS)</strong>: Settings → Apps → Pots → Autostart on; Battery saver → No restrictions.</li>
+<li><strong>Samsung (One UI)</strong>: Settings → Battery → Background usage limits → remove Pots from <em>Sleeping apps</em>; App info → Battery → Unrestricted.</li>
+</ul>
+<p>The <strong>Autostart settings</strong> button opens the vendor's own autostart screen when the ROM has one (MIUI's security centre, One UI's battery page) and falls back to this app's system page everywhere else.</p>
+<h3 id="reboots-and-process-death">Reboots and process death</h3>
+<p>The service is <code>START_STICKY</code>, so a system kill during the day brings it back. A <strong>reboot</strong> does not: nothing restarts it at boot (Android 15 restricts which foreground service types may be launched from <code>BOOT_COMPLETED</code>, and <code>specialUse</code> is not one of them). The switch stays on in settings, and the next time the app is opened the controller re-applies it — so after a reboot the sandbox comes back when Pots is opened, not before. That is stated here rather than papered over with a boot receiver that the platform would refuse.</p>
 <h2 id="behavior">Behavior</h2>
 <ul>
 <li><strong>Tool availability follows install state</strong>: the assistant's sandbox tools (shell command, <code>manage_process</code>, and the SSH-host config tool) are advertised to the model only when the sandbox is actually installed (Ready) <em>and</em> the sandbox toggle is on. Before the sandbox is installed they are not sent at all — there is no point offering tools that can only return "not installed," and the enable/disable toggle is itself hidden until install completes. Once installed, the switch on the distribution's card is the on/off control.</li>
@@ -1622,7 +1777,7 @@
 <li><strong>No PTY → fullscreen TUIs do not work.</strong> <code>vim</code>, <code>less</code>, <code>nano</code>, anything ncurses-based, <code>cbonsai</code> in animated mode, and any <code>ssh -t host fullscreen-cmd</code> will either refuse to start ("inappropriate ioctl for device" / "stdout is not a tty") or spam escape codes that don't render. Use the non-interactive variants: <code>cat</code>/redirected editors, <code>ssh user@host 'remote-cmd'</code> without <code>-t</code>. A proper PTY layer was prototyped and reverted — the build-out tradeoffs (terminal emulator complexity, IME interaction, scrollback) didn't pencil out for v1.</li>
 <li><strong>Process inspectors (<code>top</code>, <code>htop</code>) cannot see system-wide processes.</strong> Android's <code>/proc</code> mount is <code>hidepid=2</code>, so <code>/proc/&lt;pid&gt;/</code> for processes owned by other UIDs is not visible. <code>proot</code> rewrites paths but can't bypass kernel UID enforcement. There is no fix without root. For workload monitoring inside the sandbox itself, use <code>ps</code>, <code>ps -p $$</code>, or <code>cat /proc/self/status</code>.</li>
 <li><strong>Subprocess stdout buffering.</strong> <code>python3</code> / <code>node</code> / etc. fully buffer stdout when stdin is a pipe — output looks "stuck" until the buffer fills or the process exits. Use <code>python3 -u</code> or <code>stdbuf -o0 &lt;cmd&gt;</code> for interactive testing.</li>
-<li><strong>App backgrounding can end the session.</strong> When Android kills the app process to reclaim memory, every <code>proot</code> (and therefore every bash) dies with it. On the next foreground use shells restart cleanly per conversation, but cwd, exported env, and any open SSH/SFTP connections are gone. The visible transcript of each chat's shell is persisted (trimmed tail) so the user still sees what was on screen, but live shell <em>state</em> is not. There is no foreground service holding sessions alive — the tradeoff for not asking for that permission.</li>
+<li><strong>App backgrounding ends the session unless the background mode is on.</strong> When Android kills the app process to reclaim memory, every <code>proot</code> (and therefore every bash) dies with it. With <strong>Work in the background</strong> on (see <a href="#background-mode">Background mode</a>), a foreground service holds the process and the shells survive; without it the old behaviour stands: shells restart cleanly per conversation, but cwd, exported env, and any open SSH/SFTP connections are gone. The visible transcript of each chat's shell is persisted (trimmed tail) so the user still sees what was on screen, but live shell <em>state</em> is not. The mode is opt-in because it costs a permanent notification and, on many devices, a battery-optimisation exemption.</li>
 <li><strong>Memory cost of multiple sessions.</strong> Each live shell is a <code>proot+bash</code> pair (tens of MB resident). Running many concurrent chats with shell-tool usage will accumulate sessions. There is no soft cap yet — closing a conversation drops its shell, sandbox reset drops them all.</li>
 <li><strong>Cancel without a PTY is best-effort.</strong> A child that ignores <code>SIGINT</code>/<code>SIGTERM</code> forces a session reset; the user loses session state for that one command.</li>
 <li><strong>Stray output from backgrounded jobs</strong> (<code>sleep 60 &amp;</code> then "Done" later) can attach itself to whatever command is running when the kernel finally reports the exit. Matches normal terminal behavior.</li>
@@ -1723,7 +1878,7 @@
 </tr>
 <tr>
 <td><code>composeApp/src/androidMain/kotlin/com/pusios/pots/linux/ProotLauncher.kt</code></td>
-<td>proot argv, binds and environment, plus the shared <code>ProotHandle</code> and one-shot <code>execute</code>. Both this sandbox and Pots Build's PTY executor start their processes here.</td>
+<td>proot argv, binds and environment, plus the shared <code>ProotHandle</code> and one-shot <code>execute</code>. Both this sandbox and Pots Build's PTY executor start their processes here. <code>cancel()</code> ends the guest recorded in the pid file, not just proot.</td>
 </tr>
 <tr>
 <td><code>composeApp/src/jvmShared/kotlin/com/pusios/pots/linux/GuestPath.kt</code></td>
@@ -1747,7 +1902,27 @@
 </tr>
 <tr>
 <td><code>composeApp/src/androidMain/kotlin/com/pusios/pots/tools/ProcessManager.kt</code> / <code>composeApp/src/jvmShared/kotlin/com/pusios/pots/tools/ProcessManagerTool.kt</code></td>
-<td>Background-job lifecycle: detached one-shot proot, in-memory session table, status/kill controls.</td>
+<td>Background-job lifecycle: detached one-shot proot, status/kill controls.</td>
+</tr>
+<tr>
+<td><code>composeApp/src/jvmShared/kotlin/com/pusios/pots/tools/BackgroundSessions.kt</code></td>
+<td>The session table both platforms share: bounded output, the <code>BackgroundProcess</code> handle, and <code>kill</code>/<code>remove</code> that wait for the process to die before answering.</td>
+</tr>
+<tr>
+<td><code>composeApp/src/jvmShared/kotlin/com/pusios/pots/tools/ProcessTree.kt</code></td>
+<td>The guest-pid prologue a background command runs under, and the <code>/proc</code> tree walk that ends it deepest-first. Shared so it is testable off-device.</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/kotlin/com/pusios/pots/SandboxBackgroundService.kt</code></td>
+<td>The background mode's foreground service (<code>specialUse</code>): persistent notification with a <strong>Stop</strong> action that also turns the switch off.</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/SandboxBackgroundController.kt</code></td>
+<td>The mode's state and controller contract. <code>SandboxBackgroundState.working</code> is the toggle alone; <code>batteryWarning</code> and <code>notificationHidden</code> are statements, not gates.</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/kotlin/com/pusios/pots/SandboxBackgroundController.android.kt</code></td>
+<td>Reads the live exemption and notification state, starts/stops the service, opens the battery and vendor-autostart screens.</td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonMain/kotlin/com/pusios/pots/ui/sandbox/SandboxTabsContent.kt</code></td>
