@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.ceil
 
 /**
  * The system overlay window that keeps the character on the desktop while
@@ -128,9 +129,10 @@ fun potsikDragEffect(dragging: Boolean): PotsikDragEffect = if (dragging) Potsik
  * How big the character stands.
  *
  * One number decides it: [PotsikLook.sizeScale] times the base size, clamped
- * to the range he is allowed in. The window is sized from exactly this,
- * because the window's rect eats every tap inside it, transparent pixels
- * included: a bigger window would steal taps from the apps underneath.
+ * to the range he is allowed in. The window is sized from this number and the
+ * bubble's room ([potsikWindowGeometry]) — not from the character alone,
+ * because the bubble is drawn inside the same window and its rect eats every
+ * tap inside it, transparent pixels included.
  *
  * The pinch writes the same number, so a size set with two fingers on the
  * desktop is the size he comes back at.
@@ -167,13 +169,18 @@ fun pinchedPotsikSize(startSizeDp: Float, startSpanPx: Float, spanPx: Float): Fl
 }
 
 /**
- * Where the window may sit: the whole of it inside the screen.
+ * Where a window may sit: the whole of it inside the screen.
  *
  * The window carries `FLAG_LAYOUT_NO_LIMITS` (the character may hang over the
  * status bar), which also lets a drag put him past the edges — and a pet
  * dragged off the screen is a pet the user cannot get back. This is the rule
- * the shell applies whenever a gesture ends and whenever the window changes
- * size, and the same rule the in-app character obeys in `clampPlacement`.
+ * the in-app character obeys in `clampPlacement`, and the one the capsule's
+ * window obeys on the desktop.
+ *
+ * The capsule's window obeys this one because it *is* its content: keeping the
+ * window on the screen is the same as keeping the capsule on the screen. The
+ * character's window is bigger than he is and obeys [clampPotsikWindowOffset]
+ * instead.
  */
 fun clampWindowOffset(
     x: Int,
@@ -187,6 +194,87 @@ fun clampWindowOffset(
     val maxY = (screenHeight - windowHeight).coerceAtLeast(0)
     return IntOffset(x.coerceIn(0, maxX), y.coerceIn(0, maxY))
 }
+
+/**
+ * The size of the character's window, in pixels.
+ *
+ * Two numbers set the width, and the wider one wins:
+ *
+ * - **his arms** — `1.15 · C`. The widest pose he draws without a costume
+ *   (`WAVE`, the hand reaching 28.8 units out of 56 plus half a hand) needs
+ *   1.15 times his height, and a window narrower than that cut his hands off
+ *   in the poses he spends the day in;
+ * - **his speech bubble** — 190 dp. The bubble is drawn inside the same
+ *   window, and the widest of the 313 lines in `PotsikBanter` needs 150 dp of
+ *   text: that is 90 % of the lines in two rows and every one of them in
+ *   three, so the three-row cap costs nothing.
+ *
+ * The height stays `C + 96 dp` — the body and the band the bubble is drawn in.
+ * [screenWidthPx] caps the width, so the window is never wider than the screen
+ * it stands on; the floor of `C` keeps it from being narrower than the
+ * character even when the screen is.
+ *
+ * The character stands in the middle of the window (`cx = size.width / 2` in
+ * the drawing code), so a window that changes width has to move its left edge
+ * by half the difference: [potsikCharacterCxOnScreen] and
+ * [potsikWindowXForCentre] are that arithmetic.
+ */
+fun potsikWindowGeometry(
+    characterPx: Int,
+    density: Float,
+    bubbleRoomDp: Float,
+    screenWidthPx: Int,
+): PotsikWindowGeometry {
+    val body = characterPx.coerceAtLeast(1)
+    val forArms = ceil(POTSIK_WINDOW_ARMS_FACTOR * body).toInt()
+    val forBubble = ceil(POTSIK_MIN_WINDOW_WIDTH_DP * density).toInt()
+    val width = maxOf(forArms, forBubble).coerceAtMost(maxOf(screenWidthPx, body))
+    val height = body + ceil(bubbleRoomDp * density).toInt()
+    return PotsikWindowGeometry(width, height)
+}
+
+/** The window the character stands in, in pixels. */
+data class PotsikWindowGeometry(val widthPx: Int, val heightPx: Int)
+
+/** The screen x of the character's middle in a window whose left edge is [windowX]. */
+fun potsikCharacterCxOnScreen(windowX: Int, windowWidthPx: Int): Int = windowX + windowWidthPx / 2
+
+/** The window's left edge that puts the character's middle at [characterCxOnScreen]. */
+fun potsikWindowXForCentre(characterCxOnScreen: Int, windowWidthPx: Int): Int = characterCxOnScreen - windowWidthPx / 2
+
+/**
+ * Where the character's window may sit: he stays on the screen, the window's
+ * empty corners may hang over the edge.
+ *
+ * The window is wider and taller than he is (the bubble's room), so clamping
+ * the *window* into the screen — [clampWindowOffset], the rule the capsule
+ * obeys — would leave a dead strip of `(W − C) / 2` on each side that he can
+ * never reach: 59 dp of screen at the smallest size. What has to stay on the
+ * screen is the character, so this clamps his box inside the window — centred
+ * across, standing on the window's floor — and lets the window itself stick
+ * out. `FLAG_LAYOUT_NO_LIMITS` is what makes that legal.
+ */
+fun clampPotsikWindowOffset(
+    x: Int,
+    y: Int,
+    characterPx: Int,
+    windowWidth: Int,
+    windowHeight: Int,
+    screenWidth: Int,
+    screenHeight: Int,
+): IntOffset {
+    val side = (windowWidth - characterPx).coerceAtLeast(0) / 2
+    val minX = -side
+    val maxX = screenWidth - characterPx - side
+    // His feet stand on the window's floor and the band above his head may
+    // hang over the top edge: he reaches both edges, no dead strip.
+    val minY = characterPx - windowHeight
+    val maxY = screenHeight - windowHeight
+    return IntOffset(clampToRange(x, minX, maxX), clampToRange(y, minY, maxY))
+}
+
+/** `coerceIn` that survives an empty range: a character bigger than the screen starts at the edge. */
+private fun clampToRange(value: Int, lo: Int, hi: Int): Int = if (lo >= hi) lo else value.coerceIn(lo, hi)
 
 /**
  * How often a parked clock wakes him while he is at rest, on the surface that
@@ -234,3 +322,21 @@ const val DESKTOP_PET_MAX_SIZE_DP = 320f
 
 /** The band above his head his speech bubble is drawn in. */
 const val DESKTOP_PET_BUBBLE_ROOM_DP = 96f
+
+/**
+ * How much wider than his body the window must be for the arms he throws
+ * around: `WAVE` reaches 28.8 units out of 56, plus half a hand.
+ */
+internal const val POTSIK_WINDOW_ARMS_FACTOR = 1.15f
+
+/**
+ * The narrowest the window may be, in dp.
+ *
+ * 190 dp of window is 150 dp of text (or more, on any screen denser than
+ * density 1) once the bubble's padding and the pop's peak are taken out —
+ * 90 % of the 313 lines in two rows, all of them in three. The width is the
+ * price of the bubble, and it is paid in taps: the strip beside the character
+ * inside the window belongs to him.
+ */
+internal const val POTSIK_MIN_WINDOW_WIDTH_DP = 190f
+

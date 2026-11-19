@@ -58,11 +58,13 @@ import com.pusios.pots.ui.potsik.PotsikCloudPhase
 import com.pusios.pots.ui.potsik.PotsikOverlayPet
 import com.pusios.pots.ui.potsik.PotsikPinch
 import com.pusios.pots.ui.potsik.PotsikScreen
-import com.pusios.pots.ui.potsik.clampWindowOffset
-import com.pusios.pots.ui.potsik.desktopPetCharacterSize
+import com.pusios.pots.ui.potsik.clampPotsikWindowOffset
 import com.pusios.pots.ui.potsik.pinchedPotsikSize
+import com.pusios.pots.ui.potsik.potsikCharacterCxOnScreen
 import com.pusios.pots.ui.potsik.potsikSizeDp
 import com.pusios.pots.ui.potsik.potsikSizeScale
+import com.pusios.pots.ui.potsik.potsikWindowGeometry
+import com.pusios.pots.ui.potsik.potsikWindowXForCentre
 import org.koin.android.ext.android.inject
 import org.koin.core.context.GlobalContext
 import java.util.Locale
@@ -102,10 +104,11 @@ object PotsAppForeground {
  *   cannot launch activities, and the window has to survive the app going
  *   home; the type is `specialUse`, because `dataSync` is capped at six
  *   hours a day on Android 15+ and a pet is not a sync;
- * - the window is exactly the character's size ([desktopPetCharacterSize])
- *   plus the band his bubble is drawn in: the OS delivers every tap inside
- *   the window's rect to us, transparent pixels included, so a bigger window
- *   would eat taps meant for the apps underneath;
+ * - the window is sized from the character plus the room his bubble and his
+ *   arms need ([potsikWindowGeometry]): the OS delivers every tap inside the
+ *   window's rect to us, transparent pixels included, so the rect is the
+ *   smallest one that holds the whole bubble — wider than his body, never
+ *   wider than that;
  * - [applyVisibility] on every foreground flip: app in front → hidePet(),
  *   app away → showPet();
  * - the window is draggable by a finger past the touch slop and pinched
@@ -203,7 +206,7 @@ class PotsOverlayService : Service() {
         closeCloud()
         val view = pet ?: return
         val params = view.windowParams ?: return
-        clampToScreen(params, resources.displayMetrics)
+        clampToScreen(params, resources.displayMetrics, characterPxNow())
         runCatching { wm?.updateViewLayout(view, params) }
         prefs().edit().putInt(KEY_X, params.x).putInt(KEY_Y, params.y).apply()
     }
@@ -248,6 +251,18 @@ class PotsOverlayService : Service() {
         if (PotsAppForeground.foreground) hidePet() else showPet()
     }
 
+    /**
+     * How big the character is right now, in pixels.
+     *
+     * A pinch in progress decides, otherwise the look does — the same rule the
+     * drawing inside the window uses, so the window's geometry and the body in
+     * it can never disagree about his size.
+     */
+    private fun characterPxNow(): Int {
+        val sizeDp = PotsikPinch.sizeDp.value ?: potsikSizeDp(appSettings.getPotsikLook())
+        return (sizeDp * resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
+    }
+
     private fun showPet() {
         if (pet != null) return
         val w = wm ?: return
@@ -256,13 +271,23 @@ class PotsOverlayService : Service() {
             return
         }
         val m = resources.displayMetrics
-        val look = appSettings.getPotsikLook()
-        val winW = (desktopPetCharacterSize(look).value * m.density).toInt().coerceAtLeast(1)
-        val winH = winW + (DESKTOP_PET_BUBBLE_ROOM_DP * m.density).toInt()
+        val characterPx = characterPxNow()
+        val geometry = potsikWindowGeometry(
+            characterPx = characterPx,
+            density = m.density,
+            bubbleRoomDp = DESKTOP_PET_BUBBLE_ROOM_DP,
+            screenWidthPx = m.widthPixels,
+        )
+        val winW = geometry.widthPx
+        val winH = geometry.heightPx
         val prefs = prefs()
-        val offset = clampWindowOffset(
-            x = prefs.getInt(KEY_X, (m.widthPixels - winW).coerceAtLeast(0)),
+        // The first place is the right edge he used to stand at: his middle
+        // half a character in from the screen's edge, and the window around
+        // him — the window is wider than he is.
+        val offset = clampPotsikWindowOffset(
+            x = prefs.getInt(KEY_X, potsikWindowXForCentre(m.widthPixels - characterPx / 2, winW)),
             y = prefs.getInt(KEY_Y, m.heightPixels / 3),
+            characterPx = characterPx,
             windowWidth = winW,
             windowHeight = winH,
             screenWidth = m.widthPixels,
@@ -289,6 +314,10 @@ class PotsOverlayService : Service() {
         val owner = OverlayWindowOwner()
         val shell = OverlayPetShell(this)
         shell.windowParams = params
+        // The clamp works on the character inside the window, not on the
+        // window: the window is wider than he is, and only the body has to
+        // stay on the screen.
+        shell.characterPx = { characterPxNow() }
         shell.onDragStart = {
             // A drag with the cloud open would drag the capsule's window after
             // it, frame by frame, and both would judder — it goes down with a
@@ -297,12 +326,12 @@ class PotsOverlayService : Service() {
         }
         shell.onDragEnd = { nx, ny -> prefs.edit().putInt(KEY_X, nx).putInt(KEY_Y, ny).apply() }
         shell.onDragMoved = { onPetMoved() }
-        shell.onSizeChanged = { widthPx ->
+        shell.onSizeChanged = { characterWidthPx ->
             // The size a pinch ends on is the size he keeps: written into the
             // look, so it survives the app being closed and the window being
             // rebuilt — and the in-app character is the same size when the
             // app comes back.
-            val sizeDp = widthPx / resources.displayMetrics.density
+            val sizeDp = characterWidthPx / resources.displayMetrics.density
             val current = appSettings.getPotsikLook()
             val scale = potsikSizeScale(sizeDp)
             if (scale != current.sizeScale) {
@@ -396,11 +425,7 @@ class PotsOverlayService : Service() {
             context = this,
             windowManager = w,
             petParams = { pet?.windowParams },
-            characterPx = {
-                val look = appSettings.getPotsikLook()
-                val sizeDp = PotsikPinch.sizeDp.value ?: potsikSizeDp(look)
-                (sizeDp * resources.displayMetrics.density).toInt()
-            },
+            characterPx = { characterPxNow() },
             onOpenText = { startActivity(potsikTextInputIntent(this)) },
             onClosed = { cloudPhase.value = null },
             onPhase = { cloudPhase.value = it },
@@ -621,6 +646,15 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
     /** The character's width in pixels, after a pinch. */
     var onSizeChanged: ((Float) -> Unit)? = null
 
+    /**
+     * The character's width in pixels right now.
+     *
+     * The window is wider than he is, so the clamp cannot work the body out
+     * of the window's size: the service answers with the size it is drawing
+     * him at (a pinch in progress, otherwise the look).
+     */
+    var characterPx: () -> Int = { windowParams?.width ?: 1 }
+
     private val windowManager: WindowManager
         get() = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
@@ -783,7 +817,7 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         params.y = downWinY + (event.rawY - downRawY).toInt()
         // He stops at the edge instead of going over it: a pet dragged off the
         // screen is a pet the user cannot get back.
-        clampToScreen(params, resources.displayMetrics)
+        clampToScreen(params, resources.displayMetrics, characterPx())
         scheduleLayoutUpdate()
         onDragMoved?.invoke()
     }
@@ -791,7 +825,7 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
     private fun finishDrag(params: WindowManager.LayoutParams, save: Boolean) {
         dragging = false
         PotsikCarry.setCarried(false)
-        clampToScreen(params, resources.displayMetrics)
+        clampToScreen(params, resources.displayMetrics, characterPx())
         scheduleLayoutUpdate()
         if (save) onDragEnd?.invoke(params.x, params.y)
     }
@@ -806,7 +840,9 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         pinching = true
         pinchDone = false
         pinchStartSpan = span(event)
-        pinchStartSizeDp = params.width / density
+        // The pinch scales the character, not the window: the window is wider
+        // than he is and is recomputed from his size on every frame.
+        pinchStartSizeDp = characterPx() / density
         PotsikCarry.setCarried(false)
     }
 
@@ -814,10 +850,21 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         val params = windowParams ?: return
         if (event.pointerCount < 2) return
         val sizeDp = pinchedPotsikSize(pinchStartSizeDp, pinchStartSpan, span(event))
-        val widthPx = (sizeDp * density).roundToInt().coerceAtLeast(1)
-        params.width = widthPx
-        params.height = widthPx + (DESKTOP_PET_BUBBLE_ROOM_DP * density).roundToInt()
-        clampToScreen(params, resources.displayMetrics)
+        val characterWidthPx = (sizeDp * density).roundToInt().coerceAtLeast(1)
+        val geometry = potsikWindowGeometry(
+            characterPx = characterWidthPx,
+            density = density,
+            bubbleRoomDp = DESKTOP_PET_BUBBLE_ROOM_DP,
+            screenWidthPx = resources.displayMetrics.widthPixels,
+        )
+        // He is drawn in the middle of the window, so a window that grows by
+        // Δ without moving its left edge would slide him right by Δ/2. The
+        // left edge takes that half back: he grows in place.
+        val centre = potsikCharacterCxOnScreen(params.x, params.width)
+        params.width = geometry.widthPx
+        params.height = geometry.heightPx
+        params.x = potsikWindowXForCentre(centre, geometry.widthPx)
+        clampToScreen(params, resources.displayMetrics, characterWidthPx)
         scheduleLayoutUpdate()
         // The character inside is drawn from this, so the window and the
         // drawing grow together instead of the window outrunning him.
@@ -829,9 +876,11 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
         pinching = false
         pinchDone = true
         val params = windowParams ?: return
-        clampToScreen(params, resources.displayMetrics)
+        clampToScreen(params, resources.displayMetrics, characterPx())
         scheduleLayoutUpdate()
-        onSizeChanged?.invoke(params.width.toFloat())
+        // The character's size, not the window's: the window is the bubble's
+        // room wider than he is.
+        onSizeChanged?.invoke(characterPx().toFloat())
     }
 
     /** The distance between the first two fingers, in view pixels. */
@@ -844,21 +893,27 @@ private class OverlayPetShell(context: Context) : FrameLayout(context) {
 }
 
 /**
- * Keeps a window fully on the screen after a move, a resize or a rotation.
+ * Keeps the character on the screen after a move, a resize or a rotation.
  *
  * One implementation for the whole file: the shell calls it from its gestures
  * and the service from [PotsOverlayService.onConfigurationChanged], and both
  * hand in the metrics they hold — the shell's view resources and the service's
  * resources, which the system has already refreshed when the callback arrives.
  * Top-level `private` keeps it off the API of both classes.
+ *
+ * It clamps the *character*, not the window: the window is wider and taller
+ * than he is (the bubble's room), and letting it hang over an edge is what
+ * lets him reach the edge ([clampPotsikWindowOffset]).
  */
 private fun clampToScreen(
     params: WindowManager.LayoutParams,
     screen: DisplayMetrics,
+    characterPx: Int,
 ) {
-    val offset = clampWindowOffset(
+    val offset = clampPotsikWindowOffset(
         x = params.x,
         y = params.y,
+        characterPx = characterPx,
         windowWidth = params.width,
         windowHeight = params.height,
         screenWidth = screen.widthPixels,
