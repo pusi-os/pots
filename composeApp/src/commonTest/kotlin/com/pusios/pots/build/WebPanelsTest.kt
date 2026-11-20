@@ -20,6 +20,15 @@ import kotlin.test.assertTrue
  */
 class WebPanelsTest {
 
+    /** A provider Pots is configured with — the config files a start writes need one. */
+    private val credentials = SandboxAgentCredentials(
+        providerId = "plusvibe",
+        providerName = "PlusVibe",
+        model = "qwen3.8-flash",
+        apiKey = "pots-test-key",
+        endpoint = "https://plusvibeapi.ru/v1",
+    )
+
     // --- port choice ------------------------------------------------------
 
     @Test
@@ -105,7 +114,7 @@ class WebPanelsTest {
     // --- commands ---------------------------------------------------------
 
     @Test
-    fun `each panel's command binds loopback and names its port`() {
+    fun `each panel's command names its port, and the two flag-takers bind loopback`() {
         for (panel in WebPanels.all) {
             val command = WebPanels.command(panel, 1234)
             if (panel.id == WebPanels.HERMES) {
@@ -143,7 +152,7 @@ class WebPanelsTest {
         }
         val runtime = runtime(this, guest)
         runtime.refreshPanels()
-        assertEquals(WebPanelStatus.Running("http://127.0.0.1:4096"), status("opencode"))
+        assertEquals(WebPanelStatus.Running("http://127.0.0.1:4096", WebPanelOpen.PAIRING_CODE), status("opencode"))
     }
 
     @Test
@@ -187,7 +196,7 @@ class WebPanelsTest {
 
         assertEquals(4096, guest.port)
         assertContains(guest.commands.single(), "opencode serve --port 4096")
-        assertEquals(WebPanelStatus.Running("http://127.0.0.1:4096"), status("opencode"))
+        assertEquals(WebPanelStatus.Running("http://127.0.0.1:4096", WebPanelOpen.PAIRING_CODE), status("opencode"))
     }
 
     @Test
@@ -197,7 +206,7 @@ class WebPanelsTest {
         runtime.startPanel("opencode")
 
         assertEquals(4097, guest.port)
-        assertEquals(WebPanelStatus.Running("http://127.0.0.1:4097"), status("opencode"))
+        assertEquals(WebPanelStatus.Running("http://127.0.0.1:4097", WebPanelOpen.PAIRING_CODE), status("opencode"))
     }
 
     @Test
@@ -318,7 +327,7 @@ class WebPanelsTest {
 
         assertEquals(1, guest.commands.size)
         assertContains(guest.commands.single(), "opencode serve")
-        assertEquals(WebPanelStatus.Running("http://127.0.0.1:4096"), status("opencode"))
+        assertEquals(WebPanelStatus.Running("http://127.0.0.1:4096", WebPanelOpen.PAIRING_CODE), status("opencode"))
         assertEquals(WebPanelStatus.NotRunning, status("pi"), "a panel whose toggle is off stays down")
     }
 
@@ -355,34 +364,198 @@ class WebPanelsTest {
         assertTrue(guest.commands.isEmpty())
     }
 
-    // --- links ------------------------------------------------------------
+    // --- after an agent update --------------------------------------------
 
-    // Only OpenCode takes credentials in the URL: it asks for HTTP Basic on every
-    // request, HTML included. pi-web's HTML wants a session cookie, so a password
-    // in its URL would be ignored *and* left sitting in the address bar; Hermes
-    // signs a browser in with the one-use link `link()` mints instead.
+    // The installer replaces the binary under a running panel, and the process
+    // started before it keeps serving the old interface — which reads as "the
+    // update did not work".
 
     @Test
-    fun `OpenCode's link carries the password in its userinfo`() {
-        val opencode = WebPanels.get(WebPanels.OPENCODE)!!
+    fun `an updated agent's running panel is stopped and started again`() = runTest {
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+        assertEquals(1, guest.commands.size)
+
+        runtime.restartAfterInstall(BuildAgents.OPENCODE)
+
+        assertTrue(guest.runs.any { it.contains("kill -TERM 4242") }, guest.runs.toString())
+        assertEquals(2, guest.commands.size, "the old process was still serving the old binary")
         assertEquals(
-            "http://opencode:hunter2@127.0.0.1:4096/",
-            WebPanels.url(opencode, 4096, "hunter2"),
+            WebPanelStatus.Running("http://127.0.0.1:4096", WebPanelOpen.PAIRING_CODE),
+            status("opencode"),
         )
     }
 
     @Test
-    fun `a password full of URL syntax is encoded instead of breaking the link`() {
-        val opencode = WebPanels.get(WebPanels.OPENCODE)!!
-        val password = "a@b:c/d%e f"
+    fun `an update does not start a panel that was down`() = runTest {
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
 
-        val url = WebPanels.url(opencode, 4096, password)
-        assertEquals("http://opencode:a%40b%3Ac%2Fd%25e%20f@127.0.0.1:4096/", url)
-        // The raw characters would have ended the userinfo early: `@` would make
-        // the browser dial `b:c` as the host, and the panel would come up
-        // unauthenticated with nothing saying why.
-        assertFalse(url.contains("b:c"), url)
-        assertEquals(4096, WebPanels.portOf(url))
+        runtime.restartAfterInstall(BuildAgents.OPENCODE)
+
+        assertTrue(guest.commands.isEmpty(), "a stopped panel is not ours to bring up")
+    }
+
+    @Test
+    fun `a panel whose port could not be freed is not started beside the old one`() = runTest {
+        val guest = FakeGuest().apply {
+            pid = 4242
+            port = 4096
+            alive += 4242
+            listening += 4096
+            ignoreSignals = true
+        }
+        val runtime = runtime(this, guest)
+        runtime.refreshPanels()
+
+        runtime.restartAfterInstall(BuildAgents.OPENCODE)
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("opencode"))
+        assertContains(failed.reason, "still taken")
+        assertTrue(guest.commands.isEmpty(), "a second server would hold a second port")
+    }
+
+    // --- a panel that is up but says it failed ----------------------------
+
+    // A sign-in can fail while the server it talks to is alive: the row says
+    // Failed and the process still holds its port. Starting another one on the
+    // next tap would leave the first orphaned and rewrite its pid, so the
+    // runtime adopts what is already there.
+
+    @Test
+    fun `a panel whose sign-in failed is adopted on the next tap, not started again`() = runTest {
+        val guest = FakeGuest().apply { pairAnswers += """{"message":"Unauthorized"}""" + "\n401" }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+        assertNull(runtime.link("opencode"))
+        assertIs<WebPanelStatus.Failed>(status("opencode"))
+        assertEquals(1, guest.commands.size)
+
+        runtime.startPanel("opencode")
+
+        assertEquals(1, guest.commands.size, "a second server would be an orphan on the old port")
+        assertEquals(
+            WebPanelStatus.Running("http://127.0.0.1:4096", WebPanelOpen.PAIRING_CODE),
+            status("opencode"),
+        )
+    }
+
+    @Test
+    fun `a panel alive but not listening is stopped before the start`() = runTest {
+        val guest = FakeGuest().apply {
+            pid = 4242
+            port = 4096
+            alive += 4242
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("opencode")
+
+        // It holds the pid file: launching beside it would lose the old pid.
+        assertTrue(guest.runs.any { it.contains("kill -TERM 4242") }, guest.runs.toString())
+        assertEquals(1, guest.commands.size)
+    }
+
+    // --- links ------------------------------------------------------------
+
+    // No panel takes credentials in a URL. OpenCode 2 stopped accepting them: `/`
+    // answers with "Connect to a server. Paste the pairing link…", so the sign-in
+    // is a one-use code minted on the tap. pi-web's HTML wants a session cookie,
+    // so its URL is the login form; Hermes signs a browser in with the one-use
+    // link `link()` mints.
+
+    @Test
+    fun `OpenCode's link is a minted pairing code and carries no password`() = runTest {
+        val guest = FakeGuest().apply {
+            pairAnswers += """{"code":"L9gVWvVVNxuFRupAPd8XPg","expires_in":300}""" + "\n200"
+        }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+        val password = runtime.password("opencode").orEmpty()
+        assertTrue(password.isNotEmpty())
+
+        val link = runtime.link("opencode").orEmpty()
+
+        assertEquals("http://127.0.0.1:4096/auth/connect/L9gVWvVVNxuFRupAPd8XPg", link)
+        assertFalse(link.contains(password), link)
+        assertFalse(link.contains("@"), "credentials in the URL are back: $link")
+        // The address the row renders — and a screenshot of it — must not hold it.
+        val shown = assertIs<WebPanelStatus.Running>(status("opencode")).url
+        assertEquals("http://127.0.0.1:4096", shown)
+    }
+
+    @Test
+    fun `the pairing request keeps the password out of every argv`() = runTest {
+        val guest = FakeGuest().apply { pairAnswers += """{"code":"abc"}""" + "\n200" }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+        val password = runtime.password("opencode").orEmpty()
+
+        runtime.link("opencode")
+
+        val pair = guest.runs.single { it.contains("/api/pair") }
+        assertFalse(pair.contains(password), "the guest's `ps` would show it: $pair")
+        assertContains(pair, "POST")
+        // `printf` is a shell builtin and curl reads its credentials from stdin:
+        // neither a child of the shell nor curl's own argv holds the value.
+        assertContains(pair, "printf 'user = \"opencode:%s\"\\n' \"\$OPENCODE_SERVER_PASSWORD\"")
+        assertContains(pair, "curl -sS -K -")
+        assertEquals(password, guest.runEnv["OPENCODE_SERVER_PASSWORD"], "the password rides in the environment")
+    }
+
+    @Test
+    fun `a refused pairing request fails the panel instead of opening the bare address`() = runTest {
+        val guest = FakeGuest().apply { pairAnswers += """{"message":"Unauthorized"}""" + "\n401" }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+
+        val link = runtime.link("opencode")
+
+        assertNull(link, "a bare address would show v2's Connect-to-a-server screen")
+        val failed = assertIs<WebPanelStatus.Failed>(status("opencode"))
+        assertContains(failed.reason, "401")
+        assertContains(failed.reason, "refused")
+    }
+
+    @Test
+    fun `a pairing answer with no code in it fails with the reason`() = runTest {
+        val guest = FakeGuest().apply { pairAnswers += "<html>hello</html>" + "\n200" }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+
+        assertNull(runtime.link("opencode"))
+        val failed = assertIs<WebPanelStatus.Failed>(status("opencode"))
+        assertContains(failed.reason, "no code")
+    }
+
+    @Test
+    fun `two taps mint two different codes, because a code works once`() = runTest {
+        val guest = FakeGuest().apply {
+            pairAnswers += listOf(
+                """{"code":"first","expires_in":300}""" + "\n200",
+                """{"code":"second","expires_in":300}""" + "\n200",
+            )
+        }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+
+        val first = runtime.link("opencode")
+        val second = runtime.link("opencode")
+
+        assertNotEquals(first, second)
+        assertContains(first.orEmpty(), "/auth/connect/first")
+        assertContains(second.orEmpty(), "/auth/connect/second")
+    }
+
+    @Test
+    fun `a code full of URL syntax is encoded instead of breaking the path`() {
+        // One `/` or `?` in a code would end the path early and land on a 404.
+        assertEquals(
+            "http://127.0.0.1:4096/auth/connect/a%2Fb%3Fc",
+            WebPanels.pairUrl(4096, "a/b?c"),
+        )
+        assertEquals(4096, WebPanels.portOf(WebPanels.pairUrl(4096, "a/b?c")))
     }
 
     @Test
@@ -394,23 +567,11 @@ class WebPanelsTest {
     }
 
     @Test
-    fun `a generated password needs no encoding, and survives the URL intact`() {
-        val password = WebPanelPasswords.generate(Random(11))
-        assertEquals(password, percentEncode(password))
-
-        val opencode = WebPanels.get(WebPanels.OPENCODE)!!
-        val url = WebPanels.url(opencode, 4096, password)
-        assertContains(url, "opencode:$password@127.0.0.1:4096/")
-        assertEquals(4096, WebPanels.portOf(url))
-    }
-
-    @Test
     fun `pi-web's link is the login form and carries no credentials`() {
         val pi = WebPanels.get(WebPanels.PI)!!
 
-        val url = WebPanels.url(pi, 30141, "hunter2")
+        val url = WebPanels.url(pi, 30141)
         assertEquals("http://127.0.0.1:30141/login", url)
-        assertFalse(url.contains("hunter2"), "credentials there are ignored and only leak: $url")
         assertFalse(url.contains("@"), url)
         assertEquals(30141, WebPanels.portOf(url))
     }
@@ -422,26 +583,9 @@ class WebPanelsTest {
     }
 
     @Test
-    fun `a panel with no password yet gets the plain address, not a broken userinfo`() {
+    fun `OpenCode's address is the plain address, because the sign-in is minted`() {
         val opencode = WebPanels.get(WebPanels.OPENCODE)!!
-
-        assertEquals("http://127.0.0.1:4096", WebPanels.url(opencode, 4096, null))
-        assertEquals("http://127.0.0.1:4096", WebPanels.url(opencode, 4096, ""))
-    }
-
-    @Test
-    fun `opening OpenCode hands the browser the password, while the row shows none`() = runTest {
-        val guest = FakeGuest()
-        val runtime = runtime(this, guest)
-        runtime.startPanel("opencode")
-        val password = runtime.password("opencode").orEmpty()
-
-        val link = runtime.link("opencode").orEmpty()
-        assertContains(link, "opencode:$password@127.0.0.1:4096/")
-        // The address the row renders — and a screenshot of it — must not hold it.
-        val shown = assertIs<WebPanelStatus.Running>(status("opencode")).url
-        assertFalse(shown.contains(password), shown)
-        assertEquals("http://127.0.0.1:4096", shown)
+        assertEquals("http://127.0.0.1:4096", WebPanels.url(opencode, 4096))
     }
 
     @Test
@@ -510,9 +654,35 @@ class WebPanelsTest {
     }
 
     @Test
-    fun `Hermes has no panel password of its own`() = runTest {
-        val runtime = runtime(this, FakeGuest())
-        assertNull(runtime.password("hermes"))
+    fun `Hermes gets a dashboard login, and its password goes into the environment`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+
+        val hermes = WebPanels.get(WebPanels.HERMES)!!
+        val password = runtime.password("hermes").orEmpty()
+        assertTrue(password.isNotEmpty(), "a gated panel with no password is a panel nobody can open")
+        assertEquals(WebPanels.HERMES_USER, guest.runEnv[hermes.usernameEnv!!])
+        assertEquals(password, guest.runEnv[hermes.passwordEnv!!])
+        // The environment, not the command line: `ps` inside the sandbox is
+        // readable by every process in it.
+        assertFalse(guest.runs.last { it == LAUNCH_ONE_USE }.contains(password))
+    }
+
+    @Test
+    fun `Hermes' password never reaches its config file`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+        val password = runtime.password("hermes").orEmpty()
+        assertTrue(password.isNotEmpty())
+
+        // The file Pots writes on every agent start, with the panel's port in it.
+        val files = SandboxAgentConfig.filesFor(BuildAgents.HERMES, credentials, WebPanels.HERMES_PORT)
+        val config = files.single { it.path == ".hermes/config.yaml" }.content
+        assertFalse(config.contains(password), "the account leaked into config.yaml: $config")
+        assertFalse(config.contains("basic_auth"), "the account belongs in the environment: $config")
+        assertFalse(files.single { it.path == ".hermes/.env" }.content.contains(password))
     }
 
     // --- Hermes -----------------------------------------------------------
@@ -656,10 +826,11 @@ class WebPanelsTest {
         }
         val runtime = runtime(this, guest)
         runtime.refreshPanels()
-        // A loopback address is the private launch: the row shows it, and the open
-        // has to mint a ticket of its own.
+        // `--status` reports the loopback dial origin even though the bind is every
+        // interface, and Pots writes that bind: the panel is behind the sign-in
+        // gate, so the row says an account is needed.
         assertEquals(
-            WebPanelStatus.Running("http://127.0.0.1:9120", WebPanelOpen.MINTED_LINK),
+            WebPanelStatus.Running("http://127.0.0.1:9120", WebPanelOpen.DASHBOARD_SIGN_IN),
             status("hermes"),
         )
     }
@@ -720,7 +891,7 @@ class WebPanelsTest {
     fun `the webapp block is written at the chosen port`() {
         val config = SandboxAgentConfig.withWebappPort("model:\n  default: 'x'\n", 9121)
         assertContains(config, "webapp:")
-        assertContains(config, "  host: 127.0.0.1")
+        assertContains(config, "  host: 0.0.0.0")
         assertContains(config, "  port: 9121")
         assertContains(config, "  enabled: true")
         assertContains(config, "  default: 'x'")
@@ -744,6 +915,98 @@ class WebPanelsTest {
         assertEquals(1, twice.lines().count { it.startsWith("# Written by Pots") }, twice)
     }
 
+    // --- the Hermes panel on the LAN --------------------------------------
+
+    // The panel binds every interface, so another device on the network can open
+    // it while the phone sits on a charger. Hermes gates any non-loopback bind,
+    // and Pots hands it an account: without one the gate has no provider to ask,
+    // and the page says so instead of showing a login form.
+
+    @Test
+    fun `the Hermes webapp block binds every interface, not loopback`() {
+        val config = SandboxAgentConfig.webappConfig(9120)
+        assertContains(config, "  host: 0.0.0.0")
+        assertFalse(config.contains("127.0.0.1"), config)
+    }
+
+    @Test
+    fun `the row shows the LAN address when the phone is on a network`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest, lanIp = LAN_IP)
+        runtime.startPanel("hermes")
+
+        val running = assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertEquals("http://$LAN_IP:9120", running.url)
+        assertEquals(WebPanelOpen.DASHBOARD_SIGN_IN, running.open)
+        // Opening the row hands the browser the same address — the one another
+        // device dials, not the loopback one Hermes printed.
+        assertEquals("http://$LAN_IP:9120", runtime.link("hermes"))
+    }
+
+    @Test
+    fun `without a LAN address the row falls back to loopback, and says which`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+
+        val running = assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertEquals("http://127.0.0.1:9120", running.url)
+        // The row picks its wording from exactly this: a loopback address opens on
+        // this phone alone, a LAN one from any device on the network.
+        assertTrue(WebPanels.isLoopback(running.url))
+        assertNotEquals(WebPanels.isLoopback("http://$LAN_IP:9120"), WebPanels.isLoopback(running.url))
+    }
+
+    @Test
+    fun `a printed loopback address is replaced by the phone's LAN address`() {
+        assertEquals("http://$LAN_IP:9120", WebPanels.hermesAddress("http://127.0.0.1:9120/", 9120, LAN_IP))
+        // A published address is reachable as it is: kept as printed.
+        assertEquals(
+            "https://pots.local:9449/",
+            WebPanels.hermesAddress("https://pots.local:9449/", 9449, LAN_IP),
+        )
+        assertEquals("http://127.0.0.1:9120", WebPanels.hermesAddress("http://127.0.0.1:9120/", 9120, null))
+    }
+
+    @Test
+    fun `a Hermes whose login plugin is still off fails instead of serving a dead gate`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesLinks += listOf(SIGN_IN_LINK)
+            authPluginOff = true
+        }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "plugins.disabled")
+        assertFalse(
+            guest.runs.any { it == LAUNCH_ONE_USE },
+            "no panel behind a gate with no provider to ask",
+        )
+    }
+
+    @Test
+    fun `the basic auth plugin is dropped from plugins disabled, and the rest is kept`() {
+        val yaml = """
+            plugins:
+              disabled:
+                - web/exa
+                - basic
+                - dashboard_auth/basic
+              enabled:
+                - web/firecrawl
+            model:
+              default: 'x'
+        """.trimIndent() + "\n"
+
+        val fixed = SandboxAgentConfig.withBasicAuthPluginEnabled(yaml)
+
+        assertEquals(setOf("web/exa"), SandboxAgentConfig.disabledPlugins(fixed))
+        assertContains(fixed, "    - web/firecrawl", message = "the enabled list is somebody else's")
+        assertContains(fixed, "  default: 'x'")
+        assertEquals(fixed, SandboxAgentConfig.withBasicAuthPluginEnabled(fixed), "idempotent")
+    }
+
     // --- helpers ----------------------------------------------------------
 
     /** What the runtime last published; one runtime per test, so one map is enough. */
@@ -758,6 +1021,8 @@ class WebPanelsTest {
         prefs: ((String) -> WebPanelPreferences)? = null,
         /** The settings the runtime writes to — watched by the tests that prove nothing leaks into them. */
         saved: MutableMap<String, WebPanelPreferences> = mutableMapOf(),
+        /** The phone's own address in the local network, or null when it is on none. */
+        lanIp: String? = null,
     ): WebPanelRuntime {
         // Settings live here, the way they live in the app: a password written on
         // one start has to be readable on the next read, or "generated once"
@@ -767,6 +1032,7 @@ class WebPanelsTest {
             prefs = { id -> prefs?.invoke(id) ?: saved[id] ?: WebPanelPreferences() },
             savePrefs = { id, preferences -> saved[id] = preferences },
             installed = { installed },
+            lanAddress = { lanIp },
             publish = { panels -> published = panels },
             scope = scope,
             startTimeoutSeconds = 5,
@@ -804,9 +1070,23 @@ class WebPanelsTest {
         /** The environment of the last launch — where a panel's password must be. */
         var env: Map<String, String> = emptyMap()
 
-        override fun run(command: String, timeoutSeconds: Long): WebPanelGuest.Output {
+        /** What successive `POST /api/pair` calls answer; the last one repeats. */
+        val pairAnswers = mutableListOf<String>()
+
+        /** The environment of the last `run` — where the account and pairing password must be. */
+        var runEnv: Map<String, String> = emptyMap()
+
+        /** Whether Hermes' config still lists the dashboard login plugin as off. */
+        var authPluginOff = false
+
+        override fun run(command: String, timeoutSeconds: Long, env: Map<String, String>): WebPanelGuest.Output {
             runs += command
+            if (env.isNotEmpty()) runEnv = env
             return when {
+                command.contains("/api/pair") -> {
+                    val answer = if (pairAnswers.size > 1) pairAnswers.removeAt(0) else pairAnswers.firstOrNull()
+                    WebPanelGuest.Output(true, answer.orEmpty())
+                }
                 command == WebPanels.HERMES_HELP -> WebPanelGuest.Output(hasWebapp, "usage: hermes webapp")
                 command == WebPanels.HERMES_BUNDLE_CHECK -> WebPanelGuest.Output(hasBundle)
                 command.startsWith(LAUNCH_ONE_USE) -> {
@@ -861,6 +1141,8 @@ class WebPanelsTest {
         }
 
         override fun logTail(panel: WebPanel): String = log
+
+        override fun authPluginDisabled(panel: WebPanel): Boolean = authPluginOff
     }
 }
 
@@ -871,3 +1153,10 @@ private const val ONE_USE_LINK =
         "  http://127.0.0.1:9120/?ticket=TICKET"
 
 private const val LAUNCH_ONE_USE = "hermes webapp --no-open"
+
+/** What `hermes webapp --no-open` prints behind the dashboard's sign-in, verbatim from `webapp_launcher`. */
+private const val SIGN_IN_LINK =
+    "Open the Webapp and sign in with your dashboard account: http://127.0.0.1:9120/"
+
+/** The phone's own address on the network the tests pretend to be on. */
+private const val LAN_IP = "192.168.1.50"

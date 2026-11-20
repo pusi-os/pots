@@ -681,7 +681,8 @@
     <string name="pots_build_session_close_content_description">Закрыть сессию</string>
     <string name="pots_build_system_title">Система Debian</string>
     <string name="pots_build_web_panels_title">Веб-панели</string>
-    <string name="pots_build_web_panels_description">Веб-интерфейс каждого агента, слушает только loopback телефона. Открывается в браузере по умолчанию.</string>
+    <string name="pots_build_web_panels_description">Веб-интерфейс каждого агента, открывается в браузере по умолчанию. OpenCode и Pi слушают только этот телефон; Hermes доступен другим устройствам в вашей сети.</string>
+    <string name="pots_build_web_panels_lan_note">Порт Hermes открыт в той сети, где сейчас телефон: в чужом Wi-Fi панель видна другим устройствам. Закрывает её пароль.</string>
     <string name="pots_build_web_panel_start">Запустить web UI</string>
     <string name="pots_build_web_panel_stop">Остановить</string>
     <string name="pots_build_web_panel_retry">Повторить</string>
@@ -692,8 +693,10 @@
     <string name="pots_build_web_panel_password_copy">Копировать</string>
     <string name="pots_build_web_panel_password_copied">Скопировано</string>
     <string name="pots_build_web_panel_pi_login_hint">Вход один раз — браузер запомнит его на 30 дней.</string>
+    <string name="pots_build_web_panel_hermes_lan_hint">Доступен по локальной сети — откройте этот адрес с любого устройства в той же сети и войдите логином и паролем ниже.</string>
     <string name="pots_build_web_panel_hermes_link_hint">Ссылка входит в браузер один раз и живёт 60 секунд. Если она уже использована или истекла — нажмите адрес ещё раз.</string>
-    <string name="pots_build_web_panel_hermes_sign_in_hint">Войдите учёткой дашборда — Hermes спрашивает её здесь, адрес при этом не меняется.</string>
+    <string name="pots_build_web_panel_hermes_local_hint">Локальной сети сейчас нет — панель открывается только на этом телефоне. Войдите логином и паролем ниже.</string>
+    <string name="pots_build_web_panel_username">Логин: %1$s</string>
     <string name="pots_build_system_packages">Установлено пакетов: %1$d</string>
     <string name="pots_build_system_disk_system">Система Linux</string>
     <string name="pots_build_system_disk_projects">Проекты</string>

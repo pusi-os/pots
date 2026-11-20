@@ -64,7 +64,29 @@ object SandboxAgentConfig {
      * because [withWebappPort] has to recognise and drop it along with the block
      * it belongs to — otherwise every rewrite leaves another copy behind.
      */
-    private const val WEBAPP_MARKER = "# Written by Pots: the Webapp panel listens on loopback only."
+    private const val WEBAPP_MARKER = "# Written by Pots: the Webapp panel listens on the LAN, behind a dashboard login."
+
+    /**
+     * The marker an earlier Pots wrote. Still recognised so a config written
+     * before the bind moved to the LAN is rewritten cleanly, instead of keeping a
+     * comment that says the opposite of what the block under it now does.
+     */
+    private const val LEGACY_WEBAPP_MARKER = "# Written by Pots: the Webapp panel listens on loopback only."
+
+    /**
+     * Where the panel binds: every interface, so the owner's other devices on the
+     * same network can open it. Any non-loopback bind turns Hermes' sign-in gate
+     * on, which is why the dashboard account is not optional here.
+     */
+    const val WEBAPP_HOST = "0.0.0.0"
+
+    /**
+     * The plugin keys that provide the dashboard's username/password login.
+     * Hermes accepts either spelling in `plugins.disabled` and registers no
+     * provider while one of them is there — a gated panel then opens on
+     * "sign-in unavailable" rather than on a login form.
+     */
+    val BASIC_AUTH_PLUGINS = setOf("basic", "dashboard_auth/basic")
 
     /**
      * Env var Hermes reads the API key from; `key_env` in its config points here.
@@ -247,17 +269,24 @@ object SandboxAgentConfig {
     }
 
     /**
-     * Hermes' web panel settings: on, on loopback, on [port], with no public URL.
+     * Hermes' web panel settings: on, on [WEBAPP_HOST], on [port], with no public
+     * URL.
      *
-     * `public_url` stays empty on purpose — a filled one replaces the address in
-     * the link `hermes webapp` prints, and in a sandbox that link is a one-use
-     * ticket for this phone's own browser, not a hostname.
+     * Binding every interface is the point: the panel is the owner's own, and
+     * the phone may be on a charger in another room. Hermes gates any
+     * non-loopback bind behind the dashboard account, which Pots passes in the
+     * process environment ([WebPanels.HERMES]) — never in this file, which is
+     * rewritten from scratch on every agent start.
+     *
+     * `public_url` stays empty on purpose: it is the hostname a reverse proxy
+     * would publish, and the sandbox has none. The address other devices dial is
+     * the phone's own LAN address, which Pots knows and Hermes does not.
      */
     fun webappConfig(port: Int): String = buildString {
         appendLine(WEBAPP_MARKER)
         appendLine("webapp:")
         appendLine("  enabled: true")
-        appendLine("  host: 127.0.0.1")
+        appendLine("  host: $WEBAPP_HOST")
         appendLine("  port: $port")
         appendLine("  public_url: \"\"")
     }
@@ -275,13 +304,93 @@ object SandboxAgentConfig {
         val kept = mutableListOf<String>()
         var inWebapp = false
         for (line in yaml.lines()) {
-            if (line.trimEnd() == WEBAPP_MARKER) continue
+            if (line.trimEnd() == WEBAPP_MARKER || line.trimEnd() == LEGACY_WEBAPP_MARKER) continue
             val topLevel = line.isNotEmpty() && !line.first().isWhitespace() && !line.startsWith("#")
             if (topLevel) inWebapp = line.trimEnd() == "webapp:"
             if (!inWebapp) kept += line
         }
         val body = kept.joinToString("\n").trimEnd()
         return (if (body.isEmpty()) "" else body + "\n") + webappConfig(port)
+    }
+
+    /**
+     * The plugin keys `plugins.disabled` holds in [yaml], as YAML writes them:
+     * bare or quoted scalars in a block list under `plugins:`.
+     *
+     * Line-based on purpose, like the rest of this file: the only thing Pots
+     * asks is whether the dashboard's login plugin is switched off, and a YAML
+     * parser would rewrite the half of the file that belongs to Hermes.
+     */
+    fun disabledPlugins(yaml: String): Set<String> {
+        val disabled = mutableSetOf<String>()
+        var inPlugins = false
+        var inDisabled = false
+        var disabledIndent = 0
+        for (raw in yaml.lines()) {
+            val line = raw.trimEnd()
+            if (line.isBlank() || line.trimStart().startsWith("#")) continue
+            val indent = line.length - line.trimStart().length
+            if (indent == 0) {
+                inPlugins = line == "plugins:"
+                inDisabled = false
+                continue
+            }
+            if (!inPlugins) continue
+            if (inDisabled && indent <= disabledIndent) inDisabled = false
+            if (!inDisabled) {
+                if (line.trim() == "disabled:") {
+                    inDisabled = true
+                    disabledIndent = indent
+                }
+                continue
+            }
+            listItem(line)?.let { disabled += it }
+        }
+        return disabled
+    }
+
+    /**
+     * [yaml] with the dashboard's login plugin dropped from `plugins.disabled` —
+     * Hermes' own `ensure_basic_auth_plugin_enabled_in_config`, for the file Pots
+     * owns a block of.
+     *
+     * A gated panel with no provider opens on "sign-in unavailable", which reads
+     * as a broken panel and is not one: the account is configured, the plugin
+     * that would ask for it is switched off. The rest of the list is left alone.
+     */
+    fun withBasicAuthPluginEnabled(yaml: String): String {
+        val kept = mutableListOf<String>()
+        var inPlugins = false
+        var inDisabled = false
+        var disabledIndent = 0
+        for (raw in yaml.lines()) {
+            val line = raw.trimEnd()
+            val indent = line.length - line.trimStart().length
+            if (line.isNotBlank() && indent == 0) {
+                inPlugins = line == "plugins:"
+                inDisabled = false
+            } else if (line.isNotBlank() && inPlugins) {
+                if (inDisabled && indent <= disabledIndent) inDisabled = false
+                if (!inDisabled && line.trim() == "disabled:") {
+                    inDisabled = true
+                    disabledIndent = indent
+                }
+            }
+            if (inDisabled) {
+                val item = listItem(line)
+                if (item != null && item in BASIC_AUTH_PLUGINS) continue
+            }
+            kept += line
+        }
+        val body = kept.joinToString("\n")
+        return if (yaml.endsWith("\n") && !body.endsWith("\n")) body + "\n" else body
+    }
+
+    /** The scalar of a YAML block-list item (`- basic`), or null for any other line. */
+    private fun listItem(line: String): String? {
+        val trimmed = line.trim()
+        if (!trimmed.startsWith("- ")) return null
+        return trimmed.removePrefix("- ").trim().trim('"', '\'')
     }
 
     /**

@@ -8,10 +8,15 @@ import kotlin.random.Random
 /**
  * A coding agent's own web UI, as something Pots Build can start and stop.
  *
- * Every panel listens on loopback. proot creates no network namespace, so a
+ * OpenCode and Pi listen on loopback. proot creates no network namespace, so a
  * server bound to `127.0.0.1` inside the sandbox *is* the phone's loopback and
- * Chrome reaches it; binding `0.0.0.0` would put an unauthenticated panel on the
- * LAN instead, so nothing here ever asks for that.
+ * Chrome reaches it.
+ *
+ * Hermes is the exception, and deliberately so: it binds every interface, so the
+ * owner can open it from another device on the same network while the phone sits
+ * on a charger. A non-loopback bind turns Hermes' sign-in gate on, and Pots gives
+ * it a dashboard account ([HERMES_USER] plus a generated password) — a gated panel
+ * with no account is not an open panel, it is one that cannot be opened at all.
  *
  * The pid, port and log files live under the guest's `/tmp`, which is a host
  * directory bind-mounted in — so they survive an app restart and the host can
@@ -25,11 +30,10 @@ data class WebPanel(
     val title: String,
     /** Tried first; a busy port moves the panel to the next free one. */
     val preferredPort: Int,
-    /**
-     * Env var carrying the panel's password, or null for the panel that has no
-     * password of its own (Hermes signs each browser in with a one-use link).
-     */
+    /** Env var carrying the panel's password, or null for a panel that asks for none. */
     val passwordEnv: String?,
+    /** Env var carrying the panel's login, for the panels that ask for one by name. */
+    val usernameEnv: String? = null,
 ) {
     val pidFile: String get() = "pots-web-$id.pid"
     val portFile: String get() = "pots-web-$id.port"
@@ -84,7 +88,11 @@ object WebPanels {
             title = "Hermes",
             // Read from `webapp.port` in the Hermes config, written by [SandboxAgentConfig].
             preferredPort = HERMES_PORT,
-            passwordEnv = null,
+            // The panel is on the LAN, so Hermes' sign-in gate is on, and these are
+            // the account it asks for. Passed in the launcher's environment — the
+            // config file is rewritten on every agent start and must not carry it.
+            passwordEnv = "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD",
+            usernameEnv = "HERMES_DASHBOARD_BASIC_AUTH_USERNAME",
         ),
     )
 
@@ -102,33 +110,97 @@ object WebPanels {
     fun address(port: Int): String = "http://127.0.0.1:$port"
 
     /**
-     * The URL handed to the browser.
-     *
-     * Only OpenCode gets credentials in it: it asks for HTTP Basic on every
-     * request, the HTML included, so `user:password@host` signs the browser in
-     * and Chromium strips them from the address bar and history once the page
-     * has loaded. pi-web guards its API only — its HTML wants a session cookie —
-     * so its URL points at the login form instead: credentials in it would be
-     * ignored and would leave the password sitting in the address bar. Hermes
-     * needs neither, because the link `link()` mints *is* the sign-in.
-     *
-     * A null or empty password yields the plain address rather than a broken
-     * `user:@host` — the panel still opens, it just asks for the password.
+     * The same panel, dialled from another device: [lanIp] is the phone's own
+     * address in the local network.
      */
-    fun url(panel: WebPanel, port: Int, password: String? = null): String = when (panel.id) {
-        OPENCODE ->
-            if (password.isNullOrEmpty()) {
-                address(port)
-            } else {
-                "http://$OPENCODE_USER:${percentEncode(password)}@127.0.0.1:$port/"
-            }
+    fun lanAddress(port: Int, lanIp: String): String = "http://$lanIp:$port"
+
+    /**
+     * The address the Hermes row shows, given what its launcher printed.
+     *
+     * A published address — `webapp.public_url`, or an origin Web Access
+     * registered with Nous — is already reachable from other devices and is kept
+     * as printed. The loopback one is not: Pots binds the panel to the LAN, so the
+     * row gets the phone's LAN address, or loopback (and the row says the panel is
+     * reachable only here) when the phone is on no network at all.
+     */
+    fun hermesAddress(printed: String?, port: Int, lanIp: String?): String = when {
+        printed != null && !isLoopback(printed) -> printed
+        lanIp.isNullOrBlank() -> address(port)
+        else -> lanAddress(port, lanIp)
+    }
+
+    /**
+     * The URL handed to the browser for the panels that need nothing minted.
+     *
+     * None of them takes credentials in a URL. pi-web guards its API only — its
+     * HTML wants a session cookie — so its URL points at the login form instead;
+     * OpenCode 2 answers `/` with a client that asks for a pairing link (see
+     * [pairCommand]) and takes nothing from the address, so its URL is the plain
+     * address; Hermes needs neither, because the link `link()` mints *is* the
+     * sign-in.
+     */
+    fun url(panel: WebPanel, port: Int): String = when (panel.id) {
+        OPENCODE -> address(port)
         PI -> "${address(port)}/login"
+        // The gate asks for the account, not for anything in the URL: the address
+        // alone is what the row hands over, and [hermesAddress] picks the LAN one.
         HERMES -> address(port)
         else -> error("no URL for panel ${panel.id}")
     }
 
-    /** The user half of OpenCode's Basic credentials; its password is the one above. */
+    /**
+     * How a browser gets into [panel] once it is up — the panel whose address
+     * alone is not the whole answer says so here, once, for [WebPanelRuntime].
+     */
+    fun openKind(panel: WebPanel): WebPanelOpen = when (panel.id) {
+        OPENCODE -> WebPanelOpen.PAIRING_CODE
+        else -> WebPanelOpen.DIRECT
+    }
+
+    /**
+     * The user half of OpenCode's Basic credentials. v2 accepts no other name:
+     * `OPENCODE_SERVER_USERNAME` is gone and the user is always `opencode`.
+     */
     const val OPENCODE_USER = "opencode"
+
+    /** The login Pots gives Hermes' dashboard; its password is the panel's own. */
+    const val HERMES_USER = "pots"
+
+    /**
+     * The command that mints a pairing code for OpenCode's panel.
+     *
+     * OpenCode 2's web client no longer accepts Basic credentials in the URL: `/`
+     * answers with "Connect to a server. Paste the pairing link…" and the password
+     * does nothing there. The sign-in is a code from `POST /api/pair` — good for
+     * 300 seconds and for one browser — so it is asked for on the tap and never
+     * stored; [pairUrl] is what the code opens.
+     *
+     * The password is not on this command line in either direction. The shell's
+     * `printf` is a builtin, so the expanded `$passwordEnv` stays inside the shell
+     * process and no child is exec'd with it; curl reads its credentials from
+     * stdin (`-K -`), so curl's own argv holds `-K -` and nothing else. `ps` in
+     * the sandbox sees the string below — with the variable name in it, not the
+     * value.
+     *
+     * The HTTP status is printed on a line of its own after the body, so one call
+     * says both "the server refused" and "the server answered something that is
+     * not a code" — see [OpenCodePairOutput].
+     */
+    fun pairCommand(panel: WebPanel, port: Int): String {
+        val passwordEnv = panel.passwordEnv ?: error("panel ${panel.id} has no password")
+        // curl's config takes `user = "name:password"`, and the generated alphabet
+        // is alphanumeric, so nothing in the value needs escaping inside the quotes.
+        return "printf 'user = \"$OPENCODE_USER:%s\"\\n' \"\$$passwordEnv\" | " +
+            "curl -sS -K - -X POST -w '\\n%{http_code}' ${address(port)}/api/pair"
+    }
+
+    /**
+     * The address a minted code opens: the server sets the session cookie and
+     * redirects into the app. Encoded because one `/` or `?` in a code would end
+     * the path early and land on a 404 nobody could explain.
+     */
+    fun pairUrl(port: Int, code: String): String = "${address(port)}/auth/connect/${percentEncode(code)}"
 
     /**
      * The port a URL points at, or null when it names none. Used to report the
@@ -211,11 +283,11 @@ object WebPanels {
 /**
  * Percent-encodes everything but RFC 3986's unreserved characters.
  *
- * A generated password is drawn from an alphanumeric alphabet, so today it needs
- * no escaping — but that alphabet is a constant someone will widen, and one raw
- * `@`, `:` or `/` in the userinfo ends it early: the browser then dials a host
- * that does not exist, or a different one, and nothing says why the panel came
- * up unauthenticated. Encoding unconditionally means that cannot happen.
+ * A pairing code arrives from the server and is used as a path segment: one raw
+ * `/`, `?` or `#` in it would end the path early and land the browser on a 404
+ * that says nothing about the panel. Codes look like base64url today and need no
+ * escaping, but the server picks that alphabet, not us — encoding unconditionally
+ * means a future code cannot break the link silently.
  *
  * Hand-rolled because commonMain has no `URLEncoder` (`java.net`) and the app
  * targets iOS and wasm as well as Android.
@@ -278,11 +350,18 @@ enum class WebPanelOpen {
     MINTED_LINK,
 
     /**
+     * Only a code minted on the tap gets in — OpenCode 2 answers `/` with a
+     * client that wants a pairing link, and its code dies within 300 seconds.
+     */
+    PAIRING_CODE,
+
+    /**
      * The webapp answers with a permanent address and asks for a dashboard
-     * account. Hermes only gets there when the listener is gated — a non-loopback
-     * bind, or a non-loopback `webapp.public_url` — and Pots writes neither, so
-     * this state is what a hand-edited config produces. The row says "sign in",
-     * because that is what such an address does.
+     * account. Hermes is here whenever the listener is gated — a non-loopback
+     * bind, which is what Pots writes so the panel is reachable from the owner's
+     * other devices — and the account is the one Pots passes in the launcher's
+     * environment. The row says "sign in", because that is what such an address
+     * does.
      */
     DASHBOARD_SIGN_IN,
 }
@@ -368,4 +447,72 @@ object HermesWebappOutput {
 
     /** The address `hermes webapp --status` reports, without any one-use token. */
     fun servingUrl(status: String): String? = SERVING.find(status)?.groupValues?.get(1)?.trimEnd('.', ',', ')')
+}
+
+/**
+ * What `POST /api/pair` gave back: a one-use code, or the sentence the row shows
+ * instead of a link.
+ *
+ * Two failures have to stay distinguishable, because they have different cures:
+ * the server refused (a wrong password — the panel's own password is stale) and
+ * the server answered something that is not a code (a different build, or a
+ * proxy in between). Opening the bare address is not an option for either: v2
+ * answers `/` with "Connect to a server. Paste the pairing link…", which reads
+ * as a broken panel.
+ */
+@Immutable
+sealed interface OpenCodePairing {
+
+    /** A code straight from the answer's `code` field, good for one browser. */
+    data class Code(val value: String) : OpenCodePairing
+
+    /** No link could be minted; [reason] is shown as it is. */
+    data class Failed(val reason: String) : OpenCodePairing
+}
+
+/**
+ * Reads what [WebPanels.pairCommand] printed: the JSON body, then the HTTP status
+ * on a line of its own.
+ *
+ * The body is scanned rather than parsed — commonMain has no JSON parser, and the
+ * answer is one field deep. A code is only taken from a 2xx: an error body may
+ * carry anything, and half a link is worse than a sentence.
+ */
+object OpenCodePairOutput {
+
+    private val CODE = Regex("""\"code\"\s*:\s*\"([^\"]+)\"""")
+    private val STATUS = Regex("""(?m)^[ \t]*(\d{3})[ \t]*$""")
+
+    /** How much of an unexpected body the reason line quotes. */
+    private const val DETAIL_CHARS = 120
+
+    fun parse(output: String): OpenCodePairing {
+        val status = STATUS.findAll(output).lastOrNull()?.groupValues?.get(1)?.toIntOrNull()
+        val body = output.trim().lineSequence()
+            .filterNot { STATUS.matches(it) }
+            .joinToString("\n")
+            .trim()
+        if (status == null) {
+            // No status line at all: curl itself failed — refused, timed out, or
+            // it is not installed. Its own message is the only honest reason.
+            val reason = output.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+            return OpenCodePairing.Failed(
+                "OpenCode did not answer /api/pair: ${reason.ifEmpty { "no output" }.take(DETAIL_CHARS)}",
+            )
+        }
+        if (status !in 200..299) {
+            val detail = body.take(DETAIL_CHARS)
+            return OpenCodePairing.Failed(
+                "OpenCode refused the pairing code (HTTP $status)" + if (detail.isEmpty()) "" else ": $detail",
+            )
+        }
+        val code = CODE.find(body)?.groupValues?.get(1)
+        if (code.isNullOrEmpty()) {
+            return OpenCodePairing.Failed(
+                "OpenCode's pairing answer carried no code (HTTP $status)" +
+                    body.take(DETAIL_CHARS).let { if (it.isEmpty()) "" else ": $it" },
+            )
+        }
+        return OpenCodePairing.Code(code)
+    }
 }
