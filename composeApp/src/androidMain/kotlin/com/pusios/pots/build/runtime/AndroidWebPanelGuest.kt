@@ -29,8 +29,8 @@ class AndroidWebPanelGuest(
     private val executor: (Map<String, String>) -> BuildProotExecutor,
 ) : WebPanelGuest {
 
-    override fun run(command: String, timeoutSeconds: Long): WebPanelGuest.Output {
-        val result = executor(emptyMap()).execute(command, timeoutSeconds)
+    override fun run(command: String, timeoutSeconds: Long, env: Map<String, String>): WebPanelGuest.Output {
+        val result = executor(env).execute(command, timeoutSeconds)
         return WebPanelGuest.Output(result.success, (result.stdout + result.stderr).trim())
     }
 
