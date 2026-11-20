@@ -149,6 +149,11 @@ data class PotsikCloudState(
      * nobody can see is a context nobody agreed to.
      */
     val assistContext: Boolean = false,
+    /**
+     * True while a frame of the screen rides with the question in the field:
+     * the field draws its preview, and the window grows by that row.
+     */
+    val shotAttached: Boolean = false,
 )
 
 /** The voice button is dead without a recognizer — and says so, rather than failing at the tap. */
@@ -156,6 +161,39 @@ fun potsikCloudVoiceEnabled(recognizerAvailable: Boolean): Boolean = recognizerA
 
 /** An empty field sends nothing. */
 fun potsikCloudSendEnabled(text: String): Boolean = text.isNotBlank()
+
+/**
+ * True when the cloud takes a new input — a question, a voice attempt, a new
+ * frame — in this phase.
+ *
+ * The rule: a turn in progress is not interrupted by a side door.
+ *
+ * - [PotsikCloudPhase.Listening] owns the microphone; opening a second session
+ *   on top of it is the `ERROR_RECOGNIZER_BUSY` the microphone button used to
+ *   produce.
+ * - [PotsikCloudPhase.Thinking] and [PotsikCloudPhase.Speaking] are a turn the
+ *   user is waiting for. A capture that `PotsikCloudAsker.ask` cancels silently
+ *   is worse than a dead button: it ends the answer nobody asked to end.
+ * - [PotsikCloudPhase.AwaitingConsent] is the modal system dialog's moment —
+ *   there is nothing to tap behind it — and [PotsikCloudPhase.Shot] is a frame
+ *   already in hand, waiting for the question it was taken for.
+ * - [PotsikCloudPhase.Menu] and [PotsikCloudPhase.TextInput] are the two
+ *   surfaces that exist to take input, and [PotsikCloudPhase.Error] stays open
+ *   on purpose: its [Повторить] is a new turn of the same flow.
+ */
+fun potsikCloudInputsEnabled(phase: PotsikCloudPhase): Boolean = when (phase) {
+    PotsikCloudPhase.Menu,
+    PotsikCloudPhase.TextInput,
+    PotsikCloudPhase.Error,
+    -> true
+
+    PotsikCloudPhase.Listening,
+    PotsikCloudPhase.Thinking,
+    PotsikCloudPhase.Speaking,
+    PotsikCloudPhase.AwaitingConsent,
+    PotsikCloudPhase.Shot,
+    -> false
+}
 
 /** The character's own look for each cloud state: the phases the app already has. */
 data class PotsikPetLook(
@@ -372,18 +410,27 @@ private fun baseCloudSize(state: PotsikCloudState, voiceAvailable: Boolean): Pot
 
     // The field of Flow 2: wider than the menu (a sentence has to be readable
     // while it is typed) and taller, because an OutlinedTextField needs 56 dp of
-    // its own inside the capsule's padding.
-    PotsikCloudPhase.TextInput -> PotsikCloudSize(POTSIK_CLOUD_INPUT_WIDTH_DP, POTSIK_CLOUD_INPUT_HEIGHT_DP)
+    // its own inside the capsule's padding. A frame riding with the question
+    // gets a row of its own above the field, so the window grows by it — the
+    // capsule's bounds are the content's bounds, or the preview is clipped.
+    PotsikCloudPhase.TextInput -> PotsikCloudSize(
+        POTSIK_CLOUD_INPUT_WIDTH_DP,
+        POTSIK_CLOUD_INPUT_HEIGHT_DP + if (state.shotAttached) POTSIK_CLOUD_INPUT_SHOT_ROW_DP else 0f,
+    )
 }
 
 /**
- * The text field's width: the shot pill's 288 dp — the widest the capsule gets
- * — so a typed question stays readable and the send button keeps its 48 dp.
+ * The text field's width: the shot pill's 288 dp plus the microphone, so a
+ * typed question stays readable and the field keeps three 40/48 dp buttons
+ * beside it — [×], the microphone and [Отправить].
  */
-const val POTSIK_CLOUD_INPUT_WIDTH_DP = 288f
+const val POTSIK_CLOUD_INPUT_WIDTH_DP = 320f
 
 /** The text field's window: a 56 dp field in an 8 dp padding, plus the tail. */
 const val POTSIK_CLOUD_INPUT_HEIGHT_DP = 80f
+
+/** The row the attached frame's preview takes above the field: a 40 dp thumbnail and its 4 dp gap. */
+const val POTSIK_CLOUD_INPUT_SHOT_ROW_DP = 44f
 
 /**
  * How much of the screen's height the keyboard is assumed to take.

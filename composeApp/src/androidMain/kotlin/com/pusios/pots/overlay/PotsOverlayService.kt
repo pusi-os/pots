@@ -448,7 +448,6 @@ class PotsOverlayService : Service() {
             windowManager = w,
             petParams = { pet?.windowParams },
             characterPx = { characterPxNow() },
-            onOpenText = { startActivity(potsikTextInputIntent(this)) },
             onClosed = { cloudPhase.value = null },
             onPhase = { cloudPhase.value = it },
         )

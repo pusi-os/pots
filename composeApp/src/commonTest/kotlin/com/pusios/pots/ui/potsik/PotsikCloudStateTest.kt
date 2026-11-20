@@ -1,8 +1,11 @@
 package com.pusios.pots.ui.potsik
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -117,5 +120,66 @@ class PotsikCloudStateTest {
         assertFalse(PotsikCloudDraft.clearIfAnswerTo("тот же текст"))
         assertEquals("черновик", PotsikCloudDraft.text.value)
         PotsikCloudDraft.clear()
+    }
+
+    @Test
+    fun `the cloud takes input in the phases that wait for it`() {
+        // The two surfaces that exist for input, and the error pill, whose
+        // [Повторить] is a new turn of the same flow.
+        assertTrue(potsikCloudInputsEnabled(PotsikCloudPhase.Menu))
+        assertTrue(potsikCloudInputsEnabled(PotsikCloudPhase.TextInput))
+        assertTrue(potsikCloudInputsEnabled(PotsikCloudPhase.Error))
+    }
+
+    @Test
+    fun `a turn in progress takes no new input`() {
+        // The bug this rule exists for: a capture started from a busy phase
+        // cancels the answer nobody asked to end, silently.
+        assertFalse(potsikCloudInputsEnabled(PotsikCloudPhase.Thinking))
+        assertFalse(potsikCloudInputsEnabled(PotsikCloudPhase.Speaking))
+        // The microphone has one owner, and the consent dialog is modal.
+        assertFalse(potsikCloudInputsEnabled(PotsikCloudPhase.Listening))
+        assertFalse(potsikCloudInputsEnabled(PotsikCloudPhase.AwaitingConsent))
+        // A frame in hand is waiting for its own question, not for another.
+        assertFalse(potsikCloudInputsEnabled(PotsikCloudPhase.Shot))
+    }
+
+    @Test
+    fun `every phase has an answer, so a new one cannot default to enabled`() {
+        // Exhaustive on purpose: a phase added later must be decided here.
+        for (phase in PotsikCloudPhase.entries) {
+            val expected = phase == PotsikCloudPhase.Menu ||
+                phase == PotsikCloudPhase.TextInput ||
+                phase == PotsikCloudPhase.Error
+            assertEquals(expected, potsikCloudInputsEnabled(phase), "$phase")
+        }
+    }
+
+    @Test
+    fun `opening the field keeps the frame in hand`() {
+        val question = PotsikCloudQuestion(
+            asker = PotsikCloudAsker(CoroutineScope(Job()), repository = null),
+            // Never reached here: the frame is only looked at, not sent.
+            toFile = { null },
+        )
+        question.attach(PotsikShot(width = 6, height = 4, png = byteArrayOf(1, 2, 3)))
+
+        val state = question.textInputState()
+
+        assertEquals(PotsikCloudPhase.TextInput, state.phase)
+        assertTrue(state.shotAttached, "«Текст» after a shot must keep the shot")
+        assertNotNull(question.shot.value, "the frame is still owed to the question")
+    }
+
+    @Test
+    fun `the field grows by the preview row when a frame rides with it`() {
+        val plain = potsikCloudWindowSize(PotsikCloudState(phase = PotsikCloudPhase.TextInput))
+        val withShot = potsikCloudWindowSize(
+            PotsikCloudState(phase = PotsikCloudPhase.TextInput, shotAttached = true),
+        )
+        // The capsule's bounds are the content's bounds: a preview the window
+        // did not grow for is a preview clipped by its own edge.
+        assertEquals(POTSIK_CLOUD_INPUT_SHOT_ROW_DP, withShot.heightDp - plain.heightDp)
+        assertEquals(plain.widthDp, withShot.widthDp)
     }
 }

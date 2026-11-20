@@ -30,7 +30,6 @@ import com.pusios.pots.ui.potsik.PotsikCloudPhase
 import com.pusios.pots.ui.potsik.PotsikCloudState
 import com.pusios.pots.ui.potsik.PotsikCloudTrouble
 import com.pusios.pots.ui.potsik.PotsikCloudVoice
-import com.pusios.pots.ui.potsik.PotsikShot
 import com.pusios.pots.ui.potsik.PotsikShotHolder
 import com.pusios.pots.ui.potsik.PotsikShotUi
 import com.pusios.pots.ui.potsik.potsikScreenshotSizeLabel
@@ -38,15 +37,12 @@ import com.pusios.pots.ui.tts.DEFAULT_PIPER_VOICE_ID
 import com.pusios.pots.ui.tts.PotsTextToSpeech
 import com.pusios.pots.ui.tts.createPiperTextToSpeech
 import com.pusios.pots.ui.tts.sayChunked
-import io.github.vinceglb.filekit.AndroidFile
-import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.get
-import java.io.File
 import java.util.Locale
 
 /**
@@ -143,7 +139,7 @@ class PotsikTextInputActivity : ComponentActivity() {
                         onDraftChange = PotsikCloudDraft::set,
                         onSend = {
                             val pending = PotsikShotHolder.shot.value
-                            val file = pending?.let { shotFile(it) }
+                            val file = pending?.let { potsikShotFile(this@PotsikTextInputActivity, it) }
                             if (pending != null && file == null) {
                                 // The frame could not be handed to the chat:
                                 // nothing is sent, so nothing is lost — the
@@ -220,19 +216,4 @@ class PotsikTextInputActivity : ComponentActivity() {
         // and the chat has the turn if it was already sent.
         scope.cancel()
     }
-
-    /**
-     * The frame as a chat attachment.
-     *
-     * The chat's own pipeline takes `PlatformFile`s — the same type the picker
-     * and the camera hand it — so the screenshot is written to the cache and
-     * goes through the very same classify/compress/attach path. No second
-     * message format for the screen.
-     */
-    private fun shotFile(shot: PotsikShot): PlatformFile? = runCatching {
-        val dir = File(cacheDir, "potsik").apply { mkdirs() }
-        val file = File(dir, "screenshot-${shot.width}x${shot.height}.png")
-        file.writeBytes(shot.png)
-        PlatformFile(AndroidFile.FileWrapper(file))
-    }.getOrNull()
 }

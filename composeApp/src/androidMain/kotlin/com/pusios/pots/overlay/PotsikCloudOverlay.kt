@@ -58,16 +58,17 @@ import com.pusios.pots.ui.potsik.PotsikCloudAsker
 import com.pusios.pots.ui.potsik.PotsikCloudCapsule
 import com.pusios.pots.ui.potsik.PotsikCloudDraft
 import com.pusios.pots.ui.potsik.PotsikCloudPhase
+import com.pusios.pots.ui.potsik.PotsikCloudQuestion
 import com.pusios.pots.ui.potsik.PotsikCloudState
 import com.pusios.pots.ui.potsik.PotsikCloudTrouble
 import com.pusios.pots.ui.potsik.PotsikCloudVoice
 import com.pusios.pots.ui.potsik.PotsikScreenMode
 import com.pusios.pots.ui.potsik.PotsikScreenPhase
 import com.pusios.pots.ui.potsik.PotsikScreenStep
-import com.pusios.pots.ui.potsik.PotsikShotHolder
 import com.pusios.pots.ui.potsik.PotsikShotUi
 import com.pusios.pots.ui.potsik.isScreenTrouble
 import com.pusios.pots.ui.potsik.potsikCloudInputTop
+import com.pusios.pots.ui.potsik.potsikCloudInputsEnabled
 import com.pusios.pots.ui.potsik.potsikCloudPlacement
 import com.pusios.pots.ui.potsik.potsikCloudSendEnabled
 import com.pusios.pots.ui.potsik.potsikCloudWindowSize
@@ -113,8 +114,6 @@ internal class PotsikCloudOverlay(
     private val petParams: () -> WindowManager.LayoutParams?,
     /** The character's drawn size inside his window, in pixels. */
     private val characterPx: () -> Int,
-    /** Open the text field: a translucent activity, because the keyboard would cover an overlay. */
-    private val onOpenText: () -> Unit,
     /** Told when the cloud goes down, so the service can drop its reference. */
     private val onClosed: () -> Unit,
     /** Told what the cloud shows, so the character's window can react to it. */
@@ -127,6 +126,15 @@ internal class PotsikCloudOverlay(
     private val repository: DataRepository? = GlobalContext.getOrNull()?.getOrNull()
 
     private val asker = PotsikCloudAsker(scope, repository)
+
+    /**
+     * The frame of the screen and the question that spends it.
+     *
+     * Every entry — the field, the microphone, the pill's tap — asks through
+     * this, so «снимок идёт с вопросом, а второй вопрос идёт без него» is
+     * decided once, in a class a test can drive without a device.
+     */
+    private val question = PotsikCloudQuestion(asker) { shot -> potsikShotFile(context, shot) }
 
     /** The double-tap window is the platform's, never a constant of ours. */
     val doubleTapTimeoutMs: Long = ViewConfiguration.getDoubleTapTimeout().toLong()
@@ -157,8 +165,9 @@ internal class PotsikCloudOverlay(
             textToSpeech = textToSpeech,
             speechToText = speechToText,
             // Every question leaves through here, so the assist snapshot — when
-            // there is one — is attached to whichever question comes first.
-            onSubmit = { question -> asker.ask(questionWithScreen(question)) },
+            // there is one — and the frame of the screen go out with whichever
+            // question comes first, spoken or typed.
+            onSubmit = { spoken -> sendSpoken(spoken) },
             // An overlay window cannot raise the system permission dialog —
             // only an activity can. Without the permission the pill says so
             // and offers [Повторить]; the dialog itself lives in the app.
@@ -334,6 +343,9 @@ internal class PotsikCloudOverlay(
         PotsikScreenProjection.listener = null
         screenMode.exit()
         screenShot.value = null
+        // A frame nobody asked about yet goes with the window: the next cloud is
+        // a new moment of the screen.
+        question.dropShot()
         // A fade that is still running ends here rather than on top of a
         // window that has already been taken down.
         view.animate().cancel()
@@ -618,6 +630,9 @@ internal class PotsikCloudOverlay(
 
     fun onVoice() {
         if (!voiceAvailable) return
+        // The same rule as «Экран»: a turn in progress is not cut short by a
+        // second microphone opening on top of it.
+        if (!potsikCloudInputsEnabled(state.phase)) return
         if (!screenInteractive()) {
             setState(PotsikCloudState(phase = PotsikCloudPhase.Error, trouble = PotsikCloudTrouble.ScreenOff))
             return
@@ -633,25 +648,65 @@ internal class PotsikCloudOverlay(
      * «Текст»: the field opens in the cloud itself, not in the app.
      *
      * The window keeps its place over his head (raised into the top half, where
-     * the keyboard cannot reach it) and takes input focus for the phase. The
-     * plain text flow asks no question about a picture: whatever the screen
-     * mode left pending is not this question's attachment.
+     * the keyboard cannot reach it) and takes input focus for the phase. A frame
+     * the screen mode is holding is *not* this tap's casualty: it stays attached,
+     * and the field previews it — that is the whole point of «после снимка можно
+     * напечатать».
      */
     fun onText() {
-        PotsikShotHolder.clear()
-        setState(PotsikCloudState(phase = PotsikCloudPhase.TextInput))
+        if (!potsikCloudInputsEnabled(state.phase)) return
+        setState(question.textInputState())
     }
 
     /** [Отправить] on the field: the same asker the voice loop uses, so the answer lands on the same pill. */
     fun onSendText() {
         val draft = PotsikCloudDraft.text.value
         if (!potsikCloudSendEnabled(draft)) return
-        // The assist snapshot, if any, goes out with this question — and the
-        // field is marked with what was actually sent, so the answer to it
-        // clears the field and nothing else does.
-        val question = questionWithScreen(draft).trim()
-        PotsikCloudDraft.markSent(question)
-        asker.ask(question)
+        // The assist snapshot and the frame, if any, go out with this question —
+        // and the field is marked with what was actually sent, so the answer to
+        // it clears the field and nothing else does.
+        when (val outcome = question.ask(draft, ::questionWithScreen)) {
+            is PotsikCloudQuestion.Outcome.Sent -> {
+                PotsikCloudDraft.markSent(outcome.question)
+                releaseShot()
+            }
+
+            // The frame could not be attached: nothing was sent, the draft and
+            // the picture stay where they are, and the pill says why.
+            PotsikCloudQuestion.Outcome.ScreenFailed ->
+                setState(PotsikCloudState(phase = PotsikCloudPhase.Error, trouble = PotsikCloudTrouble.ScreenCaptureFailed))
+
+            PotsikCloudQuestion.Outcome.Nothing -> Unit
+        }
+    }
+
+    /**
+     * A transcript, on its way to the chat: the same rules as the field — the
+     * frame rides with the question, and a frame that cannot be attached stops
+     * the turn instead of being dropped quietly.
+     */
+    private fun sendSpoken(spoken: String) {
+        when (question.ask(spoken, ::questionWithScreen)) {
+            is PotsikCloudQuestion.Outcome.Sent -> releaseShot()
+
+            PotsikCloudQuestion.Outcome.ScreenFailed -> {
+                // The loop is in Thinking for a question that was never sent:
+                // stop it and say why, rather than leaving the pill waiting.
+                handsFree.stop()
+                PotsikCloudVoice.setActive(false)
+                setState(
+                    PotsikCloudState(phase = PotsikCloudPhase.Error, trouble = PotsikCloudTrouble.ScreenCaptureFailed),
+                )
+            }
+
+            PotsikCloudQuestion.Outcome.Nothing -> Unit
+        }
+    }
+
+    /** The frame has gone out with a question: the thumbnail and the mode's own copy go with it, the session stays. */
+    private fun releaseShot() {
+        screenShot.value = null
+        screenMode.clearShot()
     }
 
     /** [×] on the field: back to the menu. The draft is kept for the next time. */
@@ -667,6 +722,9 @@ internal class PotsikCloudOverlay(
      * before. While the dialog is up the pill says so and offers no buttons.
      */
     fun onScreen() {
+        // A turn in progress is not interrupted by a capture nobody asked for:
+        // the same rule the microphone follows.
+        if (!potsikCloudInputsEnabled(state.phase)) return
         PotsikScreenProjection.listener = screenListener
         scope.launch {
             when (screenMode.tap()) {
@@ -680,26 +738,33 @@ internal class PotsikCloudOverlay(
         }
     }
 
-    /** [×] on the shot pill: the frame goes, the session stays — the next tap takes another one. */
+    /**
+     * [×]: the frame goes, the session stays — the next tap takes another one.
+     *
+     * On the field's preview the [×] means the picture only: the draft and the
+     * field stay, because dropping a shot is not closing the question.
+     */
     fun onRemoveShot() {
         screenMode.clearShot()
-        PotsikShotHolder.clear()
-        showScreen()
+        question.dropShot()
+        screenShot.value = null
+        if (state.phase == PotsikCloudPhase.TextInput) {
+            setState(PotsikCloudState(phase = PotsikCloudPhase.TextInput))
+        } else {
+            showScreen()
+        }
     }
 
     /**
-     * The question about the frame, in the same field Flow 2 uses.
+     * The question about the frame, in the cloud's own field.
      *
-     * The frame is handed over in [PotsikShotHolder], because the field is
-     * another activity; the cloud closes with it, and the session ends with the
-     * cloud — the picture is already in hand, so nothing is lost, and no
-     * projection is left running behind a closed capsule.
+     * The frame stays in hand and the cloud stays open: no activity, no closed
+     * capsule. The field that opens is the one Flow 2 already has, with the
+     * thumbnail above it — the owner's «написать или сказать про этот снимок,
+     * не переключаясь в приложение» is exactly this phase.
      */
     private fun openQuestionAboutShot() {
-        val shot = screenMode.state.value.shot ?: return
-        PotsikShotHolder.set(shot)
-        close()
-        onOpenText()
+        setState(question.textInputState())
     }
 
     /**
@@ -742,6 +807,9 @@ internal class PotsikCloudOverlay(
                 screenShot.value = screen.shot?.let { shot ->
                     PotsikShotUi(preview = shot.preview(), label = potsikScreenshotSizeLabel(shot.width, shot.height))
                 }
+                // The frame is now owed to a question: the field of the next
+                // phase previews it and sends it with whatever is typed or said.
+                screen.shot?.let { question.attach(it) }
                 setState(PotsikCloudState(phase = PotsikCloudPhase.Shot))
                 if (announce) shell?.haptic(HapticFeedbackConstants.CONFIRM)
             }
@@ -934,7 +1002,14 @@ private class CloudWindowOwner :
     }
 }
 
-/** The intent that opens the text field; built here, read by the activity. */
+/**
+ * The intent that opens [PotsikTextInputActivity] — the standalone text screen.
+ *
+ * The cloud no longer goes through it: a question about a shot is asked in the
+ * capsule itself, so the overlay never leaves the screen the owner is on. The
+ * activity stays for the entries that start outside the cloud, and its way in
+ * is kept here, next to the rest of its platform glue.
+ */
 internal fun potsikTextInputIntent(context: Context): Intent = Intent(context, PotsikTextInputActivity::class.java).apply {
     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 }
