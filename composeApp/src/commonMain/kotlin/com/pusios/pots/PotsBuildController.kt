@@ -1,6 +1,7 @@
 package com.pusios.pots
 
 import com.pusios.pots.build.PotsBuildState
+import com.pusios.pots.build.WebPanelLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -112,6 +113,14 @@ interface PotsBuildController {
      * [PotsBuildState]: nothing that renders a screen has to hold it.
      */
     fun webPanelPassword(panelId: String): String?
+
+    /**
+     * The panel's log, tail-first and with its password already cut out, for the
+     * row's log section. Read on demand — never as part of [PotsBuildState]: the
+     * file grows while the panel starts, and a polled copy would be both stale and
+     * heavier than anything else in the state.
+     */
+    fun webPanelLog(panelId: String): String
 }
 
 /** Pots Build is Android-only; every other target gets this. */
@@ -141,6 +150,7 @@ class NoOpPotsBuildController : PotsBuildController {
     override fun openWebPanel(panelId: String) {}
     override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
     override fun webPanelPassword(panelId: String): String? = null
+    override fun webPanelLog(panelId: String): String = WebPanelLog.NO_FILE
 }
 
 expect fun createPotsBuildController(): PotsBuildController

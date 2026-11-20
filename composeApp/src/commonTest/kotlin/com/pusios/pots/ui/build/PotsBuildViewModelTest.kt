@@ -75,6 +75,13 @@ class PotsBuildViewModelTest {
         override fun openWebPanel(panelId: String) {}
         override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
         override fun webPanelPassword(panelId: String): String? = null
+        override fun webPanelLog(panelId: String): String {
+            logRequests += panelId
+            return "starting\nlistening on 4096"
+        }
+
+        /** Panel ids passed to [webPanelLog], oldest first — the log must be read on demand only. */
+        val logRequests = mutableListOf<String>()
 
         /** Agent id sets passed to [checkAgents], oldest first. */
         val checked = mutableListOf<Set<String>>()
@@ -194,5 +201,15 @@ class PotsBuildViewModelTest {
         // The bulk flag reaches the controller as asked: Hermes' 5.2 GB checkout
         // is only dropped when the user says so.
         assertEquals(listOf("pi" to false), fakeController.removed)
+    }
+
+    @Test
+    fun `the panel log is read only when asked for, and reaches the caller`() = runTest {
+        val viewModel = PotsBuildViewModel(fakeController, fakeRepository)
+
+        assertEquals(emptyList(), fakeController.logRequests, "nothing is read on construction")
+
+        assertEquals("starting\nlistening on 4096", viewModel.panelLog("opencode"))
+        assertEquals(listOf("opencode"), fakeController.logRequests)
     }
 }

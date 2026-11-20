@@ -685,6 +685,40 @@ class WebPanelsTest {
         assertFalse(files.single { it.path == ".hermes/.env" }.content.contains(password))
     }
 
+    // --- the log the row shows -------------------------------------------
+
+    @Test
+    fun `the row's log is masked, so a panel that echoes its environment leaks nothing`() = runTest {
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+        val password = runtime.password("opencode").orEmpty()
+        assertTrue(password.isNotEmpty())
+        // A panel that prints its environment, or a shell that fails with the
+        // command line in the message, is the case this exists for.
+        guest.log = "env: OPENCODE_SERVER_PASSWORD=$password\nlistening on 4096"
+
+        val shown = runtime.panelLog("opencode")
+
+        assertFalse(shown.contains(password), "the password reached the screen: $shown")
+        assertContains(shown, "***")
+        assertContains(shown, "listening on 4096")
+    }
+
+    @Test
+    fun `a panel with no log file says so instead of throwing`() = runTest {
+        val guest = FakeGuest().apply { log = WebPanelLog.NO_FILE }
+        val runtime = runtime(this, guest)
+
+        assertEquals(WebPanelLog.NO_FILE, runtime.panelLog("pi"))
+    }
+
+    @Test
+    fun `an unknown panel has no log to show`() = runTest {
+        val runtime = runtime(this, FakeGuest())
+        assertEquals(WebPanelLog.NO_FILE, runtime.panelLog("claude-code"))
+    }
+
     // --- Hermes -----------------------------------------------------------
 
     @Test

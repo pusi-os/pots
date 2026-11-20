@@ -697,6 +697,11 @@
     <string name="pots_build_web_panel_hermes_link_hint">Ссылка входит в браузер один раз и живёт 60 секунд. Если она уже использована или истекла — нажмите адрес ещё раз.</string>
     <string name="pots_build_web_panel_hermes_local_hint">Локальной сети сейчас нет — панель открывается только на этом телефоне. Войдите логином и паролем ниже.</string>
     <string name="pots_build_web_panel_username">Логин: %1$s</string>
+    <string name="pots_build_web_panel_log">Лог запуска</string>
+    <string name="pots_build_web_panel_log_refresh">Обновить</string>
+    <string name="pots_build_web_panel_log_loading">Читаю лог…</string>
+    <string name="pots_build_web_panel_log_missing">Файла лога нет — панель его ещё не писала</string>
+    <string name="pots_build_web_panel_log_empty">Лог пуст</string>
     <string name="pots_build_system_packages">Установлено пакетов: %1$d</string>
     <string name="pots_build_system_disk_system">Система Linux</string>
     <string name="pots_build_system_disk_projects">Проекты</string>
