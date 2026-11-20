@@ -25,8 +25,40 @@ object WebPanelLog {
     /** The guest's answer when the file is there but empty. */
     const val EMPTY = "no output"
 
+    /**
+     * How much of a line a failure reason quotes. The status line is a sentence;
+     * the whole log belongs in the section under it, which scrolls.
+     */
+    const val BRIEF_CHARS = 200
+
     /** The last [TAIL_CHARS] characters of [text], or [EMPTY] when there are none. */
     fun tail(text: String): String = text.takeLast(TAIL_CHARS).trim().ifEmpty { EMPTY }
+
+    /**
+     * The log as the row shows it: [redact] first, [tail] second.
+     *
+     * The order matters. Cutting first would let a password that lies across the
+     * cut survive as a fragment: the rest of it is still in the tail, and
+     * [redact] no longer finds the whole value to cut out. Masking the whole file
+     * and cutting afterwards leaves nothing of it behind. The sandbox's run
+     * answer cuts its output the same way, for the same reason.
+     */
+    fun show(raw: String, password: String?): String = tail(redact(raw, password))
+
+    /**
+     * The one line a failure reason quotes: the last thing the panel said, masked,
+     * with the front of an overlong line dropped.
+     *
+     * A start that times out is explained by its last message — "address already
+     * in use", "permission denied" — and the whole tail in the status line would
+     * turn a sentence into a wall of text duplicating the section under it.
+     */
+    fun brief(raw: String, password: String?): String {
+        val masked = redact(raw, password)
+        if (masked == NO_FILE || masked == EMPTY) return masked
+        val line = masked.lineSequence().map { it.trim() }.lastOrNull { it.isNotEmpty() } ?: return EMPTY
+        return if (line.length <= BRIEF_CHARS) line else "…" + line.takeLast(BRIEF_CHARS)
+    }
 
     /**
      * [log] with every occurrence of [password] replaced by `***`.

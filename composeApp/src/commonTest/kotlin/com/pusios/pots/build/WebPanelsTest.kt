@@ -714,6 +714,47 @@ class WebPanelsTest {
     }
 
     @Test
+    fun `a password cut by the tail boundary never comes back as a fragment`() = runTest {
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+        val password = runtime.password("opencode").orEmpty()
+        assertTrue(password.isNotEmpty())
+        // 13010 characters total, so the 8000-character tail starts at 5010 — ten
+        // characters into the password, which begins at 5000. Masking after the
+        // cut would leave the rest of it on screen, and `replace` would not find it.
+        guest.log = "y".repeat(5_000) + password + "z".repeat(13_010 - 5_000 - password.length)
+
+        val shown = runtime.panelLog("opencode")
+
+        assertFalse(shown.contains(password.drop(10)), "a fragment of the password reached the screen")
+        assertFalse(shown.contains(password))
+        assertContains(shown, "***")
+    }
+
+    @Test
+    fun `a failed start quotes one masked line, not the whole log`() = runTest {
+        val password = "Xq7Rz2LmNp4Tv8Wk"
+        val guest = FakeGuest().apply {
+            listensAfterLaunch = false
+            // A full tail of noise, and the password in the last thing it said.
+            log = "y".repeat(WebPanelLog.TAIL_CHARS) +
+                "\nenv: OPENCODE_SERVER_PASSWORD=$password\nport 4096 is taken"
+        }
+        val runtime = runtime(this, guest, prefs = { WebPanelPreferences(password = password) })
+
+        runtime.startPanel("opencode")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("opencode"))
+        assertFalse(failed.reason.contains(password), "the password reached the status line: ${failed.reason}")
+        assertContains(failed.reason, "port 4096 is taken")
+        assertTrue(
+            failed.reason.length < WebPanelLog.BRIEF_CHARS + 100,
+            "the reason is the log, not a line: ${failed.reason.length} characters",
+        )
+    }
+
+    @Test
     fun `an unknown panel has no log to show`() = runTest {
         val runtime = runtime(this, FakeGuest())
         assertEquals(WebPanelLog.NO_FILE, runtime.panelLog("claude-code"))
@@ -1276,7 +1317,7 @@ class WebPanelsTest {
             port = null
         }
 
-        override fun logTail(panel: WebPanel): String = log
+        override fun logText(panel: WebPanel): String = log
 
         override fun stageHermesBundle(): String? = hermesPin
 
