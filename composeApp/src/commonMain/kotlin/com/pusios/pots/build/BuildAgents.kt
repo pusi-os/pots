@@ -42,6 +42,26 @@ object BuildAgents {
     const val HERMES = "hermes"
 
     /**
+     * Every directory an agent CLI can land in, in the order PATH must carry them.
+     * The one list both PATH builders start from: the login-shell profile snippet
+     * Pots Build writes into the rootfs, and the chat terminal's startup export —
+     * that shell runs with `--noprofile`, so it never reads the snippet.
+     */
+    const val AGENT_BIN_PATH = "/root/.local/bin:/root/.local/share/pi-node/bin:/root/.opencode/bin"
+
+    /**
+     * The agent dirs followed by whatever PATH the shell already has, so system
+     * dirs are never dropped. A line of shell, executed as-is by the chat terminal
+     * and written as-is into the profile snippet.
+     */
+    const val AGENT_PATH_EXPORT = "export PATH=\"$AGENT_BIN_PATH\${PATH:+:\$PATH}\""
+
+    /** Contents of `/etc/profile.d/pots-build-path.sh` — what login shells read. */
+    val AGENT_PATH_PROFILE: String =
+        "# Managed by Pots Build — keep coding-agent CLIs on PATH for login shells.\n" +
+            AGENT_PATH_EXPORT + "\n"
+
+    /**
      * OpenCode's own installer, fetched from its repository rather than from
      * `https://opencode.ai/install`: that URL answers 307 through Cloudflare from
      * a sandbox, while the script behind it is a plain file on GitHub.
