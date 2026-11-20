@@ -1,5 +1,6 @@
 package com.pusios.pots.ui.settings
 
+import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import com.pusios.pots.CommandHandle
 import com.pusios.pots.NoOpCommandHandle
@@ -97,6 +98,23 @@ class SandboxViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /**
+     * The next state satisfying [predicate].
+     *
+     * The view model runs two collectors — the sandbox status and Pots Build's
+     * state, whose agent rows reach the same [SandboxUiState] — so a positional
+     * `awaitItem()` can land on the agent-rows emission instead of the one the
+     * test is about. Waiting for the fact keeps the assertion exact.
+     */
+    private suspend fun ReceiveTurbine<SandboxUiState>.awaitState(
+        predicate: (SandboxUiState) -> Boolean,
+    ): SandboxUiState {
+        while (true) {
+            val item = awaitItem()
+            if (predicate(item)) return item
+        }
+    }
+
     @Test
     fun `initial state reflects sandbox enabled flag from repository`() = runTest {
         val viewModel = SandboxViewModel(fakeRepository, fakeSandboxController)
@@ -171,7 +189,7 @@ class SandboxViewModelTest {
             )
             testDispatcher.scheduler.advanceUntilIdle()
 
-            val updated = awaitItem()
+            val updated = awaitState { it.sandboxReady }
             assertTrue(updated.sandboxInstalled)
             assertTrue(updated.sandboxReady)
             assertEquals(1.0f, updated.sandboxProgress)
@@ -214,12 +232,12 @@ class SandboxViewModelTest {
                 installedDistros = setOf(LinuxDistro.DEBIAN, LinuxDistro.ALPINE),
             )
             testDispatcher.scheduler.advanceUntilIdle()
-            assertTrue(awaitItem().sandboxInstalled)
+            assertTrue(awaitState { it.sandboxInstalled }.sandboxInstalled)
 
             viewModel.onSelectDistro(LinuxDistro.ALPINE)
             testDispatcher.scheduler.advanceUntilIdle()
 
-            assertEquals(LinuxDistro.ALPINE, awaitItem().distro)
+            assertEquals(LinuxDistro.ALPINE, awaitState { it.distro == LinuxDistro.ALPINE }.distro)
             assertEquals(LinuxDistro.ALPINE, fakeRepository.getSandboxDistro())
             assertEquals(LinuxDistro.ALPINE, fakeSandboxController.selectedDistro)
         }
@@ -237,12 +255,15 @@ class SandboxViewModelTest {
                 distro = LinuxDistro.DEBIAN,
             )
             testDispatcher.scheduler.advanceUntilIdle()
-            assertTrue(awaitItem().isWorking)
+            assertTrue(awaitState { it.isWorking }.isWorking)
 
             viewModel.onSelectDistro(LinuxDistro.ALPINE)
             testDispatcher.scheduler.advanceUntilIdle()
 
-            expectNoEvents()
+            // The agent-rows collector may emit once here, so the check is on the
+            // newest state rather than on the absence of events: the point is that
+            // the refused switch never reached the state.
+            assertEquals(LinuxDistro.DEBIAN, expectMostRecentItem().distro)
             assertEquals(LinuxDistro.DEBIAN, fakeRepository.getSandboxDistro())
             assertEquals(null, fakeSandboxController.selectedDistro)
         }
@@ -271,7 +292,7 @@ class SandboxViewModelTest {
             )
             testDispatcher.scheduler.advanceUntilIdle()
 
-            val migration = awaitItem().migration
+            val migration = awaitState { it.migration != null }.migration
             assertEquals(LinuxDistro.ALPINE, migration?.from)
             assertEquals(42, migration?.fileCount)
         }
@@ -292,7 +313,7 @@ class SandboxViewModelTest {
             )
             testDispatcher.scheduler.advanceUntilIdle()
 
-            assertEquals(setOf(LinuxDistro.ALPINE), awaitItem().installedDistros)
+            assertEquals(setOf(LinuxDistro.ALPINE), awaitState { it.installedDistros.isNotEmpty() }.installedDistros)
         }
     }
 
@@ -310,7 +331,7 @@ class SandboxViewModelTest {
             )
             testDispatcher.scheduler.advanceUntilIdle()
 
-            assertEquals(LinuxDistro.ALPINE, awaitItem().distro)
+            assertEquals(LinuxDistro.ALPINE, awaitState { it.distro == LinuxDistro.ALPINE }.distro)
             assertEquals(LinuxDistro.DEBIAN, fakeRepository.getSandboxDistro())
         }
     }
@@ -325,7 +346,7 @@ class SandboxViewModelTest {
                 SandboxStatus(error = true, label = SandboxStatusLabel.Failure.Setup("boom"))
             testDispatcher.scheduler.advanceUntilIdle()
 
-            val updated = awaitItem()
+            val updated = awaitState { it.hasError }
             assertTrue(updated.hasError)
             assertEquals(SandboxStatusLabel.Failure.Setup("boom"), updated.sandboxStatusLabel)
         }

@@ -62,16 +62,21 @@ class SandboxAgentsTest {
 
         val rows = viewModel(build).also { testDispatcher.scheduler.advanceUntilIdle() }.state.value.agentRows
 
+        // pi-web is Pi's panel, so its row appears with Pi even though the panel
+        // itself is a separate npm package and is not installed here.
         assertEquals(
-            listOf(BuildAgents.OPENCODE, BuildAgents.PI, BuildAgents.HERMES),
+            listOf(BuildAgents.OPENCODE, BuildAgents.PI, WebPanels.PI_WEB_VERSION_KEY, BuildAgents.HERMES),
             rows.map { it.id },
         )
         // The two that are there carry what they printed and are only "unchecked".
         assertEquals(AgentUpdate.Unchecked("1.5.2"), rows[1].update)
-        assertEquals("0.23.2", rows[2].version)
+        assertEquals("0.23.2", rows[3].version)
         // The one that is not is what offers to install it.
         assertEquals(AgentUpdate.NotInstalled, rows[0].update)
         assertNull(rows[0].version)
+        // Pi is installed, the panel is not: that row offers the install.
+        assertEquals(AgentUpdate.NotInstalled, rows[2].update)
+        assertNull(rows[2].version)
     }
 
     @Test
