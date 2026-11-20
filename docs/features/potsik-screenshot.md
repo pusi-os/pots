@@ -138,6 +138,10 @@ window in which a second question finds the frame still in hand and attaches the
 same picture again. Two questions about one picture are two paid vision
 requests, and the second one is never what the user asked for.
 
+A write that fails puts the frame back — unless a newer frame was taken while it
+was running: «Экран» stays reachable in the field's phase, so the newer picture
+is the user's latest look at the screen and the older one must not overwrite it.
+
 ## Where the code is
 
 | File | What it is |

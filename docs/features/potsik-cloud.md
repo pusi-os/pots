@@ -156,6 +156,9 @@ nothing; it only fires when he was dragged into the lower half.
   it in the coroutine's `finally`, so the second tap does nothing instead of
   becoming a second request the provider bills for. A failed send lowers the
   flag too: the user must be able to tap again.
+- [Повторить] on a question that never made it is guarded the same way: while
+  the asker is still thinking about the retry, a second tap does nothing — the
+  retry carries the same picture again, so it would be a second paid request.
 - The microphone has exactly one owner: the cloud's voice loop and the field are
   never up at the same time.
 

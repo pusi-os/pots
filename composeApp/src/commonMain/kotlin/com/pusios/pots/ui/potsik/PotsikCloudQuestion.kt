@@ -121,7 +121,11 @@ class PotsikCloudQuestion(
                 toFile(pending) ?: run {
                     // Nothing was written, so nothing was spent: the frame goes
                     // back to the user, who retries with the picture in hand.
-                    _shot.value = pending
+                    // Unless a newer frame was taken while this one was being
+                    // written («Экран» stays reachable in the field's phase):
+                    // that one is the user's latest look at the screen, and the
+                    // old picture must not overwrite it.
+                    if (_shot.value == null) _shot.value = pending
                     return Outcome.ScreenFailed
                 }
             } finally {

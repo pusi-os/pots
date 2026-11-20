@@ -900,6 +900,13 @@ internal class PotsikCloudOverlay(
 
     fun onRetry() {
         if (state.unsent) {
+            // A retry is already in flight: the frame rides with the asker's
+            // `lastFiles`, and a second tap would be a second paid request with
+            // the same picture. The asker marks the question as thinking
+            // synchronously, before its coroutine starts, so this read is enough
+            // — the asker's own «a second question replaces the first» rule is
+            // left alone.
+            if (asker.answer.value is PotsikCloudAsker.Answer.Thinking) return
             asker.retry()
             return
         }
