@@ -30,6 +30,9 @@ enum class LinuxDistro(
         displayName = "Debian 12",
         basePackages = listOf(
             "bash", "ca-certificates", "curl", "wget", "git",
+            // `tar -xJ` runs xz, and the Hermes web panel this app ships arrives as
+            // a tar.xz: without it the panel cannot unpack its own renderer.
+            "xz-utils",
             "nano", "less", "unzip", "python3", "tar", "coreutils",
         ),
         optionalPackages = listOf(

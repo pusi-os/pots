@@ -54,6 +54,18 @@ interface WebPanelGuest {
     fun logTail(panel: WebPanel): String
 
     /**
+     * Puts the Hermes panel bundle this app ships where the guest can unpack it
+     * ([HermesWebapp.ARCHIVE]), and answers the hermes-agent commit it was built
+     * from.
+     *
+     * Null means this build ships no bundle — a developer build, where the only
+     * candidate is the checkout's own renderer. A bundle that is shipped but could
+     * not be staged answers its pin too: the unpack then fails on a missing
+     * archive, which is a reason the row can quote.
+     */
+    fun stageHermesBundle(): String?
+
+    /**
      * Whether Hermes' config still lists the dashboard's login plugin as disabled
      * — the state in which a gated panel opens on "sign-in unavailable" instead of
      * on a login form.
@@ -112,6 +124,13 @@ class WebPanelRuntime(
 
     private val mutex = Mutex()
     private val states = LinkedHashMap<String, WebPanelState>()
+
+    /**
+     * The unpacked Hermes renderer this app ships, once a start has verified it
+     * against the sandbox's own Hermes. Null means "no bundled renderer is being
+     * served": this build ships none, or the last start refused the one it has.
+     */
+    private var hermesDist: String? = null
 
     fun refresh() = scope.launch { refreshPanels() }
 
@@ -300,16 +319,44 @@ class WebPanelRuntime(
                 setState(panel, WebPanelStatus.Failed("this Hermes build has no webapp command"))
                 return
             }
-            // The command exists but the renderer was never built: the link would
-            // open on a blank page, which reads as a broken app. Say it instead.
-            if (!guest.run(WebPanels.HERMES_BUNDLE_CHECK, STATUS_TIMEOUT_SECONDS).success) {
-                setState(
-                    panel,
-                    WebPanelStatus.Failed(
-                        "Hermes' webapp is not built — run `hermes webapp --build-only` in the sandbox",
-                    ),
-                )
-                return
+            // The renderer. A release APK ships one CI built (the sandbox cannot
+            // build it), and it is only served against the Hermes it was built
+            // from; a developer build ships none, and then the checkout's own
+            // renderer is the only candidate.
+            val pin = guest.stageHermesBundle()
+            hermesDist = null
+            if (pin == null) {
+                // The command exists but the renderer was never built: the link would
+                // open on a blank page, which reads as a broken app. Say it instead.
+                if (!guest.run(WebPanels.HERMES_BUNDLE_CHECK, STATUS_TIMEOUT_SECONDS).success) {
+                    setState(
+                        panel,
+                        WebPanelStatus.Failed(
+                            "Hermes' webapp is not built — run `hermes webapp --build-only` in the sandbox",
+                        ),
+                    )
+                    return
+                }
+            } else {
+                // One version or nothing. The bundle was built from Hermes [pin]; a
+                // sandbox at another commit would serve a panel that talks to a
+                // backend whose API may have moved — a blank page and 404s on the
+                // assets, with nothing on screen explaining it.
+                val head = guest.run(HermesWebapp.headCommand(WebPanels.HERMES_CHECKOUT), STATUS_TIMEOUT_SECONDS)
+                if (!head.success || head.text.trim() != pin) {
+                    setState(panel, WebPanelStatus.Failed(HermesWebapp.versionMismatch(pin, head.text.trim())))
+                    return
+                }
+                // Unpacked once per bundle, not once per start: the stamp inside the
+                // directory names the commit it was unpacked for.
+                if (!guest.run(HermesWebapp.check(pin), STATUS_TIMEOUT_SECONDS).success) {
+                    val unpacked = guest.run(HermesWebapp.unpack(pin), UNPACK_TIMEOUT_SECONDS)
+                    if (!unpacked.success || !guest.run(HermesWebapp.check(pin), STATUS_TIMEOUT_SECONDS).success) {
+                        setState(panel, WebPanelStatus.Failed(HermesWebapp.unpackFailed(reasonLine(unpacked.text))))
+                        return
+                    }
+                }
+                hermesDist = HermesWebapp.DIST_DIR
             }
             // The panel binds every interface, so Hermes' sign-in gate is on, and a
             // disabled `basic` plugin leaves it with no provider at all: the page
@@ -459,6 +506,10 @@ class WebPanelRuntime(
     private fun hermesEnv(panel: WebPanel): Map<String, String> = buildMap {
         panel.usernameEnv?.let { put(it, WebPanels.HERMES_USER) }
         panel.passwordEnv?.let { put(it, passwordFor(panel)) }
+        // The renderer CI built for this Hermes, when this app ships one. Naming it
+        // is what stops the launcher from trying to build one on the phone, where
+        // the renderer's pnpm install cannot run at all.
+        hermesDist?.let { put(HermesWebapp.DIST_ENV, it) }
     }
 
     /** [WebPanels.hermesAddress], with the address this phone has right now. */
@@ -536,6 +587,13 @@ class WebPanelRuntime(
         const val STATUS_TIMEOUT_SECONDS = 30L
         const val STOP_TIMEOUT_SECONDS = 30L
         const val HERMES_LINK_TIMEOUT_SECONDS = 180L
+
+        /**
+         * Unpacking the shipped renderer: 14 MB of xz into ~1200 files, on a phone
+         * under proot. Generous, because a timeout here reads as "the panel is
+         * broken" when the truth is "the phone is slow".
+         */
+        const val UNPACK_TIMEOUT_SECONDS = 300L
 
         /** A pairing code is one POST to loopback; nothing here should take a minute. */
         const val PAIR_TIMEOUT_SECONDS = 30L

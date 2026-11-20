@@ -212,6 +212,17 @@ object BuildAgents {
         export UV_LINK_MODE=copy
         export UV_NO_CACHE=1
         mkdir -p /root/.hermes /root/.local/bin
+        # The hermes-agent commit this app's web panel was built from, written by the
+        # app before this install. Empty on a build that ships no bundle (a
+        # developer build), and then nothing below pins anything.
+        POTS_WEBAPP_PIN=''
+        if [ -f /root/.hermes/pots-webapp-pin ]; then
+          POTS_WEBAPP_PIN=${'$'}(tr -d '[:space:]' < /root/.hermes/pots-webapp-pin)
+        fi
+        # `tar -xJ` runs xz, which a Debian base does not carry on its own; a rootfs
+        # set up before xz-utils joined the base list gets it here.
+        apt-get install -y --no-install-recommends xz-utils >/dev/null 2>&1 \
+          || echo "pots: xz-utils is missing; the panel cannot unpack its renderer"
         if [ ! -d /root/.hermes/hermes-agent/.git ]; then
           git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /root/.hermes/hermes-agent
         fi
@@ -386,11 +397,33 @@ object BuildAgents {
         # The installer publishes the command for login shells; link it into the
         # bin dir Pots Build's own PATH carries so probes find it by name.
         ln -sfn /root/.hermes/hermes-agent/.hermes/bin/hermes /root/.local/bin/hermes
-        # Hermes' web panel: the renderer bundle `hermes webapp` serves. A failure
-        # here does not fail the agent — the panel then says it is not built
-        # instead of showing an empty page, and `hermes webapp --build-only` can be
-        # run again from a terminal.
-        /root/.local/bin/hermes webapp --build-only || echo "pots: webapp bundle not built"
+        # Hermes' web panel ships with this app, built from one hermes-agent commit
+        # (POTS_WEBAPP_PIN). The installer honours `--commit` only on a fresh clone —
+        # on an existing checkout it fast-forwards to the branch's tip — so the pin
+        # is applied here, after it, and the checkout is left detached at it. That is
+        # the version the panel was built for: any other one and the panel refuses
+        # to start, which is a sentence on the row instead of a blank page.
+        if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
+          if [ "${'$'}(git -C /root/.hermes/hermes-agent rev-parse HEAD)" != "${'$'}POTS_WEBAPP_PIN" ]; then
+            echo "pots: pinning Hermes to ${'$'}POTS_WEBAPP_PIN, the commit this app's panel was built from"
+            if git -C /root/.hermes/hermes-agent fetch --depth 1 origin "${'$'}POTS_WEBAPP_PIN" \
+              && git -C /root/.hermes/hermes-agent checkout --force --detach "${'$'}POTS_WEBAPP_PIN"; then
+              echo "pots: Hermes is at ${'$'}POTS_WEBAPP_PIN"
+            else
+              echo "pots: could not pin Hermes to ${'$'}POTS_WEBAPP_PIN; the panel will refuse until it is"
+            fi
+          fi
+          # The renderer is not built here: `pnpm install` of apps/desktop cannot run
+          # under proot's --link2symlink, which dpkg needs. The app unpacks the one
+          # CI built on the panel's first start.
+          echo "pots: the web panel renderer ships with the app"
+        else
+          # A developer build ships none, so the checkout's own bundle is the only
+          # candidate. A failure here does not fail the agent — the panel then says
+          # it is not built instead of showing an empty page, and `hermes webapp
+          # --build-only` can be run again from a terminal.
+          /root/.local/bin/hermes webapp --build-only || echo "pots: webapp bundle not built"
+        fi
         # The wrapper has to leave uv and pm working, so prove both in this log. uv
         # is not on PATH (pm never exposes it), which is why the store path is the
         # thing to run, not `uv`.
