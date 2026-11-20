@@ -167,6 +167,25 @@ class WebPanelRuntime(
     }
 
     /**
+     * The panel's log, as the row shows it: the tail of the file, with the panel's
+     * password cut out (see [WebPanelLog.redact]).
+     *
+     * Read on demand — when the row's log section is opened, when a start fails,
+     * or when its refresh button is tapped — and never cached: the file grows
+     * while the panel starts, and a copy taken at composition time would be stale
+     * by the time anyone looked at it.
+     *
+     * The lock is deliberately not taken. A start holds it for the whole readiness
+     * wait (up to [startTimeoutSeconds]), and a log read is most wanted exactly
+     * then — queueing it behind the start would hide the log at the moment it
+     * explains something.
+     */
+    fun panelLog(panelId: String): String {
+        val panel = WebPanels.get(panelId) ?: return WebPanelLog.NO_FILE
+        return WebPanelLog.redact(guest.logTail(panel), password(panel.id))
+    }
+
+    /**
      * A URL to hand to the browser right now.
      *
      * What a browser needs in order to open [panel] now.

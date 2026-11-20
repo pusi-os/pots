@@ -107,6 +107,7 @@ internal fun BuildProjectsContent(
     onOpenWebPanel: (String) -> Unit,
     onSetWebPanelAutostart: (String, Boolean) -> Unit,
     onWebPanelPassword: (String) -> String?,
+    onPanelLog: suspend (String) -> String,
     modifier: Modifier = Modifier,
 ) {
     var showUninstall by remember { mutableStateOf(false) }
@@ -240,6 +241,7 @@ internal fun BuildProjectsContent(
                 onOpen = onOpenWebPanel,
                 onSetAutostart = onSetWebPanelAutostart,
                 onPassword = onWebPanelPassword,
+                onLog = onPanelLog,
             )
         }
 

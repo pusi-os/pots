@@ -1,5 +1,7 @@
 package com.pusios.pots.ui.build
 
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -7,10 +9,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -20,12 +28,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.group
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.build.WebPanel
+import com.pusios.pots.build.WebPanelLog
 import com.pusios.pots.build.WebPanelOpen
 import com.pusios.pots.build.WebPanelState
 import com.pusios.pots.build.WebPanelStatus
@@ -35,12 +52,18 @@ import com.pusios.pots.ui.rememberCopyToClipboard
 import com.pusios.pots.ui.settings.SettingsCard
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_web_panel_autostart
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_lan_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_link_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_local_hint
+import pots.composeapp.generated.resources.pots_build_web_panel_log
+import pots.composeapp.generated.resources.pots_build_web_panel_log_empty
+import pots.composeapp.generated.resources.pots_build_web_panel_log_loading
+import pots.composeapp.generated.resources.pots_build_web_panel_log_missing
+import pots.composeapp.generated.resources.pots_build_web_panel_log_refresh
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copied
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copy
 import pots.composeapp.generated.resources.pots_build_web_panel_password_hide
@@ -73,6 +96,7 @@ internal fun WebPanelsCard(
     onOpen: (String) -> Unit,
     onSetAutostart: (String, Boolean) -> Unit,
     onPassword: (String) -> String?,
+    onLog: suspend (String) -> String,
     modifier: Modifier = Modifier,
 ) {
     // Catalog order, not map order: the rows must not shuffle between refreshes.
@@ -113,6 +137,7 @@ internal fun WebPanelsCard(
                 onOpen = onOpen,
                 onSetAutostart = onSetAutostart,
                 onPassword = onPassword,
+                onLog = onLog,
             )
         }
     }
@@ -127,6 +152,7 @@ private fun WebPanelRow(
     onOpen: (String) -> Unit,
     onSetAutostart: (String, Boolean) -> Unit,
     onPassword: (String) -> String?,
+    onLog: suspend (String) -> String,
 ) {
     // The password is fetched when the button is tapped, not while composing: the
     // getter reads stored settings, and composing must stay free of side effects.
@@ -134,6 +160,25 @@ private fun WebPanelRow(
     // Sensitive: the system keeps the clip out of its history and out of the paste
     // preview, so a copied password is not left lying around for the next app.
     val copyToClipboard = rememberCopyToClipboard(sensitive = true)
+
+    // The log follows the same rule: read on the row's own actions — the section
+    // being opened, a failed start, the refresh button — and never while composing.
+    // It is not part of WebPanelState either: that is the polled state, and the log
+    // grows while the panel starts.
+    var logOpen by remember(panel.id) { mutableStateOf(false) }
+    var log by remember(panel.id) { mutableStateOf<String?>(null) }
+    val logScroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val loadLog: () -> Unit = { scope.launch { log = onLog(panel.id) } }
+    // A failure is exactly when the log is wanted, so the section opens itself.
+    // Keyed on the status: a refresh that reports the same failure again must not
+    // reopen a section the owner just closed, and no other status touches it.
+    LaunchedEffect(state.status) {
+        if (state.status is WebPanelStatus.Failed) {
+            logOpen = true
+            log = onLog(panel.id)
+        }
+    }
 
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -259,6 +304,20 @@ private fun WebPanelRow(
             else -> Unit
         }
 
+        // The panel's own log, folded away by default. It is the only thing that
+        // tells "never started" from "started but serves nothing" — the two look
+        // the same in a browser — and it is long, so it stays shut until asked for.
+        PanelLogSection(
+            open = logOpen,
+            log = log,
+            scrollState = logScroll,
+            onToggle = {
+                logOpen = !logOpen
+                if (logOpen) loadLog()
+            },
+            onRefresh = loadLog,
+        )
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -358,3 +417,114 @@ private fun PasswordLine(
 
 /** How long "Copied" stays on screen — long enough to read, short enough not to linger. */
 private const val COPY_CONFIRMATION_MS = 2_000L
+
+/** How tall the log pane gets before it scrolls; about a dozen lines on a phone. */
+private val LOG_PANE_MAX_HEIGHT = 220.dp
+
+/**
+ * The panel's log, under the address and the password: a fold marker and a
+ * refresh button on one line, the log itself in a fixed-height pane that scrolls.
+ *
+ * Read line by line, the way a log is: newlines are kept and the text wraps only
+ * when a line is wider than the pane. The scroll state is passed in rather than
+ * remembered here, so folding the section away and opening it again lands back
+ * where the reader was.
+ */
+@Composable
+private fun PanelLogSection(
+    open: Boolean,
+    /** Null until the first read lands. */
+    log: String?,
+    scrollState: ScrollState,
+    onToggle: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onToggle)
+                .handCursor(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = if (open) PanelLogChevronDown else PanelLogChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = stringResource(Res.string.pots_build_web_panel_log),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (open) {
+            // The log grows while the panel starts, and the pane is a snapshot:
+            // one button beats a poll nobody asked for.
+            TextButton(onClick = onRefresh, modifier = Modifier.handCursor()) {
+                Text(stringResource(Res.string.pots_build_web_panel_log_refresh))
+            }
+        }
+    }
+    if (open) {
+        Text(
+            text = logText(log),
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            softWrap = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = LOG_PANE_MAX_HEIGHT)
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                .verticalScroll(scrollState)
+                .padding(8.dp),
+        )
+    }
+}
+
+/**
+ * What the pane says. An empty pane reads as a broken section, so the two ways of
+ * having nothing to show are named in the row's own language; everything else is
+ * the log as the guest handed it over.
+ */
+@Composable
+private fun logText(log: String?): String = when (log) {
+    null -> stringResource(Res.string.pots_build_web_panel_log_loading)
+    WebPanelLog.NO_FILE -> stringResource(Res.string.pots_build_web_panel_log_missing)
+    WebPanelLog.EMPTY -> stringResource(Res.string.pots_build_web_panel_log_empty)
+    else -> log
+}
+
+// The fold marker is drawn, not typed: "▸"/"▾" are text and come out at whatever
+// weight the fallback font has, sized by the caption rather than the icon. Tinted
+// with the row's own colour (currentColor, in Compose terms), like the other
+// hand-drawn glyphs in this app.
+private fun chevron(expanded: Boolean): ImageVector = ImageVector.Builder(
+    name = if (expanded) "PanelLogChevronDown" else "PanelLogChevronRight",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    group(rotate = if (expanded) 90f else 0f, pivotX = 12f, pivotY = 12f) {
+        path(
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 2.5f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        ) {
+            moveTo(9f, 5f)
+            lineTo(16f, 12f)
+            lineTo(9f, 19f)
+        }
+    }
+}.build()
+
+private val PanelLogChevronRight: ImageVector by lazy { chevron(expanded = false) }
+private val PanelLogChevronDown: ImageVector by lazy { chevron(expanded = true) }

@@ -751,6 +751,9 @@ class BuildEnvironmentManager(
 
     fun webPanelPassword(panelId: String): String? = webPanels.password(panelId)
 
+    /** The row's log section: read on the tap, never stored in the state. */
+    fun webPanelLog(panelId: String): String = webPanels.panelLog(panelId)
+
     /**
      * Opens the panel in the device's own browser.
      *
