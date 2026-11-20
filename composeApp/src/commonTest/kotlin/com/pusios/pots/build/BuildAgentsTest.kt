@@ -1,6 +1,7 @@
 package com.pusios.pots.build
 
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -13,6 +14,17 @@ import kotlin.test.assertTrue
 class BuildAgentsTest {
 
     private val hermes = BuildAgents.get(BuildAgents.HERMES)?.installCommand.orEmpty()
+
+    @Test
+    fun `OpenCode comes from the v2 installer, which is the one that installs 2 x`() {
+        // The v1 script refuses a 2.x release outright — "This installer only
+        // installs OpenCode 1" — so the branch is the whole upgrade. v2 unpacks
+        // `@opencode/cli` into the same `$HOME/.opencode/bin`, so nothing else moves.
+        val opencode = BuildAgents.get(BuildAgents.OPENCODE)?.installCommand.orEmpty()
+        assertContains(opencode, "anomalyco/opencode/refs/heads/v2/install")
+        assertFalse(opencode.contains("refs/heads/v1/install"), opencode)
+        assertContains(opencode, "--no-modify-path", message = "a sandbox has no login shell to read rc files")
+    }
 
     @Test
     fun `the link probe links between the two directories uv links between`() {

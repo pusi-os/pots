@@ -44,17 +44,24 @@ object BuildAgents {
     /**
      * OpenCode's own installer, fetched from its repository rather than from
      * `https://opencode.ai/install`: that URL answers 307 through Cloudflare from
-     * a sandbox, while the script behind it is a plain file on GitHub. The script
-     * itself downloads the static release binary from GitHub Releases into
-     * `$HOME/.opencode/bin` and resolves the newest version on its own, so nothing
-     * here has to pin one.
+     * a sandbox, while the script behind it is a plain file on GitHub.
+     *
+     * The branch is `v2` on purpose. v2 is the current major — its installer
+     * unpacks the npm package `@opencode/cli-<target>` into `$HOME/.opencode/bin`
+     * (the same path v1 used, so nothing else here moves) and resolves the newest
+     * version on its own, so nothing has to be pinned. The `v1` script refuses a
+     * 2.x release outright: "This installer only installs OpenCode 1".
+     *
+     * `--no-modify-path` keeps the installer's hands off `.bashrc`/`.zshrc`: Pots
+     * Build carries the bin dir on PATH itself, and a sandbox has no login shell
+     * to read rc files.
      */
     private const val OPENCODE_INSTALL = """
         set -e
         mkdir -p /root/.opencode/bin
-        curl -fsSL https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/v1/install -o /tmp/pots-opencode-install.sh
+        curl -fsSL https://raw.githubusercontent.com/anomalyco/opencode/refs/heads/v2/install -o /tmp/pots-opencode-install.sh
         # stdin closed: no answer is coming from a sandbox if the installer asks.
-        bash /tmp/pots-opencode-install.sh < /dev/null
+        bash /tmp/pots-opencode-install.sh --no-modify-path < /dev/null
         rm -f /tmp/pots-opencode-install.sh
     """
 
