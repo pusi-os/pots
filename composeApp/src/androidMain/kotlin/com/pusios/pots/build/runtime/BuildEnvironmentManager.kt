@@ -2,7 +2,10 @@ package com.pusios.pots.build.runtime
 
 import android.os.StatFs
 import android.util.Log
+import com.pusios.pots.build.AgentUpdate
 import com.pusios.pots.build.AgentVersion
+import com.pusios.pots.build.AgentVersionSpec
+import com.pusios.pots.build.AgentVersions
 import com.pusios.pots.build.BuildAgent
 import com.pusios.pots.build.BuildAgents
 import com.pusios.pots.build.BuildEnvironmentState
@@ -63,6 +66,9 @@ import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
@@ -239,6 +245,9 @@ class BuildEnvironmentManager(
     var onEnvironmentChanged: (() -> Unit)? = null
     private var installJob: Job? = null
 
+    /** The version check in flight; a second one replaces it rather than queueing. */
+    private var checkJob: Job? = null
+
     /**
      * The provider Pots is using right now — supplied by the controller, which is
      * the only place that can reach the settings repository. Read at every agent
@@ -359,6 +368,151 @@ class BuildEnvironmentManager(
             if (_state.value.webPanels[panel.id] != null) webPanels.stopPanel(panel.id)
         }
     }
+
+    // --- agent versions --------------------------------------------------
+
+    /**
+     * Asks each agent's registry for its newest version.
+     *
+     * One GET per agent, run one after another: four proot processes and four
+     * sockets at once cost a phone more than the seconds they save, and every row
+     * already says it is being checked. What comes back is compared with what the
+     * agent's own `--version` printed, and a failed check stays a failed check —
+     * see [AgentVersions.decide].
+     */
+    fun checkAgents(agentIds: Set<String>) {
+        val specs = agentIds.mapNotNull { AgentVersions.get(it) }
+        if (specs.isEmpty()) return
+        checkJob?.cancel()
+        checkJob = scope.launch {
+            for (spec in specs) setAgentUpdate(spec.id, AgentUpdate.Checking)
+            for (spec in specs) {
+                val update = runCatching { checkOne(spec) }
+                    .getOrElse { error ->
+                        Log.w(TAG, "version check of ${spec.id} failed", error)
+                        AgentUpdate.CheckFailed(_state.value.agentVersions[spec.id], clockNow())
+                    }
+                setAgentUpdate(spec.id, update)
+            }
+        }
+    }
+
+    /**
+     * Runs the agent's own update command, then re-reads what it installed.
+     *
+     * The panel is stopped first: it is a process running the binary the update
+     * replaces, so leaving it up would show the old version until the app is
+     * restarted. The re-read matters as much — `opencode upgrade` on a current
+     * install exits 0 without changing anything, so success is not proof.
+     */
+    fun updateAgent(agentId: String) {
+        val spec = AgentVersions.get(agentId) ?: return
+        if (installJob?.isActive == true) return
+        installJob = scope.launch {
+            _state.update { it.copy(installLog = "", installLogDropped = false) }
+            setAgentUpdate(agentId, AgentUpdate.Updating)
+            stopPanelsFor(agentId)
+            val log = InstallLog()
+            publishInstallLog(log)
+            val outcome = try {
+                streamInstall(spec.updateCommand, spec.updateTimeoutSeconds, executor(), log)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "could not run the $agentId update", e)
+                InstallOutcome(exit = -1, error = e.message ?: "could not start the update")
+            }
+            if (outcome.exit != 0) {
+                log.appendText("pots: $agentId update ended (${outcome.describe()})\n")
+                publishInstallLog(log)
+                setAgentUpdate(agentId, AgentUpdate.UpdateFailed(_state.value.agentVersions[agentId]))
+                return@launch
+            }
+            sync()
+            setAgentUpdate(agentId, checkOne(spec))
+        }
+    }
+
+    /**
+     * Removes the agent's installation and leaves the user's data alone: only the
+     * paths [AgentVersionSpec.installPaths] names go, which is the binary and the
+     * runtime it brought — never the config or the session history beside them.
+     * [includeBulk] is the answer to the second question Hermes' 5 GiB checkout
+     * asks; everything else has no such path and ignores it.
+     */
+    fun removeAgent(agentId: String, includeBulk: Boolean) {
+        val spec = AgentVersions.get(agentId) ?: return
+        if (installJob?.isActive == true) return
+        installJob = scope.launch {
+            stopPanelsFor(agentId)
+            for (guestPath in AgentVersions.removalPaths(spec, includeBulk)) deleteGuestPath(guestPath)
+            setAgentUpdate(agentId, null)
+            sync()
+        }
+    }
+
+    /** One agent's check: what it has, what the registry offers, and the comparison. */
+    private fun checkOne(spec: AgentVersionSpec): AgentUpdate {
+        val executor = executor()
+        val probe = executor.execute(spec.installedCommand, timeoutSeconds = 30)
+        // stdout only: a failing `pi --version` prints its stack trace, whose last
+        // line is Node's own version — merged in, that would be read as Pi's.
+        val installed = probe.takeIf { it.success }?.stdout?.let(AgentVersion::parse)
+            ?: _state.value.agentVersions[spec.id]
+        val answer = executor.execute(AgentVersions.latestCommand(spec), timeoutSeconds = 30)
+        val latest = answer.takeIf { it.success }?.stdout?.let { AgentVersions.latest(it, spec.latestSource) }
+        return AgentVersions.decide(
+            present = installed != null || presence(spec.id),
+            installed = installed,
+            latest = latest,
+            checkFailed = !answer.success,
+            checkedAt = clockNow(),
+        )
+    }
+
+    /**
+     * Whether the app already knows this agent is on the device — its own probe,
+     * not this check's. pi-web has no entry in [BuildAgents], so its version in
+     * [PotsBuildState.agentVersions] is the whole record of it.
+     */
+    private fun presence(agentId: String): Boolean =
+        agentId in _state.value.installedAgents || _state.value.agentVersions.containsKey(agentId)
+
+    private fun setAgentUpdate(agentId: String, update: AgentUpdate?) {
+        _state.update {
+            val updates = it.agentUpdates.toMutableMap()
+            if (update == null) updates.remove(agentId) else updates[agentId] = update
+            it.copy(agentUpdates = updates.toImmutableMap())
+        }
+    }
+
+    /**
+     * Stops the panels that run [agentId]'s binary. pi-web is Pi's panel, so its
+     * own row stops the same process: the panel and the agent are one install.
+     */
+    private fun stopPanelsFor(agentId: String) {
+        val panelIds = WebPanels.all
+            .filter { it.agentId == agentId || (agentId == WebPanels.PI_WEB_VERSION_KEY && it.id == WebPanels.PI) }
+            .map { it.id }
+        for (panelId in panelIds) {
+            if (_state.value.webPanels[panelId]?.status is WebPanelStatus.Running) webPanels.stopPanel(panelId)
+        }
+    }
+
+    /**
+     * Deletes a guest path from the host side. The rootfs is a plain directory, so
+     * no proot round-trip is needed — and a round-trip is exactly what fails on a
+     * symlink whose target resolves only inside the guest.
+     */
+    private fun deleteGuestPath(guestPath: String) {
+        val target = File(paths.rootfsDir, guestPath.trimStart('/'))
+        runCatching {
+            if (Files.isSymbolicLink(target.toPath())) target.delete() else if (target.isDirectory) deleteTree(target) else target.delete()
+        }.onFailure { Log.w(TAG, "could not remove $guestPath", it) }
+    }
+
+    /** Local wall clock, formatted here so the UI needs no date library. */
+    private fun clockNow(): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
     fun refresh() {
         scope.launch { sync() }
@@ -680,9 +834,18 @@ class BuildEnvironmentManager(
         }
 
         val failed = mutableListOf<String>()
-        for (agent in agentIds.mapNotNull { BuildAgents.get(it) }) {
+        for (agentId in agentIds) {
             if (!isActive()) throw CancellationException()
-            if (!installAgent(agent)) failed += agent.title
+            val agent = BuildAgents.get(agentId)
+            // An agent without a [BuildAgents] entry is one whose install is a
+            // plain command — pi-web's npm package — and is run from its spec.
+            val spec = AgentVersions.get(agentId)?.takeIf { agent == null }
+            val installed = when {
+                agent != null -> installAgent(agent)
+                spec?.installCommand != null -> installSpec(spec)
+                else -> false
+            }
+            if (!installed) failed += agent?.title ?: spec?.title ?: agentId
         }
         sync(error = if (failed.isEmpty()) null else "Could not install ${failed.joinToString()}")
     }
@@ -709,7 +872,7 @@ class BuildEnvironmentManager(
         )
         val log = InstallLog()
         publishInstallLog(log)
-        val outcome = streamInstall(agent, executor, log)
+        val outcome = streamInstall(agent.installCommand, agent.installTimeoutSeconds, executor, log)
         // Vendor scripts may leave the binary only in their private dir and only
         // update shell rc files — which Pots Build never sources. Link into PATH
         // and re-probe so a successful download still counts as installed. The
@@ -743,7 +906,32 @@ class BuildEnvironmentManager(
     }
 
     /**
-     * Runs [agent]'s installer with its output streamed into [log] and published
+     * Installs an agent whose installer is a single command — pi-web's npm
+     * package. Success is the probe's verdict, not the command's: npm exits 0 on
+     * a tree it could not link, and a row must not claim an install it cannot run.
+     */
+    private suspend fun installSpec(spec: AgentVersionSpec): Boolean = LinuxInstaller.packageLock.withLock {
+        val command = spec.installCommand ?: return@withLock false
+        setStep(BuildStep.Agent, agentId = spec.id)
+        ensureAgentPathProfile()
+        val executor = executor()
+        val log = InstallLog()
+        publishInstallLog(log)
+        val outcome = streamInstall(command, spec.updateTimeoutSeconds, executor, log)
+        val probe = executor.execute(spec.installedCommand, timeoutSeconds = 60)
+        val version = probe.takeIf { it.success }?.stdout?.let(AgentVersion::parse)
+        if (version != null) {
+            setAgentVersion(spec.id, version)
+        } else {
+            log.appendText("pots: ${spec.id} is not installed after the command (${outcome.describe()})\n")
+            log.appendText(probe.stdout.ifBlank { probe.stderr }.takeLast(2_000) + "\n")
+            publishInstallLog(log)
+        }
+        version != null
+    }
+
+    /**
+     * Runs an agent's installer with its output streamed into [log] and published
      * to the setup screen while it runs.
      *
      * The log is flushed at most every [INSTALL_LOG_FLUSH_MS]: git writes in
@@ -757,14 +945,15 @@ class BuildEnvironmentManager(
      * on top of it.
      */
     private suspend fun streamInstall(
-        agent: BuildAgent,
+        command: String,
+        timeoutSeconds: Long,
         executor: BuildProotExecutor,
         log: InstallLog,
     ): InstallOutcome {
         val chunks = Channel<ByteArray>(Channel.UNLIMITED)
         val lastOutputAt = AtomicLong(System.currentTimeMillis())
         val handle = try {
-            executor.startInstall(agent.installCommand) { buf, n ->
+            executor.startInstall(command) { buf, n ->
                 lastOutputAt.set(System.currentTimeMillis())
                 chunks.trySend(buf.copyOf(n))
             }
@@ -784,22 +973,22 @@ class BuildEnvironmentManager(
                 }
                 publishInstallLog(log)
             }
-            val deadline = System.currentTimeMillis() + agent.installTimeoutSeconds * 1000
-            var outcome = InstallOutcome(exit = -1, timeoutSeconds = agent.installTimeoutSeconds)
+            val deadline = System.currentTimeMillis() + timeoutSeconds * 1000
+            var outcome = InstallOutcome(exit = -1, timeoutSeconds = timeoutSeconds)
             try {
                 while (true) {
                     val exit = handle.awaitExitOrNull(INSTALL_POLL_MS)
                     if (exit != null) {
-                        outcome = InstallOutcome(exit, timeoutSeconds = agent.installTimeoutSeconds)
+                        outcome = InstallOutcome(exit, timeoutSeconds = timeoutSeconds)
                         break
                     }
                     val now = System.currentTimeMillis()
                     if (now >= deadline) {
-                        outcome = InstallOutcome(-1, timedOut = true, timeoutSeconds = agent.installTimeoutSeconds)
+                        outcome = InstallOutcome(-1, timedOut = true, timeoutSeconds = timeoutSeconds)
                         break
                     }
                     if (now - lastOutputAt.get() >= INSTALL_STALL_MS) {
-                        outcome = InstallOutcome(-1, stalled = true, timeoutSeconds = agent.installTimeoutSeconds)
+                        outcome = InstallOutcome(-1, stalled = true, timeoutSeconds = timeoutSeconds)
                         break
                     }
                 }
@@ -1112,6 +1301,10 @@ class BuildEnvironmentManager(
                 // Versions survive the file-stat pass and are replaced by the real
                 // probe below; an uninstalled system has none to keep.
                 agentVersions = if (ready) it.agentVersions else persistentMapOf(),
+                // The check results outlive a refresh for the same reason: they are
+                // a network answer, not a file stat, and re-asking per refresh would
+                // be traffic nobody requested.
+                agentUpdates = if (ready) it.agentUpdates else persistentMapOf(),
                 projects = scanProjects(),
                 // Keep the card's numbers up while they are re-measured; an
                 // uninstalled system has none to keep.
