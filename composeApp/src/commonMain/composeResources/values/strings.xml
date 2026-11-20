@@ -770,6 +770,7 @@
     <string name="pots_build_agents_retry">Retry</string>
     <string name="pots_build_agents_checking">Checking…</string>
     <string name="pots_build_agents_updating">Updating…</string>
+    <string name="pots_build_agents_updating_until">Updating… up to %1$d min</string>
     <string name="pots_build_agents_install">Install</string>
     <string name="pots_build_agents_update">Update</string>
     <string name="pots_build_agents_remove">Remove</string>

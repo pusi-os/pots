@@ -51,7 +51,7 @@ import pots.composeapp.generated.resources.pots_build_agents_update_light
 import pots.composeapp.generated.resources.pots_build_agents_update_title
 import pots.composeapp.generated.resources.pots_build_agents_up_to_date
 import pots.composeapp.generated.resources.pots_build_agents_up_to_date_at
-import pots.composeapp.generated.resources.pots_build_agents_updating
+import pots.composeapp.generated.resources.pots_build_agents_updating_until
 import pots.composeapp.generated.resources.pots_build_setup_agents_title
 import pots.composeapp.generated.resources.settings_sandbox_agent_version_unknown
 import pots.composeapp.generated.resources.settings_sandbox_cancel
@@ -237,7 +237,12 @@ private fun rowStatus(row: AgentVersionRow): String = when (val update = row.upd
         update.latest,
     )
     is AgentUpdate.CheckFailed -> stringResource(Res.string.pots_build_agents_check_failed)
-    AgentUpdate.Updating -> stringResource(Res.string.pots_build_agents_updating)
+    AgentUpdate.Updating -> {
+        // The cap is the agent's own (900 s / 1800 s / 5400 s): a spinner with no
+        // bound reads as "stuck" the moment the download is slow.
+        val minutes = (AgentVersions.get(row.id)?.updateTimeoutSeconds ?: 1800L) / 60
+        stringResource(Res.string.pots_build_agents_updating_until, minutes.toInt())
+    }
     is AgentUpdate.UpdateFailed -> stringResource(Res.string.pots_build_agents_update_failed)
 }
 

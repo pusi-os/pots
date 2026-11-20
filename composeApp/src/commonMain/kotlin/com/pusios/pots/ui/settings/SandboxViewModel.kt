@@ -12,6 +12,7 @@ import com.pusios.pots.SandboxStatus
 import com.pusios.pots.SandboxStatusLabel
 import com.pusios.pots.build.AgentVersionRow
 import com.pusios.pots.build.AgentVersions
+import com.pusios.pots.build.BuildEnvironmentState
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.currentPlatform
 import com.pusios.pots.data.DataRepository
@@ -101,7 +102,14 @@ class SandboxViewModel(
      * rather than only the installed subset.
      */
     private fun PotsBuildState.agentRows(): List<AgentVersionRow> =
-        AgentVersions.rows(installedAgents, agentVersions, agentUpdates)
+        if (environment is BuildEnvironmentState.Ready) {
+            AgentVersions.rows(installedAgents, agentVersions, agentUpdates)
+        } else {
+            // Nothing to check, update or remove before the sandbox itself is
+            // there: an "Install" on a catalog row would run installDebian(),
+            // and a check would hammer proot over a rootfs that does not exist.
+            emptyList()
+        }
 
     /** Asks each agent's registry for its newest version — one GET per agent. */
     fun onCheckAgents(ids: Set<String>) = potsBuildController.checkAgents(ids)

@@ -4,6 +4,7 @@ import com.pusios.pots.NoOpPotsBuildController
 import com.pusios.pots.PotsBuildController
 import com.pusios.pots.build.AgentUpdate
 import com.pusios.pots.build.BuildAgents
+import com.pusios.pots.build.BuildEnvironmentState
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.build.WebPanels
 import com.pusios.pots.testutil.FakeDataRepository
@@ -56,6 +57,7 @@ class SandboxAgentsTest {
     fun `every agent is a row, installed or not`() = runTest {
         val build = FakePotsBuildController()
         build.state.value = PotsBuildState(
+            environment = BuildEnvironmentState.Ready,
             installedAgents = persistentSetOf(BuildAgents.PI, BuildAgents.HERMES),
             agentVersions = persistentMapOf(BuildAgents.PI to "1.5.2", BuildAgents.HERMES to "0.23.2"),
         )
@@ -83,6 +85,7 @@ class SandboxAgentsTest {
     fun `the OpenCode row shows the version its probe printed`() = runTest {
         val build = FakePotsBuildController()
         build.state.value = PotsBuildState(
+            environment = BuildEnvironmentState.Ready,
             installedAgents = persistentSetOf(BuildAgents.OPENCODE),
             agentVersions = persistentMapOf(BuildAgents.OPENCODE to "2.3.2"),
         )
@@ -95,7 +98,10 @@ class SandboxAgentsTest {
     @Test
     fun `an agent that reported no version keeps a null one`() = runTest {
         val build = FakePotsBuildController()
-        build.state.value = PotsBuildState(installedAgents = persistentSetOf(BuildAgents.PI))
+        build.state.value = PotsBuildState(
+            environment = BuildEnvironmentState.Ready,
+            installedAgents = persistentSetOf(BuildAgents.PI),
+        )
 
         val rows = viewModel(build).also { testDispatcher.scheduler.advanceUntilIdle() }.state.value.agentRows
 
@@ -108,6 +114,7 @@ class SandboxAgentsTest {
     fun `pi-web is a row of its own once Pi is installed`() = runTest {
         val build = FakePotsBuildController()
         build.state.value = PotsBuildState(
+            environment = BuildEnvironmentState.Ready,
             installedAgents = persistentSetOf(BuildAgents.PI),
             agentVersions = persistentMapOf(
                 BuildAgents.PI to "1.5.2",
@@ -126,6 +133,7 @@ class SandboxAgentsTest {
     fun `a failed check reaches the card as a failure`() = runTest {
         val build = FakePotsBuildController()
         build.state.value = PotsBuildState(
+            environment = BuildEnvironmentState.Ready,
             installedAgents = persistentSetOf(BuildAgents.PI),
             agentVersions = persistentMapOf(BuildAgents.PI to "1.5.2"),
             agentUpdates = persistentMapOf(BuildAgents.PI to AgentUpdate.CheckFailed("1.5.2", "14:32")),
@@ -140,7 +148,10 @@ class SandboxAgentsTest {
 
     @Test
     fun `nothing installed still offers the whole catalog`() = runTest {
-        val rows = viewModel(FakePotsBuildController())
+        val build = FakePotsBuildController()
+        build.state.value = PotsBuildState(environment = BuildEnvironmentState.Ready)
+
+        val rows = viewModel(build)
             .also { testDispatcher.scheduler.advanceUntilIdle() }
             .state.value.agentRows
 
@@ -149,5 +160,18 @@ class SandboxAgentsTest {
             rows.map { it.id },
         )
         assertTrue(rows.all { it.update == AgentUpdate.NotInstalled })
+    }
+
+    @Test
+    fun `no rows at all before the sandbox itself is ready`() = runTest {
+        // An "Install" on a catalog row runs installDebian(): a full distribution
+        // download behind a button that says "Install OpenCode". So the section is
+        // empty until the environment can actually run an agent, and a check has a
+        // rootfs to talk to.
+        val rows = viewModel(FakePotsBuildController())
+            .also { testDispatcher.scheduler.advanceUntilIdle() }
+            .state.value.agentRows
+
+        assertTrue(rows.isEmpty())
     }
 }
