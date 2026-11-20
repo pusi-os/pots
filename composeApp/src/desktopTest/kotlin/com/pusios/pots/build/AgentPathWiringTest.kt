@@ -2,7 +2,6 @@ package com.pusios.pots.build
 
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -21,24 +20,36 @@ class AgentPathWiringTest {
         "../composeApp/src/androidMain/kotlin/com/pusios/pots/sandbox/PersistentSandboxShell.kt",
     ).map(::File).firstOrNull { it.isFile }?.readText()
 
+    /** The two startup writes, anchored on the calls — not on names that also appear in comments. */
+    private val exportLine = "h.writeLine(BuildAgents.AGENT_PATH_EXPORT)"
+    private val pidProbeLine = "h.writeLine(\"printf"
+
     @Test
     fun `the chat terminal sends the agent PATH export, from the shared constant`() {
-        val source = assertNotNull(shellSource, "PersistentSandboxShell.kt not found from ${File(".").absolutePath}")
-        val sent = source.indexOf("writeLine(BuildAgents.AGENT_PATH_EXPORT)")
-        assertTrue(sent >= 0, "the startup export is gone — agents are back to \"command not found\"")
-        assertFalse(
-            source.contains("export PATH=\"/root/.local"),
+        val source = assertNotNull(
+            shellSource,
+            "PersistentSandboxShell.kt not found from ${File(".").absolutePath}",
+        )
+        assertTrue(
+            source.contains(exportLine),
+            "the startup export is gone — agents are back to \"command not found\"",
+        )
+        assertTrue(
+            !source.contains("export PATH=\"/root/.local"),
             "a PATH literal in the shell will drift from BuildAgents.AGENT_BIN_PATH",
         )
     }
 
     @Test
-    fun `the export goes out before the pid probe and before any user command`() {
+    fun `the export goes out before the pid probe, which precedes every user command`() {
         val source = assertNotNull(shellSource, "PersistentSandboxShell.kt not found")
-        val sent = source.indexOf("writeLine(BuildAgents.AGENT_PATH_EXPORT)")
-        val probe = source.indexOf("POTSBASHPID")
+        val sent = source.indexOf(exportLine)
+        val probe = source.indexOf(pidProbeLine)
         assertTrue(sent >= 0, "the startup export is gone")
         assertTrue(probe >= 0, "the pid probe is gone — this test needs re-anchoring")
-        assertTrue(sent < probe, "the export must be written before the pid probe")
+        assertTrue(
+            sent < probe,
+            "the export must be written before the pid probe, i.e. before any user command",
+        )
     }
 }
