@@ -3,12 +3,10 @@ package com.pusios.pots.ui.media
 import com.pusios.pots.media.MediaElementKind
 import kotlin.math.roundToInt
 
-/**
- * The layer panel's view of the draw list. Everything here is pure: the panel
- * owns no state of its own, the list in the view model is the only truth
- * (`_elements`, index 0 = bottom), and these functions are what the UI and the
- * tests share.
- */
+// The layer panel's view of the draw list. Everything here is pure: the panel
+// owns no state of its own, the list in the view model is the only truth
+// (`_elements`, index 0 = bottom), and these functions are what the UI and the
+// tests share.
 
 /**
  * Panel order: the top layer first. The draw list puts the bottom layer at
