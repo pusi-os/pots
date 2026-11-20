@@ -214,6 +214,10 @@ private fun WebPanelRow(
                                 },
                             ),
                         )
+                    // Nothing to explain: the tap mints a pairing code and the
+                    // browser lands signed in. Wording for the row is the buttons
+                    // card's, not this one's.
+                    WebPanelOpen.PAIRING_CODE -> Unit
                     WebPanelOpen.DIRECT ->
                         if (panel.id == WebPanels.PI) {
                             PanelHint(stringResource(Res.string.pots_build_web_panel_pi_login_hint))

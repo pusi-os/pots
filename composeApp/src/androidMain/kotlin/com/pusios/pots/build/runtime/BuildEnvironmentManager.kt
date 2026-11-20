@@ -595,16 +595,17 @@ class BuildEnvironmentManager(
     fun webPanelPassword(panelId: String): String? = webPanels.password(panelId)
 
     /**
-     * Opens the panel in the device's own browser. Hermes' address is permanent —
-     * the panel is behind a sign-in form, not a one-use ticket — while the
-     * OpenCode address carries the credentials its login form would otherwise ask
-     * for. Either way the URL is fetched first and only then handed to the
-     * browser, never kept.
+     * Opens the panel in the device's own browser.
      *
-     * The URL is deliberately absent from every log line on this path: for
-     * OpenCode it carries the panel's password in its userinfo, and `logcat` is
-     * readable by whatever holds the debug bridge. The panel id says everything
-     * a reader of the log needs.
+     * Two panels sign a browser in with something minted per tap — Hermes' one-use
+     * link and OpenCode 2's pairing code — so the URL is fetched first and only
+     * then handed to the browser, never kept. A mint that failed leaves the row
+     * saying why and opens nothing.
+     *
+     * The URL is deliberately absent from every log line on this path: it carries
+     * a sign-in ticket that is good for one browser, and `logcat` is readable by
+     * whatever holds the debug bridge. The panel id says everything a reader of
+     * the log needs.
      */
     fun openWebPanel(panelId: String) {
         scope.launch {
@@ -741,6 +742,9 @@ class BuildEnvironmentManager(
         if (installed) {
             applyAgentConfig(agent.id)
             setAgentVersion(agent.id, AgentVersion.parse(probe))
+            // A reinstall is also an update: the binary under a running panel was
+            // just replaced, and the live process is still the old one.
+            webPanels.onAgentInstalled(agent.id)
         }
         installed
     }
