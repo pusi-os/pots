@@ -1,5 +1,6 @@
 package com.pusios.pots
 
+import com.pusios.pots.build.HermesWebappLogin
 import com.pusios.pots.build.PotsBuildState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -95,6 +96,12 @@ interface PotsBuildController {
      * [PotsBuildState]: nothing that renders a screen has to hold it.
      */
     fun webPanelPassword(panelId: String): String?
+
+    /**
+     * Hermes' dashboard login — the account its Webapp asks for — so the row can
+     * show it. Null for the panels that have none.
+     */
+    fun webPanelLogin(panelId: String): HermesWebappLogin?
 }
 
 /** Pots Build is Android-only; every other target gets this. */
@@ -121,6 +128,7 @@ class NoOpPotsBuildController : PotsBuildController {
     override fun openWebPanel(panelId: String) {}
     override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
     override fun webPanelPassword(panelId: String): String? = null
+    override fun webPanelLogin(panelId: String): HermesWebappLogin? = null
 }
 
 expect fun createPotsBuildController(): PotsBuildController

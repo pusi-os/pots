@@ -66,6 +66,8 @@ object SandboxAgentConfig {
      */
     private const val WEBAPP_MARKER = "# Written by Pots: the Webapp panel listens on loopback only."
 
+    private const val DASHBOARD_MARKER = "# Written by Pots: the Webapp signs in with the dashboard account below."
+
     /**
      * Env var Hermes reads the API key from; `key_env` in its config points here.
      * OpenCode names the same variable in its own config (`{env:...}`) so the app
@@ -101,17 +103,22 @@ object SandboxAgentConfig {
      * [webappPort] is where Hermes' web panel should listen. It is a parameter
      * because the panel moves to the next free port when its preferred one is
      * taken, and a config written with the default would drag it back there.
+     *
+     * [login] is Hermes' dashboard account. With it the panel is a plain address
+     * that asks for a password; without it (a sandbox whose config was written by
+     * an older Pots) `hermes webapp` falls back to one-use links.
      */
     fun filesFor(
         agentId: String,
         credentials: SandboxAgentCredentials?,
         webappPort: Int = WebPanels.HERMES_PORT,
+        login: HermesWebappLogin? = null,
     ): List<SandboxAgentFile> {
         if (credentials == null) return emptyList()
         return when (agentId) {
             BuildAgents.OPENCODE -> opencode(credentials)
             BuildAgents.PI -> pi(credentials)
-            BuildAgents.HERMES -> hermes(credentials, webappPort)
+            BuildAgents.HERMES -> hermes(credentials, webappPort, login)
             else -> emptyList()
         }
     }
@@ -215,7 +222,11 @@ object SandboxAgentConfig {
      * selects it. The key itself stays out of the YAML — `key_env` names the
      * variable and `.env` carries the value, which is how Hermes loads keys.
      */
-    private fun hermes(credentials: SandboxAgentCredentials, webappPort: Int): List<SandboxAgentFile> {
+    private fun hermes(
+        credentials: SandboxAgentCredentials,
+        webappPort: Int,
+        login: HermesWebappLogin?,
+    ): List<SandboxAgentFile> {
         val keyEnv = apiKeyEnv(credentials.providerId)
         val config = buildString {
             appendLine("# Written by Pots from the app's active provider. Rewritten on every agent start.")
@@ -231,6 +242,7 @@ object SandboxAgentConfig {
             appendLine("    base_url: ${yamlQuote(credentials.endpoint)}")
             appendLine("    model: ${yamlQuote(credentials.model)}")
             appendLine("    key_env: $keyEnv")
+            if (login != null) append(dashboardConfig(login))
             append(webappConfig(webappPort))
         }
         val env = buildString {
@@ -250,8 +262,8 @@ object SandboxAgentConfig {
      * Hermes' web panel settings: on, on loopback, on [port], with no public URL.
      *
      * `public_url` stays empty on purpose — a filled one replaces the address in
-     * the link `hermes webapp` prints, and in a sandbox that link is a one-use
-     * ticket for this phone's own browser, not a hostname.
+     * the link `hermes webapp` prints, and in a sandbox the browser that has to
+     * reach it is the phone's own, on `127.0.0.1`.
      */
     fun webappConfig(port: Int): String = buildString {
         appendLine(WEBAPP_MARKER)
@@ -260,6 +272,32 @@ object SandboxAgentConfig {
         appendLine("  host: 127.0.0.1")
         appendLine("  port: $port")
         appendLine("  public_url: \"\"")
+    }
+
+    /**
+     * Hermes' dashboard account, written next to the `webapp:` block.
+     *
+     * These three keys are what turn the panel from a one-use link into a plain
+     * address: `gateway/webapp_listener.private_launch` asks the basic-auth
+     * provider whether the dashboard is configured, and with a password set it
+     * reports `sign_in: true` and a URL that has no `expires_in_seconds` — so the
+     * address stays valid and the row can hand it to the browser as it is.
+     *
+     * [HermesWebappLogin.secret] is a real random value, never `$(openssl rand …)`:
+     * the provider detects shell text in it, logs an error and falls back to a
+     * per-process key, which signs the owner out on every gateway restart.
+     *
+     * `plugins.disabled` is not written at all. A list naming `basic` next to a
+     * configured `basic_auth` makes the gateway refuse to bind, so the safest list
+     * is no list.
+     */
+    fun dashboardConfig(login: HermesWebappLogin): String = buildString {
+        appendLine(DASHBOARD_MARKER)
+        appendLine("dashboard:")
+        appendLine("  basic_auth:")
+        appendLine("    username: ${yamlQuote(login.username)}")
+        appendLine("    password: ${yamlQuote(login.password)}")
+        appendLine("    secret: ${yamlQuote(login.secret)}")
     }
 
     /**

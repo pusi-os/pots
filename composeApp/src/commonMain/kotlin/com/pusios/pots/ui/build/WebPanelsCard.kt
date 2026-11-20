@@ -25,7 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.build.HermesWebappLogin
 import com.pusios.pots.build.WebPanel
+import com.pusios.pots.build.WebPanelOpen
 import com.pusios.pots.build.WebPanelState
 import com.pusios.pots.build.WebPanelStatus
 import com.pusios.pots.build.WebPanels
@@ -38,6 +40,9 @@ import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_web_panel_autostart
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_link_hint
+import pots.composeapp.generated.resources.pots_build_web_panel_hermes_login
+import pots.composeapp.generated.resources.pots_build_web_panel_hermes_password_label
+import pots.composeapp.generated.resources.pots_build_web_panel_hermes_sign_in_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copied
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copy
 import pots.composeapp.generated.resources.pots_build_web_panel_password_hide
@@ -66,6 +71,7 @@ internal fun WebPanelsCard(
     onOpen: (String) -> Unit,
     onSetAutostart: (String, Boolean) -> Unit,
     onPassword: (String) -> String?,
+    onLogin: (String) -> HermesWebappLogin?,
     modifier: Modifier = Modifier,
 ) {
     // Catalog order, not map order: the rows must not shuffle between refreshes.
@@ -99,6 +105,7 @@ internal fun WebPanelsCard(
                 onOpen = onOpen,
                 onSetAutostart = onSetAutostart,
                 onPassword = onPassword,
+                onLogin = onLogin,
             )
         }
     }
@@ -113,6 +120,7 @@ private fun WebPanelRow(
     onOpen: (String) -> Unit,
     onSetAutostart: (String, Boolean) -> Unit,
     onPassword: (String) -> String?,
+    onLogin: (String) -> HermesWebappLogin?,
 ) {
     // The password is fetched when the button is tapped, not while composing: the
     // getter reads stored settings, and composing must stay free of side effects.
@@ -184,10 +192,23 @@ private fun WebPanelRow(
                 // Two of the three panels cannot come up already signed in, and
                 // saying so is cheaper than letting the owner wait for a login
                 // that is not coming (pi-web) or tap a link that is already spent.
-                when (panel.id) {
-                    WebPanels.PI -> PanelHint(stringResource(Res.string.pots_build_web_panel_pi_login_hint))
-                    WebPanels.HERMES -> PanelHint(stringResource(Res.string.pots_build_web_panel_hermes_link_hint))
-                    else -> Unit
+                when (status.open) {
+                    WebPanelOpen.MINTED_LINK ->
+                        PanelHint(stringResource(Res.string.pots_build_web_panel_hermes_link_hint))
+                    WebPanelOpen.DASHBOARD_SIGN_IN -> {
+                        PanelHint(stringResource(Res.string.pots_build_web_panel_hermes_sign_in_hint))
+                        // The login is minted on the first ask and kept; fetching it
+                        // here is a settings read, not a side effect in composition.
+                        var login by remember(panel.id) { mutableStateOf<HermesWebappLogin?>(null) }
+                        LaunchedEffect(panel.id) { login = onLogin(panel.id) }
+                        login?.let { DashboardLoginLine(it) }
+                    }
+                    WebPanelOpen.DIRECT ->
+                        if (panel.id == WebPanels.PI) {
+                            PanelHint(stringResource(Res.string.pots_build_web_panel_pi_login_hint))
+                        } else {
+                            Unit
+                        }
                 }
                 if (panel.passwordEnv != null) {
                     PasswordLine(
@@ -296,6 +317,63 @@ private fun PasswordLine(
             }
             TextButton(
                 onClick = { if (onCopy()) copied = true },
+                modifier = Modifier.handCursor(),
+            ) {
+                Text(stringResource(Res.string.pots_build_web_panel_password_copy))
+            }
+            if (copied) {
+                Text(
+                    text = stringResource(Res.string.pots_build_web_panel_password_copied),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Hermes' dashboard login, in the row, in plain sight.
+ *
+ * Shown rather than hidden on purpose: it is typed by the owner into a browser on
+ * the same phone, it is the account of a sandbox on that phone, and a hidden value
+ * would only be revealed by the same tap. The password is not part of the panel's
+ * state or its logs — it is read from settings here, once.
+ */
+@Composable
+private fun DashboardLoginLine(login: HermesWebappLogin) {
+    val copyToClipboard = rememberCopyToClipboard(sensitive = true)
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (!copied) return@LaunchedEffect
+        delay(COPY_CONFIRMATION_MS)
+        copied = false
+    }
+    Column(Modifier.fillMaxWidth()) {
+        SelectionContainer {
+            Text(
+                text = stringResource(Res.string.pots_build_web_panel_hermes_login, login.username),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(Res.string.pots_build_web_panel_hermes_password_label, login.password),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(
+                onClick = {
+                    copyToClipboard(login.password)
+                    copied = true
+                },
                 modifier = Modifier.handCursor(),
             ) {
                 Text(stringResource(Res.string.pots_build_web_panel_password_copy))

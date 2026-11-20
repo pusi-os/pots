@@ -9,6 +9,7 @@ import com.pusios.pots.build.BuildEnvironmentState
 import com.pusios.pots.build.BuildStep
 import com.pusios.pots.build.BuildSystemInfo
 import com.pusios.pots.build.BuildTerminalSession
+import com.pusios.pots.build.HermesWebappLogin
 import com.pusios.pots.build.InstallLog
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.build.SandboxAgentConfig
@@ -583,7 +584,14 @@ class BuildEnvironmentManager(
 
     // --- agent web panels -------------------------------------------------
 
-    fun startWebPanel(panelId: String) = webPanels.start(panelId)
+    fun startWebPanel(panelId: String) {
+        // The dashboard login and the webapp block live in the agent's config, and
+        // a panel can be started without ever opening an agent session — write the
+        // file here too, so the panel comes up asking for a password instead of
+        // handing out one-use links.
+        applyAgentConfig(WebPanels.get(panelId)?.agentId)
+        webPanels.start(panelId)
+    }
 
     fun stopWebPanel(panelId: String) = webPanels.stop(panelId)
 
@@ -593,10 +601,17 @@ class BuildEnvironmentManager(
 
     fun webPanelPassword(panelId: String): String? = webPanels.password(panelId)
 
+    /** Hermes' dashboard login, for the row that shows it. */
+    fun webPanelLogin(panelId: String): HermesWebappLogin? =
+        if (panelId == WebPanels.HERMES) webPanels.hermesLogin() else null
+
     /**
-     * Opens the panel in the device's own browser. Hermes' address is minted per
-     * tap — its link is one-use — so the URL is fetched first and only then
-     * handed to the browser, never kept.
+     * Opens the panel in the device's own browser.
+     *
+     * Hermes' address asks for the dashboard login (its config carries
+     * `dashboard.basic_auth`), so the URL is the address itself; the one-use link
+     * path survives only for a sandbox whose config an older Pots wrote, and there
+     * the ticket is minted per tap and never kept.
      *
      * The URL is deliberately absent from every log line on this path: for
      * OpenCode it carries the panel's password in its userinfo, and `logcat` is
@@ -856,7 +871,10 @@ class BuildEnvironmentManager(
         // port the panel had to move to would point the gateway at a busy port
         // while the running panel listens on another one.
         val webappPort = runningPanelPort(WebPanels.HERMES) ?: WebPanels.HERMES_PORT
-        for (file in SandboxAgentConfig.filesFor(agentId, credentials, webappPort)) {
+        // Hermes' dashboard login lives in that file too, and minting it here is
+        // what keeps the row's login and the gateway's check the same value.
+        val login = if (agentId == BuildAgents.HERMES) webPanels.hermesLogin() else null
+        for (file in SandboxAgentConfig.filesFor(agentId, credentials, webappPort, login)) {
             val target = File(home, file.path)
             runCatching {
                 target.parentFile?.mkdirs()

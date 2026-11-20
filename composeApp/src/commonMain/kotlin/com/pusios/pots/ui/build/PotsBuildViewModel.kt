@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.PotsBuildController
+import com.pusios.pots.build.HermesWebappLogin
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.build.terminal.TerminalKey
 import com.pusios.pots.build.terminal.TerminalKeyEncoder
@@ -192,4 +193,7 @@ class PotsBuildViewModel(
         controller.setWebPanelAutostart(panelId, enabled)
 
     fun webPanelPassword(panelId: String): String? = controller.webPanelPassword(panelId)
+
+    /** Hermes' dashboard login, for the row that shows it. */
+    fun webPanelLogin(panelId: String): HermesWebappLogin? = controller.webPanelLogin(panelId)
 }

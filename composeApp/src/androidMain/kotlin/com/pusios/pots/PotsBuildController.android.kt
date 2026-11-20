@@ -1,6 +1,7 @@
 package com.pusios.pots
 
 import android.content.Context
+import com.pusios.pots.build.HermesWebappLogin
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.build.activeSandboxCredentials
 import com.pusios.pots.build.runtime.BuildEnvironmentManager
@@ -85,4 +86,6 @@ class AndroidPotsBuildController : PotsBuildController {
     override fun setWebPanelAutostart(panelId: String, enabled: Boolean) = manager.setWebPanelAutostart(panelId, enabled)
 
     override fun webPanelPassword(panelId: String): String? = manager.webPanelPassword(panelId)
+
+    override fun webPanelLogin(panelId: String): HermesWebappLogin? = manager.webPanelLogin(panelId)
 }

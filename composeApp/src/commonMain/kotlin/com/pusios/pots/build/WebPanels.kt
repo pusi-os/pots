@@ -140,6 +140,16 @@ object WebPanels {
     }
 
     /**
+     * Whether [url] points at the guest's own loopback — the address only the
+     * phone can reach, which is where a panel serves when it is not published.
+     */
+    fun isLoopback(url: String): Boolean {
+        val authority = url.substringAfter("://", "").substringBefore('/')
+        val host = authority.substringBeforeLast(':', authority)
+        return host == "127.0.0.1" || host == "localhost" || host == "[::1]"
+    }
+
+    /**
      * How a panel is started. Hermes starts its gateway on the way — that is what
      * its own `--no-open` does — and prints the one-use link as its last line.
      */
@@ -169,10 +179,19 @@ object WebPanels {
      * step failed the install is still usable but the panel would open blank, so
      * the row says so instead.
      */
-    const val HERMES_BUNDLE = "/root/.hermes/hermes-agent/apps/desktop/dist-webapp/index.html"
+    const val HERMES_BUNDLE_DIR = "/root/.hermes/hermes-agent/apps/desktop/dist-webapp"
 
-    /** True when the bundle above is there — the honest answer to "is it built?". */
-    const val HERMES_BUNDLE_CHECK = "test -f $HERMES_BUNDLE"
+    /** The page the panel serves. */
+    const val HERMES_BUNDLE = "$HERMES_BUNDLE_DIR/index.html"
+
+    /**
+     * True when the bundle above is there — the honest answer to "is it built?".
+     *
+     * The page is not the bundle: `index.html` loads the scripts under `assets/`,
+     * and a build that produced the page but not the scripts passes an index-only
+     * check, opens a blank screen and reads as a broken app. Both are asked for.
+     */
+    const val HERMES_BUNDLE_CHECK = "test -f $HERMES_BUNDLE && test -d $HERMES_BUNDLE_DIR/assets"
 
     /**
      * [preferred] when free, otherwise the next free port within
@@ -228,9 +247,10 @@ sealed interface WebPanelStatus {
     /**
      * [url] is the panel's address as the row shows it — no credentials in it,
      * even for the panel that takes them (see [WebPanels.url] and
-     * [WebPanelRuntime.link]). The browser-bound link is minted on the tap.
+     * [WebPanelRuntime.link]) — and [open] says what the browser needs beyond it.
+     * The browser-bound link is minted on the tap, never stored here.
      */
-    data class Running(val url: String) : WebPanelStatus
+    data class Running(val url: String, val open: WebPanelOpen = WebPanelOpen.DIRECT) : WebPanelStatus
 
     /**
      * [reason] is shown to the user as it is — a busy port, a missing binary, a
@@ -238,6 +258,27 @@ sealed interface WebPanelStatus {
      * sandbox's other failure lines.
      */
     data class Failed(val reason: String) : WebPanelStatus
+}
+
+/**
+ * How a running panel's address becomes a page in the browser.
+ *
+ * The distinction is what makes the "open" action honest: an address that needs
+ * a ticket cannot be handed over as it is, and an address that needs an account
+ * must not promise a signed-in page.
+ */
+enum class WebPanelOpen {
+    /** The address alone: the panel serves it and asks nothing more. */
+    DIRECT,
+
+    /**
+     * Only a link minted on the tap gets in — Hermes' private launch signs one
+     * browser in once, and the ticket dies about a minute after it is printed.
+     */
+    MINTED_LINK,
+
+    /** The webapp sits behind the dashboard's sign-in: the address is constant. */
+    DASHBOARD_SIGN_IN,
 }
 
 @Immutable
@@ -250,14 +291,61 @@ data class WebPanelState(
 
 /**
  * What Pots remembers about a panel between runs: its password (generated on
- * first start, never logged, never part of the UI state) and whether it should
- * come up with the sandbox.
+ * first start, never logged, never part of the UI state), whether it should
+ * come up with the sandbox, and Hermes' dashboard login.
  */
 @Immutable
 data class WebPanelPreferences(
     val password: String? = null,
     val autostart: Boolean = false,
+    /**
+     * Hermes' dashboard login, minted on first use and then kept: the gateway
+     * binds its sessions to the credential, so a fresh one would sign out a tab
+     * that is already open.
+     */
+    val login: HermesWebappLogin? = null,
 )
+
+/**
+ * The account Hermes' own Webapp asks for, and the key its session cookies are
+ * signed with.
+ *
+ * These three values are what make the panel a plain address again: with
+ * `dashboard.basic_auth` configured, `hermes webapp` reports `sign_in: true` and
+ * a permanent URL instead of a one-use ticket
+ * (`gateway/webapp_listener.py` → `private_launch` is false), so the row can
+ * hand the browser the address and the owner signs in once.
+ *
+ * [username] is fixed and short, [password] is typed from a phone screen, and
+ * [secret] is a real random value in hex — never `$(openssl rand …)`, which
+ * Hermes detects, logs as an error and replaces with a per-process key.
+ */
+@Immutable
+data class HermesWebappLogin(
+    val username: String,
+    val password: String,
+    val secret: String,
+) {
+    companion object {
+        /** The login the owner types; there is one user on a phone's own sandbox. */
+        const val USERNAME = "pots"
+
+        /** Short enough to type on a phone, long enough not to be guessed. */
+        const val PASSWORD_LENGTH = 12
+
+        /** 32 random bytes, written as hex — base64 and hex are what Hermes reads as bytes. */
+        const val SECRET_BYTES = 32
+        const val SECRET_HEX_CHARS = SECRET_BYTES * 2
+
+        fun mint(random: Random = Random.Default): HermesWebappLogin = HermesWebappLogin(
+            username = USERNAME,
+            password = WebPanelPasswords.generate(random, PASSWORD_LENGTH),
+            secret = buildString(SECRET_HEX_CHARS) {
+                repeat(SECRET_HEX_CHARS) { append(HEX_DIGITS[random.nextInt(HEX_DIGITS.length)]) }
+            },
+        )
+    }
+}
 
 /**
  * The password a panel gets on its first start.
@@ -269,8 +357,12 @@ object WebPanelPasswords {
     const val ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     const val LENGTH = 24
 
-    fun generate(random: Random = Random.Default): String = buildString(LENGTH) {
-        repeat(LENGTH) { append(ALPHABET[random.nextInt(ALPHABET.length)]) }
+    /**
+     * [length] is for the logins a human types ([HermesWebappLogin] asks for a
+     * short one); the panel passwords that get pasted stay at [LENGTH].
+     */
+    fun generate(random: Random = Random.Default, length: Int = LENGTH): String = buildString(length) {
+        repeat(length) { append(ALPHABET[random.nextInt(ALPHABET.length)]) }
     }
 }
 
