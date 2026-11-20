@@ -131,22 +131,31 @@ class WebPanelRuntime(
     /**
      * A URL to hand to the browser right now.
      *
-     * Hermes mints a one-use link per call, so this is never cached for it; the
-     * other two answer with the address they are already listening on, with the
-     * credentials that address alone does not carry (see [WebPanels.url]). The
-     * password is fetched here rather than stored in [WebPanelStatus.Running], so
-     * the state — and every screen that renders it — stays credential-free.
+     * Hermes mints a one-use link per call, so its link is minted **here**, on the
+     * tap, and never cached: [WebPanelStatus.Running] carries the address and the
+     * kind of open it needs ([WebPanelOpen]), not the ticket — a link fetched at
+     * start-up would be dead by the time it is tapped. The other two answer with
+     * the address they are already listening on, with the credentials that
+     * address alone does not carry (see [WebPanels.url]). The password is fetched
+     * here rather than stored in the state, so every screen that renders the
+     * state stays credential-free.
      */
     suspend fun link(panelId: String): String? = mutex.withLock {
         val panel = WebPanels.get(panelId) ?: return@withLock null
-        if (panel.id != WebPanels.HERMES) {
-            val url = (states[panel.id]?.status as? WebPanelStatus.Running)?.url ?: return@withLock null
-            val port = WebPanels.portOf(url) ?: return@withLock null
-            return@withLock WebPanels.url(panel, port, password(panel.id))
+        val running = states[panel.id]?.status as? WebPanelStatus.Running ?: return@withLock null
+        when (running.open) {
+            WebPanelOpen.DIRECT -> {
+                val port = WebPanels.portOf(running.url) ?: return@withLock null
+                WebPanels.url(panel, port, password(panel.id))
+            }
+            // One use, sixty seconds: a fresh ticket per tap, by construction. The
+            // launcher is run for the port the panel is actually on, not the one it
+            // was asked for — the two differ when the preferred port was taken.
+            WebPanelOpen.MINTED_LINK ->
+                mintHermesLink(panel, WebPanels.portOf(running.url) ?: panel.preferredPort)
+            // A permanent address with no ticket in it — nothing to mint, nothing to cache.
+            WebPanelOpen.DASHBOARD_SIGN_IN -> running.url
         }
-        // One use, sixty seconds: a fresh one every tap, by construction.
-        val output = guest.run(WebPanels.command(panel, panel.preferredPort), HERMES_LINK_TIMEOUT_SECONDS)
-        HermesWebappOutput.parse(output.text)?.url
     }
 
     suspend fun refreshPanels() = mutex.withLock { refreshLocked() }
@@ -273,24 +282,70 @@ class WebPanelRuntime(
      * when it is not up, prints the link and exits. So there is no pid of ours to
      * record — the readiness answer is the link itself, and the port it reports
      * is the port the panel is really on.
+     *
+     * The link printed here is deliberately not kept: it signs one browser in
+     * once and dies within the minute, so the row gets the address and the fact
+     * that opening it means minting a fresh ticket ([WebPanelOpen.MINTED_LINK]).
      */
     private fun startHermes(panel: WebPanel, port: Int) {
         val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS)
         val link = HermesWebappOutput.parse(output.text)
         if (link == null) {
-            val reason = output.text.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
-            setState(panel, WebPanelStatus.Failed("hermes webapp: ${reason.ifEmpty { "no link printed" }}"))
+            setState(panel, WebPanelStatus.Failed("hermes webapp: ${reasonLine(output.text)}"))
             return
         }
-        setState(panel, WebPanelStatus.Running(WebPanels.address(WebPanels.portOf(link.url) ?: port)))
+        setState(
+            panel,
+            if (link.oneTime) {
+                WebPanelStatus.Running(
+                    WebPanels.address(WebPanels.portOf(link.url) ?: port),
+                    WebPanelOpen.MINTED_LINK,
+                )
+            } else {
+                // Behind the dashboard's sign-in there is no ticket at all; the
+                // address is the whole answer, and it needs an account.
+                WebPanelStatus.Running(link.url, WebPanelOpen.DASHBOARD_SIGN_IN)
+            },
+        )
     }
+
+    /**
+     * Runs the launcher for a fresh ticket, the way a tap needs it.
+     *
+     * The command is idempotent — its gateway start is a no-op when the gateway is
+     * already up — so a tap is always answered with a live link. When it cannot
+     * mint one, the panel says why instead of leaving a dead button behind: the
+     * first non-empty line of the output is the reason, as on a failed start.
+     */
+    private fun mintHermesLink(panel: WebPanel, port: Int): String? {
+        val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS)
+        val link = HermesWebappOutput.parse(output.text)
+        if (link == null) {
+            setState(panel, WebPanelStatus.Failed("hermes webapp: ${reasonLine(output.text)}"))
+            return null
+        }
+        if (link.oneTime) return link.url
+        // The gateway came up behind the dashboard's sign-in since the panel
+        // started: from here the address is constant, and the row has to say so.
+        setState(panel, WebPanelStatus.Running(link.url, WebPanelOpen.DASHBOARD_SIGN_IN))
+        return link.url
+    }
+
+    /** The first line the guest said, for a failure the owner has to read. */
+    private fun reasonLine(output: String): String =
+        output.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+            .ifEmpty { "no link printed" }
 
     private fun probe(panel: WebPanel): WebPanelStatus {
         val statusCommand = WebPanels.statusCommand(panel)
         if (statusCommand != null) {
             val output = guest.run(statusCommand, STATUS_TIMEOUT_SECONDS)
             val url = HermesWebappOutput.servingUrl(output.text) ?: return WebPanelStatus.NotRunning
-            return WebPanelStatus.Running(url)
+            // `--status` says where the gateway serves, not how a browser gets in:
+            // a loopback address is the private launch, whose tickets are minted
+            // per tap, and anything else is the published webapp behind sign-in.
+            val open = if (WebPanels.isLoopback(url)) WebPanelOpen.MINTED_LINK else WebPanelOpen.DASHBOARD_SIGN_IN
+            return WebPanelStatus.Running(url, open)
         }
         val pid = guest.pid(panel) ?: return WebPanelStatus.NotRunning
         if (!guest.alive(pid)) return WebPanelStatus.NotRunning

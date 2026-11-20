@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.build.WebPanel
+import com.pusios.pots.build.WebPanelOpen
 import com.pusios.pots.build.WebPanelState
 import com.pusios.pots.build.WebPanelStatus
 import com.pusios.pots.build.WebPanels
@@ -38,6 +39,7 @@ import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_web_panel_autostart
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_link_hint
+import pots.composeapp.generated.resources.pots_build_web_panel_hermes_sign_in_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copied
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copy
 import pots.composeapp.generated.resources.pots_build_web_panel_password_hide
@@ -184,10 +186,17 @@ private fun WebPanelRow(
                 // Two of the three panels cannot come up already signed in, and
                 // saying so is cheaper than letting the owner wait for a login
                 // that is not coming (pi-web) or tap a link that is already spent.
-                when (panel.id) {
-                    WebPanels.PI -> PanelHint(stringResource(Res.string.pots_build_web_panel_pi_login_hint))
-                    WebPanels.HERMES -> PanelHint(stringResource(Res.string.pots_build_web_panel_hermes_link_hint))
-                    else -> Unit
+                when (status.open) {
+                    WebPanelOpen.MINTED_LINK ->
+                        PanelHint(stringResource(Res.string.pots_build_web_panel_hermes_link_hint))
+                    WebPanelOpen.DASHBOARD_SIGN_IN ->
+                        PanelHint(stringResource(Res.string.pots_build_web_panel_hermes_sign_in_hint))
+                    WebPanelOpen.DIRECT ->
+                        if (panel.id == WebPanels.PI) {
+                            PanelHint(stringResource(Res.string.pots_build_web_panel_pi_login_hint))
+                        } else {
+                            Unit
+                        }
                 }
                 if (panel.passwordEnv != null) {
                     PasswordLine(
