@@ -24,6 +24,16 @@ enum class LinuxDistro(
      * Base set is Pots Build's proven list: `tar` because Pi's installer extracts
      * a `.tar.gz` of its Node runtime, `coreutils` because the agent installers
      * verify their downloads with `sha256sum`.
+     *
+     * `libatomic1` is there for the Node runtime the *agents* fetch, not for
+     * bookworm's own: nodejs.org's linux-arm64 build links `libatomic.so.1`, and a
+     * rootfs carrying only this list has no such library — `node --version` then
+     * dies with `error while loading shared libraries: libatomic.so.1` (exit 127)
+     * before any JavaScript runs. Hermes' `pm` unpacks exactly that tarball for its
+     * frontend builds, so without it `hermes webapp --build-only` fails at its
+     * first step. Nothing else in the list pulls it in: Debian's own `nodejs` and
+     * `python3` depend on `libnode108`/`libgcc-s1`, neither of which is this
+     * library.
      */
     DEBIAN(
         id = "debian",
@@ -34,6 +44,7 @@ enum class LinuxDistro(
             // a tar.xz: without it the panel cannot unpack its own renderer.
             "xz-utils",
             "nano", "less", "unzip", "python3", "tar", "coreutils",
+            "libatomic1",
         ),
         optionalPackages = listOf(
             "jq",
