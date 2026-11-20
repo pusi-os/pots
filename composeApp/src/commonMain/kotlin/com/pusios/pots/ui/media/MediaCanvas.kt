@@ -50,58 +50,50 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
+import coil3.compose.rememberAsyncImagePainter
 import com.pusios.pots.media.MediaJobState
 import com.pusios.pots.media.videoEditingPlatformSupported
 import com.pusios.pots.ui.handCursor
 import kotlin.math.roundToInt
 
-/** Element footprint on the canvas (dp): the fixed WIDTH; also the menu anchor height. */
-internal const val CANVAS_ELEMENT_SIZE_DP = 232f
-
-/** Fallback frame for a video whose aspect is not probed yet: the common 16:9 generation output. */
-internal const val DEFAULT_VIDEO_ASPECT_RATIO = 16f / 9f
-
-/**
- * Element box height from the source aspect (width / height), @joni's block-4
- * contract: the width stays 232.dp, the height follows the ratio, clamped to
- * 16:9…9:16 — beyond the clamp the content renders Fit inside the clamped
- * frame. Unknown or junk ratios fall back to the old square, so a remote
- * image does not jump before its painter arrives.
- */
-internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
-    val ratio = aspectRatio?.takeIf { it.isFinite() && it > 0f } ?: 1f
-    return (CANVAS_ELEMENT_SIZE_DP / ratio).coerceIn(
-        CANVAS_ELEMENT_SIZE_DP * 9f / 16f,
-        CANVAS_ELEMENT_SIZE_DP * 16f / 9f,
-    )
-}
+/** Key of the system family in the renderer's font map; no custom font ships yet. */
+private const val CANVAS_DEFAULT_FONT = "default"
 
 /**
  * The creative surface: a dotted-grid canvas with pan/zoom, draggable rounded
  * layers, selection ring with quick-transform chips, generation skeletons
  * and an inviting empty state.
+ *
+ * The layers themselves are drawn by [renderLayers] on one [Canvas] — the same
+ * renderer an export will call. The composition keeps what is not content: the
+ * grid, the drop shadows, hit targets, gestures, the selection ring and the
+ * chips. Frames are decoded by Coil and handed to the renderer as painters, so
+ * the Coil cache stays the only copy of the bitmap (a decoded 2048² ImageBitmap
+ * in state would be 16 MB per layer).
  *
  * [layers] arrives in draw order (the list is the z-order); nothing here sorts.
  */
@@ -130,6 +122,14 @@ internal fun MediaCanvas(
     onEditVideo: (VideoLayer) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val density = LocalDensity.current.density
+    // Font() is @Composable, so families are resolved here and handed to the
+    // renderer; it cannot load one itself. Text layers are the next card.
+    val fonts = remember { mapOf(CANVAS_DEFAULT_FONT to FontFamily.Default) }
+    val frames = remember { mutableStateMapOf<String, Painter>() }
+    val cardColor = MaterialTheme.colorScheme.surfaceVariant
+    LayerFrames(layers, frames)
+
     Box(
         modifier
             .fillMaxSize()
@@ -149,12 +149,33 @@ internal fun MediaCanvas(
     ) {
         CanvasDotGrid(canvasOffset)
 
+        // Drop shadows sit under the frames: DrawScope has no shadow API in
+        // common, so the silhouette stays a composable. A shadow of a higher
+        // layer does not darken a lower layer's frame — the only visual
+        // difference of this split, and it is a shadow, not content.
+        LayerCardShadows(layers, canvasScale, canvasOffset, frames)
+
+        Canvas(Modifier.fillMaxSize()) {
+            withTransform({ translate(canvasOffset.x, canvasOffset.y) }) {
+                renderLayers(
+                    layers = layers,
+                    scale = density,
+                    fonts = fonts,
+                    measurer = null,
+                    frames = frames,
+                    cardBackground = cardColor,
+                    zoom = canvasScale,
+                )
+            }
+        }
+
         layers.forEach { layer ->
-            CanvasLayerView(
+            CanvasLayerOverlay(
                 layer = layer,
                 selected = layer.id == selectedId,
                 canvasScale = canvasScale,
                 canvasOffset = canvasOffset,
+                frame = frames[layer.id],
                 onSelect = { onSelect(layer.id) },
                 onMove = onMove,
                 onRotate = onRotate,
@@ -205,32 +226,73 @@ internal fun MediaCanvas(
     }
 }
 
+/**
+ * Decodes each image layer once through Coil and publishes the painter to
+ * [frames]; the renderer draws those painters. `AsyncImage` used to draw the
+ * frame itself — now it only loads.
+ */
 @Composable
-private fun CanvasDotGrid(canvasOffset: Offset) {
-    val dotColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
-    Canvas(Modifier.fillMaxSize()) {
-        val step = 24.dp.toPx()
-        val dotRadius = 1.3.dp.toPx()
-        val startX = canvasOffset.x % step - step
-        val startY = canvasOffset.y % step - step
-        var x = startX
-        while (x < size.width + step) {
-            var y = startY
-            while (y < size.height + step) {
-                drawCircle(dotColor, radius = dotRadius, center = Offset(x, y))
-                y += step
+private fun LayerFrames(layers: List<CanvasLayer>, frames: MutableMap<String, Painter>) {
+    layers.forEach { layer ->
+        if (layer !is ImageLayer || !layer.transform.visible) return@forEach
+        key(layer.id) {
+            val painter = rememberAsyncImagePainter(model = rememberImageModel(layer.url ?: layer.localPath))
+            DisposableEffect(painter) {
+                frames[layer.id] = painter
+                onDispose { frames.remove(layer.id) }
             }
-            x += step
         }
     }
 }
 
 @Composable
-private fun CanvasLayerView(
+private fun LayerCardShadows(
+    layers: List<CanvasLayer>,
+    canvasScale: Float,
+    canvasOffset: Offset,
+    frames: Map<String, Painter>,
+) {
+    layers.forEach { layer ->
+        if (!layer.transform.visible) return@forEach
+        Box(Modifier.layerBox(layer, canvasScale, canvasOffset, frames[layer.id]).shadow(6.dp, RoundedCornerShape(12.dp)))
+    }
+}
+
+/**
+ * The geometry every pass shares with the old composable element: offset by the
+ * layer position plus the canvas pan (px), 232.dp wide, height from the source
+ * aspect, then scale/rotate/alpha around the layout centre.
+ */
+private fun Modifier.layerBox(
+    layer: CanvasLayer,
+    canvasScale: Float,
+    canvasOffset: Offset,
+    frame: Painter?,
+): Modifier = this
+    .offset {
+        IntOffset(
+            (layer.transform.x + canvasOffset.x).roundToInt(),
+            (layer.transform.y + canvasOffset.y).roundToInt(),
+        )
+    }
+    .width(CANVAS_ELEMENT_SIZE_DP.dp)
+    .height(canvasLayerHeightDp(layer, frame).dp)
+    .graphicsLayer(
+        scaleX = layer.transform.scale * canvasScale,
+        scaleY = layer.transform.scale * canvasScale,
+        rotationZ = layer.transform.rotation,
+        // Layer-wide alpha: the whole layer composites as one, so strokes
+        // inside it never show through each other.
+        alpha = layer.transform.opacity,
+    )
+
+@Composable
+private fun CanvasLayerOverlay(
     layer: CanvasLayer,
     selected: Boolean,
     canvasScale: Float,
     canvasOffset: Offset,
+    frame: Painter?,
     onSelect: () -> Unit,
     onMove: (String, Float, Float) -> Unit,
     onRotate: (String, Float) -> Unit,
@@ -250,38 +312,18 @@ private fun CanvasLayerView(
     val media = layer as? MediaLayer
     val url = media?.url
     val local = media?.localPath
-    // The image aspect arrives with the decoded painter (a remote URL is only
-    // known after the load); a video carries its probed frame aspect on the
-    // layer. Audio keeps the fixed square card (@joni: unchanged).
-    var imageAspect by remember(url, local) { mutableStateOf<Float?>(null) }
-    val aspect = when (layer) {
-        is AudioLayer -> null
-        is VideoLayer -> layer.aspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO
-        is ImageLayer -> imageAspect
-        else -> null
-    }
-    val heightDp = if (layer is AudioLayer) CANVAS_ELEMENT_SIZE_DP else canvasElementHeightDp(aspect)
     Box(
         Modifier
-            .offset {
-                IntOffset(
-                    (layer.transform.x + canvasOffset.x).roundToInt(),
-                    (layer.transform.y + canvasOffset.y).roundToInt(),
-                )
-            }
-            .width(CANVAS_ELEMENT_SIZE_DP.dp)
-            .height(heightDp.dp)
-            .graphicsLayer(
-                scaleX = layer.transform.scale * canvasScale,
-                scaleY = layer.transform.scale * canvasScale,
-                rotationZ = layer.transform.rotation,
-                // Layer-wide alpha: the whole layer composites as one, so
-                // strokes inside it never show through each other.
-                alpha = layer.transform.opacity,
+            .layerBox(layer, canvasScale, canvasOffset, frame)
+            .then(
+                // The card fill of an audio layer is its own: the renderer
+                // draws frames, and an audio card is a player, not a frame.
+                if (layer is AudioLayer) {
+                    Modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
+                } else {
+                    Modifier
+                },
             )
-            .shadow(6.dp, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
             .then(
                 if (selected) {
                     Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
@@ -314,6 +356,9 @@ private fun CanvasLayerView(
                 modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
             )
 
+            // The player cannot be drawn inside DrawScope, so it stays a
+            // composable above the canvas: the video frame does not reach an
+            // export yet (a separate card). The card under it is the renderer's.
             is VideoLayer -> MediaVideoPlayer(
                 url = url ?: local ?: "",
                 autoplay = false,
@@ -323,21 +368,10 @@ private fun CanvasLayerView(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            is ImageLayer -> AsyncImage(
-                model = rememberImageModel(url ?: local),
-                contentDescription = "Изображение на канвасе",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit,
-                onState = { state ->
-                    val size = (state as? AsyncImagePainter.State.Success)?.painter?.intrinsicSize
-                    if (size != null && size.height > 0f) imageAspect = size.width / size.height
-                },
-            )
-
-            // Text, strokes and arrows are painted by the DrawScope renderer
-            // (t_00019f0b). No tool creates them yet, so an empty body here is
-            // not a visible gap — the selection box and its chips still work.
-            is TextLayer, is StrokeLayer, is ArrowLayer -> Unit
+            // Frames are painted by the renderer; text, strokes and arrows are
+            // the next cards. No tool creates them yet, so an empty body here
+            // is not a visible gap — the selection box and its chips still work.
+            is ImageLayer, is TextLayer, is StrokeLayer, is ArrowLayer -> Unit
         }
 
         if (selected) {
@@ -403,6 +437,26 @@ private fun CanvasLayerView(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CanvasDotGrid(canvasOffset: Offset) {
+    val dotColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+    Canvas(Modifier.fillMaxSize()) {
+        val step = 24.dp.toPx()
+        val dotRadius = 1.3.dp.toPx()
+        val startX = canvasOffset.x % step - step
+        val startY = canvasOffset.y % step - step
+        var x = startX
+        while (x < size.width + step) {
+            var y = startY
+            while (y < size.height + step) {
+                drawCircle(dotColor, radius = dotRadius, center = Offset(x, y))
+                y += step
+            }
+            x += step
         }
     }
 }
