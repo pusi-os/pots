@@ -1,6 +1,5 @@
 package com.pusios.pots.data
 
-import com.pusios.pots.build.HermesWebappLogin
 import com.pusios.pots.build.WebPanelPreferences
 import com.pusios.pots.defaultUiScale
 import com.pusios.pots.deleteAppStorageFolder
@@ -936,39 +935,20 @@ class AppSettings(internal val settings: Settings) {
 
     /**
      * What Pots remembers about an agent's web panel: the password it generated
-     * on first start, whether the panel comes up with the sandbox, and Hermes'
-     * dashboard login.
+     * on first start, and whether the panel comes up with the sandbox.
      *
-     * Both the password and the login are stored rather than regenerated because
-     * the agent keeps answering with them — a new one every start would silently
-     * lock out a tab that is already open.
+     * The password is stored rather than regenerated because the agent keeps
+     * answering with it — a new one every start would silently lock out a tab
+     * that is already open.
      */
-    fun getWebPanelPreferences(panelId: String): WebPanelPreferences {
-        val loginUser = settings.getStringOrNull(KEY_WEB_PANEL_LOGIN + panelId)
-        val loginPassword = settings.getStringOrNull(KEY_WEB_PANEL_LOGIN_PASSWORD + panelId)
-        val loginSecret = settings.getStringOrNull(KEY_WEB_PANEL_LOGIN_SECRET + panelId)
-        val login = if (
-            loginUser != null && loginPassword != null && loginSecret != null &&
-            loginUser.isNotEmpty() && loginPassword.isNotEmpty() && loginSecret.isNotEmpty()
-        ) {
-            HermesWebappLogin(loginUser, loginPassword, loginSecret)
-        } else {
-            // No login yet (or a half-written one): the runtime mints it on first ask.
-            null
-        }
-        return WebPanelPreferences(
-            password = settings.getStringOrNull(KEY_WEB_PANEL_PASSWORD + panelId)?.takeIf { it.isNotEmpty() },
-            autostart = settings.getBoolean(KEY_WEB_PANEL_AUTOSTART + panelId, false),
-            login = login,
-        )
-    }
+    fun getWebPanelPreferences(panelId: String): WebPanelPreferences = WebPanelPreferences(
+        password = settings.getStringOrNull(KEY_WEB_PANEL_PASSWORD + panelId)?.takeIf { it.isNotEmpty() },
+        autostart = settings.getBoolean(KEY_WEB_PANEL_AUTOSTART + panelId, false),
+    )
 
     fun setWebPanelPreferences(panelId: String, prefs: WebPanelPreferences) {
         settings.putString(KEY_WEB_PANEL_PASSWORD + panelId, prefs.password.orEmpty())
         settings.putBoolean(KEY_WEB_PANEL_AUTOSTART + panelId, prefs.autostart)
-        settings.putString(KEY_WEB_PANEL_LOGIN + panelId, prefs.login?.username.orEmpty())
-        settings.putString(KEY_WEB_PANEL_LOGIN_PASSWORD + panelId, prefs.login?.password.orEmpty())
-        settings.putString(KEY_WEB_PANEL_LOGIN_SECRET + panelId, prefs.login?.secret.orEmpty())
     }
 
     fun getScheduledTasksJson(): String = settings.getString(KEY_SCHEDULED_TASKS, "[]")
@@ -1304,11 +1284,6 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_POTS_BUILD_LAUNCH_AGENT = "pots_build_launch_agent"
         const val KEY_WEB_PANEL_PASSWORD = "web_panel_password_"
         const val KEY_WEB_PANEL_AUTOSTART = "web_panel_autostart_"
-
-        /** Hermes' dashboard login, minted once — see [WebPanelPreferences.login]. */
-        const val KEY_WEB_PANEL_LOGIN = "web_panel_login_"
-        const val KEY_WEB_PANEL_LOGIN_PASSWORD = "web_panel_login_password_"
-        const val KEY_WEB_PANEL_LOGIN_SECRET = "web_panel_login_secret_"
 
         // Basic memory guidance shared by every chat variant. The advanced `## Structured
         // Learning` block lives in `ChatSystemPromptBuilder.DEFAULT_STRUCTURED_LEARNING_SECTION`

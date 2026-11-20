@@ -5,7 +5,6 @@ import com.pusios.pots.FileBrowserSource
 import com.pusios.pots.PotsBuildController
 import com.pusios.pots.NoOpFileBrowserSource
 import com.pusios.pots.build.BuildEnvironmentState
-import com.pusios.pots.build.HermesWebappLogin
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.testutil.FakeDataRepository
 import kotlinx.collections.immutable.persistentSetOf
@@ -76,7 +75,6 @@ class PotsBuildViewModelTest {
         override fun openWebPanel(panelId: String) {}
         override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
         override fun webPanelPassword(panelId: String): String? = null
-        override fun webPanelLogin(panelId: String): HermesWebappLogin? = null
     }
 
     @BeforeTest

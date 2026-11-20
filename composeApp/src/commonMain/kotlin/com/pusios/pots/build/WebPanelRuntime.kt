@@ -129,25 +129,6 @@ class WebPanelRuntime(
     }
 
     /**
-     * Hermes' dashboard login, minted on the first ask and kept in settings after
-     * that.
-     *
-     * It is the same value the config writer puts into `.hermes/config.yaml`, so
-     * what the row shows and what the gateway checks cannot drift apart; and it is
-     * minted once, because the gateway signs its session cookies with
-     * [HermesWebappLogin.secret] — a fresh one would sign out a tab that is
-     * already open. The config is rewritten from this every time the agent starts,
-     * so a reinstall keeps the same login.
-     */
-    fun hermesLogin(): HermesWebappLogin {
-        val stored = prefs(WebPanels.HERMES).login
-        if (stored != null) return stored
-        val minted = HermesWebappLogin.mint()
-        savePrefs(WebPanels.HERMES, prefs(WebPanels.HERMES).copy(login = minted))
-        return minted
-    }
-
-    /**
      * A URL to hand to the browser right now.
      *
      * Hermes mints a one-use link per call, so its link is minted **here**, on the
@@ -167,8 +148,11 @@ class WebPanelRuntime(
                 val port = WebPanels.portOf(running.url) ?: return@withLock null
                 WebPanels.url(panel, port, password(panel.id))
             }
-            // One use, sixty seconds: a fresh ticket per tap, by construction.
-            WebPanelOpen.MINTED_LINK -> mintHermesLink(panel)
+            // One use, sixty seconds: a fresh ticket per tap, by construction. The
+            // launcher is run for the port the panel is actually on, not the one it
+            // was asked for — the two differ when the preferred port was taken.
+            WebPanelOpen.MINTED_LINK ->
+                mintHermesLink(panel, WebPanels.portOf(running.url) ?: panel.preferredPort)
             // A permanent address with no ticket in it — nothing to mint, nothing to cache.
             WebPanelOpen.DASHBOARD_SIGN_IN -> running.url
         }
@@ -333,8 +317,8 @@ class WebPanelRuntime(
      * mint one, the panel says why instead of leaving a dead button behind: the
      * first non-empty line of the output is the reason, as on a failed start.
      */
-    private fun mintHermesLink(panel: WebPanel): String? {
-        val output = guest.run(WebPanels.command(panel, panel.preferredPort), HERMES_LINK_TIMEOUT_SECONDS)
+    private fun mintHermesLink(panel: WebPanel, port: Int): String? {
+        val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS)
         val link = HermesWebappOutput.parse(output.text)
         if (link == null) {
             setState(panel, WebPanelStatus.Failed("hermes webapp: ${reasonLine(output.text)}"))

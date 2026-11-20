@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.build.BuildAgent
 import com.pusios.pots.build.BuildAgents
 import com.pusios.pots.build.BuildSystemInfo
-import com.pusios.pots.build.HermesWebappLogin
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.formatFileSize
 import com.pusios.pots.ui.components.PotsChip
@@ -105,7 +104,6 @@ internal fun BuildProjectsContent(
     onOpenWebPanel: (String) -> Unit,
     onSetWebPanelAutostart: (String, Boolean) -> Unit,
     onWebPanelPassword: (String) -> String?,
-    onWebPanelLogin: (String) -> HermesWebappLogin?,
     modifier: Modifier = Modifier,
 ) {
     var showUninstall by remember { mutableStateOf(false) }
@@ -239,7 +237,6 @@ internal fun BuildProjectsContent(
                 onOpen = onOpenWebPanel,
                 onSetAutostart = onSetWebPanelAutostart,
                 onPassword = onWebPanelPassword,
-                onLogin = onWebPanelLogin,
             )
         }
 

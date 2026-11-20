@@ -641,80 +641,12 @@ class WebPanelsTest {
         assertEquals(1, guest.runs.count { it == LAUNCH_ONE_USE }, "a sign-in address is never re-minted")
     }
 
-    // --- the dashboard login ----------------------------------------------
-
-    @Test
-    fun `Hermes' config carries a dashboard login, so no one-use link is needed`() {
-        val login = HermesWebappLogin(username = "pots", password = "typing-this-once", secret = "ab".repeat(32))
-        val config = SandboxAgentConfig.filesFor(BuildAgents.HERMES, credentials(), 9120, login)
-            .single { it.path == ".hermes/config.yaml" }.content
-
-        assertContains(config, "dashboard:")
-        assertContains(config, "  basic_auth:")
-        assertContains(config, "    username: 'pots'")
-        assertContains(config, "    password: 'typing-this-once'")
-        assertContains(config, "    secret: '${"ab".repeat(32)}'")
-        // The panel block is still there: the login is written beside it, not over it.
-        assertContains(config, "webapp:")
-        assertContains(config, "  host: 127.0.0.1")
-    }
-
-    @Test
-    fun `the session secret is a real random value, never shell text`() {
-        val login = HermesWebappLogin.mint(Random(11))
-        // A `$(openssl rand …)` left in the file is detected by Hermes' provider,
-        // logged as an error and replaced by a per-process key — which signs the
-        // owner out on every gateway restart.
-        for (marker in listOf("\$(", "`", "openssl rand")) {
-            assertFalse(login.secret.contains(marker), "shell text in ${login.secret}")
-        }
-        assertEquals(HermesWebappLogin.SECRET_HEX_CHARS, login.secret.length)
-        // Hex in either case: Hermes decodes it with `bytes.fromhex`, which takes
-        // both — what matters is that the value is bytes, not a sentence.
-        assertTrue(login.secret.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }, login.secret)
-        assertNotEquals(login.secret, HermesWebappLogin.mint(Random(12)).secret)
-    }
-
-    @Test
-    fun `Pots never writes a disabled-plugins list, which would switch the login off`() {
-        val config = SandboxAgentConfig.filesFor(BuildAgents.HERMES, credentials(), 9120, HermesWebappLogin.mint())
-            .single { it.path == ".hermes/config.yaml" }.content
-
-        // `plugins.disabled: [basic]` next to a configured basic_auth makes the
-        // gateway refuse to bind, so the list is not written at all.
-        assertFalse(config.contains("plugins:"), config)
-        assertFalse(config.contains("disabled:"), config)
-    }
-
     @Test
     fun `the bundle check wants the assets directory, not only the page`() {
         // index.html alone passes while `assets/` is missing, and the page then
         // opens blank — the owner's "Web UI shows a link but nothing opens".
         assertContains(WebPanels.HERMES_BUNDLE_CHECK, "-f ${WebPanels.HERMES_BUNDLE_DIR}/index.html")
         assertContains(WebPanels.HERMES_BUNDLE_CHECK, "-d ${WebPanels.HERMES_BUNDLE_DIR}/assets")
-    }
-
-    @Test
-    fun `the dashboard login is minted once and survives an app restart`() = runTest {
-        val saved = mutableMapOf<String, WebPanelPreferences>()
-
-        val first = runtime(this, FakeGuest(), saved = saved).hermesLogin()
-        val again = runtime(this, FakeGuest(), saved = saved).hermesLogin()
-
-        // Regenerating would sign out a tab that is already open.
-        assertEquals(first, again)
-        assertEquals(HermesWebappLogin.USERNAME, first.username)
-        assertTrue(first.password.isNotEmpty())
-        assertTrue(first.secret.isNotEmpty())
-    }
-
-    @Test
-    fun `the login and password reach the panel's own row`() = runTest {
-        val runtime = runtime(this, FakeGuest())
-        val login = runtime.hermesLogin()
-
-        assertTrue(login.username.isNotEmpty())
-        assertTrue(login.password.length >= 8, "long enough to not be guessable, short enough to type")
     }
 
     @Test
@@ -818,15 +750,6 @@ class WebPanelsTest {
     private var published: ImmutableMap<String, WebPanelState> = persistentMapOf()
 
     private fun status(panelId: String): WebPanelStatus? = published[panelId]?.status
-
-    /** What a provider looks like to the config writers — nothing here is real. */
-    private fun credentials() = SandboxAgentCredentials(
-        providerId = "plusvibe",
-        providerName = "PlusVibe",
-        model = "qwen3.8-flash",
-        apiKey = "sk-test-key",
-        endpoint = "https://plusvibeapi.ru/v1",
-    )
 
     private fun runtime(
         scope: CoroutineScope,

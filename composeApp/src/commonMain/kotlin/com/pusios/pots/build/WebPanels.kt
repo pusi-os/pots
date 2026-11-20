@@ -277,7 +277,13 @@ enum class WebPanelOpen {
      */
     MINTED_LINK,
 
-    /** The webapp sits behind the dashboard's sign-in: the address is constant. */
+    /**
+     * The webapp answers with a permanent address and asks for a dashboard
+     * account. Hermes only gets there when the listener is gated — a non-loopback
+     * bind, or a non-loopback `webapp.public_url` — and Pots writes neither, so
+     * this state is what a hand-edited config produces. The row says "sign in",
+     * because that is what such an address does.
+     */
     DASHBOARD_SIGN_IN,
 }
 
@@ -291,61 +297,14 @@ data class WebPanelState(
 
 /**
  * What Pots remembers about a panel between runs: its password (generated on
- * first start, never logged, never part of the UI state), whether it should
- * come up with the sandbox, and Hermes' dashboard login.
+ * first start, never logged, never part of the UI state) and whether it should
+ * come up with the sandbox.
  */
 @Immutable
 data class WebPanelPreferences(
     val password: String? = null,
     val autostart: Boolean = false,
-    /**
-     * Hermes' dashboard login, minted on first use and then kept: the gateway
-     * binds its sessions to the credential, so a fresh one would sign out a tab
-     * that is already open.
-     */
-    val login: HermesWebappLogin? = null,
 )
-
-/**
- * The account Hermes' own Webapp asks for, and the key its session cookies are
- * signed with.
- *
- * These three values are what make the panel a plain address again: with
- * `dashboard.basic_auth` configured, `hermes webapp` reports `sign_in: true` and
- * a permanent URL instead of a one-use ticket
- * (`gateway/webapp_listener.py` → `private_launch` is false), so the row can
- * hand the browser the address and the owner signs in once.
- *
- * [username] is fixed and short, [password] is typed from a phone screen, and
- * [secret] is a real random value in hex — never `$(openssl rand …)`, which
- * Hermes detects, logs as an error and replaces with a per-process key.
- */
-@Immutable
-data class HermesWebappLogin(
-    val username: String,
-    val password: String,
-    val secret: String,
-) {
-    companion object {
-        /** The login the owner types; there is one user on a phone's own sandbox. */
-        const val USERNAME = "pots"
-
-        /** Short enough to type on a phone, long enough not to be guessed. */
-        const val PASSWORD_LENGTH = 12
-
-        /** 32 random bytes, written as hex — base64 and hex are what Hermes reads as bytes. */
-        const val SECRET_BYTES = 32
-        const val SECRET_HEX_CHARS = SECRET_BYTES * 2
-
-        fun mint(random: Random = Random.Default): HermesWebappLogin = HermesWebappLogin(
-            username = USERNAME,
-            password = WebPanelPasswords.generate(random, PASSWORD_LENGTH),
-            secret = buildString(SECRET_HEX_CHARS) {
-                repeat(SECRET_HEX_CHARS) { append(HEX_DIGITS[random.nextInt(HEX_DIGITS.length)]) }
-            },
-        )
-    }
-}
 
 /**
  * The password a panel gets on its first start.
@@ -357,12 +316,8 @@ object WebPanelPasswords {
     const val ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     const val LENGTH = 24
 
-    /**
-     * [length] is for the logins a human types ([HermesWebappLogin] asks for a
-     * short one); the panel passwords that get pasted stay at [LENGTH].
-     */
-    fun generate(random: Random = Random.Default, length: Int = LENGTH): String = buildString(length) {
-        repeat(length) { append(ALPHABET[random.nextInt(ALPHABET.length)]) }
+    fun generate(random: Random = Random.Default): String = buildString(LENGTH) {
+        repeat(LENGTH) { append(ALPHABET[random.nextInt(ALPHABET.length)]) }
     }
 }
 

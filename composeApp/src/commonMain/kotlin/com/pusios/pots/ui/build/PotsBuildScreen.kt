@@ -32,7 +32,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pusios.pots.POTS_BUILD_FILES
 import com.pusios.pots.PlatformBackHandler
 import com.pusios.pots.build.BuildAgents
-import com.pusios.pots.build.HermesWebappLogin
 import com.pusios.pots.build.terminal.TerminalKey
 import com.pusios.pots.build.terminal.TerminalModifiers
 import com.pusios.pots.ui.handCursor
@@ -80,7 +79,6 @@ data class PotsBuildActions(
     val openWebPanel: (String) -> Unit,
     val setWebPanelAutostart: (String, Boolean) -> Unit,
     val webPanelPassword: (String) -> String?,
-    val webPanelLogin: (String) -> HermesWebappLogin?,
 )
 
 /**
@@ -123,7 +121,6 @@ fun PotsBuildScreen(
             openWebPanel = viewModel::openWebPanel,
             setWebPanelAutostart = viewModel::setWebPanelAutostart,
             webPanelPassword = viewModel::webPanelPassword,
-            webPanelLogin = viewModel::webPanelLogin,
         )
     }
 
@@ -253,7 +250,6 @@ internal fun PotsBuildScreenContent(
                         onOpenWebPanel = actions.openWebPanel,
                         onSetWebPanelAutostart = actions.setWebPanelAutostart,
                         onWebPanelPassword = actions.webPanelPassword,
-                        onWebPanelLogin = actions.webPanelLogin,
                     )
                 } else {
                     BuildSetupContent(
