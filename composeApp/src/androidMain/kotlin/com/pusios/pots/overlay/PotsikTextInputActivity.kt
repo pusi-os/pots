@@ -138,18 +138,23 @@ class PotsikTextInputActivity : ComponentActivity() {
                         shot = shotUi,
                         onDraftChange = PotsikCloudDraft::set,
                         onSend = {
-                            val pending = PotsikShotHolder.shot.value
-                            val file = pending?.let { potsikShotFile(this@PotsikTextInputActivity, it) }
-                            if (pending != null && file == null) {
-                                // The frame could not be handed to the chat:
-                                // nothing is sent, so nothing is lost — the
-                                // draft and the picture stay where they are.
-                                state = PotsikCloudState(
-                                    phase = PotsikCloudPhase.Error,
-                                    trouble = PotsikCloudTrouble.ScreenCaptureFailed,
-                                )
-                            } else {
-                                asker.ask(draft, listOfNotNull(file))
+                            // The frame is a full-screen PNG: writing it here
+                            // would be the click's own frame's work. The
+                            // question still follows the file.
+                            uiScope.launch {
+                                val pending = PotsikShotHolder.shot.value
+                                val file = pending?.let { potsikShotFile(this@PotsikTextInputActivity, it) }
+                                if (pending != null && file == null) {
+                                    // The frame could not be handed to the chat:
+                                    // nothing is sent, so nothing is lost — the
+                                    // draft and the picture stay where they are.
+                                    state = PotsikCloudState(
+                                        phase = PotsikCloudPhase.Error,
+                                        trouble = PotsikCloudTrouble.ScreenCaptureFailed,
+                                    )
+                                } else {
+                                    asker.ask(draft, listOfNotNull(file))
+                                }
                             }
                         },
                         onRemoveShot = {

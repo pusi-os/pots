@@ -145,6 +145,18 @@ internal class PotsikCloudOverlay(
     /** A fade-out is running: the window is still there but already leaving. */
     private var fading = false
 
+    /**
+     * A question of this window is on its way out.
+     *
+     * The tap that asks returns at once — the frame's write is off the main
+     * thread — so a second tap lands while the first question is still being
+     * prepared, and the asker's `cancel()` does not retract a request that has
+     * already left. This flag is what makes one tap mean one question: it is
+     * raised before the ask and lowered in the coroutine's `finally`, on every
+     * path, so a failed send still leaves [Отправить] pressable.
+     */
+    private var sending = false
+
     private val speechToText by lazy {
         val engine = settings?.getSttEngine()
         if (engine == null) null else createSpeechToText(engine, settings?.getSttVoskModel().orEmpty())
@@ -332,6 +344,10 @@ internal class PotsikCloudOverlay(
 
     /** Takes the window down now — no fade: the caller is a rotation, the app coming back or screen off. */
     fun close() {
+        // The window is going away, so no question of it is «on its way out» any
+        // more: a flag left up here would be inherited by the next opening of the
+        // cloud, whose window is the same object.
+        sending = false
         val view = shell ?: return
         shell = null
         fading = false
@@ -662,21 +678,40 @@ internal class PotsikCloudOverlay(
     fun onSendText() {
         val draft = PotsikCloudDraft.text.value
         if (!potsikCloudSendEnabled(draft)) return
+        // The first tap's question is still on its way out (the frame's write is
+        // off this thread): a second tap would ask the same thing again, and the
+        // asker's `cancel()` cannot take back a request that has already left.
+        if (sending) return
         // The assist snapshot and the frame, if any, go out with this question —
         // and the field is marked with what was actually sent, so the answer to
         // it clears the field and nothing else does.
-        when (val outcome = question.ask(draft, ::questionWithScreen)) {
-            is PotsikCloudQuestion.Outcome.Sent -> {
-                PotsikCloudDraft.markSent(outcome.question)
-                releaseShot()
+        //
+        // Launched, not called: converting the frame writes a full-screen PNG to
+        // the cache, and that write must not be the click's own frame. The
+        // question still follows the file — `ask` returns only once it has
+        // landed — and nothing but this coroutine touches the pill meanwhile.
+        sending = true
+        scope.launch {
+            try {
+                when (val outcome = question.ask(draft, ::questionWithScreen)) {
+                    is PotsikCloudQuestion.Outcome.Sent -> {
+                        PotsikCloudDraft.markSent(outcome.question)
+                        releaseShot()
+                    }
+
+                    // The frame could not be attached: nothing was sent, the draft and
+                    // the picture stay where they are, and the pill says why.
+                    PotsikCloudQuestion.Outcome.ScreenFailed ->
+                        setState(PotsikCloudState(phase = PotsikCloudPhase.Error, trouble = PotsikCloudTrouble.ScreenCaptureFailed))
+
+                    PotsikCloudQuestion.Outcome.Nothing -> Unit
+                }
+            } finally {
+                // Every way out — sent, failed, nothing to ask, thrown — lowers
+                // the flag: a stuck `true` would leave [Отправить] dead for the
+                // rest of the window's life, and the user owes a retry.
+                sending = false
             }
-
-            // The frame could not be attached: nothing was sent, the draft and
-            // the picture stay where they are, and the pill says why.
-            PotsikCloudQuestion.Outcome.ScreenFailed ->
-                setState(PotsikCloudState(phase = PotsikCloudPhase.Error, trouble = PotsikCloudTrouble.ScreenCaptureFailed))
-
-            PotsikCloudQuestion.Outcome.Nothing -> Unit
         }
     }
 
@@ -686,20 +721,31 @@ internal class PotsikCloudOverlay(
      * the turn instead of being dropped quietly.
      */
     private fun sendSpoken(spoken: String) {
-        when (question.ask(spoken, ::questionWithScreen)) {
-            is PotsikCloudQuestion.Outcome.Sent -> releaseShot()
+        // Same rule as [onSendText]: one question of this window at a time.
+        if (sending) return
+        // Same reason as [onSendText]: the frame's write is off the main thread,
+        // and the turn only leaves once the file is there.
+        sending = true
+        scope.launch {
+            try {
+                when (question.ask(spoken, ::questionWithScreen)) {
+                    is PotsikCloudQuestion.Outcome.Sent -> releaseShot()
 
-            PotsikCloudQuestion.Outcome.ScreenFailed -> {
-                // The loop is in Thinking for a question that was never sent:
-                // stop it and say why, rather than leaving the pill waiting.
-                handsFree.stop()
-                PotsikCloudVoice.setActive(false)
-                setState(
-                    PotsikCloudState(phase = PotsikCloudPhase.Error, trouble = PotsikCloudTrouble.ScreenCaptureFailed),
-                )
+                    PotsikCloudQuestion.Outcome.ScreenFailed -> {
+                        // The loop is in Thinking for a question that was never sent:
+                        // stop it and say why, rather than leaving the pill waiting.
+                        handsFree.stop()
+                        PotsikCloudVoice.setActive(false)
+                        setState(
+                            PotsikCloudState(phase = PotsikCloudPhase.Error, trouble = PotsikCloudTrouble.ScreenCaptureFailed),
+                        )
+                    }
+
+                    PotsikCloudQuestion.Outcome.Nothing -> Unit
+                }
+            } finally {
+                sending = false
             }
-
-            PotsikCloudQuestion.Outcome.Nothing -> Unit
         }
     }
 
@@ -854,6 +900,13 @@ internal class PotsikCloudOverlay(
 
     fun onRetry() {
         if (state.unsent) {
+            // A retry is already in flight: the frame rides with the asker's
+            // `lastFiles`, and a second tap would be a second paid request with
+            // the same picture. The asker marks the question as thinking
+            // synchronously, before its coroutine starts, so this read is enough
+            // — the asker's own «a second question replaces the first» rule is
+            // left alone.
+            if (asker.answer.value is PotsikCloudAsker.Answer.Thinking) return
             asker.retry()
             return
         }
