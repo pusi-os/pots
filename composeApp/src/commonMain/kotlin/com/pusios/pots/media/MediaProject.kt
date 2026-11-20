@@ -189,8 +189,7 @@ private val projectPrettyJson = Json {
 }
 
 /** Serializes a project to its `.potsproj` JSON text; [pretty] only for debugging. */
-fun encodeMediaProject(project: MediaProjectFile, pretty: Boolean = false): String =
-    (if (pretty) projectPrettyJson else projectJson).encodeToString(project)
+fun encodeMediaProject(project: MediaProjectFile, pretty: Boolean = false): String = (if (pretty) projectPrettyJson else projectJson).encodeToString(project)
 
 /**
  * Parses a `.potsproj` text. Validates the schema version and the app mark

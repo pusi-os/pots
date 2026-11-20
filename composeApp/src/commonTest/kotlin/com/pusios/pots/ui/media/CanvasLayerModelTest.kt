@@ -33,8 +33,7 @@ class CanvasLayerModelTest {
     )
 
     /** Saves the layers through the real codec and reads them back. */
-    private fun roundTrip(layers: List<CanvasLayer>): List<CanvasLayer> =
-        decodeMediaProject(encodeMediaProject(project(layers.toProjectElements()))).elements.toCanvasLayers()
+    private fun roundTrip(layers: List<CanvasLayer>): List<CanvasLayer> = decodeMediaProject(encodeMediaProject(project(layers.toProjectElements()))).elements.toCanvasLayers()
 
     // -- Schema 1 migration ---------------------------------------------------
 

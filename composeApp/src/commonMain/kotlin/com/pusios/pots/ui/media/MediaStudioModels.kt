@@ -200,21 +200,17 @@ data class MediaSequenceState(
 // layer's type goes through here — one place that knows all the subtypes.
 
 /** Moves the layer by [dx]/[dy] canvas px. */
-fun CanvasLayer.moved(dx: Float, dy: Float): CanvasLayer =
-    retransform { it.copy(x = it.x + dx, y = it.y + dy) }
+fun CanvasLayer.moved(dx: Float, dy: Float): CanvasLayer = retransform { it.copy(x = it.x + dx, y = it.y + dy) }
 
 /** Scales the layer, clamped to the same 0.2…4 range the canvas always had. */
-fun CanvasLayer.scaled(factor: Float): CanvasLayer =
-    retransform { it.copy(scale = (it.scale * factor).coerceIn(0.2f, 4f)) }
+fun CanvasLayer.scaled(factor: Float): CanvasLayer = retransform { it.copy(scale = (it.scale * factor).coerceIn(0.2f, 4f)) }
 
 /** Rotates the layer by [degrees] around its own axis. */
-fun CanvasLayer.rotated(degrees: Float): CanvasLayer =
-    retransform { it.copy(rotation = it.rotation + degrees) }
+fun CanvasLayer.rotated(degrees: Float): CanvasLayer = retransform { it.copy(rotation = it.rotation + degrees) }
 
 /** A copy of the layer under a new [id], nudged off the source by 24 px. */
-fun CanvasLayer.duplicated(id: String): CanvasLayer =
-    retransform { it.copy(x = it.x + DUPLICATE_OFFSET, y = it.y + DUPLICATE_OFFSET) }
-        .withId(id)
+fun CanvasLayer.duplicated(id: String): CanvasLayer = retransform { it.copy(x = it.x + DUPLICATE_OFFSET, y = it.y + DUPLICATE_OFFSET) }
+    .withId(id)
 
 /** Stores a probed frame aspect on a media layer; a no-op for other kinds. */
 fun CanvasLayer.withProbedAspect(aspect: Float): CanvasLayer = when (this) {
@@ -245,12 +241,10 @@ private fun CanvasLayer.retransform(change: (LayerTransform) -> LayerTransform):
 }
 
 /** Draw order: the layer [id] goes on top; unknown ids leave the list alone. */
-internal fun List<CanvasLayer>.toTop(id: String): List<CanvasLayer> =
-    firstOrNull { it.id == id }?.let { layer -> filterNot { it.id == id } + layer } ?: this
+internal fun List<CanvasLayer>.toTop(id: String): List<CanvasLayer> = firstOrNull { it.id == id }?.let { layer -> filterNot { it.id == id } + layer } ?: this
 
 /** Draw order: the layer [id] goes to the bottom; unknown ids leave the list alone. */
-internal fun List<CanvasLayer>.toBottom(id: String): List<CanvasLayer> =
-    firstOrNull { it.id == id }?.let { layer -> listOf(layer) + filterNot { it.id == id } } ?: this
+internal fun List<CanvasLayer>.toBottom(id: String): List<CanvasLayer> = firstOrNull { it.id == id }?.let { layer -> listOf(layer) + filterNot { it.id == id } } ?: this
 
 // -- Project serialization (spec §12) ----------------------------------------
 
@@ -322,8 +316,11 @@ fun MediaProjectElement.toCanvasLayer(): CanvasLayer {
     )
     return when (kindOrDefault()) {
         MediaElementKind.Image -> ImageLayer(id, transform, jobId, url, localPath, aspectRatio)
+
         MediaElementKind.Video -> VideoLayer(id, transform, jobId, url, localPath, aspectRatio)
+
         MediaElementKind.Audio -> AudioLayer(id, transform, jobId, url, localPath)
+
         MediaElementKind.Text -> TextLayer(
             id = id,
             transform = transform,
@@ -331,6 +328,7 @@ fun MediaProjectElement.toCanvasLayer(): CanvasLayer {
             fontSizePx = fontSizePx ?: DEFAULT_TEXT_SIZE_PX,
             colorArgb = colorArgb ?: DEFAULT_LAYER_COLOR_ARGB,
         )
+
         MediaElementKind.Stroke -> StrokeLayer(
             id = id,
             transform = transform,
@@ -338,6 +336,7 @@ fun MediaProjectElement.toCanvasLayer(): CanvasLayer {
             colorArgb = colorArgb ?: DEFAULT_LAYER_COLOR_ARGB,
             widthPx = strokeWidthPx ?: DEFAULT_STROKE_WIDTH_PX,
         )
+
         MediaElementKind.Arrow -> {
             val ends = decodeStrokePoints(points)
             ArrowLayer(
@@ -353,24 +352,21 @@ fun MediaProjectElement.toCanvasLayer(): CanvasLayer {
 }
 
 /** The stored kind, or the schema-1 derivation when the name is missing/unknown. */
-private fun MediaProjectElement.kindOrDefault(): MediaElementKind =
-    MediaElementKind.entries.firstOrNull { it.name == kind }
-        ?: when {
-            isAudio -> MediaElementKind.Audio
-            isVideo -> MediaElementKind.Video
-            else -> MediaElementKind.Image
-        }
+private fun MediaProjectElement.kindOrDefault(): MediaElementKind = MediaElementKind.entries.firstOrNull { it.name == kind }
+    ?: when {
+        isAudio -> MediaElementKind.Audio
+        isVideo -> MediaElementKind.Video
+        else -> MediaElementKind.Image
+    }
 
 /**
  * A project's elements in draw order: the list order is authoritative for
  * schema 2 (it is written as `zIndex`), `zIndex` restores the order of v1 files.
  */
-fun List<MediaProjectElement>.toCanvasLayers(): List<CanvasLayer> =
-    sortedBy { it.zIndex }.map { it.toCanvasLayer() }
+fun List<MediaProjectElement>.toCanvasLayers(): List<CanvasLayer> = sortedBy { it.zIndex }.map { it.toCanvasLayer() }
 
 /** The draw list as project elements, each carrying its own index as `zIndex`. */
-fun List<CanvasLayer>.toProjectElements(): List<MediaProjectElement> =
-    mapIndexed { index, layer -> layer.toProjectElement(index) }
+fun List<CanvasLayer>.toProjectElements(): List<MediaProjectElement> = mapIndexed { index, layer -> layer.toProjectElement(index) }
 
 /**
  * Stroke/arrow geometry for the flat DTO: base64 of `[x0: Int32][y0: Int32]`
@@ -427,19 +423,17 @@ private fun ByteArray.putInt(index: Int, value: Int) {
     this[index + 3] = ((value shr 24) and 0xFF).toByte()
 }
 
-private fun ByteArray.intAt(index: Int): Int =
-    (this[index].toInt() and 0xFF) or
-        ((this[index + 1].toInt() and 0xFF) shl 8) or
-        ((this[index + 2].toInt() and 0xFF) shl 16) or
-        ((this[index + 3].toInt() and 0xFF) shl 24)
+private fun ByteArray.intAt(index: Int): Int = (this[index].toInt() and 0xFF) or
+    ((this[index + 1].toInt() and 0xFF) shl 8) or
+    ((this[index + 2].toInt() and 0xFF) shl 16) or
+    ((this[index + 3].toInt() and 0xFF) shl 24)
 
 private fun ByteArray.putShort(index: Int, value: Int) {
     this[index] = (value and 0xFF).toByte()
     this[index + 1] = ((value shr 8) and 0xFF).toByte()
 }
 
-private fun ByteArray.shortAt(index: Int): Int =
-    ((this[index].toInt() and 0xFF) or ((this[index + 1].toInt() and 0xFF) shl 8)).toShort().toInt()
+private fun ByteArray.shortAt(index: Int): Int = ((this[index].toInt() and 0xFF) or ((this[index + 1].toInt() and 0xFF) shl 8)).toShort().toInt()
 
 /** Tolerant mode restore from a project file: an unknown name degrades to Image. */
 fun mediaModeFromProject(raw: String): MediaMode = MediaMode.entries.firstOrNull { it.name == raw } ?: MediaMode.Image
