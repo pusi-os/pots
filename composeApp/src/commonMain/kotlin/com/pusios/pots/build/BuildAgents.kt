@@ -111,32 +111,59 @@ object BuildAgents {
      * The clone is the only part done here: the installer is idempotent and
      * updates an existing checkout itself, so a rerun is safe.
      *
-     * Two things about this command are not obvious and are both needed on a
-     * phone inside proot:
+     * **uv must copy, and the only lever left is the uv binary itself.** Inside
+     * proot on a phone, uv hardlinks its cache into the venv and the guest refuses
+     * (`failed to hardlink file from …: Operation not permitted`). Both paths in
+     * that message carry a `.l2s.` prefix: that is proot's `--link2symlink`
+     * emulation (`l2s` = link-to-symlink), which had already turned an earlier
+     * hardlink into a symlink, and hardlinking *that* artifact on is what answers
+     * `EPERM`. So the remedy is neither a proot flag nor a cache wipe — uv has to
+     * copy.
      *
-     * - **uv must copy, not hardlink.** `hermes pm` installs the Python tree
-     *   with uv, which normally hardlinks its cache into the venv; the kernel
-     *   answers `EPERM` inside an Android app's data dir. proot's
-     *   `--link2symlink` covers `link()` *and* `linkat()`, so the refusal is not
-     *   a missing proot flag — uv has to be told to copy. It cannot be told
-     *   through the environment: `pm` strips every `UV_*` variable from the
-     *   environment it hands uv (`pm/environment.py`, `_base_environment` keeps
-     *   index settings only), which is why upstream's `UV_LINK_MODE=copy` report
-     *   saw no effect. A project-level `uv.toml` is read by uv itself, so that
-     *   is where the setting lives; it is git-ignored through
-     *   `.git/info/exclude` because the installer stashes and resets a dirty
-     *   checkout on every rerun and would otherwise take the file away.
+     * Nothing uv reads as configuration reaches the stage that fails: `hermes pm`
+     * strips every `UV_*` variable (`pm/environment.py`, `_base_environment` keeps
+     * index settings only), points `XDG_CONFIG_HOME` at a temporary directory, and
+     * builds its own runtime (`installs/<id>/pm-runtime`) with `no_config=True`,
+     * i.e. `uv --no-config`. The `uv.toml` below therefore only covers the stages
+     * inside the checkout; environment and config file stay because they are free,
+     * not because they fix anything.
      *
-     *   That file reaches only the stages uv runs in the checkout. The stage the
-     *   device failed on is `pm`'s own runtime (`installs/<id>/pm-runtime`),
-     *   which `pm` builds with `no_config=True` and therefore with
-     *   `uv --no-config` — no config file is read there, and the same
-     *   `_base_environment` strips the variables. The lever for that stage is
-     *   the clean slate below: the failed attempt's `pm-runtime` and uv cache are
-     *   deleted, because uv seeds a cache by hardlinking out of an existing
-     *   environment, which is the direction the device log shows. The link probe
-     *   below then says, on the next attempt, whether copying was even the right
-     *   remedy.
+     * What is left is argv, and pm builds it from an absolute path: uv is called as
+     * `<store>/uv-<version>-<target>/uv` (pm's own store entry, `pm/paths.py`),
+     * never as `uv` by name from PATH. So the wrapper belongs in that entry — the
+     * real binary moves to `uv.real`, a `sh` wrapper takes its name. Two traps in
+     * it were checked against uv 0.13.5 and both matter:
+     * - `--link-mode` is **not** a global flag: `uv --link-mode=copy cache prune`
+     *   answers `unexpected argument`. Flags cannot be prepended to `"$@"`; the
+     *   wrapper injects them after the subcommand, and only for `venv`, `sync` and
+     *   `pip install|sync` — the calls that link files and accept the flag
+     *   (`cache prune`, `cache clean`, `python find`, `pip check`, `lock`,
+     *   `export` reject it, and pm makes all of those calls).
+     * - pm re-hashes its tool closure on every explicit install (`ensure(...,
+     *   verify=True)`) and publishes a pristine uv over the entry when the digest
+     *   does not match — silently undoing the wrapper a moment before the stage it
+     *   was meant to fix. The wrapper step therefore rewrites the recorded digest
+     *   of that entry through pm's own `pm.store.tree_digest`, so the check passes
+     *   and the wrapped binary survives.
+     *
+     * A first-ever install needs one more thing: uv does not exist until the
+     * installer downloads it, i.e. after the wrapper step has run, and pm then
+     * installs its own copy. The command retries the installer once, wrapping
+     * again in between; the retry is cheap because the clone, uv and Python are
+     * already there. [BuildAgent.installTimeoutSeconds] covers both attempts.
+     *
+     * One more piece is not about uv at all: `cache/uv` and `site-packages` still
+     * hold `.l2s.` artifacts from the attempts that failed, and a retry can trip
+     * over them before the wrapper ever runs. A one-time marker wipes those two
+     * directories exactly once.
+     *
+     * The link probe in the log keeps this diagnosis honest on the next device: it
+     * prints the device ids of the two directories uv links between and attempts
+     * the cross-directory link itself. The probe this replaced linked two names
+     * inside `/root`, which succeeds even where the real link is refused, so it
+     * reported `ok` while proving nothing. The probe runs *before* the one-time
+     * cleanup, because that cleanup deletes the directories it reports on.
+     *
      * - **`--channel main`.** The default stable channel makes the installer
      *   fetch a release tag's entire history into the shallow clone — 643k
      *   objects, over 45 minutes on a phone — and then keep the existing
@@ -156,24 +183,137 @@ object BuildAgents {
         printf 'link-mode = "copy"\nno-cache = true\n' > /root/.hermes/hermes-agent/uv.toml
         grep -qxF uv.toml /root/.hermes/hermes-agent/.git/info/exclude 2>/dev/null \
           || echo uv.toml >> /root/.hermes/hermes-agent/.git/info/exclude
-        # A failed attempt leaves a half-built PM runtime and a uv cache seeded
-        # from it; the retry then hardlinks that environment back into the cache
-        # and gets EPERM again. Nothing is installed yet, so nothing is lost by
-        # starting the rebuild clean.
-        if [ ! -x /root/.hermes/hermes-agent/.hermes/bin/hermes ]; then
-          rm -rf /root/.hermes/installs/*/pm-runtime /root/.hermes/cache/uv
-        fi
-        # Whether a hardlink works at all in this guest decides whether the copy
-        # mode above is even the right remedy, so the log has to carry the answer.
+        # Evidence first: the one-time cleanup below deletes the very directories
+        # whose device ids and .l2s. artifacts this probe reports on. The whole
+        # block runs with `set +e` — a probe that aborts the install because one
+        # of its inputs is missing would be worse than no probe at all.
+        # The store pm and install.sh both resolve: HERMES_RUNTIME_DIR when it is
+        # set, ~/.hermes/tools otherwise.
+        POTS_UV_STORE=${'$'}{HERMES_RUNTIME_DIR:-/root/.hermes/tools}
         echo "pots: link probe"
-        ( cd /root || exit 1
-          echo a > pots-link-probe
-          if ln -f pots-link-probe pots-link-probe-2 2>&1; then echo "  ln: ok"; else echo "  ln: FAILED (exit ${'$'}?)"; fi
-          ls -li pots-link-probe pots-link-probe-2 2>&1
-          if python3 -c "import os; os.link('pots-link-probe','pots-link-probe-3')" 2>&1; then echo "  os.link: ok"; else echo "  os.link: FAILED (exit ${'$'}?)"; fi
-          rm -f pots-link-probe pots-link-probe-2 pots-link-probe-3 )
-        # stdin closed: no answer is coming from a sandbox if the installer asks.
-        bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use --channel main < /dev/null
+        ( set +e
+          GEN=${'$'}(ls -d /root/.hermes/installs/*/pm-runtime/generations/*/ 2>/dev/null | head -1)
+          CNT=${'$'}(ls -d /root/.hermes/cache/uv 2>/dev/null | head -1)
+          if [ -n "${'$'}GEN" ] && [ -n "${'$'}CNT" ]; then
+            # Device id decides everything: two filesystems cannot be hardlinked
+            # at all, and then no flag and no cleanup can help — uv has to copy.
+            stat -c '%d %n' "${'$'}GEN" "${'$'}CNT" 2>&1
+            # The link that fails runs BETWEEN those two directories. The probe
+            # this replaced linked two names inside /root, which works even where
+            # the cross-directory link is refused — it proved nothing while
+            # looking ok.
+            echo a > "${'$'}GEN/pots-x"
+            ln -f "${'$'}GEN/pots-x" "${'$'}CNT/pots-x" 2>&1 && echo "  cross-dir ln: ok" || echo "  cross-dir ln: FAILED"
+            python3 -c "import os;os.link('${'$'}GEN/pots-x','${'$'}CNT/pots-y')" 2>&1 && echo "  cross-dir os.link: ok" || echo "  cross-dir os.link: FAILED"
+            rm -f "${'$'}GEN/pots-x" "${'$'}CNT/pots-x" "${'$'}CNT/pots-y"
+            # proot's link2symlink leaves .l2s. artifacts behind; hardlinking one
+            # of those is what answers EPERM, so a count above zero is the poison.
+            # site-packages sits inside the generation, not beside it: the
+            # generation path already ends in "generations/<hash>/".
+            ls -a "${'$'}GEN"lib/python3*/site-packages/packaging 2>/dev/null | grep -c l2s
+          else
+            echo "  nothing built yet: no pm-runtime or uv cache to link between"
+          fi
+          # How the installer and pm reach uv: by name from PATH, or by the absolute
+          # path of pm's own store entry (the one the wrapper has to occupy).
+          command -v uv
+          ls -d "${'$'}POTS_UV_STORE"/uv-*/uv 2>/dev/null
+          grep -n 'native(self.uv)' /root/.hermes/hermes-agent/pm/environment.py 2>/dev/null | head -2
+        ) || true
+        # The failed attempts left .l2s. artifacts in the cache and in
+        # site-packages, and a retry can trip over them before the wrapper below
+        # ever runs. One marker, one wipe: afterwards the cache is uv's to rebuild.
+        POTS_UV_MARK=/root/.hermes/.pots-uv-copy-mode
+        if [ ! -f "${'$'}POTS_UV_MARK" ]; then
+          rm -rf /root/.hermes/installs/*/pm-runtime /root/.hermes/cache/uv
+          : > "${'$'}POTS_UV_MARK"
+          echo "pots: cleared pm-runtime and the uv cache once (l2s cleanup)"
+        fi
+        # pm strips every UV_* variable and builds its runtime with --no-config, so
+        # neither the environment nor uv.toml reaches the stage that fails. It also
+        # calls uv by the absolute path of its store entry, never by name from PATH:
+        # that entry is the only place a lever can sit. The real binary moves to
+        # uv.real and a wrapper takes its name. Idempotent by the marker line — a
+        # second run must never copy the wrapper onto itself.
+        pots_wrap_uv() {
+          for f in "${'$'}POTS_UV_STORE"/uv-*/uv; do
+            [ -f "${'$'}f" ] || continue
+            if grep -q pots-uv-wrapper "${'$'}f" 2>/dev/null; then
+              echo "pots: uv wrapper already installed (${'$'}f)"
+              continue
+            fi
+            cp -f "${'$'}f" "${'$'}f.real"
+            # Every line below sits at the raw string's own indent so trimIndent()
+            # hands the script to sh with column-0 heredoc terminators and a
+            # column-0 shebang; the nested indents are the script's, not Kotlin's.
+            cat > "${'$'}f" <<'POTS_UV_WRAPPER'
+        #!/bin/sh
+        # pots-uv-wrapper — installed by Pots Build, never by pm.
+        # pm builds its own runtime with --no-config and strips every UV_* variable,
+        # so the command line is the only thing left to change. --link-mode is NOT a
+        # global uv flag (uv --link-mode=copy cache prune answers "unexpected
+        # argument"): it goes after the subcommand, and only for the subcommands that
+        # link files and accept it.
+        real=${'$'}(dirname "${'$'}0")/uv.real
+        sub=${'$'}1
+        case "${'$'}sub" in
+          venv|sync)
+            shift
+            exec "${'$'}real" "${'$'}sub" --link-mode=copy --no-cache "${'$'}@"
+            ;;
+          pip)
+            second=${'$'}2
+            case "${'$'}second" in
+              install|sync)
+                shift 2
+                exec "${'$'}real" pip "${'$'}second" --link-mode=copy --no-cache "${'$'}@"
+                ;;
+            esac
+            ;;
+        esac
+        exec "${'$'}real" "${'$'}@"
+        POTS_UV_WRAPPER
+            chmod +x "${'$'}f"
+            echo "pots: uv wrapper installed (${'$'}f)"
+            # pm re-hashes its tool closure on every explicit install and would
+            # publish a pristine uv straight over the wrapper. Recording the digest
+            # of what the entry holds now is what lets that check pass.
+            PYTHONDONTWRITEBYTECODE=1 python3 - "${'$'}(dirname "${'$'}f")" <<'POTS_UV_DIGEST' || echo "pots: uv digest not refreshed (pm may reinstall uv)"
+        import json
+        import pathlib
+        import sys
+
+        sys.path.insert(0, "/root/.hermes/hermes-agent")
+        from pm.store import tree_digest
+
+        entry = pathlib.Path(sys.argv[1])
+        facts = entry.parent / "facts.json"
+        if not facts.is_file():
+            sys.exit(0)
+        data = json.loads(facts.read_text())
+        row = data.get("packages", {}).get("uv")
+        if not isinstance(row, dict) or row.get("entry") != entry.name:
+            sys.exit(0)
+        row["digest"] = tree_digest(entry)
+        facts.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+        print("pots: uv digest refreshed (" + entry.name + ")")
+        POTS_UV_DIGEST
+          done
+        }
+        pots_install_hermes() {
+          # stdin closed: no answer is coming from a sandbox if the installer asks.
+          bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use --channel main < /dev/null
+        }
+        pots_wrap_uv
+        # A first-ever install downloads uv *inside* the installer, i.e. after the
+        # wrapper step found nothing to wrap, and pm then installs its own copy. One
+        # retry wraps that uv and lets the same script finish; the clone, uv and
+        # Python are already there, so it is the short path, not a second install.
+        if ! pots_install_hermes; then
+          echo "pots: hermes installer failed; wrapping uv again and retrying once"
+          pots_wrap_uv
+          pots_install_hermes
+        fi
         # The installer publishes the command for login shells; link it into the
         # bin dir Pots Build's own PATH carries so probes find it by name.
         ln -sfn /root/.hermes/hermes-agent/.hermes/bin/hermes /root/.local/bin/hermes
@@ -182,6 +322,14 @@ object BuildAgents {
         # instead of showing an empty page, and `hermes webapp --build-only` can be
         # run again from a terminal.
         /root/.local/bin/hermes webapp --build-only || echo "pots: webapp bundle not built"
+        # The wrapper has to leave uv and pm working, so prove both in this log. uv
+        # is not on PATH (pm never exposes it), which is why the store path is the
+        # thing to run, not `uv`.
+        for f in "${'$'}POTS_UV_STORE"/uv-*/uv; do
+          [ -x "${'$'}f" ] || continue
+          echo "pots: ${'$'}f -> ${'$'}("${'$'}f" --version 2>&1)"
+        done
+        /root/.local/bin/hermes pm doctor || echo "pots: pm doctor reported a problem"
     """
 
     val all: ImmutableList<BuildAgent> = persistentListOf(
@@ -207,8 +355,9 @@ object BuildAgents {
             installCommand = HERMES_INSTALL.trimIndent(),
             // Its installer resolves uv and Python, installs the dependency tree,
             // builds the command, and then builds the webapp renderer — none of it
-            // is a download.
-            installTimeoutSeconds = 3600,
+            // is a download. The budget covers a second attempt on the installer,
+            // which is the short path: the clone, uv and Python are already there.
+            installTimeoutSeconds = 5400,
         ),
     )
 
