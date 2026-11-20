@@ -266,6 +266,7 @@ internal fun PotsBuildScreenContent(
                         selectedAgents = state.selectedAgents,
                         onToggleAgent = actions.toggleAgent,
                         onInstall = actions.install,
+                        onInstallAgent = actions.installAgent,
                         onCancel = actions.cancel,
                     )
                 }

@@ -33,6 +33,7 @@ import com.pusios.pots.SandboxBackgroundState
 import com.pusios.pots.currentPlatform
 import com.pusios.pots.formatFileSize
 import com.pusios.pots.linux.LinuxDistro
+import com.pusios.pots.ui.build.AgentVersionsSection
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.sandbox.SandboxProgressRow
 import com.pusios.pots.ui.sandbox.sandboxStatusText
@@ -40,7 +41,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_open
-import pots.composeapp.generated.resources.settings_sandbox_agent_version_unknown
 import pots.composeapp.generated.resources.settings_sandbox_agents_title
 import pots.composeapp.generated.resources.settings_sandbox_background_allow
 import pots.composeapp.generated.resources.settings_sandbox_background_autostart
@@ -83,6 +83,10 @@ internal fun SandboxSettingsCard(
     onInstallPackages: () -> Unit,
     onMigrateHome: () -> Unit,
     onOpenPotsBuild: (() -> Unit)? = null,
+    onCheckAgents: (Set<String>) -> Unit = {},
+    onInstallAgent: (String) -> Unit = {},
+    onUpdateAgent: (String) -> Unit = {},
+    onRemoveAgent: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
     val statusText = sandboxStatusText(sandboxState.sandboxStatusLabel)
@@ -145,35 +149,25 @@ internal fun SandboxSettingsCard(
             }
         }
 
-        // Which agents are in this sandbox, and the version each one reported for
-        // itself. The version is whatever its own `--version` printed — when that
-        // is nothing usable, the card says so instead of guessing.
-        if (sandboxState.agents.isNotEmpty()) {
+        // Which agents are in this sandbox and what each one has, with the whole
+        // flow on every row: check, update, install, remove. A version is what its
+        // own `--version` printed, and "up to date" only after a check that
+        // actually answered — see [AgentUpdate].
+        if (sandboxState.agentRows.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             Text(
                 text = stringResource(Res.string.settings_sandbox_agents_title),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            sandboxState.agents.forEach { agent ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = CenterVertically,
-                ) {
-                    Text(
-                        text = agent.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        text = agent.version
-                            ?: stringResource(Res.string.settings_sandbox_agent_version_unknown),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            AgentVersionsSection(
+                rows = sandboxState.agentRows,
+                busy = sandboxState.isWorking,
+                onCheck = onCheckAgents,
+                onInstall = onInstallAgent,
+                onUpdate = onUpdateAgent,
+                onRemove = onRemoveAgent,
+            )
         }
 
         if (sandboxState.sandboxProgress != null) {
