@@ -34,7 +34,7 @@ class BuildAgentsTest {
     @Test
     fun `copy mode is injected after the subcommand, never prepended`() {
         // `uv --link-mode=copy cache prune` answers "unexpected argument", and pm
-        // makes that call — plus `python find`, `pip check`, `lock` and `export`.
+        // makes that call — plus `cache clean`, `python find` and `pip check`.
         assertTrue(hermes.contains("\"\$sub\" --link-mode=copy"), hermes)
         assertTrue(hermes.contains("--link-mode=copy --no-cache"))
         assertFalse(hermes.contains("uv.real\" --link-mode"), "flags cannot be prepended")
@@ -47,6 +47,25 @@ class BuildAgentsTest {
         // stage it exists for.
         assertTrue(hermes.contains("tree_digest"), "the digest is pm's own, not a copy of it")
         assertTrue(hermes.contains("uv digest refreshed"))
+    }
+
+    @Test
+    fun `the l2s cleanup needs evidence, not the calendar`() {
+        // Deleting a healthy runtime only makes the installer rebuild it for
+        // nothing, and a scan that cannot run must never be read as "clean".
+        assertTrue(hermes.contains("-name '.l2s.*'"), "the cleanup is gated on the artifact itself")
+        assertTrue(hermes.contains("POTS_L2S=unknown"), "a failed scan counts as evidence")
+        assertTrue(hermes.contains("leaving the existing runtime alone"), hermes)
+    }
+
+    @Test
+    fun `facts json is rewritten the way pm rewrites it`() {
+        // pm reads this file as utf-8-sig and only ever writes it atomically; a
+        // plain write_text truncates first, so a killed install would leave pm a
+        // half file it cannot read — the exact class of breakage this path fixes.
+        assertTrue(hermes.contains("from pm.filesystem import durable_write_bytes"), hermes)
+        assertTrue(hermes.contains("encoding=\"utf-8-sig\""), hermes)
+        assertFalse(hermes.contains("facts.write_text"), "the non-atomic write is back")
     }
 
     @Test

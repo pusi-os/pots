@@ -134,17 +134,22 @@ object BuildAgents {
      * real binary moves to `uv.real`, a `sh` wrapper takes its name. Two traps in
      * it were checked against uv 0.13.5 and both matter:
      * - `--link-mode` is **not** a global flag: `uv --link-mode=copy cache prune`
-     *   answers `unexpected argument`. Flags cannot be prepended to `"$@"`; the
-     *   wrapper injects them after the subcommand, and only for `venv`, `sync` and
-     *   `pip install|sync` — the calls that link files and accept the flag
-     *   (`cache prune`, `cache clean`, `python find`, `pip check`, `lock`,
-     *   `export` reject it, and pm makes all of those calls).
+     *   answers `unexpected argument`, and pm makes that call. Flags cannot be
+     *   prepended to `"$@"`, so the wrapper injects them after the subcommand, and
+     *   only for `venv`, `sync` and `pip install|sync` — the calls that link files
+     *   and accept the flag. Only `cache prune`, `cache clean`, `python find` and
+     *   `pip check` reject it (`lock` and `export` do accept it, which is why the
+     *   wrapper is an allowlist: a deny-list would have to be right about every
+     *   other subcommand).
      * - pm re-hashes its tool closure on every explicit install (`ensure(...,
      *   verify=True)`) and publishes a pristine uv over the entry when the digest
      *   does not match — silently undoing the wrapper a moment before the stage it
      *   was meant to fix. The wrapper step therefore rewrites the recorded digest
      *   of that entry through pm's own `pm.store.tree_digest`, so the check passes
-     *   and the wrapped binary survives.
+     *   and the wrapped binary survives. That rewrite writes `facts.json` the way
+     *   pm itself does — `pm.filesystem.durable_write_bytes`, read as `utf-8-sig`
+     *   — because a plain rewrite truncates first, and an install killed in that
+     *   window would leave pm a file it cannot parse.
      *
      * A first-ever install needs one more thing: uv does not exist until the
      * installer downloads it, i.e. after the wrapper step has run, and pm then
@@ -155,7 +160,10 @@ object BuildAgents {
      * One more piece is not about uv at all: `cache/uv` and `site-packages` still
      * hold `.l2s.` artifacts from the attempts that failed, and a retry can trip
      * over them before the wrapper ever runs. A one-time marker wipes those two
-     * directories exactly once.
+     * directories, but only when the scan actually finds a `.l2s.` artifact (or
+     * cannot scan at all): a working install keeps its `pm-runtime` instead of
+     * rebuilding it for nothing, and a device with nothing built is left for the
+     * next run to judge.
      *
      * The link probe in the log keeps this diagnosis honest on the next device: it
      * prints the device ids of the two directories uv links between and attempts
@@ -222,12 +230,40 @@ object BuildAgents {
         ) || true
         # The failed attempts left .l2s. artifacts in the cache and in
         # site-packages, and a retry can trip over them before the wrapper below
-        # ever runs. One marker, one wipe: afterwards the cache is uv's to rebuild.
+        # ever runs. The wipe is earned by the evidence, not by the calendar: only
+        # a real .l2s. artifact justifies deleting a runtime, so a working install
+        # keeps it and a device with nothing built has nothing to delete. The
+        # marker is set once the question has been answered, so the scan costs one
+        # install — except on a device with nothing built, where it stays unset so
+        # that poison appearing later is still caught.
         POTS_UV_MARK=/root/.hermes/.pots-uv-copy-mode
         if [ ! -f "${'$'}POTS_UV_MARK" ]; then
-          rm -rf /root/.hermes/installs/*/pm-runtime /root/.hermes/cache/uv
-          : > "${'$'}POTS_UV_MARK"
-          echo "pots: cleared pm-runtime and the uv cache once (l2s cleanup)"
+          POTS_L2S=''
+          for POTS_DIR in /root/.hermes/installs /root/.hermes/cache; do
+            [ -d "${'$'}POTS_DIR" ] || continue
+            # A scan that cannot run counts as evidence: "could not look" must
+            # never be read as "clean".
+            if POTS_L2S=${'$'}(find "${'$'}POTS_DIR" -name '.l2s.*' -print -quit 2>/dev/null); then
+              if [ -n "${'$'}POTS_L2S" ]; then break; fi
+            else
+              POTS_L2S=unknown
+              break
+            fi
+          done
+          if [ -n "${'$'}POTS_L2S" ]; then
+            rm -rf /root/.hermes/installs/*/pm-runtime /root/.hermes/cache/uv
+            : > "${'$'}POTS_UV_MARK"
+            if [ "${'$'}POTS_L2S" = unknown ]; then
+              echo "pots: could not scan for .l2s. artifacts; cleared pm-runtime and the uv cache once"
+            else
+              echo "pots: .l2s. artifacts present; cleared pm-runtime and the uv cache once"
+            fi
+          elif [ -x /root/.hermes/hermes-agent/.hermes/bin/hermes ]; then
+            : > "${'$'}POTS_UV_MARK"
+            echo "pots: no .l2s. artifacts; leaving the existing runtime alone"
+          else
+            echo "pots: nothing built yet; no stale .l2s. artifacts to clear"
+          fi
         fi
         # pm strips every UV_* variable and builds its runtime with --no-config, so
         # neither the environment nor uv.toml reaches the stage that fails. It also
@@ -284,18 +320,24 @@ object BuildAgents {
         import sys
 
         sys.path.insert(0, "/root/.hermes/hermes-agent")
+        from pm.filesystem import durable_write_bytes
         from pm.store import tree_digest
 
         entry = pathlib.Path(sys.argv[1])
         facts = entry.parent / "facts.json"
         if not facts.is_file():
             sys.exit(0)
-        data = json.loads(facts.read_text())
+        # The same two calls pm makes on this file: it reads it as utf-8-sig (a BOM
+        # left by another tool would otherwise break json.loads on an invisible
+        # \ufeff), and it only ever writes it through durable_write_bytes, which
+        # fsyncs and replaces it atomically. A plain write_text truncates first, so
+        # killing the install here would leave a half file that pm cannot read.
+        data = json.loads(facts.read_text(encoding="utf-8-sig"))
         row = data.get("packages", {}).get("uv")
         if not isinstance(row, dict) or row.get("entry") != entry.name:
             sys.exit(0)
         row["digest"] = tree_digest(entry)
-        facts.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+        durable_write_bytes(facts, (json.dumps(data, indent=2, sort_keys=True) + "\n").encode("utf-8"))
         print("pots: uv digest refreshed (" + entry.name + ")")
         POTS_UV_DIGEST
           done
