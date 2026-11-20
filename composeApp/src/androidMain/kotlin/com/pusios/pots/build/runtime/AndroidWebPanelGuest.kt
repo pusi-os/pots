@@ -1,5 +1,6 @@
 package com.pusios.pots.build.runtime
 
+import android.content.res.AssetManager
 import android.util.Log
 import com.pusios.pots.build.SandboxAgentConfig
 import com.pusios.pots.build.WebPanel
@@ -26,12 +27,27 @@ private const val LOG_TAIL_CHARS = 400
  */
 class AndroidWebPanelGuest(
     private val paths: LinuxPaths,
+    /** This app's own assets, where CI leaves the Hermes panel bundle. */
+    private val assets: AssetManager,
     private val executor: (Map<String, String>) -> BuildProotExecutor,
 ) : WebPanelGuest {
 
     override fun run(command: String, timeoutSeconds: Long, env: Map<String, String>): WebPanelGuest.Output {
         val result = executor(env).execute(command, timeoutSeconds)
         return WebPanelGuest.Output(result.success, (result.stdout + result.stderr).trim())
+    }
+
+    /**
+     * Stages the renderer this app ships, or answers null when this build carries
+     * none (a developer build). A staging failure still answers the pin: the unpack
+     * then fails on the missing archive and the row quotes that, which is truer
+     * than "this app ships no bundle".
+     */
+    override fun stageHermesBundle(): String? {
+        val pin = HermesWebappAssets.pin(assets) ?: return null
+        val marker = paths.readMarker() ?: return pin
+        HermesWebappAssets.stageArchive(assets, pin, paths.homeDir(marker))
+        return pin
     }
 
     override fun launch(panel: WebPanel, port: Int, command: String, env: Map<String, String>): Boolean = runCatching {

@@ -71,6 +71,13 @@ class LinuxDistroTest {
     }
 
     @Test
+    fun `debian base can unpack the panel bundle the app ships`() {
+        // The Hermes web panel arrives as a tar.xz inside the APK, and `tar -xJ`
+        // shells out to xz: without it the panel cannot unpack its own renderer.
+        assertTrue("xz-utils" in LinuxDistro.DEBIAN.basePackages, "Debian base is missing xz-utils")
+    }
+
+    @Test
     fun `debian base carries what the coding-agent installers need`() {
         // tar: OpenCode's installer extracts a .tar.gz. coreutils: Claude's checks
         // a sha256sum. ca-certificates/curl: every vendor script is a curl | bash.

@@ -246,12 +246,22 @@ object WebPanels {
     const val HERMES_HELP = "hermes webapp --help"
 
     /**
+     * The checkout Hermes' own installer lays down. Its commit is the version the
+     * panel must match: see [HermesWebapp].
+     */
+    const val HERMES_CHECKOUT = "/root/.hermes/hermes-agent"
+
+    /**
      * The renderer bundle `hermes webapp` serves, inside the checkout Hermes'
      * installer lays down. `hermes webapp --build-only` produces it; when that
      * step failed the install is still usable but the panel would open blank, so
      * the row says so instead.
+     *
+     * Only a build that ships no bundle of its own (a developer build) is left
+     * with this one: a release APK carries the renderer CI built, unpacked to
+     * [HermesWebapp.DIST_DIR].
      */
-    const val HERMES_BUNDLE_DIR = "/root/.hermes/hermes-agent/apps/desktop/dist-webapp"
+    const val HERMES_BUNDLE_DIR = "$HERMES_CHECKOUT/apps/desktop/dist-webapp"
 
     /** The page the panel serves. */
     const val HERMES_BUNDLE = "$HERMES_BUNDLE_DIR/index.html"

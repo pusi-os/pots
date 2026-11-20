@@ -88,4 +88,26 @@ class BuildAgentsTest {
             "the poisoned runtime and cache are what the retry would trip over",
         )
     }
+
+    @Test
+    fun `the install leaves the checkout on the commit this app's panel was built from`() {
+        // install.sh honours `--commit` only on a fresh clone; on an existing
+        // checkout it fast-forwards to the branch's tip. So the pin is applied here,
+        // after the installer, or the panel would talk to a backend it was not built
+        // for — a blank page and 404s on the assets.
+        assertTrue(hermes.contains("/root/.hermes/pots-webapp-pin"), "the app writes the pin, the install reads it")
+        assertTrue(hermes.contains("fetch --depth 1 origin"), "a shallow clone has to fetch the pinned commit")
+        assertTrue(hermes.contains("checkout --force --detach"), "the pin is a detached checkout, not a branch")
+        assertTrue(hermes.contains("POTS_WEBAPP_PIN"), hermes)
+    }
+
+    @Test
+    fun `the renderer is built only when this app ships none`() {
+        // `hermes webapp --build-only` is a pnpm install of apps/desktop, which
+        // cannot run under proot's --link2symlink — so a pinned install never runs
+        // it. A developer build ships no bundle and keeps it.
+        assertTrue(hermes.contains("/root/.local/bin/hermes webapp --build-only"), hermes)
+        assertTrue(hermes.contains("if [ -n \"\$POTS_WEBAPP_PIN\" ]"), hermes)
+        assertTrue(hermes.contains("the web panel renderer ships with the app"), hermes)
+    }
 }

@@ -1,5 +1,6 @@
 package com.pusios.pots.build.runtime
 
+import android.content.res.AssetManager
 import android.os.StatFs
 import android.util.Log
 import com.pusios.pots.build.AgentUpdate
@@ -231,6 +232,8 @@ class BuildEnvironmentManager(
      * *same* install it uses, so setting up either one sets up both.
      */
     private val paths: LinuxPaths,
+    /** This app's assets: where CI leaves the Hermes panel bundle. */
+    private val assets: AssetManager,
 ) {
 
     private val installer = LinuxInstaller(paths)
@@ -274,7 +277,7 @@ class BuildEnvironmentManager(
      */
     private val webPanels: WebPanelRuntime by lazy {
         WebPanelRuntime(
-            guest = AndroidWebPanelGuest(paths) { extraEnv -> executor(extraEnv = extraEnv) },
+            guest = AndroidWebPanelGuest(paths, assets) { extraEnv -> executor(extraEnv = extraEnv) },
             prefs = { webPanelPreferences(it) },
             savePrefs = { id, prefs -> saveWebPanelPreferences(id, prefs) },
             installed = { _state.value.installedAgents },
@@ -876,6 +879,10 @@ class BuildEnvironmentManager(
         )
         val log = InstallLog()
         publishInstallLog(log)
+        // Hermes' panel ships with this app, built from one hermes-agent commit:
+        // the install reads that commit from here and leaves the checkout on it.
+        // Written before the install, because that is the run that checks out.
+        if (agent.id == BuildAgents.HERMES) pinHermesWebapp()
         val outcome = streamInstall(agent.installCommand, agent.installTimeoutSeconds, executor, log)
         // Vendor scripts may leave the binary only in their private dir and only
         // update shell rc files — which Pots Build never sources. Link into PATH
@@ -935,6 +942,21 @@ class BuildEnvironmentManager(
             publishInstallLog(log)
         }
         version != null
+    }
+
+    /**
+     * Tells the sandbox's Hermes install which commit this app's panel was built
+     * from. The install ends by checking the checkout out at it, and the panel
+     * refuses to start on any other — a bundle and a backend from different
+     * commits is a blank page with 404s on the assets.
+     *
+     * A build with no bundle (a developer build) writes nothing, and the install
+     * then keeps its own channel and builds the renderer itself.
+     */
+    private fun pinHermesWebapp() {
+        val pin = HermesWebappAssets.pin(assets) ?: return
+        val marker = paths.readMarker() ?: return
+        HermesWebappAssets.writePin(pin, paths.homeDir(marker))
     }
 
     /**

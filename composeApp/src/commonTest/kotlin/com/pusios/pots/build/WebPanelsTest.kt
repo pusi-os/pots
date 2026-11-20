@@ -870,6 +870,89 @@ class WebPanelsTest {
     }
 
     @Test
+    fun `the shipped renderer is unpacked once and named for the launcher`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // Naming the bundle is what stops `hermes webapp` from building one, and the
+        // build is the step that cannot run on a phone at all.
+        assertEquals(1, guest.runs.count { it == HermesWebapp.unpack(BUNDLE_PIN) })
+        assertEquals(HermesWebapp.DIST_DIR, guest.runEnv[HermesWebapp.DIST_ENV])
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+    }
+
+    @Test
+    fun `a bundle already unpacked for this Hermes is not unpacked again`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            hermesUnpacked = true
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        assertFalse(guest.runs.any { it == HermesWebapp.unpack(BUNDLE_PIN) }, "the unpack is once per bundle")
+        assertEquals(HermesWebapp.DIST_DIR, guest.runEnv[HermesWebapp.DIST_ENV])
+    }
+
+    @Test
+    fun `a sandbox running another Hermes refuses the panel and names both commits`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, BUNDLE_PIN.take(8))
+        assertContains(failed.reason, OTHER_HERMES.take(8))
+        assertContains(failed.reason, "reinstall Hermes")
+        // Nothing is served mismatched — and nothing is unpacked for a backend it
+        // was not built for either.
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, "no panel on a version it was not built for")
+        assertFalse(guest.runs.any { it == HermesWebapp.unpack(BUNDLE_PIN) })
+    }
+
+    @Test
+    fun `a checkout that cannot be read says so instead of serving the bundle`() = runTest {
+        val guest = FakeGuest().apply { hermesPin = BUNDLE_PIN }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "could not be read")
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) })
+    }
+
+    @Test
+    fun `a bundle that will not unpack says why`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            hermesUnpacks = false
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "could not unpack")
+        assertContains(failed.reason, "xz")
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) })
+    }
+
+    @Test
     fun `starting Hermes reports the port its link actually carries`() = runTest {
         val guest = FakeGuest().apply {
             busy += 9120
@@ -1058,6 +1141,18 @@ class WebPanelsTest {
         var hasWebapp = true
         var hasBundle = true
 
+        /** The pin this build ships, or null for a build with no bundle (a developer build). */
+        var hermesPin: String? = null
+
+        /** The commit the sandbox's Hermes checkout is on; null for one that cannot be read. */
+        var hermesHead: String? = null
+
+        /** Whether the shipped bundle is already unpacked for [hermesPin]. */
+        var hermesUnpacked = false
+
+        /** When false, unpacking the shipped archive fails the way a missing xz does. */
+        var hermesUnpacks = true
+
         /** What the launcher prints once its queued links run out — a failed tap, in words. */
         var hermesFailure: String? = null
 
@@ -1089,6 +1184,13 @@ class WebPanelsTest {
                 }
                 command == WebPanels.HERMES_HELP -> WebPanelGuest.Output(hasWebapp, "usage: hermes webapp")
                 command == WebPanels.HERMES_BUNDLE_CHECK -> WebPanelGuest.Output(hasBundle)
+                command == HermesWebapp.headCommand(WebPanels.HERMES_CHECKOUT) ->
+                    WebPanelGuest.Output(hermesHead != null, hermesHead.orEmpty())
+                command == HermesWebapp.check(hermesPin.orEmpty()) -> WebPanelGuest.Output(hermesUnpacked)
+                command == HermesWebapp.unpack(hermesPin.orEmpty()) -> {
+                    if (hermesUnpacks) hermesUnpacked = true
+                    WebPanelGuest.Output(hermesUnpacks, if (hermesUnpacks) "" else "tar: xz: Cannot exec")
+                }
                 command.startsWith(LAUNCH_ONE_USE) -> {
                     val queued = hermesLinks.removeFirstOrNull()
                     val failure = hermesFailure
@@ -1142,6 +1244,8 @@ class WebPanelsTest {
 
         override fun logTail(panel: WebPanel): String = log
 
+        override fun stageHermesBundle(): String? = hermesPin
+
         override fun authPluginDisabled(panel: WebPanel): Boolean = authPluginOff
     }
 }
@@ -1153,6 +1257,12 @@ private const val ONE_USE_LINK =
         "  http://127.0.0.1:9120/?ticket=TICKET"
 
 private const val LAUNCH_ONE_USE = "hermes webapp --no-open"
+
+/** The hermes-agent commit the tests pretend this app's panel was built from. */
+private const val BUNDLE_PIN = "ae2a81ccc00e9b7c06301523e5bb09608397149c"
+
+/** Another commit — a sandbox whose Hermes moved on after the panel was built. */
+private const val OTHER_HERMES = "0123456789abcdef0123456789abcdef01234567"
 
 /** What `hermes webapp --no-open` prints behind the dashboard's sign-in, verbatim from `webapp_launcher`. */
 private const val SIGN_IN_LINK =

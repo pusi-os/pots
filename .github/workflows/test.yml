@@ -160,5 +160,49 @@ jobs:
             ${{ runner.os }}-gradle-android-
             ${{ runner.os }}-gradle-
 
+      - name: Build the Hermes web panel bundle
+        # The panel's renderer is built here and shipped inside the APK: the
+        # sandbox cannot run its pnpm install under --link2symlink.
+        uses: ./.github/actions/hermes-webapp-bundle
+
       - name: Assemble FOSS debug APK
         run: ./gradlew :androidApp:assembleFossDebug --no-daemon --stacktrace
+
+      - name: Verify the APK carries the panel bundle as one archive
+        run: |
+          set -euo pipefail
+          APK=androidApp/build/outputs/apk/foss/debug/androidApp-foss-debug.apk
+          unzip -l "$APK" | grep 'assets/hermes-webapp/'
+          # One archive, not the bundle's thousand-odd files unpacked into the APK.
+          test "$(unzip -l "$APK" | grep -c 'assets/hermes-webapp/dist.tar.xz')" -eq 1
+          test "$(unzip -l "$APK" | grep -c 'assets/hermes-webapp/pin')" -eq 1
+          test "$(unzip -l "$APK" | grep -c 'assets/hermes-webapp/dist-webapp/')" -eq 0
+
+      - name: Serve the archive the APK carries and fetch the chunk index.html asks for
+        run: |
+          set -euo pipefail
+          APK=androidApp/build/outputs/apk/foss/debug/androidApp-foss-debug.apk
+          WORK=build/hermes-webapp-check
+          rm -rf "$WORK"; mkdir -p "$WORK/dist"
+          # The archive as the APK carries it, not the one the action left in the
+          # workspace: that is what the phone unpacks on the panel's first start.
+          unzip -p "$APK" assets/hermes-webapp/dist.tar.xz > "$WORK/dist.tar.xz"
+          tar -xJf "$WORK/dist.tar.xz" -C "$WORK/dist"
+          test -f "$WORK/dist/index.html"
+          test -d "$WORK/dist/assets"
+          # The page is not the bundle: index.html loads its entry chunk, and a
+          # bundle that names a chunk it does not carry opens a blank screen.
+          CHUNK="$(sed -n 's/.*<script type="module"[^>]*src="\.\/\([^"]*\)".*/\1/p' "$WORK/dist/index.html" | head -1)"
+          echo "index.html entry chunk: $CHUNK"
+          test -n "$CHUNK"
+          python3 -m http.server 8791 --bind 127.0.0.1 --directory "$WORK/dist" &
+          SERVER=$!
+          trap 'kill "$SERVER" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 40); do
+            curl -fsS -o /dev/null "http://127.0.0.1:8791/index.html" && break
+            sleep 0.5
+          done
+          CODE="$(curl -s -o "$WORK/chunk.out" -w '%{http_code}' "http://127.0.0.1:8791/$CHUNK")"
+          echo "GET /$CHUNK -> $CODE, $(stat -c %s "$WORK/chunk.out") bytes"
+          test "$CODE" = 200
+          test -s "$WORK/chunk.out"

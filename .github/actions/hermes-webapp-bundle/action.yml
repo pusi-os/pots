@@ -1,0 +1,83 @@
+name: Hermes webapp bundle
+description: >
+  Builds the Hermes web panel renderer (apps/desktop/dist-webapp) at the
+  hermes-agent commit `hermes-webapp.pin` names, and packs it into the Android
+  assets as one tar.xz. The sandbox cannot build it: `pnpm install` of the
+  renderer dies under proot's --link2symlink, which dpkg needs (t_cf73367d), so
+  the bundle is built here and shipped ready.
+
+  Leaves composeApp/src/androidMain/assets/hermes-webapp/{dist.tar.xz,pin} in the
+  workspace; .gitignore keeps both out of the repo.
+
+outputs:
+  commit:
+    description: The hermes-agent commit the bundle was built from.
+    value: ${{ steps.pin.outputs.commit }}
+  bytes:
+    description: Size of the packed archive in bytes.
+    value: ${{ steps.pack.outputs.bytes }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read the pinned hermes-agent commit
+      id: pin
+      shell: bash
+      run: |
+        # One SHA, comments allowed: the same file the sandbox install reads.
+        commit="$(grep -v '^[[:space:]]*#' "$GITHUB_WORKSPACE/hermes-webapp.pin" | tr -d '[:space:]')"
+        case "$commit" in
+          [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
+          *) echo "::error::hermes-webapp.pin names no commit"; exit 1 ;;
+        esac
+        echo "commit=$commit" >> "$GITHUB_OUTPUT"
+        echo "Building the Hermes panel from hermes-agent $commit"
+
+    - name: Check out hermes-agent at the pin
+      uses: actions/checkout@v4
+      with:
+        repository: NousResearch/hermes-agent
+        ref: ${{ steps.pin.outputs.commit }}
+        path: .hermes-agent
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        # The runtime pm pins for this checkout (pm/lock.json: node 26.12.1).
+        node-version: 26.12.1
+
+    - name: Install the pinned pnpm
+      shell: bash
+      # pm/lock.json pins pnpm 12.15.0, and the builder refuses any other version.
+      run: npm install --global pnpm@12.15.0
+
+    - name: Build the renderer
+      shell: bash
+      working-directory: ${{ github.workspace }}/.hermes-agent
+      # build-webapp.mjs mirrors the renderer's inputs into .build/webapp-workspace
+      # and installs its own dependencies there, so the checkout stays untouched.
+      run: node apps/desktop/scripts/build-webapp.mjs
+
+    - name: Pack the bundle into the Android assets
+      id: pack
+      shell: bash
+      run: |
+        set -euo pipefail
+        dist="$GITHUB_WORKSPACE/.hermes-agent/apps/desktop/dist-webapp"
+        assets="$GITHUB_WORKSPACE/composeApp/src/androidMain/assets/hermes-webapp"
+        # The page is not the bundle: index.html loads the scripts under assets/,
+        # and a build that produced one without the other opens a blank screen.
+        test -f "$dist/index.html"
+        test -d "$dist/assets"
+        mkdir -p "$assets"
+        # tar.xz, not the 55 MB of raw files: xz takes the bundle to ~14 MB, which
+        # is what makes shipping it inside the APK reasonable.
+        tar -cJf "$assets/dist.tar.xz" -C "$dist" .
+        printf '%s\n' "${{ steps.pin.outputs.commit }}" > "$assets/pin"
+        bytes="$(stat -c %s "$assets/dist.tar.xz")"
+        files="$(find "$dist" -type f | wc -l)"
+        echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
+        echo "Hermes panel bundle: $files files, $((bytes / 1024 / 1024)) MiB packed"
+        # A floor catches a truncated archive; the ceiling keeps the APK shippable.
+        test "$bytes" -gt 1000000
+        test "$bytes" -lt 25000000

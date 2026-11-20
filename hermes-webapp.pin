@@ -1,0 +1,10 @@
+# The hermes-agent commit the Hermes web panel is built from.
+#
+# CI builds apps/desktop/dist-webapp at this commit and packs it into the APK
+# (`.github/actions/hermes-webapp-bundle`); the sandbox installs Hermes at the
+# same commit, so the panel and the backend it talks to are one version. The
+# phone cannot build the bundle itself: `pnpm install` of the renderer dies under
+# proot's --link2symlink, which dpkg needs (t_cf73367d).
+#
+# Bumping this is the only way to move the panel: both halves read this file.
+ae2a81ccc00e9b7c06301523e5bb09608397149c
