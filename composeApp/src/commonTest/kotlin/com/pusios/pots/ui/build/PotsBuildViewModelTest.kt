@@ -75,6 +75,27 @@ class PotsBuildViewModelTest {
         override fun openWebPanel(panelId: String) {}
         override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
         override fun webPanelPassword(panelId: String): String? = null
+
+        /** Agent id sets passed to [checkAgents], oldest first. */
+        val checked = mutableListOf<Set<String>>()
+
+        /** Agent ids passed to [updateAgent], oldest first. */
+        val updated = mutableListOf<String>()
+
+        /** Agent ids passed to [removeAgent], oldest first. */
+        val removed = mutableListOf<String>()
+
+        override fun checkAgents(agentIds: Set<String>) {
+            checked += agentIds
+        }
+
+        override fun updateAgent(agentId: String) {
+            updated += agentId
+        }
+
+        override fun removeAgent(agentId: String, includeBulk: Boolean) {
+            removed += agentId
+        }
     }
 
     @BeforeTest
@@ -158,5 +179,18 @@ class PotsBuildViewModelTest {
 
         viewModel.openProject("demo")
         assertEquals(listOf<String?>(null), fakeController.startedWith)
+    }
+
+    @Test
+    fun `per-agent check, update and remove reach the environment`() = runTest {
+        val viewModel = PotsBuildViewModel(fakeController, fakeRepository)
+
+        viewModel.checkAgents(setOf("pi", "opencode"))
+        viewModel.updateAgent("opencode")
+        viewModel.removeAgent("pi")
+
+        assertEquals(listOf(setOf("pi", "opencode")), fakeController.checked)
+        assertEquals(listOf("opencode"), fakeController.updated)
+        assertEquals(listOf("pi"), fakeController.removed)
     }
 }
