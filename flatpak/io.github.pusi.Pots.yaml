@@ -38,8 +38,8 @@ modules:
 
     sources:
       - type: file
-        url: https://github.com/pusi-os/pots/releases/download/v3.15.1/Pots-3.15.1-linux-x86_64.tar.gz
-        sha256: deae56904444daa50ad38b763c048dd8f28e486d53c434ba773622ca7438deae
+        url: https://github.com/pusi-os/pots/releases/download/v3.15.2/Pots-3.15.2-linux-x86_64.tar.gz
+        sha256: 0dcea5f1d647ac627b7a42cf30b27aade47e65070a26d2ae1b97623e6f2ef5c8
         dest-filename: Pots-linux-x86_64.tar.gz
         x-checker-data:
           type: json
