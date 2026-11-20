@@ -149,7 +149,9 @@ internal fun MediaCanvas(
     ) {
         CanvasDotGrid(canvasOffset)
 
-        layers.forEach { layer ->
+        // Hidden layers are neither drawn nor hit-tested: they are not in the
+        // composition at all, so no pointer can land on one.
+        layers.visibleLayers().forEach { layer ->
             CanvasLayerView(
                 layer = layer,
                 selected = layer.id == selectedId,
@@ -244,9 +246,8 @@ private fun CanvasLayerView(
     onEditImage: (ImageLayer) -> Unit,
     onEditVideo: (VideoLayer) -> Unit,
 ) {
-    // A hidden layer keeps its data and its place in the draw order; it just
-    // is not composited.
-    if (!layer.transform.visible) return
+    // The caller filters hidden layers out (`visibleLayers`); a hidden layer is
+    // not composed, so it cannot be drawn and cannot take a tap.
     val media = layer as? MediaLayer
     val url = media?.url
     val local = media?.localPath
