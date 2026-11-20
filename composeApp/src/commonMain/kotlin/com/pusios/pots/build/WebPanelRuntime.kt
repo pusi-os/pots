@@ -50,8 +50,14 @@ interface WebPanelGuest {
     /** Drops the pid and port files; the log stays for the next failure to quote. */
     fun forget(panel: WebPanel)
 
-    /** Tail of the panel's log, for the reason line of a failure. */
-    fun logTail(panel: WebPanel): String
+    /**
+     * The panel's log file as it stands, or [WebPanelLog.NO_FILE] when there is
+     * none.
+     *
+     * The whole text, not a tail: the runtime masks the panel's password before
+     * it cuts, and a cut taken here would land before the mask.
+     */
+    fun logText(panel: WebPanel): String
 
     /**
      * Puts the Hermes panel bundle this app ships where the guest can unpack it
@@ -168,7 +174,7 @@ class WebPanelRuntime(
 
     /**
      * The panel's log, as the row shows it: the tail of the file, with the panel's
-     * password cut out (see [WebPanelLog.redact]).
+     * password cut out before the tail is taken (see [WebPanelLog.show]).
      *
      * Read on demand — when the row's log section is opened, when a start fails,
      * or when its refresh button is tapped — and never cached: the file grows
@@ -182,7 +188,7 @@ class WebPanelRuntime(
      */
     fun panelLog(panelId: String): String {
         val panel = WebPanels.get(panelId) ?: return WebPanelLog.NO_FILE
-        return WebPanelLog.redact(guest.logTail(panel), password(panel.id))
+        return WebPanelLog.show(guest.logText(panel), password(panel.id))
     }
 
     /**
@@ -401,10 +407,13 @@ class WebPanelRuntime(
         }
         val ready = guest.run(waitForPort(port, startTimeoutSeconds), startTimeoutSeconds + 10)
         if (!ready.success) {
+            // A line, not the log: the full tail is one tap away in the row's own
+            // section, and the password is cut out of both.
             setState(
                 panel,
                 WebPanelStatus.Failed(
-                    "${panel.title} is not listening on $port after ${startTimeoutSeconds}s: ${guest.logTail(panel)}",
+                    "${panel.title} is not listening on $port after ${startTimeoutSeconds}s: " +
+                        WebPanelLog.brief(guest.logText(panel), password(panel.id)),
                 ),
             )
             return

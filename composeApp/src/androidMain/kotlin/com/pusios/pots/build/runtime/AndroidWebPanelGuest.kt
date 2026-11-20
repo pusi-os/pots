@@ -134,10 +134,10 @@ class AndroidWebPanelGuest(
         runCatching { File(paths.tmpDir, panel.portFile).delete() }
     }
 
-    override fun logTail(panel: WebPanel): String {
+    override fun logText(panel: WebPanel): String {
         val file = logFile(panel)
         if (!file.exists()) return WebPanelLog.NO_FILE
-        return WebPanelLog.tail(runCatching { file.readText() }.getOrDefault(""))
+        return runCatching { file.readText() }.getOrDefault("")
     }
 
     private fun logFile(panel: WebPanel): File = File(paths.tmpDir, panel.logFile)
