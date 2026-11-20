@@ -1421,6 +1421,15 @@ nothing; it only fires when he was dragged into the lower half.</p>
   sent, and an answer to a voice or screenshot question leaves the draft alone.</li>
 <li>A question that could not be sent stays as the draft and is marked as not
   sent on the pill, with [Повторить].</li>
+<li>One tap of [Отправить] is one question. The tap returns at once — the frame's
+  write is off the main thread — so a second tap lands while the first question
+  is still being prepared; the window raises <code>sending</code> before the ask and lowers
+  it in the coroutine's <code>finally</code>, so the second tap does nothing instead of
+  becoming a second request the provider bills for. A failed send lowers the
+  flag too: the user must be able to tap again.</li>
+<li>[Повторить] on a question that never made it is guarded the same way: while
+  the asker is still thinking about the retry, a second tap does nothing — the
+  retry carries the same picture again, so it would be a second paid request.</li>
 <li>The microphone has exactly one owner: the cloud's voice loop and the field are
   never up at the same time.</li>
 </ul>

@@ -1361,6 +1361,19 @@ mode gives up and says «Не удалось снять экран».</p>
 <code>PlatformFile</code>, the same type the picker and the camera produce. The chat's own
 pipeline classifies, compresses and attaches it, so the message in the history
 is an ordinary message with a picture — no second message format.</p>
+<p>The write is a full screen of a few megabytes, and the asker is a tap or a
+recognized phrase, so it happens on <code>Dispatchers.IO</code>: the cloud is suspended
+until the file has landed and the question follows the file, instead of the main
+thread of a window over somebody else's app waiting for the disk.</p>
+<p>The frame is <strong>claimed before it is written</strong>, not after: <code>PotsikCloudQuestion</code>
+takes it out of hand and only puts it back if the write failed. Otherwise the
+window the write opens — a few hundred milliseconds of a suspending call — is a
+window in which a second question finds the frame still in hand and attaches the
+same picture again. Two questions about one picture are two paid vision
+requests, and the second one is never what the user asked for.</p>
+<p>A write that fails puts the frame back — unless a newer frame was taken while it
+was running: «Экран» stays reachable in the field's phase, so the newer picture
+is the user's latest look at the screen and the older one must not overwrite it.</p>
 <h2 id="where-the-code-is">Where the code is</h2>
 <table>
 <thead>
@@ -1393,6 +1406,10 @@ is an ordinary message with a picture — no second message format.</p>
 <tr>
 <td><code>composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt</code></td>
 <td>What the pill shows, and when the mode ends</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../overlay/PotsikShotFile.kt</code></td>
+<td>The frame as the chat's <code>PlatformFile</code>: the PNG in the cache, written on <code>Dispatchers.IO</code></td>
 </tr>
 <tr>
 <td><code>composeApp/src/commonTest/.../ui/potsik/PotsikScreenShotTest.kt</code></td>
