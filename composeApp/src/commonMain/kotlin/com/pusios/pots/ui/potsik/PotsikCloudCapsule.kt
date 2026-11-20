@@ -203,9 +203,13 @@ fun PotsikCloudCapsule(
 
                 PotsikCloudPhase.TextInput -> PotsikCloudTextInput(
                     draft = draft,
+                    shot = shot,
+                    voiceAvailable = voiceAvailable,
                     onDraftChange = onDraftChange,
                     onSend = onSendText,
                     onClose = onCloseText,
+                    onRemoveShot = onRemoveShot,
+                    onSpeak = onVoice,
                 )
 
                 else -> PotsikCloudPill(
@@ -336,6 +340,12 @@ private fun CloudActionButton(
  * the keyboard. The keyboard itself is drawn *above* any overlay, so the window
  * is also kept in the top half of the screen — see [potsikCloudInputTop].
  *
+ * The frame of Flow 3 rides here: a shot taken with «Экран» is previewed above
+ * the field, and the same phase offers the microphone, because «после снимка
+ * напечатать или сказать» is one step of one dialogue, not two screens. The
+ * preview's [×] drops the picture and keeps the field — the question being
+ * typed is not the picture's hostage.
+ *
  * The draft is not this composable's state: it lives in [PotsikCloudDraft] so
  * that closing the cloud, or the process being killed, does not throw away what
  * was typed.
@@ -343,9 +353,13 @@ private fun CloudActionButton(
 @Composable
 private fun PotsikCloudTextInput(
     draft: String,
+    shot: PotsikShotUi?,
+    voiceAvailable: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onClose: () -> Unit,
+    onRemoveShot: () -> Unit,
+    onSpeak: () -> Unit,
 ) {
     // The field is the reason this phase exists, so it takes the keyboard by
     // itself instead of asking for one more tap.
@@ -358,47 +372,103 @@ private fun PotsikCloudTextInput(
         keyboard?.show()
     }
     val sendEnabled = potsikCloudSendEnabled(draft)
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(POTSIK_CLOUD_GAP_DP.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        OutlinedTextField(
-            value = draft,
-            onValueChange = onDraftChange,
-            modifier = Modifier
-                .weight(1f)
-                .focusRequester(focusRequester),
-            placeholder = { Text(stringResource(Res.string.potsik_cloud_input_placeholder)) },
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium,
-            shape = RoundedCornerShape(16.dp),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { if (sendEnabled) onSend() }),
-        )
-        IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
-            Icon(
-                imageVector = vectorResource(Res.drawable.ic_close),
-                contentDescription = stringResource(Res.string.potsik_cloud_close),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        if (shot != null) {
+            // What is being asked about, above the question about it.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(POTSIK_CLOUD_INPUT_SHOT_ROW_DP.dp - 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PotsikCloudThumbnail(shot = shot, side = 40.dp)
+                Text(
+                    text = stringResource(Res.string.potsik_cloud_screenshot_caption, shot.label),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onRemoveShot, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.ic_close),
+                        contentDescription = stringResource(Res.string.potsik_cloud_screen_remove),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
-        IconButton(
-            onClick = { if (sendEnabled) onSend() },
-            enabled = sendEnabled,
-            modifier = Modifier.size(POTSIK_CLOUD_BUTTON_DP.dp),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Icon(
-                imageVector = vectorResource(Res.drawable.ic_send),
-                contentDescription = stringResource(Res.string.potsik_cloud_send),
-                tint = if (sendEnabled) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            OutlinedTextField(
+                value = draft,
+                onValueChange = onDraftChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+                placeholder = {
+                    Text(
+                        stringResource(
+                            if (shot != null) Res.string.potsik_cloud_screen_placeholder else Res.string.potsik_cloud_input_placeholder,
+                        ),
+                    )
                 },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                shape = RoundedCornerShape(16.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { if (sendEnabled) onSend() }),
             )
+            // The same microphone the menu has: after a shot the owner wants to
+            // type *or* say the question, and asking for a tap on another phase
+            // first is a detour the flow does not need.
+            IconButton(onClick = onSpeak, enabled = voiceAvailable, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    imageVector = vectorResource(Res.drawable.ic_handsfree),
+                    contentDescription = stringResource(
+                        if (voiceAvailable) Res.string.potsik_cloud_voice else Res.string.potsik_cloud_voice_unavailable,
+                    ),
+                    tint = if (voiceAvailable) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    },
+                )
+            }
+            IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    imageVector = vectorResource(Res.drawable.ic_close),
+                    contentDescription = stringResource(Res.string.potsik_cloud_close),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(
+                onClick = { if (sendEnabled) onSend() },
+                enabled = sendEnabled,
+                modifier = Modifier.size(POTSIK_CLOUD_BUTTON_DP.dp),
+            ) {
+                Icon(
+                    imageVector = vectorResource(Res.drawable.ic_send),
+                    contentDescription = stringResource(Res.string.potsik_cloud_send),
+                    tint = if (sendEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    },
+                )
+            }
         }
     }
 }
