@@ -269,6 +269,7 @@ class BuildEnvironmentManager(
             prefs = { webPanelPreferences(it) },
             savePrefs = { id, prefs -> saveWebPanelPreferences(id, prefs) },
             installed = { _state.value.installedAgents },
+            lanAddress = { LanAddress.current() },
             publish = { panels -> _state.update { it.copy(webPanels = panels) } },
             scope = scope,
         )
@@ -594,9 +595,11 @@ class BuildEnvironmentManager(
     fun webPanelPassword(panelId: String): String? = webPanels.password(panelId)
 
     /**
-     * Opens the panel in the device's own browser. Hermes' address is minted per
-     * tap — its link is one-use — so the URL is fetched first and only then
-     * handed to the browser, never kept.
+     * Opens the panel in the device's own browser. Hermes' address is permanent —
+     * the panel is behind a sign-in form, not a one-use ticket — while the
+     * OpenCode address carries the credentials its login form would otherwise ask
+     * for. Either way the URL is fetched first and only then handed to the
+     * browser, never kept.
      *
      * The URL is deliberately absent from every log line on this path: for
      * OpenCode it carries the panel's password in its userinfo, and `logcat` is

@@ -8,10 +8,15 @@ import kotlin.random.Random
 /**
  * A coding agent's own web UI, as something Pots Build can start and stop.
  *
- * Every panel listens on loopback. proot creates no network namespace, so a
+ * OpenCode and Pi listen on loopback. proot creates no network namespace, so a
  * server bound to `127.0.0.1` inside the sandbox *is* the phone's loopback and
- * Chrome reaches it; binding `0.0.0.0` would put an unauthenticated panel on the
- * LAN instead, so nothing here ever asks for that.
+ * Chrome reaches it.
+ *
+ * Hermes is the exception, and deliberately so: it binds every interface, so the
+ * owner can open it from another device on the same network while the phone sits
+ * on a charger. A non-loopback bind turns Hermes' sign-in gate on, and Pots gives
+ * it a dashboard account ([HERMES_USER] plus a generated password) — a gated panel
+ * with no account is not an open panel, it is one that cannot be opened at all.
  *
  * The pid, port and log files live under the guest's `/tmp`, which is a host
  * directory bind-mounted in — so they survive an app restart and the host can
@@ -25,11 +30,10 @@ data class WebPanel(
     val title: String,
     /** Tried first; a busy port moves the panel to the next free one. */
     val preferredPort: Int,
-    /**
-     * Env var carrying the panel's password, or null for the panel that has no
-     * password of its own (Hermes signs each browser in with a one-use link).
-     */
+    /** Env var carrying the panel's password, or null for a panel that asks for none. */
     val passwordEnv: String?,
+    /** Env var carrying the panel's login, for the panels that ask for one by name. */
+    val usernameEnv: String? = null,
 ) {
     val pidFile: String get() = "pots-web-$id.pid"
     val portFile: String get() = "pots-web-$id.port"
@@ -84,7 +88,11 @@ object WebPanels {
             title = "Hermes",
             // Read from `webapp.port` in the Hermes config, written by [SandboxAgentConfig].
             preferredPort = HERMES_PORT,
-            passwordEnv = null,
+            // The panel is on the LAN, so Hermes' sign-in gate is on, and these are
+            // the account it asks for. Passed in the launcher's environment — the
+            // config file is rewritten on every agent start and must not carry it.
+            passwordEnv = "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD",
+            usernameEnv = "HERMES_DASHBOARD_BASIC_AUTH_USERNAME",
         ),
     )
 
@@ -102,6 +110,27 @@ object WebPanels {
     fun address(port: Int): String = "http://127.0.0.1:$port"
 
     /**
+     * The same panel, dialled from another device: [lanIp] is the phone's own
+     * address in the local network.
+     */
+    fun lanAddress(port: Int, lanIp: String): String = "http://$lanIp:$port"
+
+    /**
+     * The address the Hermes row shows, given what its launcher printed.
+     *
+     * A published address — `webapp.public_url`, or an origin Web Access
+     * registered with Nous — is already reachable from other devices and is kept
+     * as printed. The loopback one is not: Pots binds the panel to the LAN, so the
+     * row gets the phone's LAN address, or loopback (and the row says the panel is
+     * reachable only here) when the phone is on no network at all.
+     */
+    fun hermesAddress(printed: String?, port: Int, lanIp: String?): String = when {
+        printed != null && !isLoopback(printed) -> printed
+        lanIp.isNullOrBlank() -> address(port)
+        else -> lanAddress(port, lanIp)
+    }
+
+    /**
      * The URL handed to the browser.
      *
      * Only OpenCode gets credentials in it: it asks for HTTP Basic on every
@@ -110,7 +139,9 @@ object WebPanels {
      * has loaded. pi-web guards its API only — its HTML wants a session cookie —
      * so its URL points at the login form instead: credentials in it would be
      * ignored and would leave the password sitting in the address bar. Hermes
-     * needs neither, because the link `link()` mints *is* the sign-in.
+     * needs neither: it sits behind the dashboard's sign-in form, which takes the
+     * account Pots generated, and credentials in the URL would be ignored there
+     * too and left in the address bar.
      *
      * A null or empty password yields the plain address rather than a broken
      * `user:@host` — the panel still opens, it just asks for the password.
@@ -123,12 +154,17 @@ object WebPanels {
                 "http://$OPENCODE_USER:${percentEncode(password)}@127.0.0.1:$port/"
             }
         PI -> "${address(port)}/login"
+        // The gate asks for the account, not for anything in the URL: the address
+        // alone is what the row hands over, and [hermesAddress] picks the LAN one.
         HERMES -> address(port)
         else -> error("no URL for panel ${panel.id}")
     }
 
     /** The user half of OpenCode's Basic credentials; its password is the one above. */
     const val OPENCODE_USER = "opencode"
+
+    /** The login Pots gives Hermes' dashboard; its password is the panel's own. */
+    const val HERMES_USER = "pots"
 
     /**
      * The port a URL points at, or null when it names none. Used to report the
@@ -279,10 +315,11 @@ enum class WebPanelOpen {
 
     /**
      * The webapp answers with a permanent address and asks for a dashboard
-     * account. Hermes only gets there when the listener is gated — a non-loopback
-     * bind, or a non-loopback `webapp.public_url` — and Pots writes neither, so
-     * this state is what a hand-edited config produces. The row says "sign in",
-     * because that is what such an address does.
+     * account. Hermes is here whenever the listener is gated — a non-loopback
+     * bind, which is what Pots writes so the panel is reachable from the owner's
+     * other devices — and the account is the one Pots passes in the launcher's
+     * environment. The row says "sign in", because that is what such an address
+     * does.
      */
     DASHBOARD_SIGN_IN,
 }

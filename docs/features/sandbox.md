@@ -189,12 +189,30 @@ serves — a failure there leaves the agent installed and the row says the bundl
 is missing rather than showing an empty page. OpenCode needs nothing: its web UI
 ships inside the binary.
 
-### Loopback only
+### Loopback, except Hermes on the LAN
 
 proot creates no network namespace: the guest and the phone share one network
 stack. A server bound to `127.0.0.1` inside the sandbox is therefore the phone's
-own loopback, and Chrome opens `http://127.0.0.1:<port>` directly. Nothing here
-binds `0.0.0.0` — that would publish an unauthenticated panel to the whole LAN.
+own loopback, and Chrome opens `http://127.0.0.1:<port>` directly. OpenCode and
+pi-web stay there.
+
+Hermes does not, and that is the owner's decision: `webapp.host` is `0.0.0.0`
+(`SandboxAgentConfig.WEBAPP_HOST`), so the panel is reachable from the owner's
+other devices on the same network while the phone sits on a charger. Hermes gates
+any non-loopback bind behind the dashboard sign-in — and a gated panel with no
+account is not an open panel but one nobody can open — so Pots gives it one (see
+*Passwords*).
+
+The row shows the address other devices dial: `http://<lan-ip>:<port>`, with the
+IP read from Android's network interfaces (`LanAddress`, site-local IPv4 only —
+a CGNAT or VPN address is one the other devices cannot reach). With no network at
+all the row falls back to the loopback address and says the panel is reachable on
+this phone only.
+
+That is also the honest caveat the card states once: while the sandbox runs, the
+port is visible to every device on whatever network the phone is joined to, and
+the password is what keeps them out. There is no TLS and no subnet filter — the
+owner asked for access over the LAN, not for a fortress.
 
 ### Ports
 
@@ -208,7 +226,13 @@ A taken port moves the panel to the next free one (ten attempts, then an honest
 "all busy" error), and the row shows the port it actually got. Hermes takes its
 port from `webapp.port` in `~/.hermes/config.yaml`, so the panel replaces that
 one block (`SandboxAgentConfig.withWebappPort`) before starting it, and reports
-the port the printed link carries.
+the port the printed link carries. The same write drops the bundled `basic`
+dashboard-auth plugin from `plugins.disabled` when it is there
+(`SandboxAgentConfig.withBasicAuthPluginEnabled`): Hermes' own
+`ensure_basic_auth_plugin_enabled_in_config` does that for `hermes dashboard`, and
+a gated panel whose provider is disabled opens on "sign-in unavailable". The
+runtime reads the file back, and reports `Failed` with that reason if the plugin
+is still off — a panel nobody can sign in to is not "running".
 
 The probe itself runs under `/bin/bash`, not `/bin/sh`: it connects through
 bash's `/dev/tcp`, which is not POSIX and which the image's `/bin/sh` (dash) does
@@ -220,12 +244,20 @@ someone else is on.
 
 ### Passwords
 
-OpenCode and pi-web get a generated 24-character password on first start
-(`OPENCODE_SERVER_PASSWORD`, `PI_WEB_PASSWORD`), stored in Pots' settings and
-shown on request — the row fetches it when the button is tapped, so a panel that
-never started has none to show. It travels in the process environment only: not
-on the command line (so it is not in `ps`), and not in the panel log. Hermes has
-no panel password — each browser is signed in by a one-use link instead.
+OpenCode, pi-web and Hermes get a generated 24-character password on first start
+(`OPENCODE_SERVER_PASSWORD`, `PI_WEB_PASSWORD`,
+`HERMES_DASHBOARD_BASIC_AUTH_PASSWORD`), stored in Pots' settings and shown on
+request — the row fetches it when the button is tapped, so a panel that never
+started has none to show. It travels in the process environment only: not on the
+command line (so it is not in `ps`), and not in the panel log. Hermes' login is
+the constant `WebPanels.HERMES_USER` (`pots`) in
+`HERMES_DASHBOARD_BASIC_AUTH_USERNAME`, and the pair goes into the launcher's
+environment rather than into `~/.hermes/config.yaml` — Pots rewrites that file
+from scratch on every agent start, and a plaintext password in it is worse than
+none. `HERMES_DASHBOARD_BASIC_AUTH_SECRET` is deliberately left unset: Hermes then
+generates a random per-process signing key (`_resolve_secret`), so a gateway
+restart ends open sessions — one sign-in, in a panel that is a login form anyway —
+and Pots carries one less secret.
 
 Beside "Show password" the row has **Copy**, which is the way the password
 normally leaves the app: it is fetched on the tap, put on the clipboard and never
@@ -245,9 +277,10 @@ The three panels do not authenticate alike, and the row is built around that:
 |---|---|---|
 | OpenCode | HTTP Basic on every request, HTML included | **Yes** — `http://opencode:<password>@127.0.0.1:4096/` opens already signed in; Chromium strips the userinfo from the address bar and from the history once the page has loaded |
 | Pi (pi-web) | HTTP Basic on the API only; the HTML wants a session cookie | **No** — a password there is ignored for the page and left sitting in the address bar for nothing. The link points at `/login` instead |
-| Hermes | nothing — each browser is signed in by a one-use link | **Not applicable** — the link `hermes webapp --no-open` prints *is* the sign-in |
+| Hermes | the dashboard's sign-in form, with the account Pots passes in the launcher's environment | **No** — the form asks for it; credentials in the URL would be ignored there and left sitting in the address bar |
 
-The address the row shows (`WebPanels.address`) therefore stays credential-free:
+The address the row shows (`WebPanels.address`, or `WebPanels.hermesAddress` for
+the panel that lives on the LAN) therefore stays credential-free:
 it is rendered on screen, screenshotted and read aloud. The link handed to the
 browser is minted on the tap by `WebPanelRuntime.link()` (`WebPanels.url`), which
 reads the password and, for OpenCode only, puts it in the userinfo —
@@ -256,7 +289,7 @@ percent-encoded (`percentEncode`, the RFC 3986 unreserved set) because a raw `@`
 does not exist, leaving the panel unauthenticated with nothing saying why.
 
 A password in a URL is what RFC 7230 §2.7.1 tells senders not to generate. It is
-done here deliberately, and only for OpenCode: the panels listen on `127.0.0.1`,
+done here deliberately, and only for OpenCode: that panel listens on `127.0.0.1`,
 which proot makes the phone's own loopback, so nothing on the LAN can see the
 request; the password is generated per panel and used nowhere else; and the
 alternative is retyping 24 characters on a phone keyboard. The two conditions
@@ -273,15 +306,19 @@ form is not filled in for them either: pi-web has a global rate limiter that
 answers 429 and locks the panel for a minute after a failed attempt, so one
 silent try that fails is worse than a visible form that always works.
 
-### Hermes' link is one-use
+### Hermes sits behind the sign-in form
 
-`hermes webapp --no-open` prints either a permanent sign-in address or a private
-link that works once and expires in 60 seconds. Which one it is cannot be known
-in advance, so the button mints a link on every tap and hands it straight to the
-browser — nothing is cached, because a cached link is spent by the first open.
-The row says so under the address ("signs this browser in once and lives 60
-seconds; if it did not open, tap the address again"), because a spent link and a
-broken panel look the same from the outside: nothing happens.
+`hermes webapp --no-open` prints one of two things. Behind the dashboard's
+sign-in — which is where the non-loopback bind Pots writes puts it — it prints a
+permanent address, and the row shows the LAN one with the login and password
+underneath. Without the gate it prints a private link that works once and expires
+in 60 seconds; the row then mints a fresh one on every tap and hands it straight
+to the browser, because a cached link is spent by the first open, and says so
+under the address.
+
+Which one it is cannot be known from `--status`, so the runtime decides from what
+the launcher printed at start and keeps that: a permanent address is never
+re-minted, a one-use link never cached.
 
 ### Provider and model
 
