@@ -33,3 +33,4 @@ __pycache__/
 /scripts/publish-apk.sh
 /run-pots-desktop.sh
 /scripts/ollama-models.sh
+.worktrees/

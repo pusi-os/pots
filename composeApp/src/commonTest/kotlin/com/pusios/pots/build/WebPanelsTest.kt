@@ -542,20 +542,111 @@ class WebPanelsTest {
     }
 
     @Test
-    fun `two taps on a one-use Hermes link give two different links`() = runTest {
+    fun `opening a one-use Hermes link hands the browser a fresh ticket, not the address`() = runTest {
         val guest = FakeGuest().apply {
             hermesLinks += listOf(
-                "Open this link in your browser within 60 seconds. It works once:\n  http://127.0.0.1:9120/?ticket=first",
-                "Open this link in your browser within 60 seconds. It works once:\n  http://127.0.0.1:9120/?ticket=second",
+                ONE_USE_LINK.replace("TICKET", "start"),
+                ONE_USE_LINK.replace("TICKET", "tap"),
             )
         }
         val runtime = runtime(this, guest)
-        val first = runtime.link("hermes")
-        val second = runtime.link("hermes")
+        runtime.startPanel("hermes")
+        val shown = assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertEquals(WebPanelOpen.MINTED_LINK, shown.open, "a loopback Hermes link signs in once")
 
-        assertNotEquals(first, second)
-        assertContains(first.orEmpty(), "ticket=first")
-        assertContains(second.orEmpty(), "ticket=second")
+        val link = runtime.link("hermes").orEmpty()
+
+        // The address on the row cannot sign a browser in; the ticket can.
+        assertContains(link, "ticket=tap")
+        assertNotEquals(shown.url, link, "the browser gets the link, the row keeps the address")
+    }
+
+    @Test
+    fun `every tap on a one-use link runs the launcher again instead of reusing the last link`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesLinks += listOf(
+                ONE_USE_LINK.replace("TICKET", "start"),
+                ONE_USE_LINK.replace("TICKET", "first"),
+                ONE_USE_LINK.replace("TICKET", "second"),
+            )
+        }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+        val mintedAtStart = guest.runs.count { it == LAUNCH_ONE_USE }
+
+        val first = runtime.link("hermes").orEmpty()
+        val second = runtime.link("hermes").orEmpty()
+
+        assertEquals(mintedAtStart + 2, guest.runs.count { it == LAUNCH_ONE_USE }, "one launcher run per tap")
+        assertContains(first, "ticket=first")
+        assertContains(second, "ticket=second")
+    }
+
+    @Test
+    fun `a minted ticket is kept nowhere but the browser handoff`() = runTest {
+        val saved = mutableMapOf<String, WebPanelPreferences>()
+        val guest = FakeGuest().apply {
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"), ONE_USE_LINK.replace("TICKET", "tap"))
+        }
+        val runtime = runtime(this, guest, saved = saved)
+        runtime.startPanel("hermes")
+
+        val link = runtime.link("hermes").orEmpty()
+
+        val ticket = link.substringAfter("ticket=", "")
+        assertEquals("tap", ticket)
+        // A ticket in the published state or in settings would be a spent link on
+        // the next screen that renders it — and on the next run.
+        val published = published.values.joinToString("\n") { it.toString() }
+        assertFalse(published.contains(ticket), published)
+        assertFalse(saved.values.toString().contains(ticket), saved.values.toString())
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+    }
+
+    @Test
+    fun `a tap that cannot mint a link says why on the panel`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+            hermesFailure = "hermes webapp: error: the gateway did not answer within 5s"
+        }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+
+        assertNull(runtime.link("hermes"))
+
+        // Silence is the bug the owner sees: a tap that does nothing reads as a
+        // dead button. The first line of the output is the reason.
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "gateway did not answer")
+    }
+
+    @Test
+    fun `a Hermes behind the dashboard sign-in shows the address it printed`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesLinks += listOf("Open the Webapp and sign in with your dashboard account: https://pots.local:9449/")
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // Nothing to mint here: the address is permanent, and the row has to say
+        // an account is needed rather than pretend the panel signs itself in.
+        val running = assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertEquals("https://pots.local:9449/", running.url)
+        assertEquals(WebPanelOpen.DASHBOARD_SIGN_IN, running.open)
+        assertEquals(1, guest.runs.count { it == LAUNCH_ONE_USE }, "the start asks for the address once")
+
+        // A tap hands over that same address and mints nothing: there is no ticket.
+        assertEquals("https://pots.local:9449/", runtime.link("hermes"))
+        assertEquals(1, guest.runs.count { it == LAUNCH_ONE_USE }, "a sign-in address is never re-minted")
+    }
+
+    @Test
+    fun `the bundle check wants the assets directory, not only the page`() {
+        // index.html alone passes while `assets/` is missing, and the page then
+        // opens blank — the owner's "Web UI shows a link but nothing opens".
+        assertContains(WebPanels.HERMES_BUNDLE_CHECK, "-f ${WebPanels.HERMES_BUNDLE_DIR}/index.html")
+        assertContains(WebPanels.HERMES_BUNDLE_CHECK, "-d ${WebPanels.HERMES_BUNDLE_DIR}/assets")
     }
 
     @Test
@@ -565,7 +656,24 @@ class WebPanelsTest {
         }
         val runtime = runtime(this, guest)
         runtime.refreshPanels()
-        assertEquals(WebPanelStatus.Running("http://127.0.0.1:9120"), status("hermes"))
+        // A loopback address is the private launch: the row shows it, and the open
+        // has to mint a ticket of its own.
+        assertEquals(
+            WebPanelStatus.Running("http://127.0.0.1:9120", WebPanelOpen.MINTED_LINK),
+            status("hermes"),
+        )
+    }
+
+    @Test
+    fun `a Hermes serving a published address asks for the dashboard account`() = runTest {
+        val guest = FakeGuest().apply {
+            status = "Serving at https://pots.local:9449"
+        }
+        val runtime = runtime(this, guest)
+        runtime.refreshPanels()
+
+        val running = assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertEquals(WebPanelOpen.DASHBOARD_SIGN_IN, running.open, "no ticket is minted for a published address")
     }
 
     @Test
@@ -602,7 +710,10 @@ class WebPanelsTest {
         runtime.startPanel("hermes")
 
         assertEquals(9121, guest.configuredPort)
-        assertEquals(WebPanelStatus.Running("http://127.0.0.1:9121"), status("hermes"))
+        assertEquals(
+            WebPanelStatus.Running("http://127.0.0.1:9121", WebPanelOpen.MINTED_LINK),
+            status("hermes"),
+        )
     }
 
     @Test
@@ -645,11 +756,12 @@ class WebPanelsTest {
         guest: WebPanelGuest,
         installed: Set<String> = BuildAgents.all.map { it.id }.toSet(),
         prefs: ((String) -> WebPanelPreferences)? = null,
+        /** The settings the runtime writes to — watched by the tests that prove nothing leaks into them. */
+        saved: MutableMap<String, WebPanelPreferences> = mutableMapOf(),
     ): WebPanelRuntime {
         // Settings live here, the way they live in the app: a password written on
         // one start has to be readable on the next read, or "generated once"
         // cannot be told from "generated every time".
-        val saved = mutableMapOf<String, WebPanelPreferences>()
         return WebPanelRuntime(
             guest = guest,
             prefs = { id -> prefs?.invoke(id) ?: saved[id] ?: WebPanelPreferences() },
@@ -680,6 +792,9 @@ class WebPanelsTest {
         var hasWebapp = true
         var hasBundle = true
 
+        /** What the launcher prints once its queued links run out — a failed tap, in words. */
+        var hermesFailure: String? = null
+
         /** When false, every probe fails the way a shell without `/dev/tcp` does. */
         var probeAnswers = true
         var status = ""
@@ -694,8 +809,15 @@ class WebPanelsTest {
             return when {
                 command == WebPanels.HERMES_HELP -> WebPanelGuest.Output(hasWebapp, "usage: hermes webapp")
                 command == WebPanels.HERMES_BUNDLE_CHECK -> WebPanelGuest.Output(hasBundle)
-                command.startsWith("hermes webapp --no-open") ->
-                    WebPanelGuest.Output(true, hermesLinks.removeFirstOrNull().orEmpty())
+                command.startsWith(LAUNCH_ONE_USE) -> {
+                    val queued = hermesLinks.removeFirstOrNull()
+                    val failure = hermesFailure
+                    when {
+                        queued != null -> WebPanelGuest.Output(true, queued)
+                        failure != null -> WebPanelGuest.Output(false, failure)
+                        else -> WebPanelGuest.Output(true, "")
+                    }
+                }
                 command == "hermes webapp --status" -> WebPanelGuest.Output(status.isNotEmpty(), status)
                 command.startsWith("/bin/bash -c 'i=0; while") -> WebPanelGuest.Output(listening.isNotEmpty())
                 command.startsWith("kill -TERM") -> {
@@ -741,3 +863,11 @@ class WebPanelsTest {
         override fun logTail(panel: WebPanel): String = log
     }
 }
+
+/** What `hermes webapp --no-open` prints for the private launch, with its ticket left as [TICKET]. */
+private const val ONE_USE_LINK =
+    "Open this link in your browser within 60 seconds. It works once and signs\n" +
+        "the browser in as you, so keep it private:\n" +
+        "  http://127.0.0.1:9120/?ticket=TICKET"
+
+private const val LAUNCH_ONE_USE = "hermes webapp --no-open"

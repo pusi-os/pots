@@ -693,6 +693,7 @@
     <string name="pots_build_web_panel_password_copied">Скопировано</string>
     <string name="pots_build_web_panel_pi_login_hint">Вход один раз — браузер запомнит его на 30 дней.</string>
     <string name="pots_build_web_panel_hermes_link_hint">Ссылка входит в браузер один раз и живёт 60 секунд. Если она уже использована или истекла — нажмите адрес ещё раз.</string>
+    <string name="pots_build_web_panel_hermes_sign_in_hint">Войдите учёткой дашборда — Hermes спрашивает её здесь, адрес при этом не меняется.</string>
     <string name="pots_build_system_packages">Установлено пакетов: %1$d</string>
     <string name="pots_build_system_disk_system">Система Linux</string>
     <string name="pots_build_system_disk_projects">Проекты</string>

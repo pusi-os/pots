@@ -140,6 +140,16 @@ object WebPanels {
     }
 
     /**
+     * Whether [url] points at the guest's own loopback — the address only the
+     * phone can reach, which is where a panel serves when it is not published.
+     */
+    fun isLoopback(url: String): Boolean {
+        val authority = url.substringAfter("://", "").substringBefore('/')
+        val host = authority.substringBeforeLast(':', authority)
+        return host == "127.0.0.1" || host == "localhost" || host == "[::1]"
+    }
+
+    /**
      * How a panel is started. Hermes starts its gateway on the way — that is what
      * its own `--no-open` does — and prints the one-use link as its last line.
      */
@@ -169,10 +179,19 @@ object WebPanels {
      * step failed the install is still usable but the panel would open blank, so
      * the row says so instead.
      */
-    const val HERMES_BUNDLE = "/root/.hermes/hermes-agent/apps/desktop/dist-webapp/index.html"
+    const val HERMES_BUNDLE_DIR = "/root/.hermes/hermes-agent/apps/desktop/dist-webapp"
 
-    /** True when the bundle above is there — the honest answer to "is it built?". */
-    const val HERMES_BUNDLE_CHECK = "test -f $HERMES_BUNDLE"
+    /** The page the panel serves. */
+    const val HERMES_BUNDLE = "$HERMES_BUNDLE_DIR/index.html"
+
+    /**
+     * True when the bundle above is there — the honest answer to "is it built?".
+     *
+     * The page is not the bundle: `index.html` loads the scripts under `assets/`,
+     * and a build that produced the page but not the scripts passes an index-only
+     * check, opens a blank screen and reads as a broken app. Both are asked for.
+     */
+    const val HERMES_BUNDLE_CHECK = "test -f $HERMES_BUNDLE && test -d $HERMES_BUNDLE_DIR/assets"
 
     /**
      * [preferred] when free, otherwise the next free port within
@@ -228,9 +247,10 @@ sealed interface WebPanelStatus {
     /**
      * [url] is the panel's address as the row shows it — no credentials in it,
      * even for the panel that takes them (see [WebPanels.url] and
-     * [WebPanelRuntime.link]). The browser-bound link is minted on the tap.
+     * [WebPanelRuntime.link]) — and [open] says what the browser needs beyond it.
+     * The browser-bound link is minted on the tap, never stored here.
      */
-    data class Running(val url: String) : WebPanelStatus
+    data class Running(val url: String, val open: WebPanelOpen = WebPanelOpen.DIRECT) : WebPanelStatus
 
     /**
      * [reason] is shown to the user as it is — a busy port, a missing binary, a
@@ -238,6 +258,33 @@ sealed interface WebPanelStatus {
      * sandbox's other failure lines.
      */
     data class Failed(val reason: String) : WebPanelStatus
+}
+
+/**
+ * How a running panel's address becomes a page in the browser.
+ *
+ * The distinction is what makes the "open" action honest: an address that needs
+ * a ticket cannot be handed over as it is, and an address that needs an account
+ * must not promise a signed-in page.
+ */
+enum class WebPanelOpen {
+    /** The address alone: the panel serves it and asks nothing more. */
+    DIRECT,
+
+    /**
+     * Only a link minted on the tap gets in — Hermes' private launch signs one
+     * browser in once, and the ticket dies about a minute after it is printed.
+     */
+    MINTED_LINK,
+
+    /**
+     * The webapp answers with a permanent address and asks for a dashboard
+     * account. Hermes only gets there when the listener is gated — a non-loopback
+     * bind, or a non-loopback `webapp.public_url` — and Pots writes neither, so
+     * this state is what a hand-edited config produces. The row says "sign in",
+     * because that is what such an address does.
+     */
+    DASHBOARD_SIGN_IN,
 }
 
 @Immutable
