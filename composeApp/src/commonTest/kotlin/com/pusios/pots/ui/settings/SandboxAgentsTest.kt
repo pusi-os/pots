@@ -50,8 +50,7 @@ class SandboxAgentsTest {
         override val state = MutableStateFlow(PotsBuildState())
     }
 
-    private fun viewModel(build: PotsBuildController) =
-        SandboxViewModel(FakeDataRepository(), FakeSandboxController(), build)
+    private fun viewModel(build: PotsBuildController) = SandboxViewModel(FakeDataRepository(), FakeSandboxController(), build)
 
     @Test
     fun `every agent is a row, installed or not`() = runTest {
