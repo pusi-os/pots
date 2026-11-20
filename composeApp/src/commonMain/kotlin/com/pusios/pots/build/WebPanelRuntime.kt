@@ -52,6 +52,13 @@ interface WebPanelGuest {
 
     /** Tail of the panel's log, for the reason line of a failure. */
     fun logTail(panel: WebPanel): String
+
+    /**
+     * Whether Hermes' config still lists the dashboard's login plugin as disabled
+     * — the state in which a gated panel opens on "sign-in unavailable" instead of
+     * on a login form.
+     */
+    fun authPluginDisabled(panel: WebPanel): Boolean
 }
 
 /**
@@ -91,6 +98,12 @@ class WebPanelRuntime(
     private val savePrefs: (String, WebPanelPreferences) -> Unit,
     /** Agent ids the sandbox currently has installed. */
     private val installed: () -> Set<String>,
+    /**
+     * The phone's own address in the local network, or null when it is on none.
+     * Hermes' row shows it in place of the loopback address its launcher prints;
+     * the other panels never leave loopback.
+     */
+    private val lanAddress: () -> String? = { null },
     private val publish: (ImmutableMap<String, WebPanelState>) -> Unit,
     private val scope: CoroutineScope,
     /** How long a panel gets to start listening before the attempt counts as failed. */
@@ -137,12 +150,18 @@ class WebPanelRuntime(
     /**
      * A URL to hand to the browser right now.
      *
-     * Hermes mints a one-use link per call and OpenCode 2 hands out a pairing code
-     * that dies within 300 seconds, so both are minted **here**, on the tap, and
-     * never cached: [WebPanelStatus.Running] carries the address and the kind of
-     * open it needs ([WebPanelOpen]), not the ticket — a link fetched at start-up
-     * would be dead by the time it is tapped. pi-web answers with the address it
-     * is already listening on, whose login form takes the password (see
+     * What a browser needs in order to open [panel] now.
+     *
+     * Two panels sign a browser in with something minted per tap: OpenCode 2 hands
+     * out a pairing code that dies within 300 seconds, and Hermes' launcher mints a
+     * one-use link whenever the sign-in gate is off (a config Pots did not write).
+     * Both are minted **here**, on the tap, and never cached:
+     * [WebPanelStatus.Running] carries the address and the kind of open it needs
+     * ([WebPanelOpen]), not the ticket — a link fetched at start-up would be dead by
+     * the time it is tapped. When the gate is on — the config Pots writes — Hermes
+     * answers with the address the row already shows, which is the LAN one other
+     * devices dial, so there is no ticket to mint. pi-web answers with the address
+     * it is already listening on, whose login form takes the password (see
      * [WebPanels.url]). Secrets are read here and never stored in the state, so
      * every screen that renders the state stays credential-free.
      */
@@ -292,6 +311,20 @@ class WebPanelRuntime(
                 )
                 return
             }
+            // The panel binds every interface, so Hermes' sign-in gate is on, and a
+            // disabled `basic` plugin leaves it with no provider at all: the page
+            // then reads "sign-in unavailable" and looks like a broken panel.
+            // `configure` has already dropped the plugin from `plugins.disabled`;
+            // this is the read-back that says the fix took.
+            if (guest.authPluginDisabled(panel)) {
+                setState(
+                    panel,
+                    WebPanelStatus.Failed(
+                        "Hermes' dashboard login is off: the basic auth plugin is still in plugins.disabled",
+                    ),
+                )
+                return
+            }
             startHermes(panel, port)
             return
         }
@@ -363,32 +396,30 @@ class WebPanelRuntime(
 
     /**
      * Hermes' panel is its gateway: `hermes webapp --no-open` starts the gateway
-     * when it is not up, prints the link and exits. So there is no pid of ours to
-     * record — the readiness answer is the link itself, and the port it reports
-     * is the port the panel is really on.
+     * when it is not up, prints the address and exits. So there is no pid of ours
+     * to record — the readiness answer is the address itself, and the port it
+     * reports is the port the panel is really on.
      *
-     * The link printed here is deliberately not kept: it signs one browser in
-     * once and dies within the minute, so the row gets the address and the fact
-     * that opening it means minting a fresh ticket ([WebPanelOpen.MINTED_LINK]).
+     * The account rides in the launcher's environment: the gateway reads it from
+     * there when it registers the sign-in provider.
      */
     private fun startHermes(panel: WebPanel, port: Int) {
-        val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS)
+        val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS, hermesEnv(panel))
         val link = HermesWebappOutput.parse(output.text)
         if (link == null) {
             setState(panel, WebPanelStatus.Failed("hermes webapp: ${reasonLine(output.text)}"))
             return
         }
+        val servedPort = WebPanels.portOf(link.url) ?: port
         setState(
             panel,
             if (link.oneTime) {
-                WebPanelStatus.Running(
-                    WebPanels.address(WebPanels.portOf(link.url) ?: port),
-                    WebPanelOpen.MINTED_LINK,
-                )
+                WebPanelStatus.Running(WebPanels.address(servedPort), WebPanelOpen.MINTED_LINK)
             } else {
-                // Behind the dashboard's sign-in there is no ticket at all; the
-                // address is the whole answer, and it needs an account.
-                WebPanelStatus.Running(link.url, WebPanelOpen.DASHBOARD_SIGN_IN)
+                // Behind the dashboard's sign-in there is no ticket at all: the
+                // address is the whole answer, it needs the account above, and the
+                // one it printed is this phone's loopback.
+                WebPanelStatus.Running(hermesRowAddress(servedPort, link.url), WebPanelOpen.DASHBOARD_SIGN_IN)
             },
         )
     }
@@ -402,7 +433,7 @@ class WebPanelRuntime(
      * first non-empty line of the output is the reason, as on a failed start.
      */
     private fun mintHermesLink(panel: WebPanel, port: Int): String? {
-        val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS)
+        val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS, hermesEnv(panel))
         val link = HermesWebappOutput.parse(output.text)
         if (link == null) {
             setState(panel, WebPanelStatus.Failed("hermes webapp: ${reasonLine(output.text)}"))
@@ -411,9 +442,28 @@ class WebPanelRuntime(
         if (link.oneTime) return link.url
         // The gateway came up behind the dashboard's sign-in since the panel
         // started: from here the address is constant, and the row has to say so.
-        setState(panel, WebPanelStatus.Running(link.url, WebPanelOpen.DASHBOARD_SIGN_IN))
-        return link.url
+        val address = hermesRowAddress(WebPanels.portOf(link.url) ?: port, link.url)
+        setState(panel, WebPanelStatus.Running(address, WebPanelOpen.DASHBOARD_SIGN_IN))
+        return address
     }
+
+    /**
+     * The dashboard account Hermes' launcher is given: the login Pots chose and
+     * the password generated for this panel.
+     *
+     * The environment is the only place for it. `~/.hermes/config.yaml` is
+     * rewritten from scratch on every agent start, so an account written there
+     * would be erased, and a plaintext password in a config file is worse than
+     * none. Hermes reads both variables, and env wins over the file.
+     */
+    private fun hermesEnv(panel: WebPanel): Map<String, String> = buildMap {
+        panel.usernameEnv?.let { put(it, WebPanels.HERMES_USER) }
+        panel.passwordEnv?.let { put(it, passwordFor(panel)) }
+    }
+
+    /** [WebPanels.hermesAddress], with the address this phone has right now. */
+    private fun hermesRowAddress(port: Int, printed: String?): String =
+        WebPanels.hermesAddress(printed, port, lanAddress())
 
     /** The first line the guest said, for a failure the owner has to read. */
     private fun reasonLine(output: String): String =
@@ -425,11 +475,12 @@ class WebPanelRuntime(
         if (statusCommand != null) {
             val output = guest.run(statusCommand, STATUS_TIMEOUT_SECONDS)
             val url = HermesWebappOutput.servingUrl(output.text) ?: return WebPanelStatus.NotRunning
-            // `--status` says where the gateway serves, not how a browser gets in:
-            // a loopback address is the private launch, whose tickets are minted
-            // per tap, and anything else is the published webapp behind sign-in.
-            val open = if (WebPanels.isLoopback(url)) WebPanelOpen.MINTED_LINK else WebPanelOpen.DASHBOARD_SIGN_IN
-            return WebPanelStatus.Running(url, open)
+            // `--status` reports the address the gateway serves on, which is its
+            // loopback dial origin even when the bind is every interface. Pots
+            // writes that bind, so the panel sits behind the sign-in gate: the row
+            // gets the LAN address and says an account is needed.
+            val port = WebPanels.portOf(url) ?: WebPanels.HERMES_PORT
+            return WebPanelStatus.Running(hermesRowAddress(port, url), WebPanelOpen.DASHBOARD_SIGN_IN)
         }
         val pid = guest.pid(panel) ?: return WebPanelStatus.NotRunning
         if (!guest.alive(pid)) return WebPanelStatus.NotRunning

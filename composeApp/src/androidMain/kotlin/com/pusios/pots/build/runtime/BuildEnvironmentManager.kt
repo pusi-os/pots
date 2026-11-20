@@ -269,6 +269,7 @@ class BuildEnvironmentManager(
             prefs = { webPanelPreferences(it) },
             savePrefs = { id, prefs -> saveWebPanelPreferences(id, prefs) },
             installed = { _state.value.installedAgents },
+            lanAddress = { LanAddress.current() },
             publish = { panels -> _state.update { it.copy(webPanels = panels) } },
             scope = scope,
         )

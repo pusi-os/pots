@@ -20,6 +20,15 @@ import kotlin.test.assertTrue
  */
 class WebPanelsTest {
 
+    /** A provider Pots is configured with — the config files a start writes need one. */
+    private val credentials = SandboxAgentCredentials(
+        providerId = "plusvibe",
+        providerName = "PlusVibe",
+        model = "qwen3.8-flash",
+        apiKey = "pots-test-key",
+        endpoint = "https://plusvibeapi.ru/v1",
+    )
+
     // --- port choice ------------------------------------------------------
 
     @Test
@@ -105,7 +114,7 @@ class WebPanelsTest {
     // --- commands ---------------------------------------------------------
 
     @Test
-    fun `each panel's command binds loopback and names its port`() {
+    fun `each panel's command names its port, and the two flag-takers bind loopback`() {
         for (panel in WebPanels.all) {
             val command = WebPanels.command(panel, 1234)
             if (panel.id == WebPanels.HERMES) {
@@ -645,9 +654,35 @@ class WebPanelsTest {
     }
 
     @Test
-    fun `Hermes has no panel password of its own`() = runTest {
-        val runtime = runtime(this, FakeGuest())
-        assertNull(runtime.password("hermes"))
+    fun `Hermes gets a dashboard login, and its password goes into the environment`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+
+        val hermes = WebPanels.get(WebPanels.HERMES)!!
+        val password = runtime.password("hermes").orEmpty()
+        assertTrue(password.isNotEmpty(), "a gated panel with no password is a panel nobody can open")
+        assertEquals(WebPanels.HERMES_USER, guest.runEnv[hermes.usernameEnv!!])
+        assertEquals(password, guest.runEnv[hermes.passwordEnv!!])
+        // The environment, not the command line: `ps` inside the sandbox is
+        // readable by every process in it.
+        assertFalse(guest.runs.last { it == LAUNCH_ONE_USE }.contains(password))
+    }
+
+    @Test
+    fun `Hermes' password never reaches its config file`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+        val password = runtime.password("hermes").orEmpty()
+        assertTrue(password.isNotEmpty())
+
+        // The file Pots writes on every agent start, with the panel's port in it.
+        val files = SandboxAgentConfig.filesFor(BuildAgents.HERMES, credentials, WebPanels.HERMES_PORT)
+        val config = files.single { it.path == ".hermes/config.yaml" }.content
+        assertFalse(config.contains(password), "the account leaked into config.yaml: $config")
+        assertFalse(config.contains("basic_auth"), "the account belongs in the environment: $config")
+        assertFalse(files.single { it.path == ".hermes/.env" }.content.contains(password))
     }
 
     // --- Hermes -----------------------------------------------------------
@@ -791,10 +826,11 @@ class WebPanelsTest {
         }
         val runtime = runtime(this, guest)
         runtime.refreshPanels()
-        // A loopback address is the private launch: the row shows it, and the open
-        // has to mint a ticket of its own.
+        // `--status` reports the loopback dial origin even though the bind is every
+        // interface, and Pots writes that bind: the panel is behind the sign-in
+        // gate, so the row says an account is needed.
         assertEquals(
-            WebPanelStatus.Running("http://127.0.0.1:9120", WebPanelOpen.MINTED_LINK),
+            WebPanelStatus.Running("http://127.0.0.1:9120", WebPanelOpen.DASHBOARD_SIGN_IN),
             status("hermes"),
         )
     }
@@ -855,7 +891,7 @@ class WebPanelsTest {
     fun `the webapp block is written at the chosen port`() {
         val config = SandboxAgentConfig.withWebappPort("model:\n  default: 'x'\n", 9121)
         assertContains(config, "webapp:")
-        assertContains(config, "  host: 127.0.0.1")
+        assertContains(config, "  host: 0.0.0.0")
         assertContains(config, "  port: 9121")
         assertContains(config, "  enabled: true")
         assertContains(config, "  default: 'x'")
@@ -879,6 +915,98 @@ class WebPanelsTest {
         assertEquals(1, twice.lines().count { it.startsWith("# Written by Pots") }, twice)
     }
 
+    // --- the Hermes panel on the LAN --------------------------------------
+
+    // The panel binds every interface, so another device on the network can open
+    // it while the phone sits on a charger. Hermes gates any non-loopback bind,
+    // and Pots hands it an account: without one the gate has no provider to ask,
+    // and the page says so instead of showing a login form.
+
+    @Test
+    fun `the Hermes webapp block binds every interface, not loopback`() {
+        val config = SandboxAgentConfig.webappConfig(9120)
+        assertContains(config, "  host: 0.0.0.0")
+        assertFalse(config.contains("127.0.0.1"), config)
+    }
+
+    @Test
+    fun `the row shows the LAN address when the phone is on a network`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest, lanIp = LAN_IP)
+        runtime.startPanel("hermes")
+
+        val running = assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertEquals("http://$LAN_IP:9120", running.url)
+        assertEquals(WebPanelOpen.DASHBOARD_SIGN_IN, running.open)
+        // Opening the row hands the browser the same address — the one another
+        // device dials, not the loopback one Hermes printed.
+        assertEquals("http://$LAN_IP:9120", runtime.link("hermes"))
+    }
+
+    @Test
+    fun `without a LAN address the row falls back to loopback, and says which`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+
+        val running = assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertEquals("http://127.0.0.1:9120", running.url)
+        // The row picks its wording from exactly this: a loopback address opens on
+        // this phone alone, a LAN one from any device on the network.
+        assertTrue(WebPanels.isLoopback(running.url))
+        assertNotEquals(WebPanels.isLoopback("http://$LAN_IP:9120"), WebPanels.isLoopback(running.url))
+    }
+
+    @Test
+    fun `a printed loopback address is replaced by the phone's LAN address`() {
+        assertEquals("http://$LAN_IP:9120", WebPanels.hermesAddress("http://127.0.0.1:9120/", 9120, LAN_IP))
+        // A published address is reachable as it is: kept as printed.
+        assertEquals(
+            "https://pots.local:9449/",
+            WebPanels.hermesAddress("https://pots.local:9449/", 9449, LAN_IP),
+        )
+        assertEquals("http://127.0.0.1:9120", WebPanels.hermesAddress("http://127.0.0.1:9120/", 9120, null))
+    }
+
+    @Test
+    fun `a Hermes whose login plugin is still off fails instead of serving a dead gate`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesLinks += listOf(SIGN_IN_LINK)
+            authPluginOff = true
+        }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "plugins.disabled")
+        assertFalse(
+            guest.runs.any { it == LAUNCH_ONE_USE },
+            "no panel behind a gate with no provider to ask",
+        )
+    }
+
+    @Test
+    fun `the basic auth plugin is dropped from plugins disabled, and the rest is kept`() {
+        val yaml = """
+            plugins:
+              disabled:
+                - web/exa
+                - basic
+                - dashboard_auth/basic
+              enabled:
+                - web/firecrawl
+            model:
+              default: 'x'
+        """.trimIndent() + "\n"
+
+        val fixed = SandboxAgentConfig.withBasicAuthPluginEnabled(yaml)
+
+        assertEquals(setOf("web/exa"), SandboxAgentConfig.disabledPlugins(fixed))
+        assertContains(fixed, "    - web/firecrawl", message = "the enabled list is somebody else's")
+        assertContains(fixed, "  default: 'x'")
+        assertEquals(fixed, SandboxAgentConfig.withBasicAuthPluginEnabled(fixed), "idempotent")
+    }
+
     // --- helpers ----------------------------------------------------------
 
     /** What the runtime last published; one runtime per test, so one map is enough. */
@@ -893,6 +1021,8 @@ class WebPanelsTest {
         prefs: ((String) -> WebPanelPreferences)? = null,
         /** The settings the runtime writes to — watched by the tests that prove nothing leaks into them. */
         saved: MutableMap<String, WebPanelPreferences> = mutableMapOf(),
+        /** The phone's own address in the local network, or null when it is on none. */
+        lanIp: String? = null,
     ): WebPanelRuntime {
         // Settings live here, the way they live in the app: a password written on
         // one start has to be readable on the next read, or "generated once"
@@ -902,6 +1032,7 @@ class WebPanelsTest {
             prefs = { id -> prefs?.invoke(id) ?: saved[id] ?: WebPanelPreferences() },
             savePrefs = { id, preferences -> saved[id] = preferences },
             installed = { installed },
+            lanAddress = { lanIp },
             publish = { panels -> published = panels },
             scope = scope,
             startTimeoutSeconds = 5,
@@ -942,8 +1073,11 @@ class WebPanelsTest {
         /** What successive `POST /api/pair` calls answer; the last one repeats. */
         val pairAnswers = mutableListOf<String>()
 
-        /** The environment of the last `run` — where a pairing password must be. */
+        /** The environment of the last `run` — where the account and pairing password must be. */
         var runEnv: Map<String, String> = emptyMap()
+
+        /** Whether Hermes' config still lists the dashboard login plugin as off. */
+        var authPluginOff = false
 
         override fun run(command: String, timeoutSeconds: Long, env: Map<String, String>): WebPanelGuest.Output {
             runs += command
@@ -1007,6 +1141,8 @@ class WebPanelsTest {
         }
 
         override fun logTail(panel: WebPanel): String = log
+
+        override fun authPluginDisabled(panel: WebPanel): Boolean = authPluginOff
     }
 }
 
@@ -1017,3 +1153,10 @@ private const val ONE_USE_LINK =
         "  http://127.0.0.1:9120/?ticket=TICKET"
 
 private const val LAUNCH_ONE_USE = "hermes webapp --no-open"
+
+/** What `hermes webapp --no-open` prints behind the dashboard's sign-in, verbatim from `webapp_launcher`. */
+private const val SIGN_IN_LINK =
+    "Open the Webapp and sign in with your dashboard account: http://127.0.0.1:9120/"
+
+/** The phone's own address on the network the tests pretend to be on. */
+private const val LAN_IP = "192.168.1.50"

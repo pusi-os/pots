@@ -38,8 +38,9 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_web_panel_autostart
+import pots.composeapp.generated.resources.pots_build_web_panel_hermes_lan_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_link_hint
-import pots.composeapp.generated.resources.pots_build_web_panel_hermes_sign_in_hint
+import pots.composeapp.generated.resources.pots_build_web_panel_hermes_local_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copied
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copy
 import pots.composeapp.generated.resources.pots_build_web_panel_password_hide
@@ -49,16 +50,20 @@ import pots.composeapp.generated.resources.pots_build_web_panel_retry
 import pots.composeapp.generated.resources.pots_build_web_panel_start
 import pots.composeapp.generated.resources.pots_build_web_panel_starting
 import pots.composeapp.generated.resources.pots_build_web_panel_stop
+import pots.composeapp.generated.resources.pots_build_web_panel_username
 import pots.composeapp.generated.resources.pots_build_web_panels_description
+import pots.composeapp.generated.resources.pots_build_web_panels_lan_note
 import pots.composeapp.generated.resources.pots_build_web_panels_title
 
 /**
  * The agents' web panels, one row each: start it, see the address it actually
  * listens on, open it in the device's own browser, stop it.
  *
- * Nothing here is an in-app WebView. The panels are served on loopback — the
- * phone's own, because proot shares the network — so the URL is handed to
- * whatever browser the device defaults to.
+ * Nothing here is an in-app WebView. OpenCode and Pi serve on the phone's own
+ * loopback — proot shares the network, so that address is the phone's — while
+ * Hermes binds the local network and asks for a login, so its row shows the
+ * address other devices dial and the account to sign in with. Either way the URL
+ * is handed to whatever browser the device defaults to.
  */
 @Composable
 internal fun WebPanelsCard(
@@ -84,6 +89,13 @@ internal fun WebPanelsCard(
         )
         Text(
             text = stringResource(Res.string.pots_build_web_panels_description),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // Said once, plainly: the Hermes port is open to every device on whatever
+        // network the phone is on, and the password is what keeps them out.
+        Text(
+            text = stringResource(Res.string.pots_build_web_panels_lan_note),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -189,8 +201,19 @@ private fun WebPanelRow(
                 when (status.open) {
                     WebPanelOpen.MINTED_LINK ->
                         PanelHint(stringResource(Res.string.pots_build_web_panel_hermes_link_hint))
+                    // Behind the sign-in gate the address itself decides who can
+                    // reach the panel: a LAN one opens from another device, a
+                    // loopback one only from this phone, and the row says which.
                     WebPanelOpen.DASHBOARD_SIGN_IN ->
-                        PanelHint(stringResource(Res.string.pots_build_web_panel_hermes_sign_in_hint))
+                        PanelHint(
+                            stringResource(
+                                if (WebPanels.isLoopback(status.url)) {
+                                    Res.string.pots_build_web_panel_hermes_local_hint
+                                } else {
+                                    Res.string.pots_build_web_panel_hermes_lan_hint
+                                },
+                            ),
+                        )
                     // Nothing to explain: the tap mints a pairing code and the
                     // browser lands signed in. Wording for the row is the buttons
                     // card's, not this one's.
@@ -201,6 +224,15 @@ private fun WebPanelRow(
                         } else {
                             Unit
                         }
+                }
+                // The login the panel asks for, right above the password it goes with.
+                if (panel.id == WebPanels.HERMES) {
+                    Text(
+                        text = stringResource(Res.string.pots_build_web_panel_username, WebPanels.HERMES_USER),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
                 if (panel.passwordEnv != null) {
                     PasswordLine(

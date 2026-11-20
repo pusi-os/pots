@@ -50,19 +50,42 @@ class AndroidWebPanelGuest(
 
     /**
      * Hermes takes its panel port from `webapp.port`, so the port is written into
-     * its config. Only that block is replaced: the rest of the file belongs to
-     * Hermes and to the provider config Pots writes on every agent start.
+     * its config — and the dashboard's login plugin is dropped from
+     * `plugins.disabled` in the same write. The panel binds the LAN, so Hermes
+     * gates it, and a disabled `basic` plugin would leave that gate with no
+     * provider and the page saying "sign-in unavailable". Only those two things
+     * change: the rest of the file belongs to Hermes and to the provider config
+     * Pots writes on every agent start.
      */
     override fun configure(panel: WebPanel, port: Int): Boolean {
         if (panel.id != WebPanels.HERMES) return true
-        val marker = paths.readMarker() ?: return false
+        val file = hermesConfig(panel) ?: return false
         return runCatching {
-            val file = File(paths.homeDir(marker), ".hermes/config.yaml")
             file.parentFile?.mkdirs()
             val current = if (file.exists()) file.readText() else ""
-            file.writeText(SandboxAgentConfig.withWebappPort(current, port))
+            file.writeText(
+                SandboxAgentConfig.withWebappPort(SandboxAgentConfig.withBasicAuthPluginEnabled(current), port),
+            )
             true
-        }.onFailure { Log.e(TAG, "could not write the Hermes webapp port", it) }.getOrDefault(false)
+        }.onFailure { Log.e(TAG, "could not write the Hermes webapp config", it) }.getOrDefault(false)
+    }
+
+    /**
+     * The read-back of the fix [configure] makes: a config that still disables the
+     * plugin means the gate would open on "sign-in unavailable", and the runtime
+     * says so instead of reporting a panel nobody can get into.
+     */
+    override fun authPluginDisabled(panel: WebPanel): Boolean {
+        val file = hermesConfig(panel) ?: return false
+        if (!file.exists()) return false
+        val text = runCatching { file.readText() }.getOrNull() ?: return false
+        return SandboxAgentConfig.disabledPlugins(text).any { it in SandboxAgentConfig.BASIC_AUTH_PLUGINS }
+    }
+
+    private fun hermesConfig(panel: WebPanel): File? {
+        if (panel.id != WebPanels.HERMES) return null
+        val marker = paths.readMarker() ?: return null
+        return File(paths.homeDir(marker), ".hermes/config.yaml")
     }
 
     override fun pid(panel: WebPanel): Int? =
