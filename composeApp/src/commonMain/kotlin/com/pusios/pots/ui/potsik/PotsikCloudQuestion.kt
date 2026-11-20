@@ -21,7 +21,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * [toFile] is the platform's own conversion — the frame is written to the cache
  * and handed to the chat as the very `PlatformFile` the picker gives it — but
  * *when* it is called and what a null answer means are decided here, where they
- * can be tested without a device.
+ * can be tested without a device. It suspends because the frame is a full-screen
+ * PNG and its write belongs off the thread that asked; [ask] waits for it, so
+ * the question still goes out only once the file has landed.
  *
  * The frame is spent by the question it rides with: a second question asked a
  * minute later is about another app on another screen, and a picture of the
@@ -31,7 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class PotsikCloudQuestion(
     private val asker: PotsikCloudAsker,
-    private val toFile: (PotsikShot) -> PlatformFile?,
+    private val toFile: suspend (PotsikShot) -> PlatformFile?,
 ) {
 
     /** What asking turned out to be. */
@@ -78,8 +80,11 @@ class PotsikCloudQuestion(
      *
      * [decorate] is the caller's last word on the text — the assist screen
      * context, which is spent by the same question.
+     *
+     * Suspends while the frame is written to the cache: the tap that asked
+     * returns to the screen at once, and the question follows the file.
      */
-    fun ask(draft: String, decorate: (String) -> String = { it }): Outcome {
+    suspend fun ask(draft: String, decorate: (String) -> String = { it }): Outcome {
         if (draft.isBlank()) return Outcome.Nothing
         val pending = _shot.value
         val file = if (pending == null) {

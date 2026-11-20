@@ -4,6 +4,7 @@ import com.pusios.pots.testutil.FakeDataRepository
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -39,7 +40,7 @@ class PotsikCloudQuestionTest {
     private fun question(
         repository: FakeDataRepository,
         scheduler: TestCoroutineScheduler,
-        toFile: (PotsikShot) -> PlatformFile? = { platformFile() },
+        toFile: suspend (PotsikShot) -> PlatformFile? = { platformFile() },
     ): PotsikCloudQuestion = PotsikCloudQuestion(
         // The asker's own dispatcher has to share the test's scheduler, or its
         // coroutines never run inside advanceUntilIdle().
@@ -117,6 +118,32 @@ class PotsikCloudQuestionTest {
         // for the retry, and so is the draft the overlay keeps.
         assertTrue(repository.askCalls.isEmpty())
         assertNotNull(question.shot.value)
+    }
+
+    @Test
+    fun `a frame that is still being written holds the question back`() = runTest {
+        // The frame is written off the caller's thread — the write suspends —
+        // and the question follows it: nothing may go out while the picture is
+        // still only in memory.
+        val repository = FakeDataRepository()
+        var landed = false
+        val question = question(
+            repository = repository,
+            scheduler = testScheduler,
+            toFile = {
+                delay(50)
+                landed = true
+                platformFile()
+            },
+        )
+        question.attach(shot)
+
+        question.ask("что тут на экране")
+
+        assertTrue(landed, "ask returns only once the frame is on disk")
+        assertEquals(0, repository.askCalls.size, "nothing is asked while the frame is being written")
+        advanceUntilIdle()
+        assertEquals(1, repository.askCalls.single().second.size, "the frame still rides with the question")
     }
 
     @Test

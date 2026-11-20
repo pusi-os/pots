@@ -126,6 +126,11 @@ The picture is written to the app cache as a PNG and handed to the chat as a
 pipeline classifies, compresses and attaches it, so the message in the history
 is an ordinary message with a picture — no second message format.
 
+The write is a full screen of a few megabytes, and the asker is a tap or a
+recognized phrase, so it happens on `Dispatchers.IO`: the cloud is suspended
+until the file has landed and the question follows the file, instead of the main
+thread of a window over somebody else's app waiting for the disk.
+
 ## Where the code is
 
 | File | What it is |
@@ -136,6 +141,7 @@ is an ordinary message with a picture — no second message format.
 | `composeApp/src/androidMain/.../overlay/PotsikScreenCaptureService.kt` | The session: `mediaProjection` foreground service, one virtual display, one frame on demand |
 | `composeApp/src/androidMain/.../overlay/PotsikScreenCapture.kt` | The channel between the three, and the projector over the service |
 | `composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt` | What the pill shows, and when the mode ends |
+| `composeApp/src/androidMain/.../overlay/PotsikShotFile.kt` | The frame as the chat's `PlatformFile`: the PNG in the cache, written on `Dispatchers.IO` |
 | `composeApp/src/commonTest/.../ui/potsik/PotsikScreenShotTest.kt` | Row strides, the caption, the consent decision |
 | `composeApp/src/commonTest/.../ui/potsik/PotsikScreenModeTest.kt` | The whole cycle against a fake projector |
 

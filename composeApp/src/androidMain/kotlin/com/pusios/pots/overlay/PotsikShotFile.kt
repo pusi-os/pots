@@ -4,6 +4,8 @@ import android.content.Context
 import com.pusios.pots.ui.potsik.PotsikShot
 import io.github.vinceglb.filekit.AndroidFile
 import io.github.vinceglb.filekit.PlatformFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -20,10 +22,18 @@ import java.io.File
  *
  * Null means the frame could not be handed over at all. Every caller treats that
  * as "send nothing and say so", never as "send the question without the picture".
+ *
+ * A frame of a full screen is a PNG of a few megabytes, and every caller is a
+ * tap or a recognized phrase — the main thread. So the write happens on
+ * [Dispatchers.IO], and the caller is suspended until the file has really
+ * landed: the question still goes out after the bytes are on disk, the click
+ * just does not wait for them.
  */
-internal fun potsikShotFile(context: Context, shot: PotsikShot): PlatformFile? = runCatching {
-    val dir = File(context.cacheDir, "potsik").apply { mkdirs() }
-    val file = File(dir, "screenshot-${shot.width}x${shot.height}.png")
-    file.writeBytes(shot.png)
-    PlatformFile(AndroidFile.FileWrapper(file))
-}.getOrNull()
+internal suspend fun potsikShotFile(context: Context, shot: PotsikShot): PlatformFile? = withContext(Dispatchers.IO) {
+    runCatching {
+        val dir = File(context.cacheDir, "potsik").apply { mkdirs() }
+        val file = File(dir, "screenshot-${shot.width}x${shot.height}.png")
+        file.writeBytes(shot.png)
+        PlatformFile(AndroidFile.FileWrapper(file))
+    }.getOrNull()
+}
