@@ -172,6 +172,11 @@ private fun AgentVersionRowContent(
                 )
             }
         }
+        // An installed agent keeps the same three actions in every state. The
+        // check is what says whether an update is worth taking; removal never
+        // depends on that answer, and a check that failed must not take the
+        // remove button with it — that is exactly the state a sandbox with no
+        // network is in.
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             when (val update = row.update) {
                 AgentUpdate.NotInstalled -> {
@@ -182,7 +187,8 @@ private fun AgentVersionRowContent(
                     )
                 }
 
-                is AgentUpdate.Unchecked, is AgentUpdate.CheckFailed, is AgentUpdate.UpToDate, is AgentUpdate.UpdateFailed -> {
+                is AgentUpdate.Unchecked, is AgentUpdate.CheckFailed, is AgentUpdate.UpToDate,
+                is AgentUpdate.Available, is AgentUpdate.UpdateFailed -> {
                     AgentAction(
                         label = stringResource(
                             if (update is AgentUpdate.CheckFailed) {
@@ -194,26 +200,10 @@ private fun AgentVersionRowContent(
                         enabled = !busy,
                         onClick = onCheck,
                     )
-                    if (update is AgentUpdate.UpToDate) {
-                        AgentAction(
-                            label = stringResource(Res.string.pots_build_agents_remove),
-                            enabled = !busy,
-                            onClick = onRemove,
-                            error = true,
-                        )
-                    }
-                }
-
-                is AgentUpdate.Available -> {
                     AgentAction(
                         label = stringResource(Res.string.pots_build_agents_update),
                         enabled = !busy,
                         onClick = onUpdate,
-                    )
-                    AgentAction(
-                        label = stringResource(Res.string.pots_build_agents_check),
-                        enabled = !busy,
-                        onClick = onCheck,
                     )
                     AgentAction(
                         label = stringResource(Res.string.pots_build_agents_remove),
