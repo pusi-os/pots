@@ -72,6 +72,13 @@ data class PotsBuildState(
      * usable has no entry, and the UI says so rather than inventing one.
      */
     val agentVersions: ImmutableMap<String, String> = persistentMapOf(),
+    /**
+     * What each agent's version row is showing: unchecked, up to date, a newer
+     * release available, a check that failed, or an update in flight. Separate
+     * from [agentVersions] because "what is installed" and "what is newest" are
+     * two different facts, and only their comparison may say "up to date".
+     */
+    val agentUpdates: ImmutableMap<String, AgentUpdate> = persistentMapOf(),
     /** Folder names under the Linux home's `projects` directory. */
     val projects: ImmutableList<String> = persistentListOf(),
     /**
