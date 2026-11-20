@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -750,6 +750,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#retry-and-fallback-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retry and fallback policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#heartbeat-log" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1184,6 +1195,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Android Assistant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../settings-export-import/" class="md-nav__link">
         
   
@@ -1388,6 +1427,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#retry-and-fallback-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retry and fallback policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#heartbeat-log" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1460,7 +1510,7 @@
 
 
 <h1 id="heartbeat">Heartbeat</h1>
-<p><strong>Last verified:</strong> 2026-10-25</p>
+<p><strong>Last verified:</strong> 2026-11-19</p>
 <blockquote>
 <p>Heartbeat is user-controlled (on/off toggle, interval, active hours live in the settings UI). The AI cannot enable, disable, or reschedule it. To customise <em>what happens on each heartbeat</em>, the AI creates heartbeat-triggered scheduled tasks via <code>schedule_task</code> with <code>on_heartbeat: true</code> — these are <code>HEARTBEAT</code>-trigger tasks (see <a href="../tasks/">tasks.md</a>) and their prompts are appended to every heartbeat run under <code>## Heartbeat Additions</code>. Each addition is a first-class task the user can see, edit, and cancel.</p>
 </blockquote>
@@ -1479,9 +1529,11 @@
 <li><strong>Interval</strong>: 30 minutes between heartbeats (UI slider offers 5m, 10m, 15m, 30m, 45m, 1h, 2h, 4h)</li>
 <li><strong>Active hours start</strong>: 8 (hour, 24h format; UI range slider covers 0–23)</li>
 <li><strong>Active hours end</strong>: 22 (hour, 24h format; UI range slider covers 0–24, where 24 renders as 0:00 and means end-of-day)</li>
-<li><strong>Model</strong>: optional override for which service+model to use for heartbeats. When not set, the default path prefers the first configured <strong>remote</strong> service, then falls back to the first on-device (LiteRT) instance if no remote is configured. Useful for selecting a cheaper or faster model for background checks</li>
-<li><strong>Fallback model</strong>: optional second service+model. The primary is attempted up to three times, then the fallback once. When unset, or equal to the primary, only the primary is tried</li>
+<li><strong>Model</strong>: optional override for which service+model to use for heartbeats. When set, the run goes to <em>that instance and its own selected model</em> — not to the chat's global model. When not set, the default path prefers the first configured <strong>remote</strong> service, then falls back to the first on-device (LiteRT) instance if no remote is configured. Useful for selecting a cheaper or faster model for background checks</li>
+<li><strong>Fallback model</strong>: optional second service+model. Tried once after the primary gives up (see the retry policy below). When unset, or equal to the primary, only the primary is tried</li>
 </ul>
+<p><strong>If the selected instance disappears</strong> (provider removed, instance re-created with a new id, settings imported from another device) the run does <strong>not</strong> silently substitute another provider. With no reserve configured it fails and the journal says <code>configured instance not found: &lt;id&gt;</code>; with a reserve configured the run goes through that reserve and records a success whose note says <code>fell back to &lt;reserve&gt; after configured instance not found: &lt;id&gt;</code>. Either way the journal names the missing pin, so the owner never reads the behaviour of a model they did not choose without being told. The slot is cleared the next time the settings screen loads.</p>
+<p><strong>Provider classes</strong> — the same path serves all of them: an OpenAI-compatible remote, the on-device LiteRT model, and a keyless endpoint (a local Ollama/LM Studio instance, <code>requiresApiKey = false</code>). A keyless instance sends <strong>no</strong> <code>Authorization</code> header at all — an empty header reads as a malformed credential to several gateways and would turn a working local setup into a 401.</p>
 <p>UI validation rules:</p>
 <ul>
 <li>Interval must be at least 5 minutes</li>
@@ -1489,7 +1541,7 @@
 </ul>
 <h2 id="execution-flow">Execution Flow</h2>
 <ol>
-<li>The task scheduler polls every 60 seconds. Heartbeat and due scheduled tasks share the retry policy: three primary-model attempts followed by one fallback attempt.</li>
+<li>The task scheduler polls every 60 seconds. Heartbeat and due scheduled tasks share one retry policy: up to three attempts against the primary instance, then one attempt against the fallback. Which failures are repeated is decided by class, not by count — see <a href="#retry-and-fallback-policy">Retry and fallback policy</a>.</li>
 <li>On each poll, it checks: is the overall scheduling-enabled toggle on (the tasks setting that gates all scheduled work)? Is heartbeat enabled? Is the current hour within active hours? Has the configured interval elapsed since the last heartbeat?</li>
 <li>If all conditions are met and no other API call is in progress, a heartbeat prompt is built and sent to the AI with the full tool-calling loop. Tool calls (e.g. shell commands) are bound to the heartbeat conversation's own session, not to whichever chat the user is viewing</li>
 <li>The last heartbeat timestamp is updated and a log entry is recorded</li>
@@ -1522,13 +1574,86 @@
 <li><strong>Promotion candidates</strong> — memories with 5 or more hits are listed with their key, hit count, category, and content, along with a suggestion to use the <code>promote_learning</code> tool</li>
 </ol>
 <p>For the full contract of every prompt variation in Pots (chat remote/local, heartbeat, Splinterlands) see <a href="../system-prompts/">system-prompts.md</a>.</p>
+<h2 id="retry-and-fallback-policy">Retry and fallback policy</h2>
+<p>The failure class decides whether the same instance is tried again. Every failure carries a <code>ProviderFailureReason</code>, and that reason is what the journal prints first.</p>
+<table>
+<thead>
+<tr>
+<th>Reason</th>
+<th>Cause</th>
+<th>Retried?</th>
+<th>What the journal shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Unauthorized</code></td>
+<td>401, rejected/absent API key</td>
+<td>no — goes straight to the fallback</td>
+<td><code>Unauthorized: 401 Unauthorized (Polza.ai / gpt-4o)</code></td>
+</tr>
+<tr>
+<td><code>ModelNotFound</code></td>
+<td>404, the model id is not served by this provider</td>
+<td>no</td>
+<td><code>ModelNotFound: …</code></td>
+</tr>
+<tr>
+<td><code>BadResponse</code></td>
+<td>400/413/422, content policy, unreadable JSON</td>
+<td>no</td>
+<td><code>BadResponse: &lt;provider text&gt;</code></td>
+</tr>
+<tr>
+<td><code>BadResponse</code> (empty body)</td>
+<td>the provider answered with nothing at all</td>
+<td>yes — the one <code>BadResponse</code> shape a retry helps</td>
+<td><code>BadResponse (Polza.ai / gpt-4o)</code></td>
+</tr>
+<tr>
+<td><code>RateLimited</code></td>
+<td>429, provider overloaded</td>
+<td>yes</td>
+<td><code>RateLimited: 429 Too Many Requests</code></td>
+</tr>
+<tr>
+<td><code>Timeout</code></td>
+<td>request or socket timeout, attempt exceeded the budget</td>
+<td>yes</td>
+<td><code>Timeout: no answer within 90s</code></td>
+</tr>
+<tr>
+<td><code>Unreachable</code></td>
+<td>DNS, refused connection, TLS failure, 5xx from the provider</td>
+<td>yes</td>
+<td><code>Unreachable: connection refused</code></td>
+</tr>
+<tr>
+<td><code>Unknown</code></td>
+<td>anything unclassified</td>
+<td>yes (preserves the old behaviour)</td>
+<td><code>Unknown: &lt;detail&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<p>Retries stop at three attempts <strong>and</strong> at a 90-second wall-clock budget for the primary instance; a single attempt is bounded by whatever is left of that budget, so a hanging endpoint can no longer own three full request timeouts. Backoff is 2 s, then 4 s. Quota/credit exhaustion (<code>RateLimited</code> in shape) is <strong>not</strong> retried — a retry cannot restore the balance.</p>
+<p>The reason appears <strong>once</strong> in the line. A connection failure already carries <code>&lt;reason&gt;: &lt;detail&gt;</code> inside its own message, so the journal prints <code>&lt;reason&gt;: &lt;detail&gt; (&lt;provider / model&gt;)</code> and never <code>&lt;reason&gt;: &lt;reason&gt;: …</code>.</p>
+<p>When the primary gives up:</p>
+<ul>
+<li><strong>fallback configured</strong> → one attempt against it. If it answers, the entry is a success with a note: <code>fell back to OpenAI-Compatible API / llama3 after Unauthorized: 401 Unauthorized (Polza.ai / gpt-4o)</code>. If it fails too, the journal carries both lines: <code>&lt;primary line&gt;; fallback &lt;fallback line&gt;</code>.</li>
+<li><strong>no fallback configured</strong> → the line ends with <code>; no fallback model selected in Settings → Agent → Heartbeat</code>.</li>
+<li><strong>fallback set to the primary itself</strong> → the line ends with <code>; reserve equals the primary instance</code> — a reserve <em>is</em> selected, it just cannot take over, and saying "no fallback selected" there would be a lie.</li>
+<li><strong>nothing configured at all</strong> → <code>no configured service instances</code> (previously an empty string recorded as a successful run that did nothing).</li>
+</ul>
 <h2 id="heartbeat-log">Heartbeat Log</h2>
 <ul>
 <li>Stores up to 5 most recent heartbeat entries</li>
-<li>Each entry records success/failure, a timestamp, and an optional error message</li>
+<li>Each entry records success/failure, a timestamp, an optional error line, and an optional note</li>
 <li>Displayed in the settings UI under the heartbeat section</li>
 <li>Entries show an OK/FAIL indicator and a formatted local timestamp</li>
-<li>Failed entries display the error message (up to 3 lines, ellipsized) below the timestamp in the error color</li>
+<li>Failed entries display <code>&lt;reason&gt;: &lt;provider detail&gt; (&lt;provider / model&gt;)</code> (up to 3 lines, ellipsized) below the timestamp in the error color. The reason is a <code>ProviderFailureReason</code> name — <code>Unauthorized</code>, <code>ModelNotFound</code>, <code>RateLimited</code>, <code>Timeout</code>, <code>Unreachable</code>, <code>BadResponse</code>, <code>Unknown</code> — never a bare exception class name</li>
+<li>Successful entries with a note (today: a fallback switch) show that note in the muted color, so a run that silently used the reserve is visible</li>
+<li>Two routing failures are reported verbatim rather than with a reason prefix, because the message is already the whole answer: <code>configured instance not found: &lt;id&gt;</code> and <code>no configured service instances</code></li>
 </ul>
 <h2 id="promote-learning">Promote Learning</h2>
 <p>When a memory has been reinforced 5 or more times, it becomes a promotion candidate. The <code>promote_learning</code> tool is available to the AI in any conversation — normal chats as well as heartbeat runs — whenever the scheduled-tasks toggle is on (it is hidden when scheduling is off). It:</p>

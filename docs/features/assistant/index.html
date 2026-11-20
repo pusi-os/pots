@@ -1,0 +1,1731 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Pots - AI Assistant App">
+      
+      
+      
+        <link rel="canonical" href="https://pusi-os.github.io/pots/docs/features/assistant/">
+      
+      
+        <link rel="prev" href="../potsiki/">
+      
+      
+        <link rel="next" href="../settings-export-import/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Android Assistant - Pots Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#pots-as-the-android-assistant" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Pots Documentation" class="md-header__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pots Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Android Assistant
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Pots Documentation" class="md-nav__button md-logo" aria-label="Pots Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pots Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat & Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hands-free/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hands-Free Voice Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dynamic-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mini-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mini-app-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mini-app server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../heartbeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../encryption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encryption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../on-device-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    On-Device Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasoning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Sandbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pots-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pots Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../potsiki/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Потсики (Character)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Android Assistant
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Android Assistant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#becoming-the-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Becoming the assistant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#activation-the-gesture-and-only-the-gesture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Activation: the gesture, and only the gesture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-gesture-opens-already-listening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The gesture opens Потсик already listening
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-snapshot-is-and-what-it-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the snapshot is, and what it is not
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#without-the-role-the-screenshot-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Without the role: the screenshot flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-deliberately-not-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is deliberately not here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-export-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings Export & Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splinterlands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splinterlands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../desktop-release-smoketest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop Release Smoke Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#becoming-the-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Becoming the assistant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#activation-the-gesture-and-only-the-gesture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Activation: the gesture, and only the gesture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-gesture-opens-already-listening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The gesture opens Потсик already listening
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-snapshot-is-and-what-it-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the snapshot is, and what it is not
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#without-the-role-the-screenshot-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Without the role: the screenshot flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-deliberately-not-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is deliberately not here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="pots-as-the-android-assistant">Pots as the Android assistant</h1>
+<p><strong>Last verified:</strong> 2026-11-19</p>
+<p>What changes when Pots holds the system's assistant role, what the role buys,
+and what stays the same without it.</p>
+<p>The short version: the role gives Pots <strong>the text of the screen at the moment
+the assistant gesture is used</strong>, and nothing else. Everything else — the
+character, the cloud, the voice loop, the screenshot flow — works exactly the
+same with the role and without it.</p>
+<h2 id="becoming-the-assistant">Becoming the assistant</h2>
+<p>The role is <code>ROLE_ASSISTANT</code>, and Android does not let an app ask for it:
+AOSP marks it <code>requestable="false"</code>, so there is no dialog to raise from code.
+The user assigns it in the system's own screen — Settings → Apps → Default apps
+→ <strong>Digital assistant app</strong> — which is what the settings card's
+[Открыть приложения по умолчанию] button opens.</p>
+<p>For Pots to appear in that list at all, the app has to declare a voice
+interaction service:</p>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PotsVoiceInteractionService</code>, <code>BIND_VOICE_INTERACTION</code>, exported, <code>android.voice_interaction</code> metadata</td>
+<td><code>androidApp/src/main/AndroidManifest.xml</code></td>
+</tr>
+<tr>
+<td><code>@xml/voice_interaction_service</code> — <code>sessionService</code>, <code>recognitionService</code>, <code>supportsAssist</code></td>
+<td><code>androidApp/src/main/res/xml/</code></td>
+</tr>
+<tr>
+<td><code>PotsVoiceInteractionSessionService</code> — one session per invocation</td>
+<td><code>composeApp/src/androidMain/.../assistant/</code></td>
+</tr>
+<tr>
+<td><code>PotsVoiceInteractionSession</code> — reads the snapshot, opens the surface</td>
+<td>same</td>
+</tr>
+<tr>
+<td><code>PotsAssistRecognitionService</code> — a stub the metadata has to name</td>
+<td>same</td>
+</tr>
+</tbody>
+</table>
+<p>Two details are easy to miss and both are load-bearing:</p>
+<ul>
+<li><strong><code>usesAssistData</code> and <code>usesAssistStructureScreenContent</code></strong> in the metadata,
+  plus <code>READ_ASSIST_STRUCTURE_SCREEN_CONTENT</code> in the manifest. Pots targets
+  SDK 37, and from there the platform no longer hands assist data to
+  assistants implicitly — an app that does not declare the intent gets a
+  session with an <code>ActivityId</code> and no content. The permission is <code>normal</code>:
+  granted at install, no dialog. The user's own consent is the
+  <strong>«Use text from screen»</strong> switch on the assistant screen, which is on by
+  default.</li>
+<li><strong><code>recognitionService</code></strong> must point at something. Android 12+ never calls
+  it, but leaving it out makes the system reset the assistant on the app.
+  Pots' stub answers every request with an error; the listening itself is the
+  hands-free loop's recognizer.</li>
+</ul>
+<p>Once the service is declared, the assist gesture stops reaching the
+<code>ACTION_ASSIST</code> activity: the system routes it to the voice interaction
+service instead. The Quick Settings tile still sends <code>ACTION_ASSIST</code> and keeps
+working — that path is a plain activity launch, not a gesture.</p>
+<h2 id="activation-the-gesture-and-only-the-gesture">Activation: the gesture, and only the gesture</h2>
+<p>There is no wake word. The owner's decision, and the platform agrees with it:</p>
+<ul>
+<li>a <strong>native hotword detector</strong> would be <code>VoiceInteractionService</code>'s own
+  always-on listening, which is <code>@SystemApi</code> — third-party apps cannot use it;</li>
+<li>a <strong>custom one</strong> (Vosk or any other local recognizer running all the time)
+  means a permanently open microphone and a permanently running foreground
+  service, for a feature the gesture already covers.</li>
+</ul>
+<p>So Pots is invoked by the system gesture — long-press Home, swipe up from a
+bottom corner, or the power-button assistant — exactly like any other
+assistant. The user can also use the Quick Settings tile or the voice button
+in the chat, which are ordinary entry points and do not need the role.</p>
+<h2 id="the-gesture-opens-already-listening">The gesture opens Потсик already listening</h2>
+<p>An invocation is two things, in this order:</p>
+<ol>
+<li><code>onShow</code> — the gesture arrived. The system has bound the session like a
+   visible foreground service and allowed it to start activities from the
+   background, which is why the microphone can be opened from here at all.</li>
+<li><code>onHandleAssist</code> — the screen's text, asynchronously, a moment later.</li>
+</ol>
+<p>The session waits up to 1.2 s for the snapshot and then opens one of two
+surfaces:</p>
+<ul>
+<li><strong>Потсик is on the screen</strong> (the «Поверх окон» mode is on, the character
+  stands over somebody else's app) — the cloud opens over him, already
+  listening, with the screen's text in hand. This is the surface the feature
+  exists for: a question about what is on the screen, asked without leaving
+  that screen.</li>
+<li><strong>There is no pet</strong> (the mode is off, the overlay permission is gone, the
+  app is in front) — the app opens through its own assist path: a fresh chat
+  with the microphone already open. The snapshot is <em>not</em> carried over: the
+  chat is a different conversation, and the screen of one moment has no place
+  in a question asked later.</li>
+</ul>
+<p>The microphone is the hands-free loop's own (<code>HandsFreeController</code>), the same
+one the microphone button in the cloud uses. There is exactly one owner of the
+microphone, and what the gesture does is decided by the loop's state
+(<code>assistInvocationAction</code>, <code>commonMain</code>, tested on a desktop):</p>
+<table>
+<thead>
+<tr>
+<th>Loop state</th>
+<th>What the gesture does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Idle</code>, <code>Error</code></td>
+<td>opens the microphone (<code>start()</code>) — the pill goes to Listening</td>
+</tr>
+<tr>
+<td><code>Speaking</code></td>
+<td>cuts the answer short (<code>interruptAndListen()</code>) and listens — the person invoked the assistant because they want to be heard</td>
+</tr>
+<tr>
+<td><code>Listening</code>, <code>Thinking</code>, <code>NoMatch</code></td>
+<td>does not touch the microphone at all: the snapshot is attached to the next question and the pill keeps its phase</td>
+</tr>
+</tbody>
+</table>
+<p>The third row is the rule that matters: <code>cancel()</code> is asynchronous, so starting
+a new recognition session on top of a live one produced <code>ERROR_RECOGNIZER_BUSY</code>
+on the microphone button before, and the same would happen here. <code>NoMatch</code> is in
+that row because the loop reopens the microphone by itself two seconds later;
+<code>Thinking</code> because the question has already been asked. <code>Error</code> is deliberately
+<em>not</em> "in progress" — the loop has already stopped listening there, so a fresh
+gesture is a fresh attempt.</p>
+<p><code>interruptAndListen()</code> exists for the second row: <code>start()</code> during speech would
+raise the recognizer on top of a live synthesizer, and <code>stop()</code> + <code>start()</code> would
+clear the transcript, drop to <code>Idle</code> and ask for the microphone permission again
+on every gesture. It silences the voice first, then opens the microphone, which
+keeps the "recognizer and synthesizer never run at once" invariant.</p>
+<p>If the microphone permission was revoked, nothing crashes and nothing stays
+silent: the pill says «Нет доступа к микрофону» and offers [Настройки], which
+opens the app's system page — an overlay window cannot raise the permission
+dialog itself.</p>
+<h2 id="what-the-snapshot-is-and-what-it-is-not">What the snapshot is, and what it is not</h2>
+<p><code>AssistState.getAssistStructure()</code> is a <strong>one-shot snapshot of the top
+activity, taken when the assistant was invoked</strong>. There is no public API to
+re-read the screen later in the same session; the only way to refresh it is to
+show the session again, which snapshots whatever is on top at that moment.</p>
+<p>For Pots this is enough, and the UI says so: while the snapshot is attached to
+the next question, the cloud carries the line <strong>«Текст экрана снят при
+вызове Потса»</strong>. The snapshot is spent by the first question — a second
+question a minute later is about a different screen, and pretending otherwise
+would be a lie in the prompt.</p>
+<p>What comes out of the snapshot (<code>assistScreenText</code>, <code>commonMain</code>, tested on a
+desktop):</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pre-order, left to right</td>
+<td>the order a screen reader reads the screen in</td>
+</tr>
+<tr>
+<td><code>text</code>, then <code>contentDescription</code>, then <code>hint</code></td>
+<td>an icon button has only the second, an empty field only the third</td>
+</tr>
+<tr>
+<td>a blocked node hides its subtree</td>
+<td><code>importantForAssist=false</code> means "not for assist", and a child of it is just as much the app's content</td>
+</tr>
+<tr>
+<td>a repeated line is kept once</td>
+<td>the same word in a header and in a list row is one word of context</td>
+</tr>
+<tr>
+<td>whitespace collapsed, empty lines dropped</td>
+<td>a snapshot is full of layout text that says nothing</td>
+</tr>
+<tr>
+<td>≤ 1500 nodes, ≤ 6 KB, then <code>[… screen text truncated]</code></td>
+<td>a prompt, not a book; the mark says the model is looking at a part</td>
+</tr>
+</tbody>
+</table>
+<p>The node cap lives in one place, on purpose: <code>assistScreenText</code> stops <em>reading</em>
+at 1500 nodes or 6 KB, whichever comes first, and that same decision adds the
+<code>[… screen text truncated]</code> mark. The Android walk has no budget of its own —
+two independent limits on one path is exactly how a snapshot gets trimmed by one
+of them while the other says nothing about it. A snapshot with nothing readable
+in it is <code>""</code>, never a bare mark: there is no text that was cut.</p>
+<p>A <code>FLAG_SECURE</code> window arrives as an empty stub — there is nothing to read, and
+nothing is invented. That is also why the cloud can open with no context at
+all: the gesture is not a promise that the screen was readable.</p>
+<p>The snapshot is attached to the question as a block <strong>after</strong> the user's words,
+under a header (<code>assist_screen_context_header</code>), so the chat shows what was
+sent and the person's question is not misquoted.</p>
+<h2 id="without-the-role-the-screenshot-flow">Without the role: the screenshot flow</h2>
+<p>The screenshot path is unchanged and does not depend on the role:</p>
+<p>«Экран» in the cloud → <code>MediaProjection</code> consent → a frame → a question about
+the frame (<code>PotsikScreenCaptureService</code>, <code>PotsikScreenCapture</code>, see
+<a href="../potsiki/">Потсики</a>). It works with Pots as the assistant, with another app
+as the assistant, and with no assistant assigned at all.</p>
+<p>The mechanism is chosen by what is available, never by a stored flag
+(<code>ScreenContextAvailability</code>, <code>commonMain</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Availability</th>
+<th>Mechanism</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AssistSnapshot</code> — Pots holds the role</td>
+<td>the screen's text at invocation</td>
+</tr>
+<tr>
+<td><code>Screenshot</code> — the role is not held</td>
+<td>the MediaProjection flow</td>
+</tr>
+<tr>
+<td><code>NotOnThisPlatform</code></td>
+<td>nothing (desktop, iOS, web)</td>
+</tr>
+</tbody>
+</table>
+<p>The settings card says which one is in force, because the role's only real
+benefit is exactly that: text instead of a picture.</p>
+<h2 id="what-is-deliberately-not-here">What is deliberately not here</h2>
+<ul>
+<li><strong>No <code>AccessibilityService</code>.</strong> It would give a live view tree in any moment,
+  but it is a separate, heavy permission the user has to switch on in
+  accessibility settings, with a system warning attached. A separate decision
+  and a separate card if it is ever wanted.</li>
+<li><strong>No always-on listening.</strong> See above.</li>
+<li><strong>No screenshot from the assist path.</strong> <code>usesAssistScreenshots</code> and
+  <code>onHandleScreenshot</code> exist, but the screenshot the app actually uses is the
+  MediaProjection one — a second pipeline nobody reads would only add latency
+  to every invocation.</li>
+</ul>
+<h2 id="key-files">Key Files</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>androidApp/src/main/AndroidManifest.xml</code></td>
+<td>the <code>VoiceInteractionService</code> declaration, <code>BIND_VOICE_INTERACTION</code>, <code>android.voice_interaction</code> metadata, <code>READ_ASSIST_STRUCTURE_SCREEN_CONTENT</code></td>
+</tr>
+<tr>
+<td><code>androidApp/src/main/res/xml/voice_interaction_service.xml</code></td>
+<td><code>&lt;voice-interaction-service&gt;</code>: session service, recognition stub, <code>supportsAssist</code>, <code>usesAssistData</code>, <code>usesAssistStructureScreenContent</code></td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../assistant/PotsVoiceInteractionService.kt</code></td>
+<td>the service the system binds; no logic of its own</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../assistant/PotsVoiceInteractionSessionService.kt</code></td>
+<td>one session per invocation</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../assistant/PotsVoiceInteractionSession.kt</code></td>
+<td>waits for the snapshot, then hands the invocation over</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../assistant/PotsAssistInvocation.kt</code></td>
+<td>picks the surface: the cloud over the pet, or the app's own assist path</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../assistant/AssistStructureText.kt</code></td>
+<td>the <code>AssistStructure</code> walk: builds <code>AssistNode</code>s, no limits of its own</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../assistant/PotsAssistRecognitionService.kt</code></td>
+<td>the stub the metadata has to name; answers every request with an error</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../assistant/AssistScreenText.kt</code></td>
+<td><code>assistScreenText()</code> — the pure rules (order, dedup, blocked subtrees, limits, mark)</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../assistant/AssistInvocationAction.kt</code></td>
+<td><code>assistInvocationAction()</code> — what the gesture does to the microphone, by loop state</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../handsfree/HandsFreeController.kt</code></td>
+<td>the voice loop; <code>interruptAndListen()</code> is the gesture's entry during speech</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../assistant/ScreenContextAvailability.kt</code></td>
+<td>which mechanism is in force, by what is available</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../assistant/AssistantAvailability.kt</code></td>
+<td>whether Pots can hold the role at all (API level, whether it does)</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../overlay/PotsOverlayService.kt</code></td>
+<td>opens the cloud from an invocation</td>
+</tr>
+<tr>
+<td><code>composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt</code></td>
+<td>the cloud's window, the microphone, the assist snapshot's lifetime</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/potsik/PotsikCloudCapsule.kt</code></td>
+<td>the pill and the «Текст экрана снят при вызове Потса» note</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonMain/.../ui/settings/AssistantSettings.kt</code></td>
+<td>the settings card and the button that opens the system's default-apps screen</td>
+</tr>
+<tr>
+<td><code>composeApp/src/commonTest/.../assistant/AssistScreenTextTest.kt</code></td>
+<td>the pure rules, including the cut marks and the empty cases</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "search.highlight", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
