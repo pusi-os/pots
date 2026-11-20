@@ -36,6 +36,10 @@ jobs:
         run: |
           sdkmanager "build-tools;36.0.0"
           sdkmanager "build-tools;29.0.3"
+      - name: Build the Hermes web panel bundle
+        # The panel's renderer is built here and shipped inside the APK: the
+        # sandbox cannot run its pnpm install under --link2symlink.
+        uses: ./.github/actions/hermes-webapp-bundle
       - name: Build APK
         env:
           # Sign with the committed FOSS release key so every GitHub APK

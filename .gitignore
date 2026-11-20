@@ -34,3 +34,6 @@ __pycache__/
 /run-pots-desktop.sh
 /scripts/ollama-models.sh
 .worktrees/
+# The Hermes panel bundle is built in CI (hermes-webapp.pin) and packed into the
+# APK from here; the archive is 14 MB and belongs to a build, not to the repo.
+/composeApp/src/androidMain/assets/hermes-webapp/

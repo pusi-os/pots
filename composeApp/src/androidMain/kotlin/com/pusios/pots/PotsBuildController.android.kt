@@ -34,7 +34,7 @@ class AndroidPotsBuildController : PotsBuildController {
     private val paths: LinuxPaths by lazy { installs.pathsFor(LinuxDistro.DEBIAN) }
 
     private val manager: BuildEnvironmentManager by lazy {
-        BuildEnvironmentManager(paths).also { built ->
+        BuildEnvironmentManager(paths, context.assets).also { built ->
             // The agents in here are meant to be the agent the chat already is, so
             // every session start reads the live provider from Settings instead of
             // asking the user to configure each CLI separately.
