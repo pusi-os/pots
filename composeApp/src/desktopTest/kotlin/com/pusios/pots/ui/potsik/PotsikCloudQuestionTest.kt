@@ -5,9 +5,11 @@ import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
@@ -144,6 +146,54 @@ class PotsikCloudQuestionTest {
         assertEquals(0, repository.askCalls.size, "nothing is asked while the frame is being written")
         advanceUntilIdle()
         assertEquals(1, repository.askCalls.single().second.size, "the frame still rides with the question")
+    }
+
+    @Test
+    fun `a second question asked while the frame is being written does not take it`() = runTest {
+        // The double tap of [Отправить]: the first tap's question is inside the
+        // frame's write — the write suspends — and the second tap lands there.
+        // The frame is claimed before it is written, so the second question finds
+        // nothing to attach; one tap must not cost two paid vision requests.
+        val repository = FakeDataRepository()
+        val question = question(
+            repository = repository,
+            scheduler = testScheduler,
+            toFile = {
+                delay(50)
+                platformFile()
+            },
+        )
+        question.attach(shot)
+
+        val first = launch { question.ask("что тут на экране") }
+        runCurrent()
+        val second = launch { question.ask("что тут на экране") }
+        advanceUntilIdle()
+
+        assertEquals(1, repository.askCalls.size, "one tap means one question")
+        assertEquals(1, repository.askCalls.single().second.size, "the frame goes out once, with one attachment")
+        assertNull(question.shot.value, "the frame is spent by the question that took it")
+        first.join()
+        second.join()
+    }
+
+    @Test
+    fun `two questions without a frame are still two questions`() = runTest {
+        // Only the frame is claimed while it is written: a second typed question
+        // with no picture in hand is the asker's own «a second question replaces
+        // the first» rule, and that rule keeps working.
+        val repository = FakeDataRepository()
+        val question = question(repository, testScheduler)
+
+        val first = launch { question.ask("первый") }
+        runCurrent()
+        val second = launch { question.ask("второй") }
+        advanceUntilIdle()
+
+        assertEquals(listOf("первый", "второй"), repository.askCalls.map { it.first })
+        assertTrue(repository.askCalls.all { it.second.isEmpty() })
+        first.join()
+        second.join()
     }
 
     @Test

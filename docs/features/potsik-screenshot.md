@@ -131,6 +131,13 @@ recognized phrase, so it happens on `Dispatchers.IO`: the cloud is suspended
 until the file has landed and the question follows the file, instead of the main
 thread of a window over somebody else's app waiting for the disk.
 
+The frame is **claimed before it is written**, not after: `PotsikCloudQuestion`
+takes it out of hand and only puts it back if the write failed. Otherwise the
+window the write opens — a few hundred milliseconds of a suspending call — is a
+window in which a second question finds the frame still in hand and attaches the
+same picture again. Two questions about one picture are two paid vision
+requests, and the second one is never what the user asked for.
+
 ## Where the code is
 
 | File | What it is |
