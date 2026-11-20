@@ -141,6 +141,9 @@ internal fun MediaCanvas(
     val frames = remember { mutableStateMapOf<String, Painter>() }
     val cardColor = MaterialTheme.colorScheme.surfaceVariant
     LayerFrames(layers, frames)
+    // One filtered list for every pass (shadows, renderer, overlay): a hidden
+    // layer is not composed, so it can neither draw nor take a tap.
+    val visibleLayers = layers.visibleLayers()
 
     Box(
         modifier
@@ -164,13 +167,14 @@ internal fun MediaCanvas(
         // Drop shadows sit under the frames: DrawScope has no shadow API in
         // common, so the silhouette stays a composable. A shadow of a higher
         // layer does not darken a lower layer's frame — the shadow-only delta
-        // of this split, no content moves.
-        LayerCardShadows(layers, canvasScale, canvasOffset, frames)
+        // of this split, no content moves. Hidden layers are not composed at
+        // all: no shadow, no frame, no hit target.
+        LayerCardShadows(visibleLayers, canvasScale, canvasOffset, frames)
 
         Canvas(Modifier.fillMaxSize()) {
             withTransform({ translate(canvasOffset.x, canvasOffset.y) }) {
                 renderLayers(
-                    layers = layers,
+                    layers = visibleLayers,
                     scale = density,
                     fonts = fonts,
                     measurer = null,
@@ -181,7 +185,9 @@ internal fun MediaCanvas(
             }
         }
 
-        layers.forEach { layer ->
+        // Hidden layers are neither drawn nor hit-tested: they are not in the
+        // composition at all, so no pointer can land on one.
+        visibleLayers.forEach { layer ->
             CanvasLayerOverlay(
                 layer = layer,
                 selected = layer.id == selectedId,
@@ -323,9 +329,8 @@ private fun CanvasLayerOverlay(
     onEditImage: (ImageLayer) -> Unit,
     onEditVideo: (VideoLayer) -> Unit,
 ) {
-    // A hidden layer keeps its data and its place in the draw order; it just
-    // is not composited.
-    if (!layer.transform.visible) return
+    // The caller filters hidden layers out (`visibleLayers`); a hidden layer is
+    // not composed, so it cannot be drawn and cannot take a tap.
     val media = layer as? MediaLayer
     val url = media?.url
     val local = media?.localPath

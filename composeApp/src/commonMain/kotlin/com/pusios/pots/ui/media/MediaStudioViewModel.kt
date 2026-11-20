@@ -57,6 +57,7 @@ import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
 import com.pusios.pots.media.getMediaAudioFlow
 import com.pusios.pots.media.getMediaDraft
+import com.pusios.pots.media.getMediaLayersPanelOpen
 import com.pusios.pots.media.getMediaQuality
 import com.pusios.pots.media.isKnownLocalTtsId
 import com.pusios.pots.media.isLocalTts
@@ -77,6 +78,7 @@ import com.pusios.pots.media.setInstanceMediaImageModelId
 import com.pusios.pots.media.setInstanceMediaVideoModelId
 import com.pusios.pots.media.setMediaAudioFlow
 import com.pusios.pots.media.setMediaDraft
+import com.pusios.pots.media.setMediaLayersPanelOpen
 import com.pusios.pots.media.setMediaQuality
 import com.pusios.pots.media.toHistoryReference
 import com.pusios.pots.media.userMessageRu
@@ -153,6 +155,13 @@ class MediaStudioViewModel(
 
     private val _selectedId = MutableStateFlow<String?>(null)
     val selectedId: StateFlow<String?> = _selectedId.asStateFlow()
+
+    /**
+     * Layers panel: collapsed strip or open list. A UI preference, so it lives
+     * in `MediaSettings` beside the other studio ones, not in the project file.
+     */
+    private val _layersPanelOpen = MutableStateFlow(appSettings.getMediaLayersPanelOpen())
+    val layersPanelOpen: StateFlow<Boolean> = _layersPanelOpen.asStateFlow()
 
     private val _models = MutableStateFlow<List<MediaModel>>(emptyList())
     val models: StateFlow<List<MediaModel>> = _models.asStateFlow()
@@ -1170,6 +1179,31 @@ class MediaStudioViewModel(
 
     fun select(id: String?) {
         _selectedId.value = id
+    }
+
+    /** Collapsed strip ↔ open list; remembered in `MediaSettings`, not in the project. */
+    fun setLayersPanelOpen(open: Boolean) {
+        _layersPanelOpen.value = open
+        appSettings.setMediaLayersPanelOpen(open)
+    }
+
+    /**
+     * Panel reorder: the draw list is the z-order, so this is a list move. Both
+     * indices are draw-order; the panel converts from its reversed view. The
+     * saved `zIndex` is the index (`toProjectElements`), so the order is dense
+     * 0…n−1 by construction — nothing to renumber.
+     */
+    fun reorderLayer(fromDrawIndex: Int, toDrawIndex: Int) {
+        _elements.update { it.movedLayer(fromDrawIndex, toDrawIndex) }
+    }
+
+    fun setLayerVisible(id: String, visible: Boolean) {
+        _elements.update { list -> list.map { if (it.id == id) it.withVisible(visible) else it } }
+    }
+
+    /** Layer-wide opacity; the canvas composites the whole layer with this alpha. */
+    fun setLayerOpacity(id: String, opacity: Float) {
+        _elements.update { list -> list.map { if (it.id == id) it.withOpacity(opacity) else it } }
     }
 
     fun applyAction(id: String, action: CanvasAction) {
