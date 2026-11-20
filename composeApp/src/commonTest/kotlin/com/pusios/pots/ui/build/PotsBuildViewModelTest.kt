@@ -82,8 +82,8 @@ class PotsBuildViewModelTest {
         /** Agent ids passed to [updateAgent], oldest first. */
         val updated = mutableListOf<String>()
 
-        /** Agent ids passed to [removeAgent], oldest first. */
-        val removed = mutableListOf<String>()
+        /** Id-and-flag pairs passed to [removeAgent], oldest first. */
+        val removed = mutableListOf<Pair<String, Boolean>>()
 
         override fun checkAgents(agentIds: Set<String>) {
             checked += agentIds
@@ -94,7 +94,7 @@ class PotsBuildViewModelTest {
         }
 
         override fun removeAgent(agentId: String, includeBulk: Boolean) {
-            removed += agentId
+            removed += agentId to includeBulk
         }
     }
 
@@ -187,10 +187,12 @@ class PotsBuildViewModelTest {
 
         viewModel.checkAgents(setOf("pi", "opencode"))
         viewModel.updateAgent("opencode")
-        viewModel.removeAgent("pi")
+        viewModel.removeAgent("pi", includeBulk = false)
 
         assertEquals(listOf(setOf("pi", "opencode")), fakeController.checked)
         assertEquals(listOf("opencode"), fakeController.updated)
-        assertEquals(listOf("pi"), fakeController.removed)
+        // The bulk flag reaches the controller as asked: Hermes' 5.2 GB checkout
+        // is only dropped when the user says so.
+        assertEquals(listOf("pi" to false), fakeController.removed)
     }
 }
