@@ -490,7 +490,7 @@ class BuildEnvironmentManager(
      * Stops the panels that run [agentId]'s binary. pi-web is Pi's panel, so its
      * own row stops the same process: the panel and the agent are one install.
      */
-    private fun stopPanelsFor(agentId: String) {
+    private suspend fun stopPanelsFor(agentId: String) {
         val panelIds = WebPanels.all
             .filter { it.agentId == agentId || (agentId == WebPanels.PI_WEB_VERSION_KEY && it.id == WebPanels.PI) }
             .map { it.id }
