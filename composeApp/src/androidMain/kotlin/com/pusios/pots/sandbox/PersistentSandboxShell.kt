@@ -1,5 +1,6 @@
 package com.pusios.pots.sandbox
 
+import com.pusios.pots.build.BuildAgents
 import com.pusios.pots.linux.ProotHandle
 import com.pusios.pots.smartTruncate
 import kotlinx.coroutines.CancellationException
@@ -192,6 +193,14 @@ class PersistentSandboxShell(
             onStderr = { line -> dispatchStderr(line) },
         )
         handle = h
+        // The agent CLIs are all linked into /root/.local/bin (plus Pi's Node dir
+        // and OpenCode's own bin), and login shells get those dirs from the
+        // profile.d snippet Pots Build writes. This shell is started with
+        // --noprofile, so it never reads that snippet: without this line `pi`,
+        // `hermes` and `opencode` answer "command not found" on a device where
+        // all three are installed. Sent before the pid probe and before any user
+        // command, so even the first input sees the full PATH.
+        h.writeLine(BuildAgents.AGENT_PATH_EXPORT)
         // Capture bash's pid before any user command runs. The dispatcher
         // recognizes this marker on stderr and sets bashPid, so cancel on
         // the very first command has something to signal. Leading \n matches

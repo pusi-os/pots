@@ -991,18 +991,14 @@ class BuildEnvironmentManager(
      *
      * A tiny `/etc/profile.d` snippet puts every agent dir back for login shells
      * without depending on vendor rc edits. Written on the host so it does not
-     * need a proot round-trip.
+     * need a proot round-trip. The dirs come from [BuildAgents.AGENT_BIN_PATH], the
+     * same list the chat terminal exports at startup — that shell runs with
+     * `--noprofile` and never reads this file.
      */
     private fun ensureAgentPathProfile() {
         val dir = File(paths.rootfsDir, "etc/profile.d")
         dir.mkdirs()
-        File(dir, "pots-build-path.sh").writeText(
-            """
-            |# Managed by Pots Build — keep coding-agent CLIs on PATH for login shells.
-            |export PATH="/root/.local/bin:/root/.local/share/pi-node/bin:/root/.opencode/bin${'$'}{PATH:+:${'$'}PATH}"
-            |
-            """.trimMargin(),
-        )
+        File(dir, "pots-build-path.sh").writeText(BuildAgents.AGENT_PATH_PROFILE)
     }
 
     /**
