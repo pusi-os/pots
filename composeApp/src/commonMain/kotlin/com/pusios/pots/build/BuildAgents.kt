@@ -381,8 +381,17 @@ object BuildAgents {
           done
         }
         pots_install_hermes() {
+          # A shipped panel names the commit it was built from, and the installer
+          # pins the checkout there itself — on a fresh clone and on a rerun over
+          # an existing one alike (install.sh:945 and :991) — so the dependencies
+          # it installs come from that commit's uv.lock as well, not from main's.
+          # A build with no bundle passes no pin and follows main, as before.
+          POTS_PIN_ARG='--channel main'
+          if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
+            POTS_PIN_ARG="--commit ${'$'}POTS_WEBAPP_PIN"
+          fi
           # stdin closed: no answer is coming from a sandbox if the installer asks.
-          bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use --channel main < /dev/null
+          bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use ${'$'}POTS_PIN_ARG < /dev/null
         }
         pots_wrap_uv
         # A first-ever install downloads uv *inside* the installer, i.e. after the
@@ -398,14 +407,14 @@ object BuildAgents {
         # bin dir Pots Build's own PATH carries so probes find it by name.
         ln -sfn /root/.hermes/hermes-agent/.hermes/bin/hermes /root/.local/bin/hermes
         # Hermes' web panel ships with this app, built from one hermes-agent commit
-        # (POTS_WEBAPP_PIN). The installer honours `--commit` only on a fresh clone —
-        # on an existing checkout it fast-forwards to the branch's tip — so the pin
-        # is applied here, after it, and the checkout is left detached at it. That is
-        # the version the panel was built for: any other one and the panel refuses
-        # to start, which is a sentence on the row instead of a blank page.
+        # (POTS_WEBAPP_PIN), and the installer above was handed that commit. This
+        # reads the checkout back: the installer's own pin step is the thing that
+        # makes the backend and the panel one version, and a path through it that
+        # does not pin (a recorded channel it keeps, a release it decides not to
+        # move) must not leave a backend the panel was built against nothing.
         if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
           if [ "${'$'}(git -C /root/.hermes/hermes-agent rev-parse HEAD)" != "${'$'}POTS_WEBAPP_PIN" ]; then
-            echo "pots: pinning Hermes to ${'$'}POTS_WEBAPP_PIN, the commit this app's panel was built from"
+            echo "pots: Hermes is not on ${'$'}POTS_WEBAPP_PIN after the install; pinning it here"
             if git -C /root/.hermes/hermes-agent fetch --depth 1 origin "${'$'}POTS_WEBAPP_PIN" \
               && git -C /root/.hermes/hermes-agent checkout --force --detach "${'$'}POTS_WEBAPP_PIN"; then
               echo "pots: Hermes is at ${'$'}POTS_WEBAPP_PIN"

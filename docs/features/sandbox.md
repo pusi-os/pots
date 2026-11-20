@@ -199,15 +199,16 @@ not build.
 
 **One version or no panel.** A bundle built from Hermes X talking to a backend at
 Hermes Y is a blank page and 404s on the assets, with nothing on screen saying
-why. So the install leaves the sandbox checkout detached at exactly the commit
-the bundle was built from (`/root/.hermes/pots-webapp-pin`, written by the app
-before the install runs — Hermes' own installer honours `--commit` only on a
-fresh clone, so Pots applies the pin after it), and the panel reads
-`git rev-parse HEAD` back before serving anything. A mismatch — `hermes update`
-in the sandbox is the usual way — is a sentence on the row naming both commits
-and saying to reinstall Hermes, never a silently mismatched panel. A developer
-build ships no bundle, and then the row falls back to the checkout's own
-renderer and says it is missing when it was never built.
+why. So the install hands Hermes' installer the same commit as `--commit`
+(install.sh pins it there on a fresh clone and on a rerun alike), the sandbox
+checkout is left detached at exactly the commit the bundle was built from, and
+the dependencies come from that commit's `uv.lock` too. Pots then reads
+`git rev-parse HEAD` back and pins the checkout itself if the installer's path
+skipped that step; the panel reads the same value before serving anything. A
+mismatch — `hermes update` in the sandbox is the usual way — is a sentence on
+the row naming both commits and saying to reinstall Hermes, never a silently
+mismatched panel. A developer build ships no bundle, and then the row falls back
+to the checkout's own renderer and says it is missing when it was never built.
 
 ### Loopback, except Hermes on the LAN
 
