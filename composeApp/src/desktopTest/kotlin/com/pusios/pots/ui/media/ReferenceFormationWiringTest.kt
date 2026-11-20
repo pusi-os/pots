@@ -30,6 +30,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -89,7 +90,7 @@ class ReferenceFormationWiringTest {
 
         assertTrue(viewModel.addEditedImageElement(baked))
         runCurrent()
-        val element = viewModel.elements.value.single()
+        val element = assertIs<ImageLayer>(viewModel.elements.value.single())
 
         viewModel.applyAction(element.id, CanvasAction.UseAsReference)
 

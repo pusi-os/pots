@@ -91,7 +91,7 @@ private fun formatFactor(factor: Float): String {
     return "$rounded×"
 }
 
-private fun videoElementLabel(element: CanvasElement): String = element.localPath?.substringAfterLast('/') ?: element.url?.substringAfterLast('/')?.take(24) ?: "видео"
+private fun videoElementLabel(element: MediaLayer): String = element.localPath?.substringAfterLast('/') ?: element.url?.substringAfterLast('/')?.take(24) ?: "видео"
 
 /**
  * Full-screen video editor (spec §6 lineage): trim by draggable handles over
@@ -105,8 +105,8 @@ private fun videoElementLabel(element: CanvasElement): String = element.localPat
  */
 @Composable
 internal fun MediaVideoEditorSheet(
-    element: CanvasElement,
-    audioElements: List<CanvasElement>,
+    element: VideoLayer,
+    audioElements: List<AudioLayer>,
     onDismiss: () -> Unit,
     onResult: (String) -> Boolean,
 ) {
@@ -350,7 +350,7 @@ internal fun MediaVideoEditorSheet(
                     }
                     Text("Заменить на:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
-                    val canvasTracks = audioElements.filter { it.isAudio && it.localPath != null && it.id != element.id }
+                    val canvasTracks = audioElements.filter { it.localPath != null && it.id != element.id }
                     canvasTracks.forEach { track ->
                         FilterChip(
                             selected = pickedAudioRel == track.localPath,

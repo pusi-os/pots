@@ -31,6 +31,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
@@ -193,7 +194,7 @@ class MediaStudioProjectWiringTest {
 
         // Reopening brings the element back — nothing was lost silently.
         viewModel.openProject(saved.id)
-        assertEquals("media/imports/pic.png", viewModel.elements.value.single().localPath)
+        assertEquals("media/imports/pic.png", assertIs<ImageLayer>(viewModel.elements.value.single()).localPath)
     }
 
     /** «+» on a pristine empty canvas must not litter the project list. */

@@ -22,6 +22,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -80,7 +81,7 @@ class MediaStudioAspectWiringTest {
         runCurrent()
 
         assertEquals(listOf("media/imports/clip.mp4"), probed)
-        assertEquals(1280f / 720f, viewModel.elements.value.single().aspectRatio!!, 0.0001f)
+        assertEquals(1280f / 720f, assertIs<VideoLayer>(viewModel.elements.value.single()).aspectRatio!!, 0.0001f)
     }
 
     @Test
@@ -97,8 +98,7 @@ class MediaStudioAspectWiringTest {
         )
         runCurrent()
 
-        val element = viewModel.elements.value.single()
-        assertTrue(element.isVideo)
+        val element = assertIs<VideoLayer>(viewModel.elements.value.single())
         // The cached local copy is probed, not the signed URL.
         assertEquals(listOf("media/jobs/j1/0.mp4"), probed)
         assertEquals(9f / 16f, element.aspectRatio!!, 0.0001f)
@@ -112,7 +112,7 @@ class MediaStudioAspectWiringTest {
         runCurrent()
 
         assertTrue(probed.isEmpty())
-        assertTrue(viewModel.elements.value.all { it.aspectRatio == null })
+        assertTrue(viewModel.elements.value.none { it is VideoLayer && it.aspectRatio != null })
     }
 
     @Test
@@ -122,7 +122,7 @@ class MediaStudioAspectWiringTest {
         runCurrent()
 
         assertEquals(1, probed.size)
-        assertNull(viewModel.elements.value.single().aspectRatio)
+        assertNull(assertIs<VideoLayer>(viewModel.elements.value.single()).aspectRatio)
     }
 
     /** Every network method refuses: the suite must never reach a provider. */

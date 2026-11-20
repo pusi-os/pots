@@ -113,7 +113,7 @@ private val BRUSH_COLORS = listOf(
  */
 @Composable
 internal fun MediaDrawSheet(
-    target: CanvasElement?,
+    target: MediaLayer?,
     onDismiss: () -> Unit,
     onResult: (ByteArray) -> Boolean,
 ) {
@@ -516,11 +516,11 @@ private fun DrawScope.drawStrokePath(
     )
 }
 
-private suspend fun readDrawTargetBytes(element: CanvasElement): ByteArray? = when {
+private suspend fun readDrawTargetBytes(element: MediaLayer): ByteArray? = when {
     // Video node (block 7): the pencil draws over a still frame off the
     // track, at native resolution; targets without ffmpeg yield null and
     // the sheet shows the decode-failed card.
-    element.isVideo -> captureVideoFrame(element.localPath ?: element.url ?: return null)
+    element is VideoLayer -> captureVideoFrame(element.localPath ?: element.url ?: return null)
 
     element.localPath != null -> readAppStorageBytes(element.localPath!!)
 

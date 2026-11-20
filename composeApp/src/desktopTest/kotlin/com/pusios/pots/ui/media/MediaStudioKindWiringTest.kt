@@ -28,7 +28,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
@@ -123,9 +123,7 @@ class MediaStudioKindWiringTest {
         advanceTimeBy(6_000)
         runCurrent() // poll → Success + download & cache
 
-        val element = viewModel.elements.value.single()
-        assertTrue(element.isAudio, "music result must be an audio element, not an image")
-        assertFalse(element.isVideo)
+        val element = assertIs<AudioLayer>(viewModel.elements.value.single(), "music result must be an audio element, not an image")
         assertEquals("media/jobs/job-1/0.mp3", element.localPath)
         assertTrue(File(fakeHome, ".pots/media/jobs/job-1/0.mp3").exists())
         assertTrue(viewModel.historyEntries.value.single().isAudio)
@@ -145,9 +143,7 @@ class MediaStudioKindWiringTest {
         advanceTimeBy(3_000)
         runCurrent()
 
-        val element = viewModel.elements.value.single()
-        assertFalse(element.isAudio)
-        assertFalse(element.isVideo)
+        val element = assertIs<ImageLayer>(viewModel.elements.value.single())
         assertEquals("media/jobs/job-1/0.png", element.localPath)
         assertTrue(File(fakeHome, ".pots/media/jobs/job-1/0.png").exists())
     }
@@ -171,8 +167,7 @@ class MediaStudioKindWiringTest {
         advanceTimeBy(1_000)
         runCurrent()
 
-        val element = viewModel.elements.value.single()
-        assertTrue(element.isAudio, "resumed music job must land as an audio element")
+        val element = assertIs<AudioLayer>(viewModel.elements.value.single(), "resumed music job must land as an audio element")
         assertEquals("media/jobs/job-9/0.mp3", element.localPath)
     }
 
@@ -191,9 +186,7 @@ class MediaStudioKindWiringTest {
         advanceTimeBy(3_000)
         runCurrent()
 
-        val element = viewModel.elements.value.single()
-        assertTrue(element.isVideo, "video result must be a video element")
-        assertFalse(element.isAudio)
+        val element = assertIs<VideoLayer>(viewModel.elements.value.single(), "video result must be a video element")
         assertEquals("media/jobs/job-1/0.mp4", element.localPath)
         assertTrue(File(fakeHome, ".pots/media/jobs/job-1/0.mp4").exists())
         assertTrue(viewModel.historyEntries.value.single().isVideo)
@@ -216,9 +209,7 @@ class MediaStudioKindWiringTest {
         advanceTimeBy(3_000)
         runCurrent()
 
-        val element = viewModel.elements.value.single()
-        assertTrue(element.isAudio, "TTS result must be an audio element")
-        assertFalse(element.isVideo)
+        val element = assertIs<AudioLayer>(viewModel.elements.value.single(), "TTS result must be an audio element")
         assertEquals("media/jobs/job-1/0.mp3", element.localPath)
         assertTrue(File(fakeHome, ".pots/media/jobs/job-1/0.mp3").exists())
     }

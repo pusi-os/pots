@@ -130,8 +130,8 @@ private class OverlaySource(val label: String, val bytes: ByteArray)
  */
 @Composable
 internal fun MediaImageEditorSheet(
-    element: CanvasElement,
-    imageElements: List<CanvasElement>,
+    element: ImageLayer,
+    imageElements: List<ImageLayer>,
     onDismiss: () -> Unit,
     onResult: (ByteArray) -> Boolean,
 ) {
@@ -359,7 +359,7 @@ private fun fittedPreview(available: IntSize, imageWidth: Int, imageHeight: Int)
 @Composable
 private fun CropPane(
     source: PixelGrid,
-    displaySource: CanvasElement,
+    displaySource: MediaLayer,
     enabled: Boolean,
     onApply: (NormRect) -> Unit,
 ) {
@@ -623,8 +623,8 @@ private fun ResizePane(
 @Composable
 private fun OverlayPane(
     source: PixelGrid,
-    displaySource: CanvasElement,
-    imageElements: List<CanvasElement>,
+    displaySource: MediaLayer,
+    imageElements: List<ImageLayer>,
     enabled: Boolean,
     onApply: (OverlaySource, Float, Float, Float, Float) -> Unit,
 ) {
@@ -773,7 +773,7 @@ private fun OverlayPane(
 @Composable
 private fun AdjustPane(
     source: PixelGrid,
-    displaySource: CanvasElement,
+    displaySource: MediaLayer,
     enabled: Boolean,
     onApply: (Float, Float, Int, Boolean, Boolean) -> Unit,
 ) {
@@ -863,7 +863,7 @@ private fun AdjustPane(
     }
 }
 
-private suspend fun readEditTargetBytes(element: CanvasElement): ByteArray? = when {
+private suspend fun readEditTargetBytes(element: MediaLayer): ByteArray? = when {
     element.localPath != null -> readAppStorageBytes(element.localPath!!)
     element.url != null -> runCatching { PlusVibeMediaProvider().downloadResult("", element.url!!) }.getOrNull()
     else -> null

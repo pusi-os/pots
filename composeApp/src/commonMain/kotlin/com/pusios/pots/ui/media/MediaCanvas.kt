@@ -100,12 +100,14 @@ internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
 
 /**
  * The creative surface: a dotted-grid canvas with pan/zoom, draggable rounded
- * elements, selection ring with quick-transform chips, generation skeletons
+ * layers, selection ring with quick-transform chips, generation skeletons
  * and an inviting empty state.
+ *
+ * [layers] arrives in draw order (the list is the z-order); nothing here sorts.
  */
 @Composable
 internal fun MediaCanvas(
-    elements: List<CanvasElement>,
+    layers: List<CanvasLayer>,
     selectedId: String?,
     pendingJobs: List<MediaJobState>,
     canvasScale: Float,
@@ -120,16 +122,14 @@ internal fun MediaCanvas(
     onScale: (String, Float) -> Unit,
     onAction: (String, CanvasAction) -> Unit,
     onExportToGallery: (String) -> Unit,
-    onOpenLightbox: (CanvasElement) -> Unit,
-    onEditAudio: (CanvasElement) -> Unit,
-    onMakeClip: (CanvasElement) -> Unit,
-    onDrawImage: (CanvasElement) -> Unit,
-    onEditImage: (CanvasElement) -> Unit,
-    onEditVideo: (CanvasElement) -> Unit,
+    onOpenLightbox: (MediaLayer) -> Unit,
+    onEditAudio: (AudioLayer) -> Unit,
+    onMakeClip: (AudioLayer) -> Unit,
+    onDrawImage: (MediaLayer) -> Unit,
+    onEditImage: (ImageLayer) -> Unit,
+    onEditVideo: (VideoLayer) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sorted = elements.sortedBy { it.zIndex }
-
     Box(
         modifier
             .fillMaxSize()
@@ -149,13 +149,13 @@ internal fun MediaCanvas(
     ) {
         CanvasDotGrid(canvasOffset)
 
-        sorted.forEach { element ->
-            CanvasElementView(
-                element = element,
-                selected = element.id == selectedId,
+        layers.forEach { layer ->
+            CanvasLayerView(
+                layer = layer,
+                selected = layer.id == selectedId,
                 canvasScale = canvasScale,
                 canvasOffset = canvasOffset,
-                onSelect = { onSelect(element.id) },
+                onSelect = { onSelect(layer.id) },
                 onMove = onMove,
                 onRotate = onRotate,
                 onScale = onScale,
@@ -178,7 +178,7 @@ internal fun MediaCanvas(
             }
         }
 
-        if (sorted.isEmpty() && pendingJobs.isEmpty()) {
+        if (layers.isEmpty() && pendingJobs.isEmpty()) {
             Box(Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                     Icon(
@@ -226,8 +226,8 @@ private fun CanvasDotGrid(canvasOffset: Offset) {
 }
 
 @Composable
-private fun CanvasElementView(
-    element: CanvasElement,
+private fun CanvasLayerView(
+    layer: CanvasLayer,
     selected: Boolean,
     canvasScale: Float,
     canvasOffset: Offset,
@@ -237,34 +237,47 @@ private fun CanvasElementView(
     onScale: (String, Float) -> Unit,
     onAction: (String, CanvasAction) -> Unit,
     onExportToGallery: (String) -> Unit,
-    onOpenLightbox: (CanvasElement) -> Unit,
-    onEditAudio: (CanvasElement) -> Unit,
-    onMakeClip: (CanvasElement) -> Unit,
-    onDrawImage: (CanvasElement) -> Unit,
-    onEditImage: (CanvasElement) -> Unit,
-    onEditVideo: (CanvasElement) -> Unit,
+    onOpenLightbox: (MediaLayer) -> Unit,
+    onEditAudio: (AudioLayer) -> Unit,
+    onMakeClip: (AudioLayer) -> Unit,
+    onDrawImage: (MediaLayer) -> Unit,
+    onEditImage: (ImageLayer) -> Unit,
+    onEditVideo: (VideoLayer) -> Unit,
 ) {
-    val url = element.url
-    val local = element.localPath
+    // A hidden layer keeps its data and its place in the draw order; it just
+    // is not composited.
+    if (!layer.transform.visible) return
+    val media = layer as? MediaLayer
+    val url = media?.url
+    val local = media?.localPath
     // The image aspect arrives with the decoded painter (a remote URL is only
     // known after the load); a video carries its probed frame aspect on the
-    // element. Audio keeps the fixed square card (@joni: unchanged).
+    // layer. Audio keeps the fixed square card (@joni: unchanged).
     var imageAspect by remember(url, local) { mutableStateOf<Float?>(null) }
-    val aspect = when {
-        element.isAudio -> null
-        element.isVideo -> element.aspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO
-        else -> imageAspect
+    val aspect = when (layer) {
+        is AudioLayer -> null
+        is VideoLayer -> layer.aspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO
+        is ImageLayer -> imageAspect
+        else -> null
     }
-    val heightDp = if (element.isAudio) CANVAS_ELEMENT_SIZE_DP else canvasElementHeightDp(aspect)
+    val heightDp = if (layer is AudioLayer) CANVAS_ELEMENT_SIZE_DP else canvasElementHeightDp(aspect)
     Box(
         Modifier
-            .offset { IntOffset((element.x + canvasOffset.x).roundToInt(), (element.y + canvasOffset.y).roundToInt()) }
+            .offset {
+                IntOffset(
+                    (layer.transform.x + canvasOffset.x).roundToInt(),
+                    (layer.transform.y + canvasOffset.y).roundToInt(),
+                )
+            }
             .width(CANVAS_ELEMENT_SIZE_DP.dp)
             .height(heightDp.dp)
             .graphicsLayer(
-                scaleX = element.scale * canvasScale,
-                scaleY = element.scale * canvasScale,
-                rotationZ = element.rotation,
+                scaleX = layer.transform.scale * canvasScale,
+                scaleY = layer.transform.scale * canvasScale,
+                rotationZ = layer.transform.rotation,
+                // Layer-wide alpha: the whole layer composites as one, so
+                // strokes inside it never show through each other.
+                alpha = layer.transform.opacity,
             )
             .shadow(6.dp, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
@@ -276,29 +289,32 @@ private fun CanvasElementView(
                     Modifier
                 },
             )
-            .pointerInput(element.id) {
+            .pointerInput(layer.id) {
                 detectTransformGestures { _, pan, zoom, rotation ->
-                    onMove(element.id, pan.x, pan.y)
-                    if (zoom != 1f) onScale(element.id, zoom)
-                    if (rotation != 0f) onRotate(element.id, rotation)
+                    onMove(layer.id, pan.x, pan.y)
+                    if (zoom != 1f) onScale(layer.id, zoom)
+                    if (rotation != 0f) onRotate(layer.id, rotation)
                 }
             }
             .semantics {
-                contentDescription = when {
-                    element.isAudio -> "Аудио-элемент"
-                    element.isVideo -> "Видео-элемент"
-                    else -> "Изображение"
+                contentDescription = when (layer) {
+                    is AudioLayer -> "Аудио-элемент"
+                    is VideoLayer -> "Видео-элемент"
+                    is ImageLayer -> "Изображение"
+                    is TextLayer -> "Текст"
+                    is StrokeLayer -> "Штрих"
+                    is ArrowLayer -> "Стрелка"
                 }
             }
             .clickable(role = Role.Button, onClick = onSelect),
     ) {
-        when {
-            element.isAudio -> MediaAudioPlayer(
-                source = element.localPath ?: element.url,
+        when (layer) {
+            is AudioLayer -> MediaAudioPlayer(
+                source = layer.localPath ?: layer.url,
                 modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
             )
 
-            element.isVideo -> MediaVideoPlayer(
+            is VideoLayer -> MediaVideoPlayer(
                 url = url ?: local ?: "",
                 autoplay = false,
                 fullControls = true,
@@ -307,7 +323,7 @@ private fun CanvasElementView(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            else -> AsyncImage(
+            is ImageLayer -> AsyncImage(
                 model = rememberImageModel(url ?: local),
                 contentDescription = "Изображение на канвасе",
                 modifier = Modifier.fillMaxSize(),
@@ -317,6 +333,11 @@ private fun CanvasElementView(
                     if (size != null && size.height > 0f) imageAspect = size.width / size.height
                 },
             )
+
+            // Text, strokes and arrows are painted by the DrawScope renderer
+            // (t_00019f0b). No tool creates them yet, so an empty body here is
+            // not a visible gap — the selection box and its chips still work.
+            is TextLayer, is StrokeLayer, is ArrowLayer -> Unit
         }
 
         if (selected) {
@@ -327,56 +348,56 @@ private fun CanvasElementView(
                 tonalElevation = 4.dp,
             ) {
                 Column(Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
-                    if (element.isAudio) {
+                    if (layer is AudioLayer) {
                         // Audio card: playback lives in the card itself; the panel
                         // keeps layer/save/delete. No reference or transform actions.
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }
-                            ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
-                            ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(element.id, CanvasAction.Duplicate) }
-                            ElementChip(Icons.Filled.Edit, "Редактировать") { onEditAudio(element) }
+                            ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(layer.id, CanvasAction.BringForward) }
+                            ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(layer.id, CanvasAction.SendBack) }
+                            ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(layer.id, CanvasAction.Duplicate) }
+                            ElementChip(Icons.Filled.Edit, "Редактировать") { onEditAudio(layer) }
                             if (videoEditingPlatformSupported()) {
                                 // Audio-reactive clip (spec §11): desktop-only like the
                                 // video editor — the render rides the system ffmpeg.
-                                ElementChip(Icons.Filled.MovieFilter, "Сделать клип") { onMakeClip(element) }
+                                ElementChip(Icons.Filled.MovieFilter, "Сделать клип") { onMakeClip(layer) }
                             }
-                            ElementChip(Icons.Filled.Fullscreen, "Открыть плеер") { onOpenLightbox(element) }
-                            ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(element.id) }
+                            ElementChip(Icons.Filled.Fullscreen, "Открыть плеер") { media?.let(onOpenLightbox) }
+                            ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(layer.id) }
                             ElementChip(Icons.Filled.Delete, "Удалить", tint = MaterialTheme.colorScheme.error) {
-                                onAction(element.id, CanvasAction.Delete)
+                                onAction(layer.id, CanvasAction.Delete)
                             }
                         }
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            ElementChip(Icons.AutoMirrored.Filled.RotateLeft, "Повернуть влево") { onRotate(element.id, -15f) }
-                            ElementChip(Icons.AutoMirrored.Filled.RotateRight, "Повернуть вправо") { onRotate(element.id, 15f) }
-                            ElementChip(Icons.Filled.Remove, "Уменьшить") { onScale(element.id, 0.85f) }
-                            ElementChip(Icons.Filled.Add, "Увеличить") { onScale(element.id, 1.2f) }
-                            ElementChip(Icons.Filled.Fullscreen, "Открыть на весь экран") { onOpenLightbox(element) }
+                            ElementChip(Icons.AutoMirrored.Filled.RotateLeft, "Повернуть влево") { onRotate(layer.id, -15f) }
+                            ElementChip(Icons.AutoMirrored.Filled.RotateRight, "Повернуть вправо") { onRotate(layer.id, 15f) }
+                            ElementChip(Icons.Filled.Remove, "Уменьшить") { onScale(layer.id, 0.85f) }
+                            ElementChip(Icons.Filled.Add, "Увеличить") { onScale(layer.id, 1.2f) }
+                            ElementChip(Icons.Filled.Fullscreen, "Открыть на весь экран") { media?.let(onOpenLightbox) }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (!element.isVideo) {
+                            if (layer is ImageLayer) {
                                 // Image-only actions: video elements cannot be
                                 // decoded for pixel editing.
-                                ElementChip(Icons.Filled.Brush, "Карандаш") { onDrawImage(element) }
-                                ElementChip(Icons.Filled.Edit, "Редактировать") { onEditImage(element) }
-                            } else if (videoEditingPlatformSupported()) {
+                                ElementChip(Icons.Filled.Brush, "Карандаш") { onDrawImage(layer) }
+                                ElementChip(Icons.Filled.Edit, "Редактировать") { onEditImage(layer) }
+                            } else if (layer is VideoLayer && videoEditingPlatformSupported()) {
                                 // Video editor (trim/speed/audio track) and the pencil
                                 // capture run on the desktop ffmpeg; other targets never
                                 // show them. Block 7: the pencil draws over a still frame
                                 // taken off the track at native resolution.
-                                ElementChip(Icons.Filled.Brush, "Кадр с карандашом") { onDrawImage(element) }
-                                ElementChip(Icons.Filled.Edit, "Редактировать") { onEditVideo(element) }
+                                ElementChip(Icons.Filled.Brush, "Кадр с карандашом") { onDrawImage(layer) }
+                                ElementChip(Icons.Filled.Edit, "Редактировать") { onEditVideo(layer) }
                             }
-                            ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(element.id, CanvasAction.BringForward) }
-                            ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(element.id, CanvasAction.SendBack) }
-                            ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(element.id, CanvasAction.Duplicate) }
+                            ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(layer.id, CanvasAction.BringForward) }
+                            ElementChip(Icons.Filled.FlipToBack, "Ниже по слоям") { onAction(layer.id, CanvasAction.SendBack) }
+                            ElementChip(Icons.Filled.ContentCopy, "Дублировать") { onAction(layer.id, CanvasAction.Duplicate) }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            ElementChip(Icons.Filled.Link, "Использовать как референс") { onAction(element.id, CanvasAction.UseAsReference) }
-                            ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(element.id) }
+                            ElementChip(Icons.Filled.Link, "Использовать как референс") { onAction(layer.id, CanvasAction.UseAsReference) }
+                            ElementChip(Icons.Filled.SaveAlt, "Сохранить в галерею") { onExportToGallery(layer.id) }
                             ElementChip(Icons.Filled.Delete, "Удалить", tint = MaterialTheme.colorScheme.error) {
-                                onAction(element.id, CanvasAction.Delete)
+                                onAction(layer.id, CanvasAction.Delete)
                             }
                         }
                     }

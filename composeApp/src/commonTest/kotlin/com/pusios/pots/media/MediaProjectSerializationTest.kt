@@ -1,10 +1,13 @@
 package com.pusios.pots.media
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -12,9 +15,13 @@ import kotlin.test.fail
 
 /**
  * Media studio project file (spec §12): one `.potsproj` JSON with a schema
- * version. The codec must round-trip the full studio state (canvas elements
- * with transforms, the assembly sequence, parameters) and refuse unknown or
- * corrupt files with the typed §8 errors.
+ * version. The codec must round-trip the full studio state (canvas layers
+ * with transforms, text and stroke payloads, the assembly sequence,
+ * parameters) and refuse unknown or corrupt files with the typed §8 errors.
+ *
+ * Schema 2 is the media-editor layer format; schema 1 files (no `kind`,
+ * `opacity`, `visible`, `text`, `points`) must keep reading through defaults,
+ * and a *newer* file must be refused instead of silently losing layers.
  */
 class MediaProjectSerializationTest {
 
@@ -26,6 +33,7 @@ class MediaProjectSerializationTest {
         elements = listOf(
             MediaProjectElement(
                 id = "el-1",
+                kind = MediaElementKind.Image.name,
                 jobId = "job-9",
                 url = "https://example.com/cat.png",
                 localPath = "media/jobs/job-9.png",
@@ -35,13 +43,25 @@ class MediaProjectSerializationTest {
                 y = -40f,
                 scale = 1.25f,
                 rotation = 90f,
-                zIndex = 3,
+                opacity = 0.6f,
+                visible = false,
+                zIndex = 0,
                 aspectRatio = 1.5f,
             ),
+            // A schema-1 style element: no kind at all, flags only.
             MediaProjectElement(
                 id = "el-2",
                 localPath = "media/edits/abc.wav",
                 isAudio = true,
+                zIndex = 1,
+            ),
+            MediaProjectElement(
+                id = "el-3",
+                kind = MediaElementKind.Stroke.name,
+                zIndex = 2,
+                colorArgb = -16777216,
+                strokeWidthPx = 6f,
+                points = "CgAAABQAAAAFAAIA/f/8/w==",
             ),
         ),
         sequence = MediaProjectSequence(
@@ -62,6 +82,12 @@ class MediaProjectSerializationTest {
         ),
     )
 
+    /** Re-encodes the sample with one top-level field replaced. */
+    private fun withRootField(project: MediaProjectFile, key: String, value: JsonPrimitive): String {
+        val root = Json.parseToJsonElement(encodeMediaProject(project)).jsonObject
+        return JsonObject(root + (key to value)).toString()
+    }
+
     @Test
     fun roundTripKeepsFullState() {
         val project = sampleProject()
@@ -70,24 +96,64 @@ class MediaProjectSerializationTest {
     }
 
     @Test
-    fun encodedJsonCarriesSchemaVersionAndMark() {
+    fun schemaVersionIsTwo() {
+        assertEquals(2, MEDIA_PROJECT_SCHEMA_VERSION)
         val root = Json.parseToJsonElement(encodeMediaProject(sampleProject())).jsonObject
-        assertEquals(MEDIA_PROJECT_SCHEMA_VERSION.toString(), root["schemaVersion"]!!.jsonPrimitive.content)
+        assertEquals("2", root["schemaVersion"]!!.jsonPrimitive.content)
         assertEquals(MEDIA_PROJECT_MARK, root["app"]!!.jsonPrimitive.content)
     }
 
+    /** Autosave rewrites the active snapshot constantly — the default must stay compact. */
+    @Test
+    fun encodedProjectIsCompactAndPrettyIsOptIn() {
+        val compact = encodeMediaProject(sampleProject())
+        val pretty = encodeMediaProject(sampleProject(), pretty = true)
+        assertFalse(compact.contains("\n"), "the default encoding must not pretty-print")
+        assertTrue(pretty.contains("\n"), "pretty printing is a debugging knob")
+        assertEquals(sampleProject(), decodeMediaProject(compact))
+        assertEquals(sampleProject(), decodeMediaProject(pretty))
+    }
+
+    /** A schema-1 file has none of the new fields: it decodes through the defaults. */
+    @Test
+    fun schemaOneFileReadsWithDefaults() {
+        val text = """
+            {"schemaVersion":1,"app":"$MEDIA_PROJECT_MARK","name":"Старый","createdAtMs":1,"updatedAtMs":2,
+             "elements":[{"id":"e1","localPath":"media/x.png","zIndex":4}]}
+        """.trimIndent()
+        val element = decodeMediaProject(text).elements.single()
+        assertEquals("e1", element.id)
+        assertNull(element.kind)
+        assertEquals(1f, element.opacity, 0f)
+        assertTrue(element.visible)
+        assertEquals(4, element.zIndex)
+        assertNull(element.points)
+        assertNull(element.text)
+    }
+
+    /** The very next schema (a v3 build writing a file) must be refused, not guessed. */
     @Test
     fun futureSchemaVersionRefusedWithVersionText() {
-        val text = encodeMediaProject(sampleProject())
-            .replace("\"schemaVersion\": $MEDIA_PROJECT_SCHEMA_VERSION", "\"schemaVersion\": 999")
+        val text = withRootField(sampleProject(), "schemaVersion", JsonPrimitive(3))
+        try {
+            decodeMediaProject(text)
+            fail("expected UnsupportedVersion")
+        } catch (e: MediaProjectException.UnsupportedVersion) {
+            assertEquals(3, e.found)
+            assertEquals("Формат не поддерживается", e.title)
+            assertTrue(e.detail.contains("3"), "detail must name the foreign version")
+            assertTrue(e.detail.contains(MEDIA_PROJECT_SCHEMA_VERSION.toString()), "detail must name the known version")
+        }
+    }
+
+    @Test
+    fun farFutureSchemaVersionRefused() {
+        val text = withRootField(sampleProject(), "schemaVersion", JsonPrimitive(999))
         try {
             decodeMediaProject(text)
             fail("expected UnsupportedVersion")
         } catch (e: MediaProjectException.UnsupportedVersion) {
             assertEquals(999, e.found)
-            assertEquals("Формат не поддерживается", e.title)
-            assertTrue(e.detail.contains("999"), "detail must name the foreign version")
-            assertTrue(e.detail.contains(MEDIA_PROJECT_SCHEMA_VERSION.toString()), "detail must name the known version")
         }
     }
 
@@ -125,8 +191,7 @@ class MediaProjectSerializationTest {
 
     @Test
     fun unknownFieldsTolerated() {
-        val text = encodeMediaProject(sampleProject())
-            .replace("\"elements\": [", "\"futureField\": 42, \"elements\": [")
+        val text = withRootField(sampleProject(), "futureField", JsonPrimitive(42))
         assertEquals(sampleProject(), decodeMediaProject(text))
     }
 
@@ -147,7 +212,7 @@ class MediaProjectSerializationTest {
     @Test
     fun elementWithoutAspectRatioDecodesNull() {
         val text = """
-            {"schemaVersion":$MEDIA_PROJECT_SCHEMA_VERSION,"app":"$MEDIA_PROJECT_MARK",
+            {"schemaVersion":1,"app":"$MEDIA_PROJECT_MARK",
              "name":"Пустой","createdAtMs":1,"updatedAtMs":2,
              "elements":[{"id":"e1","localPath":"media/x.mp4","isVideo":true}]}
         """.trimIndent()
