@@ -74,7 +74,9 @@ class LinuxDistroTest {
     fun `debian base carries what the coding-agent installers need`() {
         // tar: OpenCode's installer extracts a .tar.gz. coreutils: Claude's checks
         // a sha256sum. ca-certificates/curl: every vendor script is a curl | bash.
-        listOf("tar", "coreutils", "ca-certificates", "curl", "python3").forEach {
+        // libatomic1: nodejs.org's arm64 Node links libatomic.so.1, and a bare
+        // bookworm rootfs has none — the runtime dies at load, before any build.
+        listOf("tar", "coreutils", "ca-certificates", "curl", "python3", "libatomic1").forEach {
             assertTrue(it in LinuxDistro.DEBIAN.basePackages, "Debian base is missing $it")
         }
     }
