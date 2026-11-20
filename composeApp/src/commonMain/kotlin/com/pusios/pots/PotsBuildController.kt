@@ -20,6 +20,23 @@ interface PotsBuildController {
     fun cancel()
     fun uninstall()
 
+    /**
+     * Asks each agent's registry for its newest version — one HTTP GET per agent,
+     * bounded by a short timeout — and publishes the comparison against what is
+     * installed. A check that fails says so; it never reads as "up to date".
+     */
+    fun checkAgents(agentIds: Set<String>)
+
+    /** Runs the agent's own update command, then re-reads what it installed. */
+    fun updateAgent(agentId: String)
+
+    /**
+     * Removes the agent's installation — never its configuration. [includeBulk]
+     * additionally removes the big checkout that a reinstall would have to fetch
+     * again; it is a separate question, and the safe answer is the default.
+     */
+    fun removeAgent(agentId: String, includeBulk: Boolean = false)
+
     /** Re-scans projects, installed agents, and system facts. */
     fun refresh()
 
@@ -105,6 +122,9 @@ class NoOpPotsBuildController : PotsBuildController {
     override fun install(agentIds: Set<String>) {}
     override fun cancel() {}
     override fun uninstall() {}
+    override fun checkAgents(agentIds: Set<String>) {}
+    override fun updateAgent(agentId: String) {}
+    override fun removeAgent(agentId: String, includeBulk: Boolean) {}
     override fun refresh() {}
     override fun createProject(name: String): String? = null
     override fun deleteProject(name: String) {}

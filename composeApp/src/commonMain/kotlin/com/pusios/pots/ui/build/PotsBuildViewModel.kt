@@ -94,6 +94,14 @@ class PotsBuildViewModel(
     fun cancel() = controller.cancel()
     fun uninstall() = controller.uninstall()
 
+    /** Asks the registries for the newest versions of [ids]; one GET per agent. */
+    fun checkAgents(ids: Set<String>) = controller.checkAgents(ids)
+
+    fun updateAgent(id: String) = controller.updateAgent(id)
+
+    /** [includeBulk] removes Hermes' checkout as well — never the default. */
+    fun removeAgent(id: String, includeBulk: Boolean) = controller.removeAgent(id, includeBulk)
+
     /**
      * Picks what the next opened project starts with; null is a plain shell.
      * Remembered across app runs — the row is a preference, not a per-visit pick.

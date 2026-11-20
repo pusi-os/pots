@@ -42,8 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.build.AgentVersionRow
+import com.pusios.pots.build.AgentVersions
 import com.pusios.pots.build.BuildAgent
-import com.pusios.pots.build.BuildAgents
 import com.pusios.pots.build.BuildSystemInfo
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.formatFileSize
@@ -53,7 +54,6 @@ import com.pusios.pots.ui.settings.SettingsCard
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_new_project_title
 import pots.composeapp.generated.resources.pots_build_open_with
-import pots.composeapp.generated.resources.pots_build_projects_add_agent
 import pots.composeapp.generated.resources.pots_build_projects_create
 import pots.composeapp.generated.resources.pots_build_projects_empty
 import pots.composeapp.generated.resources.pots_build_projects_new_placeholder
@@ -98,6 +98,9 @@ internal fun BuildProjectsContent(
     onDeleteProject: (String) -> Unit,
     onRenameProject: (name: String, newName: String) -> Unit,
     onInstallAgent: (String) -> Unit,
+    onCheckAgents: (Set<String>) -> Unit,
+    onUpdateAgent: (String) -> Unit,
+    onRemoveAgent: (String, Boolean) -> Unit,
     onUninstall: () -> Unit,
     onStartWebPanel: (String) -> Unit,
     onStopWebPanel: (String) -> Unit,
@@ -110,8 +113,8 @@ internal fun BuildProjectsContent(
     // The project each dialog is about; null while it is closed.
     var renaming by rememberSaveable { mutableStateOf<String?>(null) }
     var deleting by rememberSaveable { mutableStateOf<String?>(null) }
-    val missingAgents = remember(state.installedAgents) {
-        BuildAgents.all.filterNot { it.id in state.installedAgents }
+    val agentRows = remember(state.installedAgents, state.agentVersions, state.agentUpdates) {
+        AgentVersions.rows(state.installedAgents, state.agentVersions, state.agentUpdates)
     }
     val sessionCounts = remember(state.sessions) {
         state.sessions.groupingBy { it.project }.eachCount()
@@ -243,8 +246,12 @@ internal fun BuildProjectsContent(
         item {
             BuildSystemCard(
                 info = state.systemInfo,
-                missingAgents = missingAgents,
+                agentRows = agentRows,
+                busy = state.isInstalling,
+                onCheckAgents = onCheckAgents,
                 onInstallAgent = onInstallAgent,
+                onUpdateAgent = onUpdateAgent,
+                onRemoveAgent = onRemoveAgent,
                 onUninstall = { showUninstall = true },
             )
         }
@@ -447,8 +454,12 @@ private fun DeleteProjectDialog(
 @Composable
 private fun BuildSystemCard(
     info: BuildSystemInfo?,
-    missingAgents: List<BuildAgent>,
+    agentRows: List<AgentVersionRow>,
+    busy: Boolean,
+    onCheckAgents: (Set<String>) -> Unit,
     onInstallAgent: (String) -> Unit,
+    onUpdateAgent: (String) -> Unit,
+    onRemoveAgent: (String, Boolean) -> Unit,
     onUninstall: () -> Unit,
 ) {
     SettingsCard(modifier = Modifier.fillMaxWidth()) {
@@ -485,27 +496,18 @@ private fun BuildSystemCard(
             )
         }
 
-        if (missingAgents.isNotEmpty()) {
+        if (agentRows.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = stringResource(Res.string.pots_build_projects_add_agent),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Spacer(Modifier.height(4.dp))
+            AgentVersionsSection(
+                rows = agentRows,
+                busy = busy,
+                onCheck = onCheckAgents,
+                onInstall = onInstallAgent,
+                onUpdate = onUpdateAgent,
+                onRemove = onRemoveAgent,
             )
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                missingAgents.forEach { agent ->
-                    PotsChip(onClick = { onInstallAgent(agent.id) }) {
-                        Text(text = agent.title, style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-            }
         }
 
         Spacer(Modifier.height(4.dp))

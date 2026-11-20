@@ -10,27 +10,17 @@ import com.pusios.pots.SandboxController
 import com.pusios.pots.SandboxMigration
 import com.pusios.pots.SandboxStatus
 import com.pusios.pots.SandboxStatusLabel
-import com.pusios.pots.build.BuildAgents
+import com.pusios.pots.build.AgentVersionRow
+import com.pusios.pots.build.AgentVersions
+import com.pusios.pots.build.BuildEnvironmentState
 import com.pusios.pots.build.PotsBuildState
-import com.pusios.pots.build.WebPanels
 import com.pusios.pots.currentPlatform
 import com.pusios.pots.data.DataRepository
 import com.pusios.pots.linux.LinuxDistro
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-@Immutable
-data class SandboxAgentUi(
-    val id: String,
-    val title: String,
-    /** What the agent's own `--version` reported; null when it reported nothing usable. */
-    val version: String?,
-)
 
 @Immutable
 data class SandboxUiState(
@@ -55,10 +45,11 @@ data class SandboxUiState(
     /** Files the other install has and this one does not; null when there are none. */
     val migration: SandboxMigration? = null,
     /**
-     * The coding agents installed in the sandbox, with the version each one
-     * reported. Empty until Pots Build has installed something.
+     * The coding agents of this sandbox, with what each one has and what the last
+     * check said about it. Every agent in the catalog is here, installed or not —
+     * the row is what offers to install it. Empty until Pots Build is reachable.
      */
-    val agents: ImmutableList<SandboxAgentUi> = persistentListOf(),
+    val agentRows: List<AgentVersionRow> = emptyList(),
 )
 
 class SandboxViewModel(
@@ -99,32 +90,35 @@ class SandboxViewModel(
         }
         viewModelScope.launch {
             potsBuildController.state.collect { build ->
-                _state.update { it.copy(agents = build.agentCards()) }
+                _state.update { it.copy(agentRows = build.agentRows()) }
             }
         }
     }
 
     /**
-     * The installed agents, in catalog order, each with whatever version it reported.
-     *
-     * Pi's row also carries pi-web's version: the panel is part of Pi's install,
-     * so it is read from the same map rather than kept in a second one.
+     * Every agent in the catalog, in order, with what the device has and what the
+     * last check said. The card offers install on the ones that are missing and
+     * check/update/remove on the ones that are not, so the whole catalog is here
+     * rather than only the installed subset.
      */
-    private fun PotsBuildState.agentCards(): ImmutableList<SandboxAgentUi> = BuildAgents.all
-        .filter { it.id in installedAgents }
-        .map { agent ->
-            val piWeb = if (agent.id == BuildAgents.PI) {
-                agentVersions[WebPanels.PI_WEB_VERSION_KEY]?.let { "pi-web $it" }
-            } else {
-                null
-            }
-            SandboxAgentUi(
-                id = agent.id,
-                title = agent.title,
-                version = listOfNotNull(agentVersions[agent.id], piWeb).joinToString(" · ").ifEmpty { null },
-            )
-        }
-        .toImmutableList()
+    private fun PotsBuildState.agentRows(): List<AgentVersionRow> = if (environment is BuildEnvironmentState.Ready) {
+        AgentVersions.rows(installedAgents, agentVersions, agentUpdates)
+    } else {
+        // Nothing to check, update or remove before the sandbox itself is
+        // there: an "Install" on a catalog row would run installDebian(),
+        // and a check would hammer proot over a rootfs that does not exist.
+        emptyList()
+    }
+
+    /** Asks each agent's registry for its newest version — one GET per agent. */
+    fun onCheckAgents(ids: Set<String>) = potsBuildController.checkAgents(ids)
+
+    fun onUpdateAgent(id: String) = potsBuildController.updateAgent(id)
+
+    fun onInstallAgent(id: String) = potsBuildController.install(setOf(id))
+
+    /** [includeBulk] removes Hermes' checkout as well — never the default. */
+    fun onRemoveAgent(id: String, includeBulk: Boolean) = potsBuildController.removeAgent(id, includeBulk)
 
     private fun applyStatus(status: SandboxStatus, base: SandboxUiState): SandboxUiState = base.copy(
         sandboxInstalled = status.installed,

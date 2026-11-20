@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,6 +41,7 @@ import com.pusios.pots.ui.settings.SettingsCard
 import kotlinx.collections.immutable.ImmutableSet
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.pots_build_agents_install
 import pots.composeapp.generated.resources.pots_build_install_log_title
 import pots.composeapp.generated.resources.pots_build_install_log_truncated
 import pots.composeapp.generated.resources.pots_build_setup_agents_description
@@ -63,6 +65,7 @@ internal fun BuildSetupContent(
     selectedAgents: ImmutableSet<String>,
     onToggleAgent: (String) -> Unit,
     onInstall: () -> Unit,
+    onInstallAgent: (String) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -115,7 +118,21 @@ internal fun BuildSetupContent(
                         text = agent.title,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
                     )
+                    // The batch install below stays the way to put several agents on
+                    // in one go; this is the one-agent shortcut for a phone where
+                    // ticking boxes and then reaching for the bottom button is two
+                    // gestures more than the answer needs.
+                    if (agent.id !in state.installedAgents) {
+                        TextButton(
+                            onClick = { onInstallAgent(agent.id) },
+                            enabled = installing == null,
+                            modifier = Modifier.handCursor(),
+                        ) {
+                            Text(stringResource(Res.string.pots_build_agents_install))
+                        }
+                    }
                 }
             }
         }
