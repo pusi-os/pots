@@ -20,30 +20,85 @@ import kotlinx.serialization.json.jsonObject
  * The format is versioned via [schemaVersion]; a file from a newer schema is
  * refused with the §8 «Формат не поддерживается» card instead of a partial
  * read. There is no cloud sync in v1: local storage and files only.
+ *
+ * Schema 2 (media editor layers) adds `kind`, `opacity`, `visible`, text and
+ * stroke payloads. It exists for one reason: [projectJson] tolerates unknown
+ * keys, so a *schema-1* build opening a v2 file would silently drop strokes
+ * and text and then rewrite the whole file on autosave — the drawing would be
+ * gone for good. Bumping the version turns that silent loss into the honest
+ * «Формат не поддерживается» card instead. Readers accept 1..2: a v1 file
+ * needs no migration on disk, its missing fields decode to the defaults below.
  */
-const val MEDIA_PROJECT_SCHEMA_VERSION = 1
+const val MEDIA_PROJECT_SCHEMA_VERSION = 2
 const val MEDIA_PROJECT_MARK = "pots-media-studio"
 const val MEDIA_PROJECT_EXTENSION = "potsproj"
 
-/** One canvas element with its transform (position, scale, rotation, layer). */
+/**
+ * The element types of schema 2, stored in [MediaProjectElement.kind] by name.
+ * v1 files carry no `kind` at all — the reader derives it from `isVideo`/
+ * `isAudio`, which is why those two flags keep being written.
+ */
+enum class MediaElementKind {
+    Image,
+    Video,
+    Audio,
+    Text,
+    Stroke,
+    Arrow,
+}
+
+/**
+ * One canvas element with its transform (position, scale, rotation, layer).
+ *
+ * The DTO stays flat on purpose: nullable payload fields of every layer type
+ * live side by side. A flat DTO is what makes an old reader tolerate a new
+ * field and a new reader tolerate a missing one; the sealed UI model in
+ * `ui/media/MediaStudioModels.kt` is where the types get separated.
+ */
 @Serializable
 data class MediaProjectElement(
     val id: String,
+    /** [MediaElementKind] name; null in schema-1 files (derive from the flags). */
+    val kind: String? = null,
     /** Generation journal link; null for imports and edit results. */
     val jobId: String? = null,
     /** Remote signed URL (5-day lifetime); kept as a fallback for re-download. */
     val url: String? = null,
     /** Local copy under the app storage — survives the URL expiry. */
     val localPath: String? = null,
+    /** Schema-1 readers only know these two; written from `kind` for them. */
     val isVideo: Boolean = false,
     val isAudio: Boolean = false,
     val x: Float = 0f,
     val y: Float = 0f,
     val scale: Float = 1f,
     val rotation: Float = 0f,
+    /** Layer-wide alpha (1 = opaque); applied at compositing, not per brush. */
+    val opacity: Float = 1f,
+    val visible: Boolean = true,
+    /**
+     * Draw order as a number, for schema-1 readers and for reading v1 files.
+     * In schema 2 the source of truth is the order of the `elements` list and
+     * this field is written as the list index.
+     */
     val zIndex: Int = 0,
     /** Probed video frame aspect (w/h); null when unknown. Absent in old files — decodes to null. */
     val aspectRatio: Float? = null,
+    /** TextLayer payload. */
+    val text: String? = null,
+    val fontSizePx: Float? = null,
+    /** Text/stroke/arrow ink colour, ARGB. */
+    val colorArgb: Int? = null,
+    /** Stroke/arrow line width in canvas px. */
+    val strokeWidthPx: Float? = null,
+    /**
+     * Stroke and arrow geometry: base64 of an 8-byte origin (two little-endian
+     * Int32) followed by Int16 dx/dy deltas — 4 bytes per point after the
+     * first, ~5.3 KB per 1000-point stroke instead of 22 KB of pretty floats.
+     * An arrow is the same encoding with exactly two points. Decodes to empty
+     * when absent (schema 1) or unreadable.
+     */
+    val points: String? = null,
 )
 
 /** One clip of the saved assembly sequence (a canvas element resolved to its file). */
@@ -115,19 +170,35 @@ sealed class MediaProjectException(val title: String, val detail: String) : Exce
         )
 }
 
+/**
+ * Compact by default: autosave rewrites the active snapshot every couple of
+ * seconds, so the file size is a write cost, not a comfort. `encodeDefaults`
+ * stays on — the `app` mark has a default and the reader refuses a file
+ * without it, so dropping defaults would make our own files unreadable.
+ */
 private val projectJson = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+}
+
+/** Pretty output is for reading a file by eye; nothing on the autosave path uses it. */
+private val projectPrettyJson = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
     prettyPrint = true
 }
 
-/** Serializes a project to its `.potsproj` JSON text. */
-fun encodeMediaProject(project: MediaProjectFile): String = projectJson.encodeToString(project)
+/** Serializes a project to its `.potsproj` JSON text; [pretty] only for debugging. */
+fun encodeMediaProject(project: MediaProjectFile, pretty: Boolean = false): String = (if (pretty) projectPrettyJson else projectJson).encodeToString(project)
 
 /**
  * Parses a `.potsproj` text. Validates the schema version and the app mark
  * before decoding anything else; unknown future versions and broken files
  * throw the typed [MediaProjectException] instead of returning partial state.
+ *
+ * Every version up to [MEDIA_PROJECT_SCHEMA_VERSION] is accepted: schema-1
+ * files are read through the defaults of the newer fields (no rewrite needed),
+ * anything newer is refused loudly so an old build never eats new data.
  */
 fun decodeMediaProject(text: String): MediaProjectFile {
     val root = try {

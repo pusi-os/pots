@@ -89,8 +89,8 @@ private val SEQUENCE_OUTPUT_FPS = listOf(24, 30)
 @Composable
 internal fun MediaSequenceSheet(
     state: MediaSequenceState,
-    canvasElements: List<CanvasElement>,
-    onAddClip: (CanvasElement, Long) -> Unit,
+    canvasElements: List<CanvasLayer>,
+    onAddClip: (MediaLayer, Long) -> Unit,
     onRemoveClip: (Int) -> Unit,
     onMoveClip: (Int, Int) -> Unit,
     onClipDuration: (Int, Long) -> Unit,
@@ -248,7 +248,7 @@ internal fun MediaSequenceSheet(
                     Spacer(Modifier.height(8.dp))
                     Text("Добавить в последовательность", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(4.dp))
-                    val candidates = canvasElements.filter { !it.isAudio && it.localPath != null }
+                    val candidates = canvasElements.filterIsInstance<MediaLayer>().filter { it !is AudioLayer && it.localPath != null }
                     if (candidates.isEmpty()) {
                         Text(
                             "На канвасе нет фото или видео с локальным файлом. Сгенерируйте или импортируйте их.",
@@ -263,7 +263,7 @@ internal fun MediaSequenceSheet(
                                     enabled = !opRunning && addingElementId == null,
                                     onClick = {
                                         val rel = element.localPath ?: return@FilterChip
-                                        if (!element.isVideo) {
+                                        if (element !is VideoLayer) {
                                             onAddClip(element, SEQUENCE_IMAGE_DEFAULT_MS)
                                         } else {
                                             addingElementId = element.id
@@ -283,7 +283,7 @@ internal fun MediaSequenceSheet(
                                         if (addingElementId == element.id) {
                                             CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                                         } else {
-                                            Text((if (element.isVideo) "▶ " else "") + (element.localPath?.substringAfterLast('/') ?: "элемент"))
+                                            Text((if (element is VideoLayer) "▶ " else "") + (element.localPath?.substringAfterLast('/') ?: "элемент"))
                                         }
                                     },
                                 )
@@ -305,7 +305,7 @@ internal fun MediaSequenceSheet(
                             audioRel = null
                             audioLabel = null
                         }, label = { Text("Без звука") })
-                        canvasElements.filter { it.isAudio && it.localPath != null }.forEach { track ->
+                        canvasElements.filterIsInstance<AudioLayer>().filter { it.localPath != null }.forEach { track ->
                             FilterChip(
                                 selected = audioRel == track.localPath,
                                 enabled = !opRunning,

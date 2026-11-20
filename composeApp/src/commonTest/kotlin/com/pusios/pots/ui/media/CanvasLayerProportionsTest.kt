@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
  * height follows the source aspect ratio, clamped to roughly 16:9…9:16; beyond
  * the clamp the height sticks to the bound and the content renders Fit inside.
  */
-class CanvasElementProportionsTest {
+class CanvasLayerProportionsTest {
 
     private fun assertClose(expected: Float, actual: Float) {
         assertEquals(expected, actual, 0.01f)

@@ -96,13 +96,13 @@ private const val EDITOR_WAVE_BARS = 96
 private val EDITOR_SPEED_PRESETS = floatArrayOf(0.5f, 1f, 1.5f, 2f)
 
 /** Bytes of a canvas audio element: app storage first, signed URL as fallback. */
-private suspend fun readElementBytes(element: CanvasElement): ByteArray? = when {
+private suspend fun readElementBytes(element: MediaLayer): ByteArray? = when {
     element.localPath != null -> readAppStorageBytes(element.localPath!!)
     element.url != null -> runCatching { PlusVibeMediaProvider().downloadResult("", element.url!!) }.getOrNull()
     else -> null
 }
 
-private fun elementLabel(element: CanvasElement): String = element.localPath?.substringAfterLast('/') ?: element.url?.substringAfterLast('/')?.take(24) ?: "аудио"
+private fun elementLabel(element: MediaLayer): String = element.localPath?.substringAfterLast('/') ?: element.url?.substringAfterLast('/')?.take(24) ?: "аудио"
 
 /**
  * Full-screen audio editor (spec §4): real waveform with a draggable
@@ -112,8 +112,8 @@ private fun elementLabel(element: CanvasElement): String = element.localPath?.su
  */
 @Composable
 internal fun MediaAudioEditorSheet(
-    element: CanvasElement,
-    audioElements: List<CanvasElement>,
+    element: AudioLayer,
+    audioElements: List<AudioLayer>,
     onDismiss: () -> Unit,
     onResult: (ByteArray) -> Boolean,
 ) {

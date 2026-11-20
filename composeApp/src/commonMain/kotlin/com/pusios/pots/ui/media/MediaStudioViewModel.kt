@@ -144,8 +144,12 @@ class MediaStudioViewModel(
     /** Journal of generations, newest first. Survives app restarts. */
     val historyEntries: StateFlow<List<MediaHistoryEntry>> = history.entries
 
-    private val _elements = MutableStateFlow<List<CanvasElement>>(emptyList())
-    val elements: StateFlow<List<CanvasElement>> = _elements.asStateFlow()
+    /**
+     * The canvas in draw order: the position in this list is the z-order, so a
+     * reorder is a list move and nothing else. Persisted as `zIndex = index`.
+     */
+    private val _elements = MutableStateFlow<List<CanvasLayer>>(emptyList())
+    val elements: StateFlow<List<CanvasLayer>> = _elements.asStateFlow()
 
     private val _selectedId = MutableStateFlow<String?>(null)
     val selectedId: StateFlow<String?> = _selectedId.asStateFlow()
@@ -273,7 +277,7 @@ class MediaStudioViewModel(
                 // Auto-place finished results on the canvas once.
                 map.values.filter { it.status == MediaJobStatus.Success }
                     .forEach { state ->
-                        if (_elements.value.none { it.jobId == state.jobId }) {
+                        if (_elements.value.none { it is MediaLayer && it.jobId == state.jobId }) {
                             addElement(state)
                             _justFinished.value = state
                         }
@@ -643,7 +647,7 @@ class MediaStudioViewModel(
             resultUrls = listOfNotNull(entry.resultUrl),
             localPath = entry.localPath,
         )
-        if (_elements.value.none { it.jobId == state.jobId }) addElement(state)
+        if (_elements.value.none { it is MediaLayer && it.jobId == state.jobId }) addElement(state)
     }
 
     /** True while a submit is in flight, a job is still running, or a local synthesis is busy; the create button stays locked meanwhile. */
@@ -941,7 +945,9 @@ class MediaStudioViewModel(
             name = name,
             createdAtMs = createdAtMs,
             updatedAtMs = nowMs(),
-            elements = _elements.value.map { it.toProjectElement() },
+            // The list order is the z-order; each element is written with its
+            // own index as `zIndex` so schema-1 readers keep the same stacking.
+            elements = _elements.value.toProjectElements(),
             sequence = MediaProjectSequence(
                 clips = sequenceState.clips.map { clip ->
                     MediaProjectSequenceClip(clip.elementId, clip.relPath, clip.isVideo, clip.durationMs)
@@ -972,7 +978,7 @@ class MediaStudioViewModel(
     private fun applyProject(project: MediaProjectFile) {
         val settings = project.settings
         _selectedId.value = null
-        _elements.value = project.elements.map { it.toCanvasElement() }
+        _elements.value = project.elements.toCanvasLayers()
         val (clips, transitions) = projectSequenceToClips(project.sequence)
         _sequence.value = MediaSequenceState(clips, transitions)
         _mode.value = mediaModeFromProject(settings.mode)
@@ -1093,20 +1099,39 @@ class MediaStudioViewModel(
         val isAudio = state.kind == MediaKind.Audio || state.kind == MediaKind.Music || AUDIO_EXTENSIONS.any { url.endsWith(it, ignoreCase = true) }
         val isVideo = !isAudio && (state.kind == MediaKind.Video || url.endsWith(".mp4"))
         val id = Uuid.random().toString()
-        _elements.update {
-            it + CanvasElement(
+        _elements.update { list ->
+            // New layers land on top: appending to the draw list is the top.
+            list + mediaLayer(
                 id = id,
                 jobId = state.jobId,
                 url = url,
                 localPath = state.localPath,
                 isVideo = isVideo,
                 isAudio = isAudio,
-                x = (it.size * 32f),
-                y = (it.size * 32f),
-                zIndex = (it.maxOfOrNull { e -> e.zIndex } ?: 0) + 1,
+                x = list.size * 32f,
+                y = list.size * 32f,
             )
         }
         if (isVideo) probeAspectFor(id, state.localPath ?: url)
+    }
+
+    /** The one place that turns "which kind of result is this" into a layer type. */
+    private fun mediaLayer(
+        id: String,
+        jobId: String?,
+        url: String?,
+        localPath: String?,
+        isVideo: Boolean,
+        isAudio: Boolean,
+        x: Float,
+        y: Float,
+    ): CanvasLayer {
+        val transform = LayerTransform(x = x, y = y)
+        return when {
+            isAudio -> AudioLayer(id = id, transform = transform, jobId = jobId, url = url, localPath = localPath)
+            isVideo -> VideoLayer(id = id, transform = transform, jobId = jobId, url = url, localPath = localPath)
+            else -> ImageLayer(id = id, transform = transform, jobId = jobId, url = url, localPath = localPath)
+        }
     }
 
     /**
@@ -1120,26 +1145,26 @@ class MediaStudioViewModel(
         viewModelScope.launch {
             val aspect = runCatching { videoAspectProber(source) }.getOrNull() ?: return@launch
             _elements.update { list ->
-                list.map { if (it.id == elementId && it.aspectRatio == null) it.copy(aspectRatio = aspect) else it }
+                list.map { if (it.id == elementId) it.withProbedAspect(aspect) else it }
             }
         }
     }
 
     fun move(id: String, dx: Float, dy: Float) {
         _elements.update { list ->
-            list.map { if (it.id == id) it.copy(x = it.x + dx, y = it.y + dy) else it }
+            list.map { if (it.id == id) it.moved(dx, dy) else it }
         }
     }
 
     fun scale(id: String, factor: Float) {
         _elements.update { list ->
-            list.map { if (it.id == id) it.copy(scale = (it.scale * factor).coerceIn(0.2f, 4f)) else it }
+            list.map { if (it.id == id) it.scaled(factor) else it }
         }
     }
 
     fun rotate(id: String, degrees: Float) {
         _elements.update { list ->
-            list.map { if (it.id == id) it.copy(rotation = it.rotation + degrees) else it }
+            list.map { if (it.id == id) it.rotated(degrees) else it }
         }
     }
 
@@ -1151,34 +1176,26 @@ class MediaStudioViewModel(
         when (action) {
             CanvasAction.Delete -> _elements.update { it.filterNot { e -> e.id == id } }
 
-            CanvasAction.Duplicate -> {
-                val source = _elements.value.firstOrNull { it.id == id } ?: return
-                _elements.update {
-                    it + source.copy(
-                        id = Uuid.random().toString(),
-                        x = source.x + 24f,
-                        y = source.y + 24f,
-                        zIndex = source.zIndex + 1,
-                    )
-                }
+            CanvasAction.Duplicate -> _elements.update { list ->
+                val index = list.indexOfFirst { it.id == id }
+                if (index < 0) return@update list
+                // The copy sits right above its source — that is the layer the
+                // old `zIndex = source + 1` was trying to name.
+                list.toMutableList().apply { add(index + 1, list[index].duplicated(Uuid.random().toString())) }
             }
 
-            CanvasAction.BringForward -> _elements.update { l ->
-                val maxZ = l.maxOfOrNull { it.zIndex } ?: 0
-                l.map { if (it.id == id) it.copy(zIndex = maxZ + 1) else it }
-            }
+            // Draw order is the list itself: «выше/ниже по слоям» are list moves,
+            // so there is no arithmetic left to drift or to collide.
+            CanvasAction.BringForward -> _elements.update { it.toTop(id) }
 
-            CanvasAction.SendBack -> _elements.update { l ->
-                val minZ = l.minOfOrNull { it.zIndex } ?: 0
-                l.map { if (it.id == id) it.copy(zIndex = minZ - 1) else it }
-            }
+            CanvasAction.SendBack -> _elements.update { it.toBottom(id) }
 
             CanvasAction.UseAsReference -> {
-                val source = _elements.value.firstOrNull { it.id == id } ?: return
+                val source = _elements.value.firstOrNull { it.id == id } as? MediaLayer ?: return
                 val url = source.url?.takeIf { it.startsWith("https://") }
                 val localPath = source.localPath
                 if (url == null && localPath == null) return
-                val reference = MediaReference(url = url, localPath = localPath, isVideo = source.isVideo)
+                val reference = MediaReference(url = url, localPath = localPath, isVideo = source is VideoLayer)
                 addReference(reference)
             }
 
@@ -1217,17 +1234,16 @@ class MediaStudioViewModel(
     fun importFromGallery(localPath: String, isVideo: Boolean, bytes: ByteArray? = null, isAudio: Boolean = false) {
         if (bytes != null) com.pusios.pots.writeAppStorageBytes(localPath, bytes)
         val id = Uuid.random().toString()
-        _elements.update {
-            it + CanvasElement(
+        _elements.update { list ->
+            list + mediaLayer(
                 id = id,
                 jobId = null,
                 url = null,
                 localPath = localPath,
                 isVideo = isVideo,
                 isAudio = isAudio,
-                x = (it.size * 32f),
-                y = (it.size * 32f),
-                zIndex = (it.maxOfOrNull { e -> e.zIndex } ?: 0) + 1,
+                x = list.size * 32f,
+                y = list.size * 32f,
             )
         }
         if (isVideo) probeAspectFor(id, localPath)
@@ -1283,10 +1299,10 @@ class MediaStudioViewModel(
     // -- Video sequence assembly (spec §7) -----------------------------------
 
     /** Appends a canvas element to the sequence; video durations are probed by the sheet. */
-    fun addSequenceClip(element: CanvasElement, durationMs: Long): Boolean {
+    fun addSequenceClip(element: MediaLayer, durationMs: Long): Boolean {
         val relPath = element.localPath ?: return false
-        if (element.isAudio) return false
-        val clip = SequenceClip(elementId = element.id, relPath = relPath, isVideo = element.isVideo, durationMs = durationMs)
+        if (element is AudioLayer) return false
+        val clip = SequenceClip(elementId = element.id, relPath = relPath, isVideo = element is VideoLayer, durationMs = durationMs)
         _sequence.update { state ->
             val (clips, transitions) = sequenceAdd(state.clips, state.transitions, clip)
             MediaSequenceState(clips, transitions)
@@ -1433,16 +1449,23 @@ class MediaStudioViewModel(
 
     /** Save a canvas element to the device gallery via platform writer. */
     fun exportToGallery(elementId: String) {
-        val element = _elements.value.firstOrNull { it.id == elementId } ?: return
+        val layer = _elements.value.firstOrNull { it.id == elementId } as? MediaLayer ?: return
         viewModelScope.launch {
-            val bytes = element.localPath?.let { readAppStorageBytes(it) }
-                ?: element.url?.let { runCatching { repositoryDownload(element.url) }.getOrNull() }
+            val bytes = layer.localPath?.let { readAppStorageBytes(it) }
+                ?: layer.url?.let { runCatching { repositoryDownload(it) }.getOrNull() }
                 ?: return@launch
-            saveFileToDevice(bytes, "pots-media-${elementId.take(8)}", galleryExtension(element.localPath, element.isVideo, element.isAudio))
+            saveFileToDevice(bytes, "pots-media-${elementId.take(8)}", galleryExtension(layer))
         }
     }
 
-    /** Extension from the cached path when present, otherwise by element type. */
+    /** Extension from the cached path when present, otherwise by layer type. */
+    private fun galleryExtension(layer: MediaLayer): String = when (layer) {
+        is AudioLayer -> galleryExtension(layer.localPath, isVideo = false, isAudio = true)
+        is VideoLayer -> galleryExtension(layer.localPath, isVideo = true, isAudio = false)
+        else -> galleryExtension(layer.localPath, isVideo = false, isAudio = false)
+    }
+
+    /** Extension from the cached path when present, otherwise by the type flags. */
     private fun galleryExtension(localPath: String?, isVideo: Boolean, isAudio: Boolean): String {
         val fromPath = localPath?.substringAfterLast('.', "")?.takeIf { it.length <= 4 }
         if (!fromPath.isNullOrBlank()) return fromPath

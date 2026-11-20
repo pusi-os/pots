@@ -96,8 +96,8 @@ private data class ClipSource(
  */
 @Composable
 internal fun MediaAudioClipSheet(
-    trackElement: CanvasElement,
-    canvasElements: List<CanvasElement>,
+    trackElement: AudioLayer,
+    canvasElements: List<CanvasLayer>,
     historyEntries: List<MediaHistoryEntry>,
     onResult: (relPath: String, style: AudioClipStyle, trackDurationMs: Long) -> Boolean,
     onFailure: (reason: String) -> Unit,
@@ -142,9 +142,9 @@ internal fun MediaAudioClipSheet(
 
     // Visual sources: canvas elements first, then journal results; one entry per file.
     val sources = remember(canvasElements, historyEntries) {
-        val canvas = canvasElements
-            .filter { !it.isAudio && it.localPath != null }
-            .map { ClipSource(it.id, it.localPath!!, it.isVideo, it.localPath!!.substringAfterLast('/'), fromJournal = false) }
+        val canvas = canvasElements.filterIsInstance<MediaLayer>()
+            .filter { it !is AudioLayer && it.localPath != null }
+            .map { ClipSource(it.id, it.localPath!!, it is VideoLayer, it.localPath!!.substringAfterLast('/'), fromJournal = false) }
         val journal = historyEntries
             .filter { it.status == MediaHistoryStatus.Success && it.localPath != null && !it.isAudio }
             .map { ClipSource(it.localId, it.localPath!!, it.isVideo, it.localPath!!.substringAfterLast('/'), fromJournal = true) }

@@ -152,12 +152,12 @@ fun MediaStudioScreenFull(
     var lightboxUrl by remember { mutableStateOf<String?>(null) }
     var lightboxIsVideo by remember { mutableStateOf(false) }
     var lightboxIsAudio by remember { mutableStateOf(false) }
-    var editAudioElement by remember { mutableStateOf<CanvasElement?>(null) }
+    var editAudioElement by remember { mutableStateOf<AudioLayer?>(null) }
     // Drawing mode: drawElement == null means an empty-canvas sketch.
     var drawOpen by remember { mutableStateOf(false) }
-    var drawElement by remember { mutableStateOf<CanvasElement?>(null) }
-    var editImageElement by remember { mutableStateOf<CanvasElement?>(null) }
-    var editVideoElement by remember { mutableStateOf<CanvasElement?>(null) }
+    var drawElement by remember { mutableStateOf<MediaLayer?>(null) }
+    var editImageElement by remember { mutableStateOf<ImageLayer?>(null) }
+    var editVideoElement by remember { mutableStateOf<VideoLayer?>(null) }
     var sequenceOpen by remember { mutableStateOf(false) }
     var showProjects by remember { mutableStateOf(false) }
     val projects by viewModel.projects.collectAsState()
@@ -169,7 +169,7 @@ fun MediaStudioScreenFull(
         delay(2500)
         viewModel.acknowledgeProjectSaved()
     }
-    var clipTrackElement by remember { mutableStateOf<CanvasElement?>(null) }
+    var clipTrackElement by remember { mutableStateOf<AudioLayer?>(null) }
     val sequenceState by viewModel.sequence.collectAsState()
 
     val pending = jobs.values.filter { !it.isTerminal }
@@ -356,7 +356,7 @@ fun MediaStudioScreenFull(
     ) { innerPadding ->
         Box(Modifier.fillMaxSize().padding(innerPadding)) {
             MediaCanvas(
-                elements = elements,
+                layers = elements,
                 selectedId = selectedId,
                 pendingJobs = pending,
                 canvasScale = canvasScale,
@@ -381,8 +381,8 @@ fun MediaStudioScreenFull(
                 onAction = viewModel::applyAction,
                 onExportToGallery = viewModel::exportToGallery,
                 onOpenLightbox = { element ->
-                    lightboxIsVideo = element.isVideo
-                    lightboxIsAudio = element.isAudio
+                    lightboxIsVideo = element is VideoLayer
+                    lightboxIsAudio = element is AudioLayer
                     // Local copy first: it carries the real extension (the
                     // signed URL has none and expires).
                     lightboxUrl = element.localPath ?: element.url
@@ -671,7 +671,7 @@ fun MediaStudioScreenFull(
     editAudioElement?.let { element ->
         MediaAudioEditorSheet(
             element = element,
-            audioElements = elements.filter { it.isAudio },
+            audioElements = elements.filterIsInstance<AudioLayer>(),
             onDismiss = { editAudioElement = null },
             onResult = { wavBytes -> viewModel.addEditedAudioElement(wavBytes) },
         )
@@ -688,7 +688,7 @@ fun MediaStudioScreenFull(
     editImageElement?.let { element ->
         MediaImageEditorSheet(
             element = element,
-            imageElements = elements.filter { !it.isAudio && !it.isVideo && it.id != element.id },
+            imageElements = elements.filterIsInstance<ImageLayer>().filter { it.id != element.id },
             onDismiss = { editImageElement = null },
             onResult = { pngBytes -> viewModel.addEditedImageElement(pngBytes) },
         )
@@ -697,7 +697,7 @@ fun MediaStudioScreenFull(
     editVideoElement?.let { element ->
         MediaVideoEditorSheet(
             element = element,
-            audioElements = elements.filter { it.isAudio },
+            audioElements = elements.filterIsInstance<AudioLayer>(),
             onDismiss = { editVideoElement = null },
             onResult = { editedRelPath -> viewModel.addEditedVideoElement(editedRelPath) },
         )
