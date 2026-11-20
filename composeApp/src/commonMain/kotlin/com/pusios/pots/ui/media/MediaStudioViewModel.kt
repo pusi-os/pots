@@ -277,7 +277,7 @@ class MediaStudioViewModel(
                 // Auto-place finished results on the canvas once.
                 map.values.filter { it.status == MediaJobStatus.Success }
                     .forEach { state ->
-                        if (_elements.value.none { it.jobId == state.jobId }) {
+                        if (_elements.value.none { it is MediaLayer && it.jobId == state.jobId }) {
                             addElement(state)
                             _justFinished.value = state
                         }
@@ -647,7 +647,7 @@ class MediaStudioViewModel(
             resultUrls = listOfNotNull(entry.resultUrl),
             localPath = entry.localPath,
         )
-        if (_elements.value.none { it.jobId == state.jobId }) addElement(state)
+        if (_elements.value.none { it is MediaLayer && it.jobId == state.jobId }) addElement(state)
     }
 
     /** True while a submit is in flight, a job is still running, or a local synthesis is busy; the create button stays locked meanwhile. */
@@ -1459,12 +1459,19 @@ class MediaStudioViewModel(
     }
 
     /** Extension from the cached path when present, otherwise by layer type. */
-    private fun galleryExtension(layer: MediaLayer): String {
-        val fromPath = layer.localPath?.substringAfterLast('.', "")?.takeIf { it.length <= 4 }
+    private fun galleryExtension(layer: MediaLayer): String = when (layer) {
+        is AudioLayer -> galleryExtension(layer.localPath, isVideo = false, isAudio = true)
+        is VideoLayer -> galleryExtension(layer.localPath, isVideo = true, isAudio = false)
+        else -> galleryExtension(layer.localPath, isVideo = false, isAudio = false)
+    }
+
+    /** Extension from the cached path when present, otherwise by the type flags. */
+    private fun galleryExtension(localPath: String?, isVideo: Boolean, isAudio: Boolean): String {
+        val fromPath = localPath?.substringAfterLast('.', "")?.takeIf { it.length <= 4 }
         if (!fromPath.isNullOrBlank()) return fromPath
-        return when (layer) {
-            is AudioLayer -> "mp3"
-            is VideoLayer -> "mp4"
+        return when {
+            isAudio -> "mp3"
+            isVideo -> "mp4"
             else -> "png"
         }
     }
