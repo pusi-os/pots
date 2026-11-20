@@ -18,7 +18,9 @@ class AgentPathWiringTest {
         "src/androidMain/kotlin/com/pusios/pots/sandbox/PersistentSandboxShell.kt",
         "composeApp/src/androidMain/kotlin/com/pusios/pots/sandbox/PersistentSandboxShell.kt",
         "../composeApp/src/androidMain/kotlin/com/pusios/pots/sandbox/PersistentSandboxShell.kt",
-    ).map(::File).firstOrNull { it.isFile }?.readText()
+    ).map { path -> File(path) }.firstOrNull { file -> file.isFile }?.readText()
+
+    private val where = "from " + File(".").absolutePath
 
     /** The two startup writes, anchored on the calls — not on names that also appear in comments. */
     private val exportLine = "h.writeLine(BuildAgents.AGENT_PATH_EXPORT)"
@@ -28,7 +30,7 @@ class AgentPathWiringTest {
     fun `the chat terminal sends the agent PATH export, from the shared constant`() {
         val source = assertNotNull(
             shellSource,
-            "PersistentSandboxShell.kt not found from ${File(".").absolutePath}",
+            "PersistentSandboxShell.kt not found $where",
         )
         assertTrue(
             source.contains(exportLine),
