@@ -427,6 +427,10 @@ class BuildEnvironmentManager(
     /**
      * Runs the agent's own update command, then re-reads what it installed.
      *
+     * The steps of [AgentVersionSpec.updateCommand] run as one chained proot call —
+     * for Pi that is `pi update` and then its panel's npm install, since the panel
+     * has no update button of its own.
+     *
      * The panel is stopped first: it is a process running the binary the update
      * replaces, so leaving it up would show the old version until the app is
      * restarted. The re-read matters as much — `opencode upgrade` on a current
@@ -450,7 +454,7 @@ class BuildEnvironmentManager(
                 val log = InstallLog()
                 publishInstallLog(log)
                 val outcome = try {
-                    streamInstall(spec.updateCommand, spec.updateTimeoutSeconds, executor(), log)
+                    streamInstall(AgentVersions.updateScript(spec), spec.updateTimeoutSeconds, executor(), log)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -558,8 +562,9 @@ class BuildEnvironmentManager(
     }
 
     /**
-     * Stops the panels that run [agentId]'s binary. pi-web is Pi's panel, so its
-     * own row stops the same process: the panel and the agent are one install.
+     * Stops the panels that run [agentId]'s binary. pi-web is Pi's panel, so
+     * removing Pi stops the same process: the panel and the agent are one install,
+     * and the panel's own record is never removed on its own.
      */
     private suspend fun stopPanelsFor(agentId: String) {
         val panelIds = WebPanels.all

@@ -690,6 +690,7 @@
     <string name="pots_build_agents_github">Репозиторий на GitHub</string>
     <string name="pots_build_agents_docs">Документация</string>
     <string name="pots_build_agents_log">Лог</string>
+    <string name="pots_build_agents_pi_web">Веб-панель %1$s</string>
     <string name="pots_build_agents_opencode_description">Открытый агент для программирования в терминале. Внутри два встроенных агента: build с полным доступом к файлам и командам и plan — только чтение, для разбора незнакомого кода. Ставится своим установщиком, обновляется командой opencode upgrade.</string>
     <string name="pots_build_agents_pi_description">Минималистичная обвязка для агента, которую подстраивают под свой процесс: расширения, скиллы, шаблоны промптов и темы собираются в пакеты и раздаются через npm или git. Работает в терминале интерактивно, в режимах print и JSON, через RPC или из TypeScript SDK. Требует Node.js 22.19 или новее.</string>
     <string name="pots_build_agents_hermes_description">Самообучающийся агент от Nous Research: пишет скиллы из опыта, ведёт память между сессиями и ищет по своим прошлым диалогам. Полноценный терминальный интерфейс, шлюз в Telegram, Discord, Slack, WhatsApp и Signal, планировщик задач и субагенты. Модель меняется командой hermes model, без правки кода.</string>

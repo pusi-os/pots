@@ -164,22 +164,58 @@ class AgentVersionsTest {
     }
 
     @Test
-    fun `rows show what is known and hide pi-web until Pi is there`() {
+    fun `rows show three agents and carry the panel version inside Pi`() {
         val empty = AgentVersions.rows(installed = emptySet(), versions = emptyMap(), updates = emptyMap())
         assertEquals(listOf(BuildAgents.OPENCODE, BuildAgents.PI, BuildAgents.HERMES), empty.map { it.id })
         assertTrue(empty.all { it.update == AgentUpdate.NotInstalled })
+        assertTrue(empty.all { it.childVersion == null }, "nothing rides with an agent that is not there")
 
         val withPi = AgentVersions.rows(
             installed = setOf(BuildAgents.PI),
             versions = mapOf(BuildAgents.PI to "1.5.2", WebPanels.PI_WEB_VERSION_KEY to "0.17.0"),
             updates = mapOf(BuildAgents.PI to AgentUpdate.UpToDate("1.5.2", "14:32")),
         )
+        // The panel is not a row of its own, whatever it is installed as.
+        assertEquals(listOf(BuildAgents.OPENCODE, BuildAgents.PI, BuildAgents.HERMES), withPi.map { it.id })
+        assertTrue(withPi.none { it.id == WebPanels.PI_WEB_VERSION_KEY })
+
+        val pi = withPi.single { it.id == BuildAgents.PI }
+        assertEquals("1.5.2", pi.version)
+        assertEquals(AgentUpdate.UpToDate("1.5.2", "14:32"), pi.update)
+        // Its version rides in Pi's row, where the UI draws it under Pi's own.
+        assertEquals("0.17.0", pi.childVersion)
+        assertEquals(null, withPi.single { it.id == BuildAgents.HERMES }.childVersion)
+    }
+
+    @Test
+    fun `pi-web is a part of Pi, not an agent of its own`() {
+        val piWeb = AgentVersions.get(WebPanels.PI_WEB_VERSION_KEY)!!
+        assertEquals(BuildAgents.PI, piWeb.parentId)
+        // Its own record survives: the panel's stop and its version detection read it.
+        assertEquals(listOf(piWeb), AgentVersions.children(BuildAgents.PI))
+        assertTrue(AgentVersions.all.filter { it.parentId == null }.all { it.id != piWeb.id })
+        // The key the state map uses is not renamed.
+        assertEquals("pi-web", WebPanels.PI_WEB_VERSION_KEY)
+    }
+
+    @Test
+    fun `pi's update runs the panel's install as its second step`() {
+        val pi = AgentVersions.get(BuildAgents.PI)!!
         assertEquals(
-            listOf(BuildAgents.OPENCODE, BuildAgents.PI, WebPanels.PI_WEB_VERSION_KEY, BuildAgents.HERMES),
-            withPi.map { it.id },
+            listOf(
+                "PATH=${AgentVersions.AGENT_PATH} pi update",
+                "PATH=${AgentVersions.AGENT_PATH} /root/.local/share/pi-node/bin/npm install -g " +
+                    "--prefix /root/.local/share/pi-node --no-audit --no-fund @agegr/pi-web",
+            ),
+            pi.updateCommand,
         )
-        assertEquals(AgentUpdate.UpToDate("1.5.2", "14:32"), withPi[1].update)
-        // Detected but never asked about: unchecked, and it says exactly that.
-        assertEquals(AgentUpdate.Unchecked("0.17.0"), withPi[2].update)
+        // One proot call: the steps are chained, so a failed Pi update stops the panel's.
+        assertEquals(pi.updateCommand.joinToString(" && "), AgentVersions.updateScript(pi))
+
+        // Every other agent updates with one command, and the chain is that command.
+        for (spec in AgentVersions.all.filter { it.id != BuildAgents.PI }) {
+            assertEquals(1, spec.updateCommand.size, "${spec.id} updates in one step")
+            assertEquals(spec.updateCommand.single(), AgentVersions.updateScript(spec))
+        }
     }
 }

@@ -68,6 +68,7 @@ import pots.composeapp.generated.resources.pots_build_agents_not_checked
 import pots.composeapp.generated.resources.pots_build_agents_not_installed
 import pots.composeapp.generated.resources.pots_build_agents_opencode_description
 import pots.composeapp.generated.resources.pots_build_agents_pi_description
+import pots.composeapp.generated.resources.pots_build_agents_pi_web
 import pots.composeapp.generated.resources.pots_build_agents_remove
 import pots.composeapp.generated.resources.pots_build_agents_remove_body
 import pots.composeapp.generated.resources.pots_build_agents_remove_bulk
@@ -229,6 +230,17 @@ private fun AgentVersionRowContent(
                 }
             }
         }
+        // The panel that rides with this agent has no row of its own: its version
+        // is a second line inside this one, quieter than the agent's own, and it
+        // has no buttons — updating the agent updates the panel with it.
+        row.childVersion?.let { panel ->
+            Text(
+                text = stringResource(Res.string.pots_build_agents_pi_web, panel),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp),
+            )
+        }
         if (withProgress) {
             AgentTaskProgress(
                 status = rowStatus(row, removalProgress),
@@ -341,7 +353,7 @@ private fun AgentTaskProgress(
 /**
  * The agent's own description, folded away until asked for, and the two links
  * that go with it. pi-web is Pi's panel package rather than an agent of its own,
- * so its row has nothing to open here.
+ * so it has no row and nothing to open here.
  */
 @Composable
 private fun AgentAboutSection(agentId: String) {
