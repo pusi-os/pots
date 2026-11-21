@@ -459,16 +459,11 @@ object BuildAgents {
               echo "pots: could not pin Hermes to ${'$'}POTS_WEBAPP_PIN; the panel will refuse until it is"
             fi
           fi
-          # The renderer is not built here: `pnpm install` of apps/desktop cannot run
-          # under proot's --link2symlink, which dpkg needs. The app unpacks the one
-          # CI built on the panel's first start.
-          echo "pots: the web panel renderer ships with the app"
-        else
-          # A developer build ships none, so the checkout's own bundle is the only
-          # candidate. A failure here does not fail the agent — the panel then says
-          # it is not built instead of showing an empty page, and `hermes webapp
-          # --build-only` can be run again from a terminal.
-          /root/.local/bin/hermes webapp --build-only || echo "pots: webapp bundle not built"
+          # The renderer is not built here. This proot call carries --link2symlink
+          # because dpkg needs it for the base packages, and pnpm 12's staged
+          # renames answer ENOENT under that emulation. Pots Build builds the
+          # renderer afterwards, in a proot call of its own without it, and falls
+          # back to the bundle this app ships (see HermesWebapp).
         fi
         # The wrapper has to leave uv and pm working, so prove both in this log. uv
         # is not on PATH (pm never exposes it), which is why the store path is the
@@ -501,10 +496,11 @@ object BuildAgents {
             title = "Hermes",
             binary = "hermes",
             installCommand = HERMES_INSTALL.trimIndent(),
-            // Its installer resolves uv and Python, installs the dependency tree,
-            // builds the command, and then builds the webapp renderer — none of it
-            // is a download. The budget covers a second attempt on the installer,
-            // which is the short path: the clone, uv and Python are already there.
+            // Its installer resolves uv and Python, installs the dependency tree and
+            // builds the command — none of it is a download. The renderer build is a
+            // separate proot call with a budget of its own. This covers a second
+            // attempt on the installer, which is the short path: the clone, uv and
+            // Python are already there.
             installTimeoutSeconds = 5400,
         ),
     )

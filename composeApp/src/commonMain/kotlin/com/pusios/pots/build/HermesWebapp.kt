@@ -1,24 +1,33 @@
 package com.pusios.pots.build
 
 /**
- * The Hermes web panel renderer this app ships, and what the sandbox does with it.
+ * The Hermes web panel renderer (`apps/desktop/dist-webapp`), and the two ways
+ * Pots gets one onto the device.
  *
- * The phone cannot build that renderer: the first thing `hermes webapp --build-only`
- * does is a `pnpm install` of `apps/desktop`, and pnpm 12's staged renames answer
- * ENOENT under proot's `--link2symlink` — which dpkg needs, so the emulation stays
- * (measured in t_cf73367d; without it the same tree builds in 1m55s). So CI builds
- * the bundle from the commit `hermes-webapp.pin` names, packs
- * `apps/desktop/dist-webapp` into one `tar.xz`, and the APK carries it as an asset.
+ * **The renderer is built on the device.** `hermes webapp --build-only` runs a
+ * `pnpm install` of `apps/desktop` and then vite; it cannot run in the same proot
+ * call as the package install, because pnpm 12 stages every imported package in a
+ * `…_pacquet-stage_…` directory and renames it into place, and that rename answers
+ * ENOENT under proot's `--link2symlink` — the emulation dpkg needs for the base
+ * packages. So the build is a proot call of its own, without the emulation
+ * (measured on a Debian 12 arm64 rootfs from the same LXC index, with the Node and
+ * pnpm `pm` itself installs: with the emulation the install fails in 24 s, without
+ * it the same tree builds a complete 45 MB bundle — 1058 files under `assets/` —
+ * in about seven minutes, of which the pnpm install is 1m 56s and vite 4m 3s).
  *
- * Hermes needs nothing invented for the other half: `HERMES_WEBAPP_DIST` makes it
- * serve a bundle it did not build, without building or marking one
- * (`hermes_cli/webapp.py`).
+ * **The bundle this app ships is the fallback, not the first choice.** CI builds
+ * `apps/desktop/dist-webapp` from the commit `hermes-webapp.pin` names, packs it
+ * into one `tar.xz`, and the APK carries it as an asset; it is unpacked only when
+ * every on-device attempt failed, so the panel is never dead. Naming it in
+ * [DIST_ENV] is what makes Hermes serve a bundle it did not build — and that
+ * variable is set *only* for that fallback: set after a successful build it would
+ * pin the panel to CI's copy for good, and Hermes would never rebuild.
  *
- * **The two halves have to be one version.** The bundle was built from Hermes X; a
- * sandbox running Hermes Y would talk to it over an API that may have moved, which
- * the owner sees as a blank panel and 404s on the assets. So the install pins the
- * checkout to X and the panel refuses to start when it is not X — a sentence on the
- * row instead of a broken page. Nothing is ever served silently mismatched.
+ * **The two halves have to be one version.** The renderer was built from Hermes X;
+ * a sandbox running Hermes Y would talk to it over an API that may have moved,
+ * which the owner sees as a blank panel and 404s on the assets. So the install pins
+ * the checkout to X and the panel refuses to start when it is not X — a sentence on
+ * the row instead of a broken page. Nothing is ever served silently mismatched.
  */
 object HermesWebapp {
 
@@ -36,14 +45,46 @@ object HermesWebapp {
     const val ARCHIVE = "/root/.hermes/pots-webapp-dist.tar.xz"
 
     /**
-     * The unpacked bundle for [pin], and nothing else: the page alone is not the
-     * bundle (`index.html` loads the scripts under `assets/`), and the stamp inside
-     * names the commit it was unpacked for, so a new APK's bundle replaces an old
-     * one instead of being served against a backend it was not built for.
+     * What a finished build leaves behind: the page, and the scripts it loads.
+     * The page alone is not the bundle — a build that produced `index.html` but
+     * no files under `assets/` opens a blank screen and reads as a broken app.
      */
-    fun check(pin: String): String =
+    const val BUILT_CHECK = "test -f " + WebPanels.HERMES_BUNDLE + " && test -n \"\$(ls -A " +
+        WebPanels.HERMES_BUNDLE_DIR + "/assets 2>/dev/null)\""
+
+    /**
+     * What Hermes prints when it decides the bundle is current and skips the
+     * build (`hermes_cli/webapp.py`). `--force-build` should make it impossible;
+     * seeing it means the flag never reached Hermes, and a bundle a failed
+     * attempt half-wrote must not then be read as this attempt's build.
+     */
+    const val UP_TO_DATE = "Hermes Webapp renderer is up to date"
+
+    /**
+     * The renderer the checkout built for itself, good when that checkout is the
+     * commit this app pins. There is no stamp to read here: `hermes webapp
+     * --build-only` writes none, so the commit is what says which Hermes the
+     * bundle belongs to.
+     */
+    fun built(pin: String): String =
+        "$BUILT_CHECK && test \"\$(git -C ${WebPanels.HERMES_CHECKOUT} rev-parse HEAD)\" = $pin"
+
+    /**
+     * The bundle this app ships, unpacked into [DIST_DIR] for [pin]: the page,
+     * the scripts, and the stamp naming the commit it was unpacked for, so a new
+     * APK's bundle replaces an old one instead of being served against a backend
+     * it was not built for.
+     */
+    fun shipped(pin: String): String =
         "test -f $DIST_DIR/index.html && test -d $DIST_DIR/assets " +
             "&& test \"\$(cat $DIST_DIR/.pots-pin 2>/dev/null)\" = $pin"
+
+    /**
+     * Is there a renderer to serve for [pin]? Two equally good answers: one built
+     * on the device from that commit, or the one this app ships, unpacked. A
+     * developer build ships none and can only ever have the first.
+     */
+    fun check(pin: String): String = "(${shipped(pin)}) || (${built(pin)})"
 
     /**
      * Unpacks the shipped archive into [DIST_DIR]. `tar -xJ` runs `xz`, which a
@@ -56,6 +97,92 @@ object HermesWebapp {
 
     /** The commit a checkout is on — the version gate below reads it. */
     fun headCommand(checkout: String): String = "git -C $checkout rev-parse HEAD"
+
+    /**
+     * One way to build the renderer on the device, in the order the app tries
+     * them. [hardlinkEmulation] is proot's `--link2symlink`: dpkg needs it, and it
+     * is exactly what breaks pnpm's staged rename, so the first attempt drops it —
+     * but the checkout the installer made was written *under* the emulation, so
+     * one attempt keeps it to answer whether that mixed tree is what breaks the
+     * build. [env] reaches pnpm as `pnpm_config_*` through proot's own environment —
+     * the only channel pnpm 12 reads: pacquet ignores `npm_config_*` (so a
+     * `$HERMES_HOME/npmrc` hook cannot carry these settings at all), and its
+     * `npmrc` is for auth, registry and TLS only.
+     */
+    data class BuildAttempt(
+        val number: Int,
+        val hardlinkEmulation: Boolean,
+        val env: Map<String, String>,
+        /** How the log names it — the owner reads this to know what worked. */
+        val why: String,
+    )
+
+    /**
+     * The chain the device runs, most likely to work first. Attempt 1 is the
+     * measured one: no emulation, and `copy` so pnpm asks for no hardlink at all
+     * (Android's `protected_hardlinks` may refuse one inside the app sandbox).
+     * Attempt 2 keeps the emulation — the installer wrote the checkout, the venv
+     * and the `pm` tools *under* it, so this is the only attempt that runs in the
+     * tree as the install left it, and the one answer a plain rootfs cannot give:
+     * whether those `.l2s.` artifacts are what breaks the build. Attempt 3 drops
+     * the import method, which says whether `copy` was needed at all. Settings
+     * alone never fix the failure (pnpm's staged rename is independent of
+     * `package-import-method`), so there is no fourth variant to try.
+     */
+    val buildAttempts: List<BuildAttempt> = listOf(
+        BuildAttempt(
+            number = 1,
+            hardlinkEmulation = false,
+            env = mapOf("pnpm_config_package_import_method" to "copy"),
+            why = "no link2symlink",
+        ),
+        BuildAttempt(
+            number = 2,
+            hardlinkEmulation = true,
+            env = mapOf("pnpm_config_package_import_method" to "copy"),
+            why = "link2symlink, copy import",
+        ),
+        BuildAttempt(
+            number = 3,
+            hardlinkEmulation = false,
+            env = emptyMap(),
+            why = "no link2symlink, no import method",
+        ),
+    )
+
+    /** The command that builds the renderer from the checkout the install pinned. */
+    const val BUILD_COMMAND = "/root/.local/bin/hermes webapp --build-only --force-build"
+
+    /**
+     * Wipes what a failed attempt leaves behind, before the next one starts.
+     *
+     * The pnpm store of this build is forced to `$HERMES_ROOT/cache/pnpm` by Hermes
+     * itself (`pm/packages.py` overwrites `pnpm_config_store_dir`), so it cannot be
+     * pointed elsewhere — only removed. A store a failed attempt leaves behind is
+     * made of `.l2s.` symlinks, and a later build against it dies in rolldown with
+     * `Could not resolve '../cjs/…'`. `node_modules` and the previous generation
+     * go with it for the same reason: they were linked against that store.
+     */
+    const val CLEAN_COMMAND =
+        "rm -rf /root/.hermes/hermes-agent/.build/webapp-workspace/node_modules " +
+            "/root/.hermes/hermes-agent/.cache/node-deps-previous " +
+            "/root/.hermes/cache/pnpm/store /root/.hermes/cache/pnpm/cache " +
+            "/root/.hermes/cache/pnpm/state"
+
+    /** The line that says a device build won, and which attempt it was. */
+    fun builtOnDevice(attempt: BuildAttempt): String =
+        "renderer: built on device (attempt ${attempt.number}, ${attempt.why})"
+
+    /** The line that says an attempt was answered "up to date": the flag never arrived. */
+    fun builtNothing(attempt: BuildAttempt): String =
+        "renderer: attempt ${attempt.number} built nothing — Hermes answered 'up to date', " +
+            "so --force-build did not reach it"
+
+    /** The line that says the panel is serving the bundle CI built. */
+    const val SHIPPED = "renderer: shipped bundle"
+
+    /** The line that says there is no renderer at all — a developer build, every attempt failed. */
+    const val NOT_BUILT = "renderer: not built and this app ships no bundle"
 
     /**
      * What the row says when the sandbox and the bundle are not the same Hermes.

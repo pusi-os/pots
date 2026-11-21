@@ -14,6 +14,7 @@ import com.pusios.pots.build.BuildEnvironmentState
 import com.pusios.pots.build.BuildStep
 import com.pusios.pots.build.BuildSystemInfo
 import com.pusios.pots.build.BuildTerminalSession
+import com.pusios.pots.build.HermesWebapp
 import com.pusios.pots.build.InstallLog
 import com.pusios.pots.build.PotsBuildState
 import com.pusios.pots.build.RemovedPath
@@ -109,6 +110,24 @@ private const val INSTALL_STALL_MS = 20 * 60 * 1000L
 
 /** How often a waiting install re-checks its deadline and its silence. */
 private const val INSTALL_POLL_MS = 1000L
+
+/**
+ * How long one on-device renderer build may run. The measured build is about
+ * seven minutes (pnpm 1m 56s, vite 4m 3s); a phone with a slow flash and a cold
+ * store is several times that, and a timeout here costs the whole attempt.
+ *
+ * Twenty-five minutes is a hard deadline for the command, but it is not the
+ * bound a hung build hits first: [INSTALL_STALL_MS] (20 min of silence) fires
+ * earlier and the log then reads "no output for 20 min", not "timed out".
+ *
+ * Nothing bounds the chain as a whole. [BuildAgent.installTimeoutSeconds]
+ * (5400 s) is spent by the installer alone — [buildHermesRenderer] runs after
+ * it, under no outer deadline — so the worst case is three attempts of 1500 s
+ * plus their cleans, about 90 minutes past the install. That is why every step
+ * of the chain publishes its own line to the log instead of relying on the
+ * install's clock.
+ */
+private const val RENDERER_BUILD_TIMEOUT_SECONDS = 1500L
 
 /**
  * One live PTY session: its own VT screen, geometry, and capture files. Several
@@ -929,6 +948,10 @@ class BuildEnvironmentManager(
         // The agent is only worth having if it can answer on the provider the app
         // is already using, so the config lands with the install, not on first run.
         if (installed) {
+            // Hermes' panel is a separate build of `apps/desktop`, and it runs in
+            // a proot call of its own — after the agent is on PATH, because the
+            // build needs the `hermes` command the install just published.
+            if (agent.id == BuildAgents.HERMES) buildHermesRenderer(log)
             applyAgentConfig(agent.id)
             setAgentVersion(agent.id, AgentVersion.parse(probe))
             // A reinstall is also an update: the binary under a running panel was
@@ -969,13 +992,90 @@ class BuildEnvironmentManager(
      * refuses to start on any other — a bundle and a backend from different
      * commits is a blank page with 404s on the assets.
      *
-     * A build with no bundle (a developer build) writes nothing, and the install
-     * then keeps its own channel and builds the renderer itself.
+     * A build with no bundle (a developer build) writes nothing: the install then
+     * keeps its own channel, and nothing is pinned. Either way the install never
+     * builds the renderer itself — that is [buildHermesRenderer]'s own proot call.
      */
     private fun pinHermesWebapp() {
         val pin = HermesWebappAssets.pin(assets) ?: return
         val marker = paths.readMarker() ?: return
         HermesWebappAssets.writePin(pin, paths.homeDir(marker))
+    }
+
+    /**
+     * Builds Hermes' panel renderer on the device, right after Hermes itself.
+     *
+     * The build cannot share the install's proot call: `hermes webapp --build-only`
+     * is a `pnpm install` of `apps/desktop`, pnpm 12 renames a staged directory
+     * into place for every package, and that rename answers ENOENT under proot's
+     * `--link2symlink` — the flag dpkg needs for the base packages. So this is a
+     * proot call of its own, without the emulation: measured, that is the
+     * difference between a failure in twenty-four seconds and a complete 45 MB
+     * bundle in about seven minutes.
+     *
+     * The checkout, the venv and the `pm` tools were written by the installer
+     * *under* the emulation, though, and no measurement on a plain rootfs covers
+     * that mixed tree — so one attempt keeps `--link2symlink` and changes nothing
+     * else, which is the only way the device itself answers it.
+     *
+     * Every attempt starts from an empty pnpm store and an empty `node_modules`,
+     * because a store a failed attempt leaves behind is made of `.l2s.` symlinks
+     * and the next build dies in rolldown against them. Hermes forces that store
+     * to `$HERMES_ROOT/cache/pnpm` itself, so it can only be deleted, not moved.
+     *
+     * The bundle this app ships is the last resort. Each path writes its own line
+     * to the log — which renderer the panel serves is not something the owner
+     * should have to guess at. A build that failed is not an install failure: the
+     * panel then serves the shipped bundle, or says the renderer is missing.
+     */
+    private suspend fun buildHermesRenderer(log: InstallLog) {
+        for (attempt in HermesWebapp.buildAttempts) {
+            log.appendText(
+                "pots: renderer: building on device (attempt ${attempt.number} of " +
+                    "${HermesWebapp.buildAttempts.size}, ${attempt.why}) — about seven minutes\n",
+            )
+            publishInstallLog(log)
+            val executor = executor(extraEnv = attempt.env, hardlinkEmulation = attempt.hardlinkEmulation)
+            executor.execute(HermesWebapp.CLEAN_COMMAND, timeoutSeconds = 300)
+            val outcome = streamInstall(HermesWebapp.BUILD_COMMAND, RENDERER_BUILD_TIMEOUT_SECONDS, executor, log)
+            // `--force-build` makes "up to date" impossible, so a line saying it means
+            // the flag never reached Hermes and the bundle on disk is not this
+            // attempt's build. The whole log is read rather than this attempt's slice:
+            // the flag is in the command line, so every attempt answers alike, and one
+            // such line means the chain rebuilt nothing at all.
+            val stale = log.text().contains(HermesWebapp.UP_TO_DATE)
+            val built = outcome.exit == 0 && !stale &&
+                executor.execute(HermesWebapp.BUILT_CHECK, timeoutSeconds = 30).success
+            log.appendText(
+                when {
+                    built -> "pots: ${HermesWebapp.builtOnDevice(attempt)}\n"
+                    stale -> "pots: ${HermesWebapp.builtNothing(attempt)}\n"
+                    else -> "pots: renderer: attempt ${attempt.number} failed (${outcome.describe()})\n"
+                },
+            )
+            publishInstallLog(log)
+            if (built) return
+        }
+        val pin = HermesWebappAssets.pin(assets)
+        val marker = paths.readMarker()
+        if (pin == null || marker == null) {
+            log.appendText("pots: ${HermesWebapp.NOT_BUILT}\n")
+            publishInstallLog(log)
+            return
+        }
+        HermesWebappAssets.stageArchive(assets, pin, paths.homeDir(marker))
+        val executor = executor()
+        val unpacked = executor.execute(HermesWebapp.unpack(pin), timeoutSeconds = 300)
+        val served = unpacked.success &&
+            executor.execute(HermesWebapp.shipped(pin), timeoutSeconds = 30).success
+        log.appendText(
+            if (served) {
+                "pots: ${HermesWebapp.SHIPPED}\n"
+            } else {
+                "pots: renderer: the shipped bundle could not be unpacked (${unpacked.failureDetail()})\n"
+            },
+        )
+        publishInstallLog(log)
     }
 
     /**
@@ -1458,6 +1558,12 @@ class BuildEnvironmentManager(
         session: BuildSession? = null,
         /** Panel processes need their own password in the environment. */
         extraEnv: Map<String, String> = emptyMap(),
+        /**
+         * Whether this call may run with proot's hardlink emulation. apt/dpkg
+         * needs it and the Hermes renderer build must not have it — see
+         * [DebianSpec.buildProotArgs]; everything else keeps it.
+         */
+        hardlinkEmulation: Boolean = true,
     ): BuildProotExecutor {
         paths.copyLibtalloc()
         paths.ensureLayout()
@@ -1473,7 +1579,7 @@ class BuildEnvironmentManager(
                 // vendor install dirs are executable — external storage is often
                 // mounted noexec.
                 binds = listOf(paths.projectsDir.absolutePath to "/root/projects"),
-                extraArgs = DebianSpec.prootArgs,
+                extraArgs = if (hardlinkEmulation) DebianSpec.prootArgs else DebianSpec.buildProotArgs,
                 env = DebianSpec.env + agentEnv(columns, rows, openUrlPath, session?.agentId) + extraEnv,
             ),
             tmpPath = paths.tmpDir.absolutePath,
