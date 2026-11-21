@@ -219,21 +219,31 @@ object BuildAgents {
         if [ -f /root/.hermes/pots-webapp-pin ]; then
           POTS_WEBAPP_PIN=${'$'}(tr -d '[:space:]' < /root/.hermes/pots-webapp-pin)
         fi
+        # Set when the repair ladder gave up, so the installer's retry does not try
+        # to download the 5 GiB checkout a second time.
+        POTS_CHECKOUT_DEAD=''
         # `tar -xJ` runs xz, which a Debian base does not carry on its own; a rootfs
         # set up before xz-utils joined the base list gets it here.
         apt-get install -y --no-install-recommends xz-utils >/dev/null 2>&1 \
           || echo "pots: xz-utils is missing; the panel cannot unpack its renderer"
-        if [ ! -d /root/.hermes/hermes-agent/.git ]; then
-          # The installer checks that the pin is an ancestor of the branch before it
-          # checks it out (install.sh:996), and that walk needs the commit objects. A
-          # depth-1 clone has none. Blobless is how the installer itself clones: every
-          # commit and tree, file contents on demand. Without a pin nothing checks
-          # ancestry, so the shallow clone stays and the saving is real.
+        # The clone rule, in one place: the repair ladder below re-clones with the
+        # same flags. The URL is a variable only so a unit test can point the ladder
+        # at a local repository; on a device nothing sets it.
+        pots_clone_hermes() {
+          POTS_REPO=${'$'}{POTS_HERMES_REPO:-https://github.com/NousResearch/hermes-agent.git}
           if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
-            git clone --filter=blob:none https://github.com/NousResearch/hermes-agent.git /root/.hermes/hermes-agent
+            # The installer checks that the pin is an ancestor of the branch before it
+            # checks it out (install.sh:996), and that walk needs the commit objects. A
+            # depth-1 clone has none. Blobless is how the installer itself clones: every
+            # commit and tree, file contents on demand. Without a pin nothing checks
+            # ancestry, so the shallow clone stays and the saving is real.
+            git clone --filter=blob:none "${'$'}POTS_REPO" "${'$'}1"
           else
-            git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /root/.hermes/hermes-agent
+            git clone --depth 1 "${'$'}POTS_REPO" "${'$'}1"
           fi
+        }
+        if [ ! -d /root/.hermes/hermes-agent/.git ]; then
+          pots_clone_hermes /root/.hermes/hermes-agent
         fi
         # A checkout an older Pots Build left behind is depth-1, and the same check
         # inside the installer cannot pass there: the pinned commit is not an object
@@ -252,9 +262,83 @@ object BuildAgents {
               || echo "pots: could not refresh the Hermes checkout; the pin step will fail"
           fi
         fi
-        printf 'link-mode = "copy"\nno-cache = true\n' > /root/.hermes/hermes-agent/uv.toml
-        grep -qxF uv.toml /root/.hermes/hermes-agent/.git/info/exclude 2>/dev/null \
-          || echo uv.toml >> /root/.hermes/hermes-agent/.git/info/exclude
+        # A checkout is usable only if HEAD resolves and the working tree carries the
+        # installer. `git clone` creates `.git` first and the files last, so a run
+        # killed in between — proot gone, network gone, disk full — leaves `.git`
+        # without a tree, and the pin step further down (`checkout --force --detach`)
+        # can leave the same state. Nothing after this point works on it: the wrapper's
+        # digest step imports `pm` from the checkout, and `install.sh` is not there.
+        pots_checkout_usable() {
+          git -C "${'$'}1" rev-parse HEAD >/dev/null 2>&1 && test -f "${'$'}1/scripts/install.sh"
+        }
+        # The two files Pots Build itself puts in the checkout: `uv.toml` (copy mode for
+        # the uv calls inside it) and the exclude line that keeps it out of `git status`.
+        # Written after a repair as well, because a re-clone starts without them.
+        pots_write_hermes_config() {
+          printf 'link-mode = "copy"\nno-cache = true\n' > "${'$'}1/uv.toml" 2>/dev/null || true
+          grep -qxF uv.toml "${'$'}1/.git/info/exclude" 2>/dev/null \
+            || echo uv.toml >> "${'$'}1/.git/info/exclude" 2>/dev/null || true
+        }
+        # The ladder, cheapest step first: 5 GiB and tens of minutes of download sit at
+        # the end of it. Every step is judged by [pots_checkout_usable], never by an exit
+        # code — `git reset --hard` answers 0 on a HEAD that does not resolve, and a
+        # step whose output is piped to `head` answers with head's status.
+        pots_ensure_hermes_checkout() {
+          if [ -n "${'$'}POTS_CHECKOUT_DEAD" ]; then
+            echo "pots: hermes checkout: broken (${'$'}POTS_CHECKOUT_DEAD)"
+            return 1
+          fi
+          POTS_BROKEN=''
+          if [ ! -d "${'$'}1/.git" ]; then
+            POTS_BROKEN='no .git'
+          elif ! git -C "${'$'}1" rev-parse HEAD >/dev/null 2>&1; then
+            POTS_BROKEN='HEAD does not resolve'
+          elif [ ! -f "${'$'}1/scripts/install.sh" ]; then
+            POTS_BROKEN='scripts/install.sh is missing'
+          fi
+          if [ -z "${'$'}POTS_BROKEN" ]; then
+            pots_write_hermes_config "${'$'}1"
+            return 0
+          fi
+          echo "pots: hermes checkout: broken (${'$'}POTS_BROKEN)"
+          # For whoever reads this log next: free space and what git thinks is dirty
+          # are the two answers that decide the case, and guessing them already cost a
+          # round trip on the device.
+          df -h /root 2>/dev/null | tail -1
+          git -C "${'$'}1" status --short 2>/dev/null | head -3
+          # Step 1: put back whatever HEAD has and the tree does not. This is the whole
+          # repair for the state the device was in.
+          git -C "${'$'}1" checkout --force --detach HEAD >/dev/null 2>&1 || true
+          if pots_checkout_usable "${'$'}1"; then
+            echo "pots: hermes checkout: repaired at HEAD"
+            pots_write_hermes_config "${'$'}1"
+            return 0
+          fi
+          # Step 2: HEAD has nothing to restore from — a clone that never finished, or a
+          # repository with no commits at all. `reset --hard` answers 0 and changes
+          # nothing there, so only a fresh clone is left, and it goes last.
+          rm -rf "${'$'}1"
+          if pots_clone_hermes "${'$'}1" && pots_checkout_usable "${'$'}1"; then
+            echo "pots: hermes checkout: re-cloned"
+            pots_write_hermes_config "${'$'}1"
+            return 0
+          fi
+          POTS_CHECKOUT_DEAD='the repair failed'
+          # The owner reads this on a phone: name the cause, not "install failed".
+          POTS_FREE_KB=${'$'}(df -Pk /root 2>/dev/null | tail -1 | awk '{print ${'$'}4}')
+          case "${'$'}POTS_FREE_KB" in
+            ''|*[!0-9]*) POTS_FREE_KB='' ;;
+          esac
+          if [ -n "${'$'}POTS_FREE_KB" ] && [ "${'$'}POTS_FREE_KB" -lt 1048576 ]; then
+            echo "pots: hermes checkout: not enough free space on /root (${'$'}{POTS_FREE_KB} KiB); free space and retry"
+          else
+            echo "pots: hermes checkout: the re-clone did not finish (network?); retry when the device is online"
+          fi
+          return 1
+        }
+        # The installer cannot run on a checkout that is not there: stop here, with the
+        # reason as the last line of the log, instead of dying inside install.sh.
+        pots_ensure_hermes_checkout /root/.hermes/hermes-agent || exit 1
         # Evidence first: the one-time cleanup below deletes the very directories
         # whose device ids and .l2s. artifacts this probe reports on. The whole
         # block runs with `set +e` — a probe that aborts the install because one
@@ -407,6 +491,10 @@ object BuildAgents {
           done
         }
         pots_install_hermes() {
+          # The checkout is checked again here, not only before the wrapper: the retry
+          # below reaches this function a second time, and a checkout that broke during
+          # the first attempt would otherwise fail the same way twice.
+          pots_ensure_hermes_checkout /root/.hermes/hermes-agent || return 1
           # A shipped panel names the commit it was built from, and the installer
           # pins the checkout there itself — on a fresh clone and on a rerun over
           # an existing one alike (install.sh:945 and :991) — so the dependencies

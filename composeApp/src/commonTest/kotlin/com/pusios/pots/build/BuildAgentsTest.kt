@@ -121,6 +121,31 @@ class BuildAgentsTest {
     }
 
     @Test
+    fun `a checkout left without a tree is repaired before the installer runs`() {
+        // `git clone` creates `.git` first and the working tree last, so a run killed
+        // in between leaves `.git` with no files. The next run saw `.git`, skipped the
+        // clone, and died on a `scripts/install.sh` that was not there. Validation is
+        // judged by HEAD and by install.sh itself, never by an exit code: `git reset
+        // --hard` answers 0 on a HEAD that does not resolve.
+        val definition = hermes.indexOf("pots_ensure_hermes_checkout() {")
+        val firstCall = hermes.indexOf("pots_ensure_hermes_checkout /root/.hermes/hermes-agent")
+        val wrapper = hermes.indexOf("\npots_wrap_uv\n")
+        assertTrue(definition >= 0, "the install script validates no checkout")
+        assertTrue(
+            firstCall > definition && firstCall < wrapper,
+            "the checkout is validated after the uv wrapper, which imports pm from it",
+        )
+        // The retry reaches pots_install_hermes again, and must not repeat a failure it
+        // cannot fix — the same validation runs at its top.
+        val install = hermes.indexOf("pots_install_hermes() {")
+        val retried = hermes.indexOf("pots_ensure_hermes_checkout /root/.hermes/hermes-agent", install)
+        assertTrue(
+            retried > install && retried < hermes.indexOf("scripts/install.sh --non-interactive"),
+            "the retry does not re-validate the checkout",
+        )
+    }
+
+    @Test
     fun `the install never builds the renderer, which needs a proot call of its own`() {
         // `hermes webapp --build-only` is a pnpm install of apps/desktop, and pnpm
         // 12's staged renames answer ENOENT under the --link2symlink this proot call
