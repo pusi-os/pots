@@ -479,13 +479,13 @@ class BuildEnvironmentManager(
             // The paths are known before the first delete, so the progress is a
             // count, not a guess — and the log gets a line per path, because a
             // removal prints nothing of its own.
-            val paths = AgentVersions.removalPaths(spec, includeBulk)
+            val guestPaths = AgentVersions.removalPaths(spec, includeBulk)
             _state.update {
                 it.copy(
                     installLog = "",
                     installLogDropped = false,
                     activeAgentId = agentId,
-                    removalProgress = AgentRemovalProgress(done = 0, total = paths.size),
+                    removalProgress = AgentRemovalProgress(done = 0, total = guestPaths.size),
                 )
             }
             setAgentUpdate(agentId, AgentUpdate.Removing)
@@ -494,11 +494,11 @@ class BuildEnvironmentManager(
             try {
                 stopPanelsFor(agentId)
                 val removed = mutableListOf<RemovedPath>()
-                for ((index, guestPath) in paths.withIndex()) {
+                for ((index, guestPath) in guestPaths.withIndex()) {
                     removed += deleteGuestPath(paths.rootfsDir, guestPath)
                     log.appendText(AgentVersions.removalLine(removed.last()) + "\n")
                     publishInstallLog(log)
-                    _state.update { it.copy(removalProgress = AgentRemovalProgress(index + 1, paths.size)) }
+                    _state.update { it.copy(removalProgress = AgentRemovalProgress(index + 1, guestPaths.size)) }
                 }
                 log.appendText(AgentVersions.removalSummary(removed) + "\n")
                 publishInstallLog(log)
