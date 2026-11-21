@@ -25,11 +25,11 @@ class HermesWebappTest {
         assertEquals(listOf(1, 2, 3), HermesWebapp.buildAttempts.map { it.number })
         assertFalse(HermesWebapp.buildAttempts.first().hardlinkEmulation, "the emulation is the failure")
 
-        // The installer wrote the checkout, the venv and the pm tools under the
-        // emulation, so exactly one attempt runs in that tree as it was left —
-        // the only way the device answers whether the .l2s. artifacts break it.
+        // Nothing on disk is written under the emulation any more, so the attempt
+        // that keeps it is kept by decision: it differs from the first in that
+        // flag alone, the one question only the device can answer.
         val emulated = HermesWebapp.buildAttempts.filter { it.hardlinkEmulation }
-        assertEquals(listOf(2), emulated.map { it.number }, "one probe of the mixed tree")
+        assertEquals(listOf(2), emulated.map { it.number }, "one attempt isolates the flag")
         assertEquals("copy", emulated.single().env["pnpm_config_package_import_method"])
         assertTrue(
             HermesWebapp.buildAttempts.last().hardlinkEmulation.not(),

@@ -206,9 +206,10 @@ object HermesWebapp {
      * One way to build the renderer on the device, in the order the app tries
      * them. [hardlinkEmulation] is proot's `--link2symlink`: dpkg needs it, and it
      * is exactly what breaks pnpm's staged rename, so the first attempt drops it —
-     * but the checkout the installer made was written *under* the emulation, so
-     * one attempt keeps it to answer whether that mixed tree is what breaks the
-     * build. [env] reaches pnpm as `pnpm_config_*` through proot's own environment —
+     * but the install writes nothing under it any more, and one attempt keeps it
+     * anyway as the chain's own decision: the flag is then the only difference
+     * from the first attempt, which is the question only the device can answer.
+     * [env] reaches pnpm as `pnpm_config_*` through proot's own environment —
      * the only channel pnpm 12 reads: pacquet ignores `npm_config_*` (so a
      * `$HERMES_HOME/npmrc` hook cannot carry these settings at all), and its
      * `npmrc` is for auth, registry and TLS only.
@@ -225,13 +226,14 @@ object HermesWebapp {
      * The chain the device runs, most likely to work first. Attempt 1 is the
      * measured one: no emulation, and `copy` so pnpm asks for no hardlink at all
      * (Android's `protected_hardlinks` may refuse one inside the app sandbox).
-     * Attempt 2 keeps the emulation — the installer wrote the checkout, the venv
-     * and the `pm` tools *under* it, so this is the only attempt that runs in the
-     * tree as the install left it, and the one answer a plain rootfs cannot give:
-     * whether those `.l2s.` artifacts are what breaks the build. Attempt 3 drops
-     * the import method, which says whether `copy` was needed at all. Settings
-     * alone never fix the failure (pnpm's staged rename is independent of
-     * `package-import-method`), so there is no fourth variant to try.
+     * Attempt 2 keeps the emulation, though nothing on disk was written under it
+     * any more: the flag is the only difference from attempt 1, so the device
+     * answers whether `--link2symlink` by itself is what breaks the build — a
+     * question no measurement on a plain rootfs settles. The attempt is kept as
+     * the chain's own decision, not because the installer left such a tree.
+     * Attempt 3 drops the import method, which says whether `copy` was needed at
+     * all. Settings alone never fix the failure (pnpm's staged rename is
+     * independent of `package-import-method`), so there is no fourth variant to try.
      */
     val buildAttempts: List<BuildAttempt> = listOf(
         BuildAttempt(
