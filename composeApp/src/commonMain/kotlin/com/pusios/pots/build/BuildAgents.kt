@@ -203,8 +203,9 @@ object BuildAgents {
         set -e
         export DEBIAN_FRONTEND=noninteractive
         mkdir -p /root/.hermes /root/.local/bin
-        # Set when the repair ladder gave up, so a second call does not try to
-        # download the 5 GiB checkout again to fail the same way.
+        # Set when the repair ladder gave up, so a repeated call does not try to
+        # download the 5 GiB checkout again to fail the same way. The install calls
+        # the ladder once; the second call is the repair test's.
         POTS_CHECKOUT_DEAD=''
         # The clone rule, in one place: the repair ladder below re-clones with the
         # same flags. One commit deep and on `main` — nothing in this install walks

@@ -52,7 +52,8 @@ class HermesWebappTest {
     fun `every renderer path writes its own line to the install log`() {
         val lines = HermesWebapp.buildAttempts.map { HermesWebapp.builtOnDevice(it) } +
             HermesWebapp.buildAttempts.map { HermesWebapp.builtNothing(it) } +
-            HermesWebapp.SHIPPED + HermesWebapp.NOT_BUILT + HermesWebapp.BUDGET_SPENT
+            HermesWebapp.SHIPPED + HermesWebapp.NOT_BUILT + HermesWebapp.BUDGET_SPENT +
+            HermesWebapp.fallingBack(PIN)
 
         assertEquals(lines.size, lines.toSet().size, "the owner must be able to tell the paths apart: $lines")
         assertEquals("renderer: built on device (attempt 1, no link2symlink)", lines.first())
@@ -67,6 +68,31 @@ class HermesWebappTest {
             lines.contains("renderer: device build budget spent, serving the shipped bundle"),
             "a chain that ran out of time is its own path, not a failed attempt: $lines",
         )
+        assertTrue(
+            lines.contains("renderer: build failed, falling back to the shipped bundle at $PIN"),
+            "the fallback names the commit it moves the checkout to, so the log says " +
+                "which Hermes the panel serves: $lines",
+        )
+    }
+
+    @Test
+    fun `the fallback moves the checkout to the pin, one commit deep`() {
+        // The fallback's own command line, which a device runs blind: the pin is a
+        // refspec here, and a typo in it breaks the one path that keeps a panel alive
+        // on a device whose renderer build cannot finish.
+        val checkout = WebPanels.HERMES_CHECKOUT
+        assertEquals(
+            "git -C $checkout fetch --depth 1 origin $PIN " +
+                "&& git -C $checkout checkout --force --detach $PIN",
+            HermesWebapp.pinCheckout(PIN),
+        )
+        assertFalse(
+            HermesWebapp.pinCheckout(PIN).contains("--unshallow"),
+            "the fallback fetches one commit, not the history",
+        )
+        // `--force` because the checkout is on `main` and may carry a half-written
+        // build; `--detach` because no branch is at the pin.
+        assertTrue(HermesWebapp.pinCheckout(PIN).contains("checkout --force --detach"))
     }
 
     @Test
