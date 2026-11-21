@@ -102,6 +102,14 @@ data class PotsBuildState(
     val installLog: String = "",
     /** True when [installLog] lost its head to stay inside the buffer. */
     val installLogDropped: Boolean = false,
+    /**
+     * The agent whose install, update or removal owns [installLog]. One job runs
+     * at a time (`installJob`), so one row owns the log — and only that row may
+     * show it; another agent's output would read as its own.
+     */
+    val activeAgentId: String? = null,
+    /** How far the running removal got; null when no removal is running. */
+    val removalProgress: AgentRemovalProgress? = null,
 ) {
     val isReady: Boolean get() = environment is BuildEnvironmentState.Ready
     val isInstalling: Boolean get() = environment is BuildEnvironmentState.Installing
