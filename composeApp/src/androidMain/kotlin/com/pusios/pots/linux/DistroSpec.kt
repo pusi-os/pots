@@ -51,6 +51,13 @@ sealed interface DistroSpec {
     /** proot flags this distro cannot work without. */
     val prootArgs: List<String> get() = emptyList()
 
+    /**
+     * The same flags for work that needs no package manager — today the Hermes
+     * renderer build. A distro that emulates hardlinks for apt says here how to
+     * run without that emulation.
+     */
+    val buildProotArgs: List<String> get() = prootArgs
+
     /** Environment every command in this distro should see. */
     val env: Map<String, String> get() = emptyMap()
 
@@ -175,6 +182,16 @@ object DebianSpec : DistroSpec {
      * succeeded. `-L` is the companion lstat fix.
      */
     override val prootArgs = listOf("--link2symlink", "-L")
+
+    /**
+     * The emulation is for dpkg, and it is what breaks everything else that
+     * renames a tree: the Hermes renderer build (`pnpm install` of `apps/desktop`)
+     * stages each package in a `…_pacquet-stage_…` directory and renames it into
+     * place, and through link2symlink that rename answers ENOENT. So the build runs
+     * in a proot call of its own with `-L` alone — a separate extension
+     * (`fix_symlink_size`), not part of the emulation.
+     */
+    override val buildProotArgs = listOf("-L")
 
     override val env = mapOf("DEBIAN_FRONTEND" to "noninteractive")
 }

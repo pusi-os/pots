@@ -344,10 +344,11 @@ class WebPanelRuntime(
                 setState(panel, WebPanelStatus.Failed("this Hermes build has no webapp command"))
                 return
             }
-            // The renderer. A release APK ships one CI built (the sandbox cannot
-            // build it), and it is only served against the Hermes it was built
-            // from; a developer build ships none, and then the checkout's own
-            // renderer is the only candidate.
+            // The renderer. Pots Build builds one on the device right after the
+            // install, and a release APK also carries the one CI built — that one
+            // is the fallback when the build could not run. Either is only served
+            // against the Hermes it was built from; a developer build ships
+            // neither, and then the checkout's own renderer is the only candidate.
             val pin = guest.stageHermesBundle()
             hermesDist = null
             if (pin == null) {
@@ -363,7 +364,7 @@ class WebPanelRuntime(
                     return
                 }
             } else {
-                // One version or nothing. The bundle was built from Hermes [pin]; a
+                // One version or nothing. The renderer was built from Hermes [pin]; a
                 // sandbox at another commit would serve a panel that talks to a
                 // backend whose API may have moved — a blank page and 404s on the
                 // assets, with nothing on screen explaining it.
@@ -372,8 +373,10 @@ class WebPanelRuntime(
                     setState(panel, WebPanelStatus.Failed(HermesWebapp.versionMismatch(pin, head.text.trim())))
                     return
                 }
-                // Unpacked once per bundle, not once per start: the stamp inside the
-                // directory names the commit it was unpacked for.
+                // Neither renderer there — the install's build failed and this is
+                // the first start since: unpack the one this app ships, so the
+                // panel is never dead. Unpacked once per bundle, not once per
+                // start: the stamp inside names the commit it was unpacked for.
                 if (!guest.run(HermesWebapp.check(pin), STATUS_TIMEOUT_SECONDS).success) {
                     val unpacked = guest.run(HermesWebapp.unpack(pin), UNPACK_TIMEOUT_SECONDS)
                     if (!unpacked.success || !guest.run(HermesWebapp.check(pin), STATUS_TIMEOUT_SECONDS).success) {
@@ -381,7 +384,12 @@ class WebPanelRuntime(
                         return
                     }
                 }
-                hermesDist = HermesWebapp.DIST_DIR
+                // Name the shipped bundle only when it is the one being served: a
+                // renderer built on the device is Hermes' own, and naming the bundle
+                // there would pin the panel to CI's copy for good.
+                if (guest.run(HermesWebapp.shipped(pin), STATUS_TIMEOUT_SECONDS).success) {
+                    hermesDist = HermesWebapp.DIST_DIR
+                }
             }
             // The panel binds every interface, so Hermes' sign-in gate is on, and a
             // disabled `basic` plugin leaves it with no provider at all: the page
@@ -558,9 +566,9 @@ class WebPanelRuntime(
     private fun hermesEnv(panel: WebPanel): Map<String, String> = buildMap {
         panel.usernameEnv?.let { put(it, WebPanels.HERMES_USER) }
         panel.passwordEnv?.let { put(it, passwordFor(panel)) }
-        // The renderer CI built for this Hermes, when this app ships one. Naming it
-        // is what stops the launcher from trying to build one on the phone, where
-        // the renderer's pnpm install cannot run at all.
+        // The shipped renderer, when that is the one being served. Naming it is
+        // what stops the launcher from building one itself; a renderer the device
+        // built is left unnamed so Hermes keeps owning it.
         hermesDist?.let { put(HermesWebapp.DIST_ENV, it) }
     }
 

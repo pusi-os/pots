@@ -955,8 +955,50 @@ class WebPanelsTest {
 
         runtime.startPanel("hermes")
 
-        // Naming the bundle is what stops `hermes webapp` from building one, and the
-        // build is the step that cannot run on a phone at all.
+        // The fallback: no renderer on the device at all, so the one this app
+        // carries is unpacked — and named, which is what stops Hermes from
+        // building one itself.
+        assertEquals(1, guest.runs.count { it == HermesWebapp.unpack(BUNDLE_PIN) })
+        assertEquals(HermesWebapp.DIST_DIR, guest.runEnv[HermesWebapp.DIST_ENV])
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+    }
+
+    @Test
+    fun `a renderer built on the device is served without naming the shipped bundle`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            hermesBuilt = true
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // The install built the renderer from the pinned checkout, so the panel
+        // serves Hermes' own bundle: nothing is unpacked, and DIST_ENV stays unset
+        // — naming the shipped copy here would pin the panel to CI's bundle for
+        // good and Hermes would never rebuild it.
+        assertFalse(guest.runs.any { it == HermesWebapp.unpack(BUNDLE_PIN) })
+        assertFalse(guest.runEnv.containsKey(HermesWebapp.DIST_ENV))
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+    }
+
+    @Test
+    fun `a failed device build falls back to the bundle the app ships`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            hermesBuilt = false
+            hermesUnpacked = false
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // Both on-device attempts failed during the install and nothing was
+        // unpacked yet: the panel takes the shipped bundle rather than staying dead.
         assertEquals(1, guest.runs.count { it == HermesWebapp.unpack(BUNDLE_PIN) })
         assertEquals(HermesWebapp.DIST_DIR, guest.runEnv[HermesWebapp.DIST_ENV])
         assertIs<WebPanelStatus.Running>(status("hermes"))
@@ -1280,6 +1322,9 @@ class WebPanelsTest {
         /** Whether the shipped bundle is already unpacked for [hermesPin]. */
         var hermesUnpacked = false
 
+        /** Whether the checkout built its own renderer (the install does this on the device). */
+        var hermesBuilt = false
+
         /** When false, unpacking the shipped archive fails the way a missing xz does. */
         var hermesUnpacks = true
 
@@ -1316,7 +1361,9 @@ class WebPanelsTest {
                 command == WebPanels.HERMES_BUNDLE_CHECK -> WebPanelGuest.Output(hasBundle)
                 command == HermesWebapp.headCommand(WebPanels.HERMES_CHECKOUT) ->
                     WebPanelGuest.Output(hermesHead != null, hermesHead.orEmpty())
-                command == HermesWebapp.check(hermesPin.orEmpty()) -> WebPanelGuest.Output(hermesUnpacked)
+                command == HermesWebapp.check(hermesPin.orEmpty()) ->
+                    WebPanelGuest.Output(hermesUnpacked || hermesBuilt)
+                command == HermesWebapp.shipped(hermesPin.orEmpty()) -> WebPanelGuest.Output(hermesUnpacked)
                 command == HermesWebapp.unpack(hermesPin.orEmpty()) -> {
                     if (hermesUnpacks) hermesUnpacked = true
                     WebPanelGuest.Output(hermesUnpacks, if (hermesUnpacks) "" else "tar: xz: Cannot exec")

@@ -121,12 +121,14 @@ class BuildAgentsTest {
     }
 
     @Test
-    fun `the renderer is built only when this app ships none`() {
-        // `hermes webapp --build-only` is a pnpm install of apps/desktop, which
-        // cannot run under proot's --link2symlink — so a pinned install never runs
-        // it. A developer build ships no bundle and keeps it.
-        assertTrue(hermes.contains("/root/.local/bin/hermes webapp --build-only"), hermes)
-        assertTrue(hermes.contains("if [ -n \"\$POTS_WEBAPP_PIN\" ]"), hermes)
-        assertTrue(hermes.contains("the web panel renderer ships with the app"), hermes)
+    fun `the install never builds the renderer, which needs a proot call of its own`() {
+        // `hermes webapp --build-only` is a pnpm install of apps/desktop, and pnpm
+        // 12's staged renames answer ENOENT under the --link2symlink this proot call
+        // carries for dpkg. Pots Build builds the renderer afterwards, in a proot
+        // call without the emulation — the install script must not try, and must not
+        // claim the bundle ships prebuilt either.
+        assertFalse(hermes.contains("webapp --build-only"), hermes)
+        assertFalse(hermes.contains("renderer ships with the app"), hermes)
+        assertTrue(hermes.contains("POTS_WEBAPP_PIN"), "the pin still reaches the installer")
     }
 }
