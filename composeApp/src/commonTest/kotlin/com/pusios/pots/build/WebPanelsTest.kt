@@ -997,7 +997,7 @@ class WebPanelsTest {
 
         runtime.startPanel("hermes")
 
-        // Both on-device attempts failed during the install and nothing was
+        // All three on-device attempts failed during the install and nothing was
         // unpacked yet: the panel takes the shipped bundle rather than staying dead.
         assertEquals(1, guest.runs.count { it == HermesWebapp.unpack(BUNDLE_PIN) })
         assertEquals(HermesWebapp.DIST_DIR, guest.runEnv[HermesWebapp.DIST_ENV])

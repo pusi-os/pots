@@ -74,6 +74,41 @@ class HermesWebappTest {
     }
 
     @Test
+    fun `a build counts only with the page, the assets and the pinned commit`() {
+        val pin = "caafe5380123456789abcdef0123456789abcdef"
+
+        // The page alone is not the bundle: a build that stopped after writing
+        // index.html opens a blank screen. Every clause below is shipped to the
+        // device verbatim, so the string is the contract, not a snapshot.
+        assertTrue(
+            HermesWebapp.built(pin).startsWith("test -f ${WebPanels.HERMES_BUNDLE} && "),
+            HermesWebapp.built(pin),
+        )
+        assertTrue(
+            HermesWebapp.built(pin).contains(
+                "test -n \"\$(ls -A ${WebPanels.HERMES_BUNDLE_DIR}/assets 2>/dev/null)\"",
+            ),
+            "an empty assets/ is a blank screen, not a build: ${HermesWebapp.built(pin)}",
+        )
+
+        // `hermes webapp --build-only` writes no stamp, so the checkout's own
+        // commit is what says which Hermes the bundle belongs to.
+        assertTrue(
+            HermesWebapp.built(pin).endsWith(
+                " && test \"\$(git -C ${WebPanels.HERMES_CHECKOUT} rev-parse HEAD)\" = $pin",
+            ),
+            HermesWebapp.built(pin),
+        )
+
+        // Both answers are good enough to serve. Dropping the built half leaves a
+        // developer build (no shipped archive) with no panel at all.
+        assertEquals(
+            "(${HermesWebapp.shipped(pin)}) || (${HermesWebapp.built(pin)})",
+            HermesWebapp.check(pin),
+        )
+    }
+
+    @Test
     fun `the build runs from the pinned checkout, against a store the device owns`() {
         assertTrue(HermesWebapp.BUILD_COMMAND.startsWith("/root/.local/bin/hermes webapp --build-only"))
         // --force-build: a half-written bundle from a failed attempt must not read

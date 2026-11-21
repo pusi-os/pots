@@ -1,7 +1,7 @@
 package com.pusios.pots.build
 
 /**
- * The Hermes web panel renderer (`apps/desktop/dist-webapp`), and the three ways
+ * The Hermes web panel renderer (`apps/desktop/dist-webapp`), and the two ways
  * Pots gets one onto the device.
  *
  * **The renderer is built on the device.** `hermes webapp --build-only` runs a
