@@ -24,6 +24,7 @@ import com.pusios.pots.build.WebPanelPreferences
 import com.pusios.pots.build.WebPanelRuntime
 import com.pusios.pots.build.WebPanelStatus
 import com.pusios.pots.build.WebPanels
+import com.pusios.pots.build.cleanLeftovers
 import com.pusios.pots.build.deleteGuestPath
 import com.pusios.pots.build.deleteTree
 import com.pusios.pots.build.directorySize
@@ -500,8 +501,14 @@ class BuildEnvironmentManager(
                 stopPanelsFor(agentId)
                 val removed = mutableListOf<RemovedPath>()
                 for ((index, guestPath) in guestPaths.withIndex()) {
-                    removed += deleteGuestPath(paths.rootfsDir, guestPath)
-                    log.appendText(AgentVersions.removalLine(removed.last()) + "\n")
+                    // The one guard every delete passes through: a path that is
+                    // the user's — or holds it — is named in the log, not taken.
+                    if (!AgentVersions.mayDelete(guestPath, spec)) {
+                        log.appendText(AgentVersions.refusedToRemove(spec, guestPath) + "\n")
+                    } else {
+                        removed += deleteGuestPath(paths.rootfsDir, guestPath)
+                        log.appendText(AgentVersions.removalLine(removed.last()) + "\n")
+                    }
                     publishInstallLog(log)
                     _state.update { it.copy(removalProgress = AgentRemovalProgress(index + 1, guestPaths.size)) }
                 }
@@ -896,13 +903,16 @@ class BuildEnvironmentManager(
         setStep(BuildStep.Agent, agentId = agent.id)
         ensureAgentPathProfile()
         val executor = executor()
+        val log = InstallLog()
+        publishInstallLog(log)
+        // Before `mkdir -p` below, which would make every path of a previous run
+        // look like one: find what is there, say so, take it, then install.
+        AgentVersions.get(agent.id)?.let { spec -> cleanBeforeInstall(spec, executor, log) }
         executor.execute(
             "mkdir -p /root/.local/bin /root/.local/share/pi-node /root/.hermes " +
                 "/root/.pi/agent /root/.opencode/bin /usr/local/bin",
             timeoutSeconds = 30,
         )
-        val log = InstallLog()
-        publishInstallLog(log)
         // Hermes' panel ships with this app, built from one hermes-agent commit:
         // the install reads that commit from here and leaves the checkout on it.
         // Written before the install, because that is the run that checks out.
@@ -945,6 +955,24 @@ class BuildEnvironmentManager(
             webPanels.onAgentInstalled(agent.id)
         }
         installed
+    }
+
+    /**
+     * Cleans what a previous install of [spec] left behind, before this one starts.
+     * The decision and the log lines are [cleanLeftovers]'s; this only asks the
+     * guest the two questions it needs — does the binary answer, and how much disk
+     * is there — and writes the lines it gets back.
+     */
+    private fun cleanBeforeInstall(spec: AgentVersionSpec, executor: BuildProotExecutor, log: InstallLog) {
+        val binaryAnswers = executor.execute(spec.installedCommand, timeoutSeconds = 30).success
+        val lines = cleanLeftovers(
+            rootfsDir = paths.rootfsDir,
+            spec = spec,
+            binaryAnswers = binaryAnswers,
+            disk = { executor.execute("df -h /root | tail -1", timeoutSeconds = 30).stdout },
+        )
+        for (line in lines) log.appendText(line + "\n")
+        publishInstallLog(log)
     }
 
     /**
