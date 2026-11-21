@@ -449,13 +449,15 @@ class WebPanelRuntime(
 
     private fun stopLocked(panelId: String) {
         val panel = WebPanels.get(panelId) ?: return
-        // Hermes records no pid file — its panel is the gateway — so the port to
-        // check afterwards comes from the address the row is showing.
+        // The pid file is the launch's own record; for Hermes it names the
+        // gateway. The port to check afterwards comes from that file, or — when
+        // there is none — from the address the row is showing.
         val port = guest.port(panel)
             ?: (states[panel.id]?.status as? WebPanelStatus.Running)?.let { WebPanels.portOf(it.url) }
         val pid = guest.pid(panel)
         if (pid != null) guest.run(stopCommand(pid), STOP_TIMEOUT_SECONDS)
-        // Hermes' panel is its gateway, which has its own documented stop.
+        // Hermes' panel is its gateway, which also has its own documented stop:
+        // the signal above ends the process, this ends the gateway's own state.
         if (panel.id == WebPanels.HERMES) guest.run(GATEWAY_STOP, STOP_TIMEOUT_SECONDS)
         guest.forget(panel)
         val stillListening = port != null && !guest.portFree(port)
@@ -470,15 +472,37 @@ class WebPanelRuntime(
     }
 
     /**
-     * Hermes' panel is its gateway: `hermes webapp --no-open` starts the gateway
-     * when it is not up, prints the address and exits. So there is no pid of ours
-     * to record — the readiness answer is the address itself, and the port it
-     * reports is the port the panel is really on.
+     * Hermes' panel is its gateway, so the gateway is what Pots keeps up.
      *
-     * The account rides in the launcher's environment: the gateway reads it from
-     * there when it registers the sign-in provider.
+     * Three steps, in this order, because the panel is only real once the gateway
+     * is: start it as a background session (which records its pid and its log —
+     * see [WebPanels.HERMES_SERVER]), wait for its port, and only then run the
+     * launcher, whose whole job is to mint the address out of the gateway that is
+     * already there. The launcher itself is a foreground call that exits, and
+     * every proot Pots starts runs with `--kill-on-exit`: a gateway it brought up
+     * would die with its proot, leaving the row showing an address nobody serves.
+     *
+     * The account rides in the launcher's environment in both steps: the gateway
+     * reads it from there when it registers the sign-in provider.
      */
     private fun startHermes(panel: WebPanel, port: Int) {
+        if (!guest.launch(panel, port, WebPanels.HERMES_SERVER, hermesEnv(panel))) {
+            setState(panel, WebPanelStatus.Failed("${panel.title} did not start"))
+            return
+        }
+        val ready = guest.run(waitForPort(port, startTimeoutSeconds), startTimeoutSeconds + 10)
+        if (!ready.success) {
+            // The log is the answer here — a gateway that refuses to start says
+            // why on its last line — and it is masked before it is quoted.
+            setState(
+                panel,
+                WebPanelStatus.Failed(
+                    "${panel.title} is not listening on $port after ${startTimeoutSeconds}s: " +
+                        WebPanelLog.brief(guest.logText(panel), password(panel.id)),
+                ),
+            )
+            return
+        }
         val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS, hermesEnv(panel))
         val link = HermesWebappOutput.parse(output.text)
         if (link == null) {
