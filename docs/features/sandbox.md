@@ -256,6 +256,14 @@ a CGNAT or VPN address is one the other devices cannot reach). With no network a
 all the row falls back to the loopback address and says the panel is reachable on
 this phone only.
 
+The open button hands the browser something else: this panel's loopback at the
+same port (`WebPanelRuntime.browserAddress`). `getUserMedia` — the panel's
+microphone — needs a secure context, and loopback is a potentially trustworthy
+origin while `http://` on the LAN address is not, so opening the LAN one left the
+microphone dead. A published address Hermes printed is handed over as it is. The
+row itself keeps the LAN address: it is read and retyped on the other device,
+where loopback would point at that device.
+
 That is also the honest caveat the card states once: while the sandbox runs, the
 port is visible to every device on whatever network the phone is joined to, and
 the password is what keeps them out. There is no TLS and no subnet filter — the
