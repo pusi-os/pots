@@ -729,9 +729,11 @@
     <string name="pots_build_web_panel_password_copied">Скопировано</string>
     <string name="pots_build_web_panel_pi_login_hint">Вход один раз — браузер запомнит его на 30 дней.</string>
     <string name="pots_build_web_panel_hermes_lan_hint">Доступен по локальной сети — откройте этот адрес с любого устройства в той же сети и войдите логином и паролем ниже.</string>
-    <string name="pots_build_web_panel_hermes_link_hint">Ссылка входит в браузер один раз и живёт 60 секунд. Если она уже использована или истекла — нажмите адрес ещё раз.</string>
+    <string name="pots_build_web_panel_hermes_link_hint">Ссылка входит в браузер один раз и живёт 60 секунд. Если она уже использована или истекла — нажмите кнопку ещё раз.</string>
     <string name="pots_build_web_panel_hermes_local_hint">Локальной сети сейчас нет — панель открывается только на этом телефоне. Войдите логином и паролем ниже.</string>
     <string name="pots_build_web_panel_username">Логин: %1$s</string>
+    <string name="pots_build_web_panel_credentials">Данные для входа</string>
+    <string name="pots_build_web_panel_open_in_browser">Открыть в браузере</string>
     <string name="pots_build_web_panel_log">Лог запуска</string>
     <string name="pots_build_web_panel_log_refresh">Обновить</string>
     <string name="pots_build_web_panel_log_loading">Читаю лог…</string>

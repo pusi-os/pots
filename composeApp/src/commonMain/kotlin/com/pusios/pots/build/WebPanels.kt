@@ -34,6 +34,12 @@ data class WebPanel(
     val passwordEnv: String?,
     /** Env var carrying the panel's login, for the panels that ask for one by name. */
     val usernameEnv: String? = null,
+    /**
+     * The login the panel asks for, as its row shows it — a property of the panel,
+     * not of the one agent that happens to be first to want one. Null for a panel
+     * that asks for a password alone (pi-web) or for neither.
+     */
+    val username: String? = null,
 ) {
     val pidFile: String get() = "pots-web-$id.pid"
     val portFile: String get() = "pots-web-$id.port"
@@ -74,6 +80,8 @@ object WebPanels {
             // `opencode serve` defaults to port 0 — a random one — so it is always named.
             preferredPort = 4096,
             passwordEnv = "OPENCODE_SERVER_PASSWORD",
+            // v2 takes Basic credentials on its API and the user name is fixed.
+            username = OPENCODE_USER,
         ),
         WebPanel(
             id = PI,
@@ -93,6 +101,7 @@ object WebPanels {
             // config file is rewritten on every agent start and must not carry it.
             passwordEnv = "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD",
             usernameEnv = "HERMES_DASHBOARD_BASIC_AUTH_USERNAME",
+            username = HERMES_USER,
         ),
     )
 
@@ -394,9 +403,9 @@ data class WebPanelState(
 )
 
 /**
- * What Pots remembers about a panel between runs: its password (generated on
- * first start, never logged, never part of the UI state) and whether it should
- * come up with the sandbox.
+ * What Pots remembers about a panel between runs: its password (generated once,
+ * on first need — a start or the row's sign-in section — never logged, never part
+ * of the UI state) and whether it should come up with the sandbox.
  */
 @Immutable
 data class WebPanelPreferences(

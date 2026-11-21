@@ -834,9 +834,11 @@
     <string name="pots_build_web_panel_password_copied">Copied</string>
     <string name="pots_build_web_panel_pi_login_hint">Sign in once — the browser remembers it for 30 days.</string>
     <string name="pots_build_web_panel_hermes_lan_hint">Reachable on your local network — open this address from any device on the same network and sign in with the login and password below.</string>
-    <string name="pots_build_web_panel_hermes_link_hint">The link signs this browser in once and lives 60 seconds. If it did not open, tap the address again.</string>
+    <string name="pots_build_web_panel_hermes_link_hint">The link signs this browser in once and lives 60 seconds. If it did not open, press the button again.</string>
     <string name="pots_build_web_panel_hermes_local_hint">No local network right now — the panel opens on this phone only. Sign in with the login and password below.</string>
     <string name="pots_build_web_panel_username">Login: %1$s</string>
+    <string name="pots_build_web_panel_credentials">Sign-in details</string>
+    <string name="pots_build_web_panel_open_in_browser">Open in browser</string>
     <string name="pots_build_web_panel_log">Start log</string>
     <string name="pots_build_web_panel_log_refresh">Refresh</string>
     <string name="pots_build_web_panel_log_loading">Reading the log…</string>
