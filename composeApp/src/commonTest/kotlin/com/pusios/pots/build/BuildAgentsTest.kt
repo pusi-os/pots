@@ -100,9 +100,12 @@ class BuildAgentsTest {
         // an older build left behind is deepened before the installer looks. The
         // post-install pin below stays for the paths that do not pin.
         assertTrue(hermes.contains("/root/.hermes/pots-webapp-pin"), "the app writes the pin, the install reads it")
+        val pinBranch = hermes.indexOf("if [ -n \"\$POTS_WEBAPP_PIN\" ]; then")
+        val blobless = hermes.indexOf("git clone --filter=blob:none")
+        val shallow = hermes.indexOf("git clone --depth 1")
         assertTrue(
-            Regex("""if \[ -n "${'$'}POTS_WEBAPP_PIN" \]; then\s+git clone --filter=blob:none""").containsMatchIn(hermes),
-            "a pinned clone keeps history; blobless is how the installer itself clones",
+            pinBranch in 0..<blobless && blobless < shallow,
+            "the pinned branch is the one that clones history; --depth 1 stays for a build with no pin",
         )
         assertTrue(
             hermes.indexOf("rev-parse --is-shallow-repository") in 0..<hermes.indexOf("fetch --unshallow"),
