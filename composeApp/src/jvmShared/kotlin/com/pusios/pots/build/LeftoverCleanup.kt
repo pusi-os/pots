@@ -29,9 +29,10 @@ import java.nio.file.LinkOption
  * likeliest reason the previous run stopped, so it belongs next to the cleanup
  * that reacts to it.
  *
- * Only [AgentVersionSpec.installPaths] is considered. Hermes' 5 GiB checkout is
- * its [AgentVersionSpec.bulkPath], and a broken one is repaired by the installer
- * that follows rather than downloaded again.
+ * Only the agent's install tree is considered — its own paths and those of what
+ * rides with it (Pi's web panel). Hermes' 5 GiB checkout is its
+ * [AgentVersionSpec.bulkPath], and a broken one is repaired by the installer that
+ * follows rather than downloaded again.
  */
 fun cleanLeftovers(
     rootfsDir: File,
@@ -41,9 +42,9 @@ fun cleanLeftovers(
 ): List<String> {
     // NOFOLLOW_LINKS: a link into a tree that is already gone still has to be
     // found, and `File.exists()` follows the link and answers no.
-    val existing = spec.installPaths
-        .filter { Files.exists(File(rootfsDir, it.trimStart('/')).toPath(), LinkOption.NOFOLLOW_LINKS) }
-        .toSet()
+    val existing = AgentVersions.installTree(spec).filterTo(mutableSetOf()) { path ->
+        Files.exists(File(rootfsDir, path.trimStart('/')).toPath(), LinkOption.NOFOLLOW_LINKS)
+    }
     val plan = AgentVersions.cleanupPlan(spec, existing, binaryAnswers)
     if (plan.found.isEmpty()) return listOf(AgentVersions.nothingToClean(spec))
     val lines = mutableListOf(AgentVersions.leftoversFound(spec, plan.found))
