@@ -1,8 +1,10 @@
 package com.pusios.pots.build
 
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -79,37 +81,100 @@ class HermesWebappTest {
     }
 
     @Test
-    fun `a build counts only with the page, the assets and the pinned commit`() {
-        val pin = "caafe5380123456789abcdef0123456789abcdef"
-
+    fun `a build counts only with the page, the assets and the stamp`() {
         // The page alone is not the bundle: a build that stopped after writing
         // index.html opens a blank screen. Every clause below is shipped to the
         // device verbatim, so the string is the contract, not a snapshot.
         assertTrue(
-            HermesWebapp.built(pin).startsWith("test -f ${WebPanels.HERMES_BUNDLE} && "),
-            HermesWebapp.built(pin),
+            HermesWebapp.BUILT_CHECK.startsWith("test -f ${WebPanels.HERMES_BUNDLE} && "),
+            HermesWebapp.BUILT_CHECK,
         )
         assertTrue(
-            HermesWebapp.built(pin).contains(
+            HermesWebapp.BUILT_CHECK.contains(
                 "test -n \"\$(ls -A ${WebPanels.HERMES_BUNDLE_DIR}/assets 2>/dev/null)\"",
             ),
-            "an empty assets/ is a blank screen, not a build: ${HermesWebapp.built(pin)}",
+            "an empty assets/ is a blank screen, not a build: ${HermesWebapp.BUILT_CHECK}",
         )
 
-        // `hermes webapp --build-only` writes no stamp, so the checkout's own
-        // commit is what says which Hermes the bundle belongs to.
-        assertTrue(
-            HermesWebapp.built(pin).endsWith(
-                " && test \"\$(git -C ${WebPanels.HERMES_CHECKOUT} rev-parse HEAD)\" = $pin",
-            ),
-            HermesWebapp.built(pin),
-        )
-
-        // Both answers are good enough to serve. Dropping the built half leaves a
-        // developer build (no shipped archive) with no panel at all.
+        // The stamp, not the pin: `hermes webapp --build-only` writes none, so the
+        // app writes the commit it built from — and that is what the gate reads.
         assertEquals(
-            "(${HermesWebapp.shipped(pin)}) || (${HermesWebapp.built(pin)})",
-            HermesWebapp.check(pin),
+            "test -f ${HermesWebapp.BUILT_STAMP} && cat ${HermesWebapp.BUILT_STAMP}",
+            HermesWebapp.stampCommand(),
+        )
+        assertEquals(
+            "mkdir -p ${HermesWebapp.DIST_DIR} " +
+                "&& printf '%s\\n' \"\$(git -C ${WebPanels.HERMES_CHECKOUT} rev-parse HEAD)\" " +
+                "> ${HermesWebapp.BUILT_STAMP}.tmp && mv ${HermesWebapp.BUILT_STAMP}.tmp ${HermesWebapp.BUILT_STAMP}",
+            HermesWebapp.stampBuilt(),
+            "the stamp names the commit the build came from, and lands atomically",
+        )
+    }
+
+    @Test
+    fun `a renderer built on the device is served while the checkout is its commit`() {
+        // The device build is the sandbox's own Hermes, so it is good on the commit
+        // it was stamped from — whatever the pin, which names CI's bundle instead.
+        assertEquals(HermesWebapp.Renderer.Device, HermesWebapp.decide(facts(builtFrom = HEAD, built = true)))
+        assertEquals(
+            HermesWebapp.Renderer.Device,
+            HermesWebapp.decide(facts(head = OTHER, builtFrom = OTHER, built = true)),
+            "a checkout past the pin still serves its own build",
+        )
+
+        // Both sources present: the build wins, because naming CI's bundle would
+        // tell Hermes the renderer is ready and it would never rebuild.
+        assertEquals(
+            HermesWebapp.Renderer.Device,
+            HermesWebapp.decide(facts(head = PIN, builtFrom = PIN, built = true, shipped = true)),
+        )
+
+        // A build the checkout has moved away from is a blank page: refused, with
+        // both commits named so the owner knows what to do.
+        val stale = assertIs<HermesWebapp.Renderer.Refused>(
+            HermesWebapp.decide(facts(head = OTHER, builtFrom = HEAD, built = true)),
+        )
+        assertContains(stale.reason, HEAD.take(8))
+        assertContains(stale.reason, OTHER.take(8))
+        assertContains(stale.reason, "reinstall Hermes")
+    }
+
+    @Test
+    fun `the shipped bundle is served only against the commit it was built from`() {
+        assertEquals(HermesWebapp.Renderer.Shipped, HermesWebapp.decide(facts(head = PIN, shipped = true)))
+        assertEquals(
+            HermesWebapp.Renderer.Unpack(PIN),
+            HermesWebapp.decide(facts(head = PIN)),
+            "on disk but not unpacked is one unpack away, not a refusal",
+        )
+
+        val mismatched = assertIs<HermesWebapp.Renderer.Refused>(
+            HermesWebapp.decide(facts(head = OTHER, shipped = true)),
+        )
+        assertContains(mismatched.reason, PIN.take(8))
+        assertContains(mismatched.reason, OTHER.take(8))
+    }
+
+    @Test
+    fun `nothing is served from a checkout that cannot be read or a bundle that is gone`() {
+        assertEquals(
+            HermesWebapp.UNREADABLE,
+            assertIs<HermesWebapp.Renderer.Refused>(HermesWebapp.decide(facts(head = ""))).reason,
+        )
+
+        // A stamp that matches the checkout with no page and assets behind it: the
+        // build is broken, not from another commit — rebuilding is the answer.
+        assertEquals(
+            HermesWebapp.NOT_BUILT_ROW,
+            assertIs<HermesWebapp.Renderer.Refused>(
+                HermesWebapp.decide(facts(builtFrom = HEAD, built = false)),
+            ).reason,
+        )
+
+        // A developer build: no bundle shipped, nothing built here.
+        assertEquals(
+            HermesWebapp.NOT_BUILT_ROW,
+            assertIs<HermesWebapp.Renderer.Refused>(HermesWebapp.decide(facts(pin = null))).reason,
         )
     }
 
@@ -233,5 +298,25 @@ class HermesWebappTest {
         val budget = HermesWebapp.BuildBudget(nowMillis = { now })
         now = HermesWebapp.BUILD_BUDGET_SECONDS * 1000 - 1000
         assertEquals(1L, budget.leftMinutes())
+    }
+
+    /** The facts the start reports, with the ordinary release case as the default. */
+    private fun facts(
+        head: String = HEAD,
+        pin: String? = PIN,
+        builtFrom: String? = null,
+        built: Boolean = false,
+        shipped: Boolean = false,
+    ) = HermesWebapp.RendererFacts(head, pin, builtFrom, built, shipped)
+
+    private companion object {
+        /** The commit CI built this app's bundle from. */
+        const val PIN = "caafe5389ae585ef77387a962aee05b1bcf17029"
+
+        /** The commit the checkout is on when nothing has moved it. */
+        const val HEAD = "caafe5380123456789abcdef0123456789abcdef"
+
+        /** A Hermes the checkout could have moved on to. */
+        const val OTHER = "0123456789abcdef0123456789abcdef01234567"
     }
 }

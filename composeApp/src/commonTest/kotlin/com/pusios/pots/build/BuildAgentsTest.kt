@@ -90,34 +90,40 @@ class BuildAgentsTest {
     }
 
     @Test
-    fun `the install leaves the checkout on the commit this app's panel was built from`() {
-        // install.sh pins `--commit` itself, on a fresh clone and on a rerun over an
-        // existing checkout alike (install.sh:996) — but only after it walks the
-        // history to prove the commit is an ancestor of the branch, and a depth-1
-        // clone has no history to walk: the commit is not an object there at all.
-        // That is how the install died on the phone ("commit … is not on branch
-        // main"). So a pinned clone carries the commit graph, and a depth-1 checkout
-        // an older build left behind is deepened before the installer looks. The
-        // post-install pin below stays for the paths that do not pin.
-        assertTrue(hermes.contains("/root/.hermes/pots-webapp-pin"), "the app writes the pin, the install reads it")
-        val pinBranch = hermes.indexOf("if [ -n \"\$POTS_WEBAPP_PIN\" ]; then")
-        val blobless = hermes.indexOf("git clone --filter=blob:none")
-        val shallow = hermes.indexOf("git clone --depth 1")
+    fun `the install follows main, one commit deep, and pins nothing`() {
+        // The owner's rule: the native installer, the latest Hermes. A pinned
+        // install walks the history to prove the commit is an ancestor of the
+        // branch — history a depth-1 clone has not got — and it leaves the sandbox
+        // a release behind the renderer it could build for itself. The commit
+        // `hermes-webapp.pin` names is the fallback's address (HermesWebapp.
+        // pinCheckout), not something this install reads.
+        assertTrue(hermes.contains("git clone --depth 1 --branch main"), hermes)
+        assertFalse(hermes.contains("git clone --filter"), "the blobless clone is back")
+        assertFalse(hermes.contains("--unshallow"), "the deepening existed only for the pin")
+        assertFalse(hermes.contains("merge-base"), hermes)
+        assertFalse(hermes.contains("POTS_WEBAPP_PIN"), "the install pins nothing")
+        assertFalse(hermes.contains("--commit"), hermes)
         assertTrue(
-            pinBranch in 0..<blobless && blobless < shallow,
-            "the pinned branch is the one that clones history; --depth 1 stays for a build with no pin",
+            hermes.contains(
+                "scripts/install.sh --non-interactive --skip-browser --skip-computer-use --channel main",
+            ),
+            "the installer's own channel, unconditionally",
         )
+    }
+
+    @Test
+    fun `the release tags are fetched on every install, so the version is a release`() {
+        // `hermes --version` names the newest release tag reachable from HEAD, and a
+        // depth-1 clone carries no tags at all: without this fetch the agent row
+        // reads `git.<sha>` where the release number belongs. It is unconditional —
+        // the pin used to guard it, and the pin is gone.
+        assertTrue(hermes.contains("'+refs/tags/*:refs/tags/*'"), hermes)
+        assertTrue(hermes.contains("--filter=blob:none"), "ref-only: no file contents")
+        // After the installer, which is what makes the tags worth having.
         assertTrue(
-            hermes.indexOf("rev-parse --is-shallow-repository") in 0..<hermes.indexOf("fetch --unshallow"),
-            "an existing depth-1 checkout is what a device already has",
+            hermes.indexOf("refs/tags/*:refs/tags/*") > hermes.indexOf("scripts/install.sh --non-interactive"),
+            "the tags are fetched once the checkout is installed",
         )
-        assertTrue(
-            hermes.indexOf("fetch --unshallow") in 0..<hermes.indexOf("if ! pots_install_hermes"),
-            "the checkout is deepened before the installer checks the pin, not after",
-        )
-        assertTrue(hermes.contains("fetch --depth 1 origin"), "a shallow clone has to fetch the pinned commit")
-        assertTrue(hermes.contains("checkout --force --detach"), "the pin is a detached checkout, not a branch")
-        assertTrue(hermes.contains("POTS_WEBAPP_PIN"), hermes)
     }
 
     @Test
@@ -154,6 +160,6 @@ class BuildAgentsTest {
         // claim the bundle ships prebuilt either.
         assertFalse(hermes.contains("webapp --build-only"), hermes)
         assertFalse(hermes.contains("renderer ships with the app"), hermes)
-        assertTrue(hermes.contains("POTS_WEBAPP_PIN"), "the pin still reaches the installer")
+        assertTrue(hermes.contains("refs/tags/*:refs/tags/*"), "the version still comes from the tags")
     }
 }

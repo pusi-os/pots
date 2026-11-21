@@ -124,6 +124,26 @@ class HermesCheckoutRepairTest {
         assertContains(output, "pots: hermes checkout: broken (the repair failed)")
     }
 
+    @Test
+    fun `a re-clone is one commit deep, so nothing has to walk the history`() {
+        // The install follows `main` and pins nothing, so the checkout carries one
+        // commit and nothing in the install looks further back. The repair ladder
+        // re-clones with the same rule as the first clone — that is the whole point
+        // of keeping the rule in one function.
+        val repo = origin("deep")
+        File(repo, "second.txt").writeText("another commit\n")
+        git(repo, "add", ".")
+        git(repo, "commit", "--quiet", "-m", "second")
+        val checkout = File(sandbox, "shallow-checkout").apply { mkdirs() }
+
+        val (status, output) = runLadder(checkout)
+
+        assertEquals(0, status, output)
+        assertContains(output, "pots: hermes checkout: re-cloned")
+        assertEquals("true", revParse(checkout, "--is-shallow-repository"), "the re-clone is not shallow")
+        assertEquals(1, File(checkout, ".git/shallow").readLines().count(), "more than one commit was fetched")
+    }
+
     /** The shell function [name] out of the install command, as the device runs it. */
     private fun shellFunction(name: String): String {
         val start = hermes.indexOf("$name() {")
@@ -141,7 +161,6 @@ class HermesCheckoutRepairTest {
     private fun runLadder(checkout: File, repo: File = origin("origin"), calls: Int = 1): Pair<Int, String> {
         val script = buildString {
             appendLine("set -e")
-            appendLine("POTS_WEBAPP_PIN=''")
             appendLine("POTS_CHECKOUT_DEAD=''")
             for (function in ladderFunctions) appendLine(shellFunction(function))
             for (call in 1..calls) {
@@ -165,7 +184,10 @@ class HermesCheckoutRepairTest {
     /** An origin repository with one commit; `scripts/install.sh` is in it unless told otherwise. */
     private fun origin(name: String, withInstaller: Boolean = true): File {
         val repo = File(sandbox, "$name-origin").apply { mkdirs() }
-        git(repo, "init", "--quiet")
+        // `main`, because that is the branch the install clones and hands to
+        // `install.sh --channel main`. A runner whose git defaults to `master`
+        // would otherwise make the re-clone fail for the wrong reason.
+        git(repo, "init", "--quiet", "-b", "main")
         File(repo, "README.md").writeText("hermes-agent\n")
         if (withInstaller) {
             File(repo, "scripts").mkdirs()
