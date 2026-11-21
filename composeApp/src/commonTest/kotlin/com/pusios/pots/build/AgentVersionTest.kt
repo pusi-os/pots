@@ -33,6 +33,25 @@ class AgentVersionTest {
     }
 
     @Test
+    fun `Hermes' git-described line has no version, and its release date is not one`() {
+        // What a checkout with no reachable release tag prints. `2026.9.24` is
+        // `__release_date__`, a constant the upstream stopped bumping in
+        // September — reading it as the version is what made a November build
+        // compare as newer than the release it was behind.
+        assertNull(
+            AgentVersion.parse("Hermes Agent vgit.ae2a81c (2026.9.24) · stable · local ae2a81ccc00e"),
+        )
+        // The same line once git can name the release: the version is before the
+        // date, and the date is dropped rather than considered.
+        assertEquals("0.23.2", AgentVersion.parse("Hermes Agent v0.23.2 (2026.9.24) · stable"))
+        assertEquals("1.5.2", AgentVersion.parse("pi 1.5.2"))
+        // A date in brackets is never the answer, even with no version in front of it.
+        assertNull(AgentVersion.parse("Hermes Agent vgit.ae2a81c (2026.9.24)"))
+        // A developer build's `+N.g<sha>` suffix is still a version.
+        assertEquals("0.21.5", AgentVersion.parse("Hermes Agent v0.21.5+912.gdeadbee (2026.9.24) · main"))
+    }
+
+    @Test
     fun `a newline-delimited banner still yields one version`() {
         assertEquals("1.5.2", AgentVersion.parse("\n  Pi Installer\n\n1.5.2\n"))
     }
