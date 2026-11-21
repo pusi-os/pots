@@ -36,18 +36,6 @@ object HermesWebappAssets {
     }.getOrElse { null }
 
     /**
-     * Puts [pin] where the sandbox's Hermes install reads it, so the checkout it
-     * leaves behind is the Hermes this panel was built against. Idempotent: one
-     * small file, rewritten only when the pin changed.
-     */
-    fun writePin(pin: String, homeDir: File): Boolean = runCatching {
-        val file = File(homeDir, ".hermes/pots-webapp-pin")
-        file.parentFile?.mkdirs()
-        if (!file.isFile || file.readText().trim() != pin) file.writeText("$pin\n")
-        true
-    }.onFailure { Log.w(TAG, "could not write the Hermes panel pin", it) }.getOrDefault(false)
-
-    /**
      * Copies the shipped archive into the guest, once per bundle.
      *
      * The pin file doubles as the stamp: when it already names [pin] and the

@@ -912,17 +912,26 @@ class BuildEnvironmentManager(
         publishInstallLog(log)
         // Before `mkdir -p` below, which would make every path of a previous run
         // look like one: find what is there, say so, take it, then install.
-        AgentVersions.get(agent.id)?.let { spec -> cleanBeforeInstall(spec, executor, log) }
+        AgentVersions.get(agent.id)?.let { spec ->
+            cleanBeforeInstall(spec, executor, log)
+            clearDebris(agent, spec, executor, log)
+        }
         executor.execute(
             "mkdir -p /root/.local/bin /root/.local/share/pi-node /root/.hermes " +
                 "/root/.pi/agent /root/.opencode/bin /usr/local/bin",
             timeoutSeconds = 30,
         )
-        // Hermes' panel ships with this app, built from one hermes-agent commit:
-        // the install reads that commit from here and leaves the checkout on it.
-        // Written before the install, because that is the run that checks out.
-        if (agent.id == BuildAgents.HERMES) pinHermesWebapp()
-        val outcome = streamInstall(agent.installCommand, agent.installTimeoutSeconds, executor, log)
+        // Hermes' panel ships with this app, built from one hermes-agent commit.
+        // The install no longer pins the checkout to it — it follows `main` and the
+        // renderer is built from whatever that checkout is; the commit this app
+        // ships becomes the fallback's address when the device cannot build one.
+        // One proot call per step, each with the hardlink emulation it needs: the
+        // package manager's prerequisite with it, everything else without.
+        val outcome = BuildAgents.installCalls(agent).map { call ->
+            // `this.` because the local `executor` above shadows the builder.
+            val stepExecutor = if (call.hardlinkEmulation) executor else this.executor(hardlinkEmulation = false)
+            streamInstall(call.command, call.timeoutSeconds, stepExecutor, log)
+        }.last()
         // Vendor scripts may leave the binary only in their private dir and only
         // update shell rc files — which Pots Build never sources. Link into PATH
         // and re-probe so a successful download still counts as installed. The
@@ -960,6 +969,42 @@ class BuildEnvironmentManager(
             webPanels.onAgentInstalled(agent.id)
         }
         installed
+    }
+
+    /**
+     * Removes what an earlier install left and this one must not inherit.
+     *
+     * proot's `--link2symlink` emulation — which the install's prerequisite needs
+     * for dpkg — leaves `.l2s.` artifacts behind, and hardlinking one of those is
+     * what answers EPERM to uv. Nothing in the current call emulates any more, but
+     * the artifacts on disk survive it, so the tree starts clean instead.
+     *
+     * [AgentVersions.debrisPlan] is the guard: `keepPaths` covers the credentials,
+     * the state and the board, and a path the guard refuses is reported in the log
+     * rather than taken. An agent with no debris keeps whatever it had.
+     */
+    private fun clearDebris(
+        agent: BuildAgent,
+        spec: AgentVersionSpec,
+        executor: BuildProotExecutor,
+        log: InstallLog,
+    ) {
+        if (agent.debrisPaths.isEmpty()) return
+        val plan = AgentVersions.debrisPlan(spec, agent.debrisPaths)
+        for (path in plan.refused) {
+            log.appendText("pots: ${agent.id}: kept $path — it holds the owner's data\n")
+        }
+        if (plan.remove.isEmpty()) return
+        val removed = executor.execute("rm -rf " + plan.remove.joinToString(" "), timeoutSeconds = 300)
+        log.appendText(
+            if (removed.success) {
+                "pots: ${agent.id}: cleared ${plan.remove.joinToString(", ")} of .l2s. artifacts before a clean install\n"
+            } else {
+                "pots: ${agent.id}: could not clear ${plan.remove.joinToString(", ")} " +
+                    "(${removed.failureDetail()})\n"
+            },
+        )
+        publishInstallLog(log)
     }
 
     /**
@@ -1003,22 +1048,6 @@ class BuildEnvironmentManager(
             publishInstallLog(log)
         }
         version != null
-    }
-
-    /**
-     * Tells the sandbox's Hermes install which commit this app's panel was built
-     * from. The install ends by checking the checkout out at it, and the panel
-     * refuses to start on any other — a bundle and a backend from different
-     * commits is a blank page with 404s on the assets.
-     *
-     * A build with no bundle (a developer build) writes nothing: the install then
-     * keeps its own channel, and nothing is pinned. Either way the install never
-     * builds the renderer itself — that is [buildHermesRenderer]'s own proot call.
-     */
-    private fun pinHermesWebapp() {
-        val pin = HermesWebappAssets.pin(assets) ?: return
-        val marker = paths.readMarker() ?: return
-        HermesWebappAssets.writePin(pin, paths.homeDir(marker))
     }
 
     /**
@@ -1117,15 +1146,21 @@ class BuildEnvironmentManager(
             val stale = log.text().contains(HermesWebapp.UP_TO_DATE)
             val built = outcome.exit == 0 && !stale &&
                 executor.execute(HermesWebapp.BUILT_CHECK, timeoutSeconds = 30).success
+            // The stamp is what makes this bundle the panel's own: it names the
+            // commit the build came from, and the gate serves the bundle only while
+            // the checkout is still on that commit. A build that cannot stamp itself
+            // is not one the panel may serve, so it does not end the chain.
+            val stamped = built && executor.execute(HermesWebapp.stampBuilt(), timeoutSeconds = 30).success
             log.appendText(
                 when {
-                    built -> "pots: ${HermesWebapp.builtOnDevice(attempt)}\n"
+                    stamped -> "pots: ${HermesWebapp.builtOnDevice(attempt)}\n"
+                    built -> "pots: renderer: attempt ${attempt.number} built a bundle it could not stamp\n"
                     stale -> "pots: ${HermesWebapp.builtNothing(attempt)}\n"
                     else -> "pots: renderer: attempt ${attempt.number} failed (${outcome.describe()})\n"
                 },
             )
             publishInstallLog(log)
-            if (built) return HermesWebapp.RendererBuild.BUILT
+            if (stamped) return HermesWebapp.RendererBuild.BUILT
         }
         return HermesWebapp.RendererBuild.FAILED
     }
@@ -1135,6 +1170,11 @@ class BuildEnvironmentManager(
      * device could not build one in time. [line] is the sentence that says the
      * chain stopped for time rather than failed, so the owner reads why the wait
      * ended and that the panel is up regardless.
+     *
+     * The bundle is a whole Hermes, not just a renderer: it was built from the
+     * commit the pin names, so the checkout is moved there first. That is the only
+     * place the install's `main` is ever given up, and it is what keeps a panel
+     * alive on a device whose renderer build cannot finish.
      */
     private suspend fun serveShippedBundle(log: InstallLog, line: String?) {
         val pin = HermesWebappAssets.pin(assets)
@@ -1144,12 +1184,26 @@ class BuildEnvironmentManager(
             publishInstallLog(log)
             return
         }
-        if (line != null) {
-            log.appendText("pots: $line\n")
-            publishInstallLog(log)
-        }
+        if (line != null) log.appendText("pots: $line\n")
+        log.appendText("pots: ${HermesWebapp.fallingBack(pin)}\n")
+        publishInstallLog(log)
         HermesWebappAssets.stageArchive(assets, pin, paths.homeDir(marker))
         val executor = executor()
+        val checkout = executor.execute(HermesWebapp.pinCheckout(pin), timeoutSeconds = 300)
+        if (!checkout.success) {
+            // Nothing else is worth doing: the panel refuses a renderer built from
+            // another commit, so the checkout is the whole fallback. The cause is
+            // the last line of the log, as in the repair ladder.
+            log.appendText(
+                "pots: renderer: could not move Hermes to $pin (${checkout.failureDetail()}); " +
+                    "the panel will refuse until it is\n",
+            )
+            publishInstallLog(log)
+            return
+        }
+        // The version of the commit just checked out: without its tag the row reads
+        // `git.<sha>` even though HEAD is a release.
+        executor.execute(HermesWebapp.TAGS_FETCH, timeoutSeconds = 120)
         val unpacked = executor.execute(HermesWebapp.unpack(pin), timeoutSeconds = 300)
         val served = unpacked.success &&
             executor.execute(HermesWebapp.shipped(pin), timeoutSeconds = 30).success

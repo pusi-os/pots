@@ -25,16 +25,23 @@ package com.pusios.pots.build
  * **The bundle this app ships is the fallback, not the first choice.** CI builds
  * `apps/desktop/dist-webapp` from the commit `hermes-webapp.pin` names, packs it
  * into one `tar.xz`, and the APK carries it as an asset; it is unpacked only when
- * every on-device attempt failed, so the panel is never dead. Naming it in
- * [DIST_ENV] is what makes Hermes serve a bundle it did not build — and that
- * variable is set *only* for that fallback: set after a successful build it would
- * pin the panel to CI's copy for good, and Hermes would never rebuild.
+ * every on-device attempt failed, so the panel is never dead. The fallback is a
+ * whole Hermes too, not just a renderer: the checkout is moved to the pin first,
+ * because the bundle was built from that commit and from nothing else. Naming
+ * [DIST_DIR] in [DIST_ENV] is what makes Hermes serve a bundle it did not build —
+ * and that variable is set *only* for that fallback: set after a successful build
+ * it would pin the panel to CI's copy for good, and Hermes would never rebuild.
  *
  * **The two halves have to be one version.** The renderer was built from Hermes X;
  * a sandbox running Hermes Y would talk to it over an API that may have moved,
- * which the owner sees as a blank panel and 404s on the assets. So the install pins
- * the checkout to X and the panel refuses to start when it is not X — a sentence on
- * the row instead of a broken page. Nothing is ever served silently mismatched.
+ * which the owner sees as a blank panel and 404s on the assets. Two renderers can
+ * serve the panel, and each carries the commit it was built from: the one the
+ * checkout builds on the device stamps its commit in [BUILT_STAMP], the one CI
+ * built is named by the pin and stamped in [DIST_DIR] when it is unpacked. The
+ * panel serves a renderer only against the Hermes it was built from — a sentence
+ * on the row instead of a broken page — and when both are there the device's own
+ * build wins, because that one *is* the sandbox's Hermes. Nothing is ever served
+ * silently mismatched.
  */
 object HermesWebapp {
 
@@ -50,6 +57,14 @@ object HermesWebapp {
 
     /** Guest path the app copies the shipped archive to before unpacking it. */
     const val ARCHIVE = "/root/.hermes/pots-webapp-dist.tar.xz"
+
+    /**
+     * What a successful on-device build stamps itself with: the commit it was
+     * built from. `hermes webapp --build-only` writes no stamp of its own, so the
+     * app writes this one — and only after the build left a page and its assets,
+     * so a half-written bundle can never be read as this checkout's own.
+     */
+    const val BUILT_STAMP = "$DIST_DIR/.pots-built-from"
 
     /**
      * What a finished build leaves behind: the page, and the scripts it loads.
@@ -68,13 +83,10 @@ object HermesWebapp {
     const val UP_TO_DATE = "Hermes Webapp renderer is up to date"
 
     /**
-     * The renderer the checkout built for itself, good when that checkout is the
-     * commit this app pins. There is no stamp to read here: `hermes webapp
-     * --build-only` writes none, so the commit is what says which Hermes the
-     * bundle belongs to.
+     * The commit the checkout built its own renderer from, as the app stamped it.
+     * A failure here is the ordinary case: nothing was built on this device.
      */
-    fun built(pin: String): String =
-        "$BUILT_CHECK && test \"\$(git -C ${WebPanels.HERMES_CHECKOUT} rev-parse HEAD)\" = $pin"
+    fun stampCommand(): String = "test -f $BUILT_STAMP && cat $BUILT_STAMP"
 
     /**
      * The bundle this app ships, unpacked into [DIST_DIR] for [pin]: the page,
@@ -87,11 +99,63 @@ object HermesWebapp {
             "&& test \"\$(cat $DIST_DIR/.pots-pin 2>/dev/null)\" = $pin"
 
     /**
-     * Is there a renderer to serve for [pin]? Two equally good answers: one built
-     * on the device from that commit, or the one this app ships, unpacked. A
-     * developer build ships none and can only ever have the first.
+     * What the sandbox reports about the renderers it could serve: one probe per
+     * field, and [decide] turns them into the answer. Kept apart from the shell so
+     * the four cases the panel has to get right are unit-tested rather than
+     * inferred from a command line that no test can run.
      */
-    fun check(pin: String): String = "(${shipped(pin)}) || (${built(pin)})"
+    data class RendererFacts(
+        /** The commit the checkout is on; blank when it cannot be read. */
+        val head: String,
+        /** The commit CI built the shipped bundle from; null when this app ships none. */
+        val pin: String?,
+        /** The commit the on-device build stamped; null when this checkout built nothing. */
+        val builtFrom: String?,
+        /** Whether that build left the page and its assets behind. */
+        val built: Boolean,
+        /** Whether the shipped bundle is unpacked for [pin] right now. */
+        val shipped: Boolean,
+    )
+
+    /** What the panel can serve. */
+    sealed interface Renderer {
+        /** The checkout's own build — it *is* this sandbox's Hermes, so nothing is named. */
+        object Device : Renderer
+
+        /** The bundle CI built, already unpacked for its pin. */
+        object Shipped : Renderer
+
+        /** The bundle CI built for [pin] is on disk, one unpack away from being served. */
+        data class Unpack(val pin: String) : Renderer
+
+        /** Nothing may be served; [reason] is the sentence the row shows. */
+        data class Refused(val reason: String) : Renderer
+    }
+
+    /**
+     * The rule, in the order it matters:
+     *
+     * 1. a device build stamped with the commit the checkout is on — always good,
+     *    whatever the pin says, because it was built from this very Hermes;
+     * 2. the bundle CI built, while the checkout is the commit it was built from:
+     *    already unpacked, or one unpack away;
+     * 3. nothing. A renderer from another commit is a blank page and 404s, so the
+     *    row says which two commits disagree instead of opening it.
+     */
+    fun decide(facts: RendererFacts): Renderer {
+        if (facts.head.isBlank()) return Renderer.Refused(UNREADABLE)
+        if (facts.built && facts.builtFrom == facts.head) return Renderer.Device
+        if (facts.pin != null && facts.pin == facts.head) {
+            return if (facts.shipped) Renderer.Shipped else Renderer.Unpack(facts.pin)
+        }
+        // Neither source is this Hermes. Name the commit a renderer *was* built
+        // from, when there is one: a stamp that matches the checkout with no files
+        // left behind is a broken build, and rebuilding is the answer to that.
+        val builtFrom = facts.builtFrom ?: facts.pin
+        return Renderer.Refused(
+            if (builtFrom == null || builtFrom == facts.head) NOT_BUILT_ROW else versionMismatch(builtFrom, facts.head),
+        )
+    }
 
     /**
      * Unpacks the shipped archive into [DIST_DIR]. `tar -xJ` runs `xz`, which a
@@ -104,6 +168,39 @@ object HermesWebapp {
 
     /** The commit a checkout is on — the version gate below reads it. */
     fun headCommand(checkout: String): String = "git -C $checkout rev-parse HEAD"
+
+    /**
+     * Stamps a successful on-device build with the commit it was built from.
+     *
+     * Written atomically — a temporary file renamed into place — so a run killed
+     * between the write and the rename cannot leave a half stamp that reads as a
+     * build of some other commit. Called only after [BUILT_CHECK] passed: a stamp
+     * is what makes a bundle the panel's own, and a failed attempt leaves none.
+     */
+    fun stampBuilt(): String =
+        "mkdir -p $DIST_DIR " +
+            "&& printf '%s\\n' \"\$(git -C ${WebPanels.HERMES_CHECKOUT} rev-parse HEAD)\" > $BUILT_STAMP.tmp " +
+            "&& mv $BUILT_STAMP.tmp $BUILT_STAMP"
+
+    /**
+     * Points the checkout at [pin] — the commit CI built the shipped bundle from.
+     *
+     * The install follows `main`, so this is the one path that moves the sandbox's
+     * Hermes at all, and it runs only when the device could not build a renderer of
+     * its own: the bundle is from that commit and from nothing else.
+     */
+    fun pinCheckout(pin: String): String =
+        "git -C ${WebPanels.HERMES_CHECKOUT} fetch --depth 1 origin $pin " +
+            "&& git -C ${WebPanels.HERMES_CHECKOUT} checkout --force --detach $pin"
+
+    /**
+     * Fetches the release tags. `hermes --version` names the newest release tag
+     * reachable from HEAD, and a `--depth 1` clone carries no tags at all — so
+     * without this the row shows `git.<sha>` where the release number belongs.
+     * Ref-only: no file contents are pulled by this fetch.
+     */
+    const val TAGS_FETCH = "git -C " + WebPanels.HERMES_CHECKOUT +
+        " fetch --filter=blob:none origin '+refs/tags/*:refs/tags/*'"
 
     /**
      * One way to build the renderer on the device, in the order the app tries
@@ -157,7 +254,7 @@ object HermesWebapp {
         ),
     )
 
-    /** The command that builds the renderer from the checkout the install pinned. */
+    /** The command that builds the renderer from the checkout the install left. */
     const val BUILD_COMMAND = "/root/.local/bin/hermes webapp --build-only --force-build"
 
     /**
@@ -265,6 +362,14 @@ object HermesWebapp {
     const val SHIPPED = "renderer: shipped bundle"
 
     /**
+     * The line that says where the panel fell back to, and which commit the bundle
+     * it serves came from: the checkout is moved to that commit before the unpack,
+     * so the log names both halves of the fallback in one place.
+     */
+    fun fallingBack(pin: String): String =
+        "renderer: build failed, falling back to the shipped bundle at $pin"
+
+    /**
      * The line that says the chain ran out of time rather than failing — and that
      * the panel comes up anyway on the bundle CI built. Both halves matter: the
      * owner is waiting on a screen, and "budget spent" alone reads as a failure.
@@ -301,18 +406,20 @@ object HermesWebapp {
         }
 
     /**
-     * What the row says when the sandbox and the bundle are not the same Hermes.
+     * What the row says when the sandbox and the renderer are not the same Hermes.
      *
      * Both commits are named in short form: the owner cannot act on "the versions
      * differ", but "reinstall Hermes" is a button in the same card.
      */
-    fun versionMismatch(pin: String, head: String): String =
-        if (head.isBlank()) {
-            "the sandbox's Hermes checkout could not be read — reinstall Hermes in Pots Build"
-        } else {
-            "the panel was built for Hermes ${pin.take(8)} but the sandbox runs ${head.take(8)} " +
-                "— reinstall Hermes in Pots Build to match"
-        }
+    fun versionMismatch(expected: String, head: String): String =
+        "the panel was built for Hermes ${expected.take(8)} but the sandbox runs ${head.take(8)} " +
+            "— reinstall Hermes in Pots Build to match"
+
+    /** What the row says when the sandbox's Hermes cannot be read at all. */
+    const val UNREADABLE = "the sandbox's Hermes checkout could not be read — reinstall Hermes in Pots Build"
+
+    /** What the row says when there is no renderer for this Hermes and none is shipped. */
+    const val NOT_BUILT_ROW = "Hermes' webapp is not built — run `hermes webapp --build-only` in the sandbox"
 
     /** What the row says when the shipped bundle is there but could not be unpacked. */
     fun unpackFailed(reason: String): String =

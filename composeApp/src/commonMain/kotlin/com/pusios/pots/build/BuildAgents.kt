@@ -33,6 +33,27 @@ data class BuildAgent(
      * takes many times longer than a download.
      */
     val installTimeoutSeconds: Long = 900,
+    /**
+     * A step that has to run before [installCommand] and cannot share its proot
+     * call: a package manager needs proot's hardlink emulation, and the rest of
+     * the install must not have it. Null for an agent whose install is one call.
+     */
+    val prereqCommand: String? = null,
+    /** How long [prereqCommand] may run. */
+    val prereqTimeoutSeconds: Long = 300,
+    /**
+     * What an earlier install left behind that this one must not inherit. The
+     * paths are not trusted as they stand: [AgentVersions.debrisPlan] filters
+     * them through [AgentVersions.mayDelete] first.
+     */
+    val debrisPaths: List<String> = emptyList(),
+)
+
+/** One proot call of an install, and whether it may carry the hardlink emulation. */
+data class AgentInstallCall(
+    val command: String,
+    val timeoutSeconds: Long,
+    val hardlinkEmulation: Boolean,
 )
 
 object BuildAgents {
@@ -138,146 +159,74 @@ object BuildAgents {
      * The clone is the only part done here: the installer is idempotent and
      * updates an existing checkout itself, so a rerun is safe.
      *
-     * **uv must copy, and the only lever left is the uv binary itself.** Inside
-     * proot on a phone, uv hardlinks its cache into the venv and the guest refuses
-     * (`failed to hardlink file from …: Operation not permitted`). Both paths in
-     * that message carry a `.l2s.` prefix: that is proot's `--link2symlink`
-     * emulation (`l2s` = link-to-symlink), which had already turned an earlier
-     * hardlink into a symlink, and hardlinking *that* artifact on is what answers
-     * `EPERM`. So the remedy is neither a proot flag nor a cache wipe — uv has to
-     * copy.
+     * **The latest Hermes, and nothing pinned.** The checkout is one commit deep
+     * on `main` and the installer is handed `--channel main` and no `--commit`: a
+     * pinned install makes the installer walk the history to prove the commit is
+     * an ancestor of the branch — history a depth-1 clone does not carry — and it
+     * leaves the sandbox a release behind the renderer it could build for itself.
+     * The commit `hermes-webapp.pin` names is the *fallback's* address, not the
+     * install's: when the device cannot build a renderer, Pots Build moves the
+     * checkout to that commit and unpacks the bundle CI built from it
+     * ([HermesWebapp.pinCheckout]). One thing is still fetched: the release tags,
+     * because `hermes --version` names the newest tag reachable from HEAD and a
+     * depth-1 clone carries none — without that fetch the agent row reads
+     * `git.<sha>` where the release number belongs.
      *
-     * Nothing uv reads as configuration reaches the stage that fails: `hermes pm`
-     * strips every `UV_*` variable (`pm/environment.py`, `_base_environment` keeps
-     * index settings only), points `XDG_CONFIG_HOME` at a temporary directory, and
-     * builds its own runtime (`installs/<id>/pm-runtime`) with `no_config=True`,
-     * i.e. `uv --no-config`. The `uv.toml` below therefore only covers the stages
-     * inside the checkout; environment and config file stay because they are free,
-     * not because they fix anything.
+     * **No hardlink emulation, and no uv wrapper.** Inside proot on a phone, uv
+     * hardlinks its cache into the venv and the guest refuses (`failed to hardlink
+     * file from …: Operation not permitted`). The artifacts it hardlinks carry a
+     * `.l2s.` prefix — proot's `--link2symlink` emulation (`l2s` = link-to-symlink)
+     * had already turned an earlier hardlink into a symlink, and hardlinking *that*
+     * on is what answers `EPERM`. `--link-mode` cannot help by construction: uv
+     * 0.13.5 hands the mode to the wheel linker only, while filling the cache
+     * (`persist_archive_file`) calls `fs_err::hard_link` with no mode at all. Nor
+     * can configuration: `hermes pm` strips every `UV_*` variable and builds its
+     * runtime with `--no-config`, so neither the environment nor a `uv.toml`
+     * reaches that call. Wrapping the store binary and rewriting pm's digest of it
+     * was the previous answer — a race against pm's own `ensure(verify=True)`, and
+     * it is gone.
      *
-     * What is left is argv, and pm builds it from an absolute path: uv is called as
-     * `<store>/uv-<version>-<target>/uv` (pm's own store entry, `pm/paths.py`),
-     * never as `uv` by name from PATH. So the wrapper belongs in that entry — the
-     * real binary moves to `uv.real`, a `sh` wrapper takes its name. Two traps in
-     * it were checked against uv 0.13.5 and both matter:
-     * - `--link-mode` is **not** a global flag: `uv --link-mode=copy cache prune`
-     *   answers `unexpected argument`, and pm makes that call. Flags cannot be
-     *   prepended to `"$@"`, so the wrapper injects them after the subcommand, and
-     *   only for `venv`, `sync` and `pip install|sync` — the calls that link files
-     *   and accept the flag. Only `cache prune`, `cache clean`, `python find` and
-     *   `pip check` reject it (`lock` and `export` do accept it, which is why the
-     *   wrapper is an allowlist: a deny-list would have to be right about every
-     *   other subcommand).
-     * - pm re-hashes its tool closure on every explicit install (`ensure(...,
-     *   verify=True)`) and publishes a pristine uv over the entry when the digest
-     *   does not match — silently undoing the wrapper a moment before the stage it
-     *   was meant to fix. The wrapper step therefore rewrites the recorded digest
-     *   of that entry through pm's own `pm.store.tree_digest`, so the check passes
-     *   and the wrapped binary survives. That rewrite writes `facts.json` the way
-     *   pm itself does — `pm.filesystem.durable_write_bytes`, read as `utf-8-sig`
-     *   — because a plain rewrite truncates first, and an install killed in that
-     *   window would leave pm a file it cannot parse.
+     * What fixes it is not giving uv the emulation at all. dpkg is the only thing
+     * that needs it, and dpkg runs exactly once in this install: `xz-utils`, which
+     * is [prereqCommand] and gets a proot call of its own. This script is the
+     * second call, without the emulation. Every leftover of an earlier install that
+     * could still carry `.l2s.` artifacts — the checkout, the pm runtime, uv's
+     * cache and its store — is removed before either call starts
+     * ([BuildAgent.debrisPaths], filtered through [AgentVersions.mayDelete]).
      *
-     * A first-ever install needs one more thing: uv does not exist until the
-     * installer downloads it, i.e. after the wrapper step has run, and pm then
-     * installs its own copy. The command retries the installer once, wrapping
-     * again in between; the retry is cheap because the clone, uv and Python are
-     * already there. [BuildAgent.installTimeoutSeconds] covers both attempts.
-     *
-     * One more piece is not about uv at all: `cache/uv` and `site-packages` still
-     * hold `.l2s.` artifacts from the attempts that failed, and a retry can trip
-     * over them before the wrapper ever runs. A one-time marker wipes those two
-     * directories, but only when the scan actually finds a `.l2s.` artifact (or
-     * cannot scan at all): a working install keeps its `pm-runtime` instead of
-     * rebuilding it for nothing, and a device with nothing built is left for the
-     * next run to judge.
-     *
-     * The link probe in the log keeps this diagnosis honest on the next device: it
-     * prints the device ids of the two directories uv links between and attempts
-     * the cross-directory link itself. The probe this replaced linked two names
-     * inside `/root`, which succeeds even where the real link is refused, so it
-     * reported `ok` while proving nothing. The probe runs *before* the one-time
-     * cleanup, because that cleanup deletes the directories it reports on.
-     *
-     * - **`--channel main`.** The default stable channel makes the installer
-     *   fetch a release tag's entire history into the shallow clone — 643k
-     *   objects, over 45 minutes on a phone — and then keep the existing
-     *   checkout anyway. `main` follows the branch and skips that fetch.
+     * **`--channel main`.** The default stable channel makes the installer fetch a
+     * release tag's entire history into the shallow clone — 643k objects, over 45
+     * minutes on a phone — and then keep the existing checkout anyway. `main`
+     * follows the branch and skips that fetch.
      */
     private const val HERMES_INSTALL = """
         set -e
         export DEBIAN_FRONTEND=noninteractive
-        # Harmless where it arrives (the installer's own uv calls read it) and
-        # the only lever if a future pm forwards it to its uv children.
-        export UV_LINK_MODE=copy
-        export UV_NO_CACHE=1
         mkdir -p /root/.hermes /root/.local/bin
-        # The hermes-agent commit this app's web panel was built from, written by the
-        # app before this install. Empty on a build that ships no bundle (a
-        # developer build), and then nothing below pins anything.
-        POTS_WEBAPP_PIN=''
-        if [ -f /root/.hermes/pots-webapp-pin ]; then
-          POTS_WEBAPP_PIN=${'$'}(tr -d '[:space:]' < /root/.hermes/pots-webapp-pin)
-        fi
-        # Set when the repair ladder gave up, so the installer's retry does not try
-        # to download the 5 GiB checkout a second time.
+        # Set when the repair ladder gave up, so a repeated call does not try to
+        # download the 5 GiB checkout again to fail the same way. The install calls
+        # the ladder once; the second call is the repair test's.
         POTS_CHECKOUT_DEAD=''
-        # `tar -xJ` runs xz, which a Debian base does not carry on its own; a rootfs
-        # set up before xz-utils joined the base list gets it here.
-        apt-get install -y --no-install-recommends xz-utils >/dev/null 2>&1 \
-          || echo "pots: xz-utils is missing; the panel cannot unpack its renderer"
         # The clone rule, in one place: the repair ladder below re-clones with the
-        # same flags. The URL is a variable only so a unit test can point the ladder
-        # at a local repository; on a device nothing sets it.
+        # same flags. One commit deep and on `main` — nothing in this install walks
+        # the history, so nothing needs it, and the release tags are fetched
+        # separately below for the version.
+        # The URL is a variable only so a unit test can point the ladder at a local
+        # repository; on a device nothing sets it.
         pots_clone_hermes() {
           POTS_REPO=${'$'}{POTS_HERMES_REPO:-https://github.com/NousResearch/hermes-agent.git}
-          if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
-            # The installer checks that the pin is an ancestor of the branch before it
-            # checks it out (install.sh:996), and that walk needs the commit objects. A
-            # depth-1 clone has none. Blobless is how the installer itself clones: every
-            # commit and tree, file contents on demand. Without a pin nothing checks
-            # ancestry, so the shallow clone stays and the saving is real.
-            git clone --filter=blob:none "${'$'}POTS_REPO" "${'$'}1"
-          else
-            git clone --depth 1 "${'$'}POTS_REPO" "${'$'}1"
-          fi
+          git clone --depth 1 --branch main "${'$'}POTS_REPO" "${'$'}1"
         }
         if [ ! -d /root/.hermes/hermes-agent/.git ]; then
           pots_clone_hermes /root/.hermes/hermes-agent
         fi
-        # A checkout an older Pots Build left behind is depth-1, and the same check
-        # inside the installer cannot pass there: the pinned commit is not an object
-        # in it at all. Deepen it here, before the installer looks — a device that
-        # already has the clone never re-clones, so the branch above cannot fix it.
-        # Blobless again, for the same reason: a long-lived treeless checkout
-        # re-downloads whole trees on every checkout (#129712).
-        if [ -n "${'$'}POTS_WEBAPP_PIN" ] && [ -d /root/.hermes/hermes-agent/.git ]; then
-          if [ "${'$'}(git -C /root/.hermes/hermes-agent rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
-            git -C /root/.hermes/hermes-agent fetch --unshallow --tags --filter=blob:none origin main \
-              || echo "pots: could not deepen the Hermes checkout; the pin step will fail"
-          elif ! git -C /root/.hermes/hermes-agent cat-file -e "${'$'}{POTS_WEBAPP_PIN}^{commit}" 2>/dev/null; then
-            # Not shallow, yet the commit is missing: the branch ref the check walks
-            # from is stale or absent. The check reads origin/main, so refresh that.
-            git -C /root/.hermes/hermes-agent fetch --tags origin main \
-              || echo "pots: could not refresh the Hermes checkout; the pin step will fail"
-          fi
-        fi
         # A checkout is usable only if HEAD resolves and the working tree carries the
         # installer. `git clone` creates `.git` first and the files last, so a run
         # killed in between — proot gone, network gone, disk full — leaves `.git`
-        # without a tree, and the pin step further down (`checkout --force --detach`)
-        # can leave the same state. Nothing after this point works on it: the wrapper's
-        # digest step imports `pm` from the checkout, and `install.sh` is not there.
+        # without a tree. Nothing after this point works on it: `install.sh` is not
+        # there.
         pots_checkout_usable() {
           git -C "${'$'}1" rev-parse HEAD >/dev/null 2>&1 && test -f "${'$'}1/scripts/install.sh"
-        }
-        # The two files Pots Build itself puts in the checkout: `uv.toml` (copy mode for
-        # the uv calls inside it) and the exclude line that keeps it out of `git status`.
-        # Written after a repair as well, because a re-clone starts without them.
-        pots_write_hermes_config() {
-          printf 'link-mode = "copy"\nno-cache = true\n' > "${'$'}1/uv.toml" 2>/dev/null || true
-          grep -qxF uv.toml "${'$'}1/.git/info/exclude" 2>/dev/null \
-            || echo uv.toml >> "${'$'}1/.git/info/exclude" 2>/dev/null || true
         }
         # The ladder, cheapest step first: 5 GiB and tens of minutes of download sit at
         # the end of it. Every step is judged by [pots_checkout_usable], never by an exit
@@ -297,7 +246,6 @@ object BuildAgents {
             POTS_BROKEN='scripts/install.sh is missing'
           fi
           if [ -z "${'$'}POTS_BROKEN" ]; then
-            pots_write_hermes_config "${'$'}1"
             return 0
           fi
           echo "pots: hermes checkout: broken (${'$'}POTS_BROKEN)"
@@ -311,7 +259,6 @@ object BuildAgents {
           git -C "${'$'}1" checkout --force --detach HEAD >/dev/null 2>&1 || true
           if pots_checkout_usable "${'$'}1"; then
             echo "pots: hermes checkout: repaired at HEAD"
-            pots_write_hermes_config "${'$'}1"
             return 0
           fi
           # Step 2: HEAD has nothing to restore from — a clone that never finished, or a
@@ -320,7 +267,6 @@ object BuildAgents {
           rm -rf "${'$'}1"
           if pots_clone_hermes "${'$'}1" && pots_checkout_usable "${'$'}1"; then
             echo "pots: hermes checkout: re-cloned"
-            pots_write_hermes_config "${'$'}1"
             return 0
           fi
           POTS_CHECKOUT_DEAD='the repair failed'
@@ -339,227 +285,29 @@ object BuildAgents {
         # The installer cannot run on a checkout that is not there: stop here, with the
         # reason as the last line of the log, instead of dying inside install.sh.
         pots_ensure_hermes_checkout /root/.hermes/hermes-agent || exit 1
-        # Evidence first: the one-time cleanup below deletes the very directories
-        # whose device ids and .l2s. artifacts this probe reports on. The whole
-        # block runs with `set +e` — a probe that aborts the install because one
-        # of its inputs is missing would be worse than no probe at all.
-        # The store pm and install.sh both resolve: HERMES_RUNTIME_DIR when it is
-        # set, ~/.hermes/tools otherwise.
-        POTS_UV_STORE=${'$'}{HERMES_RUNTIME_DIR:-/root/.hermes/tools}
-        echo "pots: link probe"
-        ( set +e
-          GEN=${'$'}(ls -d /root/.hermes/installs/*/pm-runtime/generations/*/ 2>/dev/null | head -1)
-          CNT=${'$'}(ls -d /root/.hermes/cache/uv 2>/dev/null | head -1)
-          if [ -n "${'$'}GEN" ] && [ -n "${'$'}CNT" ]; then
-            # Device id decides everything: two filesystems cannot be hardlinked
-            # at all, and then no flag and no cleanup can help — uv has to copy.
-            stat -c '%d %n' "${'$'}GEN" "${'$'}CNT" 2>&1
-            # The link that fails runs BETWEEN those two directories. The probe
-            # this replaced linked two names inside /root, which works even where
-            # the cross-directory link is refused — it proved nothing while
-            # looking ok.
-            echo a > "${'$'}GEN/pots-x"
-            ln -f "${'$'}GEN/pots-x" "${'$'}CNT/pots-x" 2>&1 && echo "  cross-dir ln: ok" || echo "  cross-dir ln: FAILED"
-            python3 -c "import os;os.link('${'$'}GEN/pots-x','${'$'}CNT/pots-y')" 2>&1 && echo "  cross-dir os.link: ok" || echo "  cross-dir os.link: FAILED"
-            rm -f "${'$'}GEN/pots-x" "${'$'}CNT/pots-x" "${'$'}CNT/pots-y"
-            # proot's link2symlink leaves .l2s. artifacts behind; hardlinking one
-            # of those is what answers EPERM, so a count above zero is the poison.
-            # site-packages sits inside the generation, not beside it: the
-            # generation path already ends in "generations/<hash>/".
-            ls -a "${'$'}GEN"lib/python3*/site-packages/packaging 2>/dev/null | grep -c l2s
-          else
-            echo "  nothing built yet: no pm-runtime or uv cache to link between"
-          fi
-          # How the installer and pm reach uv: by name from PATH, or by the absolute
-          # path of pm's own store entry (the one the wrapper has to occupy).
-          command -v uv
-          ls -d "${'$'}POTS_UV_STORE"/uv-*/uv 2>/dev/null
-          grep -n 'native(self.uv)' /root/.hermes/hermes-agent/pm/environment.py 2>/dev/null | head -2
-        ) || true
-        # The failed attempts left .l2s. artifacts in the cache and in
-        # site-packages, and a retry can trip over them before the wrapper below
-        # ever runs. The wipe is earned by the evidence, not by the calendar: only
-        # a real .l2s. artifact justifies deleting a runtime, so a working install
-        # keeps it and a device with nothing built has nothing to delete. The
-        # marker is set once the question has been answered, so the scan costs one
-        # install — except on a device with nothing built, where it stays unset so
-        # that poison appearing later is still caught.
-        POTS_UV_MARK=/root/.hermes/.pots-uv-copy-mode
-        if [ ! -f "${'$'}POTS_UV_MARK" ]; then
-          POTS_L2S=''
-          for POTS_DIR in /root/.hermes/installs /root/.hermes/cache; do
-            [ -d "${'$'}POTS_DIR" ] || continue
-            # A scan that cannot run counts as evidence: "could not look" must
-            # never be read as "clean".
-            if POTS_L2S=${'$'}(find "${'$'}POTS_DIR" -name '.l2s.*' -print -quit 2>/dev/null); then
-              if [ -n "${'$'}POTS_L2S" ]; then break; fi
-            else
-              POTS_L2S=unknown
-              break
-            fi
-          done
-          if [ -n "${'$'}POTS_L2S" ]; then
-            rm -rf /root/.hermes/installs/*/pm-runtime /root/.hermes/cache/uv
-            : > "${'$'}POTS_UV_MARK"
-            if [ "${'$'}POTS_L2S" = unknown ]; then
-              echo "pots: could not scan for .l2s. artifacts; cleared pm-runtime and the uv cache once"
-            else
-              echo "pots: .l2s. artifacts present; cleared pm-runtime and the uv cache once"
-            fi
-          elif [ -x /root/.hermes/hermes-agent/.hermes/bin/hermes ]; then
-            : > "${'$'}POTS_UV_MARK"
-            echo "pots: no .l2s. artifacts; leaving the existing runtime alone"
-          else
-            echo "pots: nothing built yet; no stale .l2s. artifacts to clear"
-          fi
-        fi
-        # pm strips every UV_* variable and builds its runtime with --no-config, so
-        # neither the environment nor uv.toml reaches the stage that fails. It also
-        # calls uv by the absolute path of its store entry, never by name from PATH:
-        # that entry is the only place a lever can sit. The real binary moves to
-        # uv.real and a wrapper takes its name. Idempotent by the marker line — a
-        # second run must never copy the wrapper onto itself.
-        pots_wrap_uv() {
-          for f in "${'$'}POTS_UV_STORE"/uv-*/uv; do
-            [ -f "${'$'}f" ] || continue
-            if grep -q pots-uv-wrapper "${'$'}f" 2>/dev/null; then
-              echo "pots: uv wrapper already installed (${'$'}f)"
-              continue
-            fi
-            cp -f "${'$'}f" "${'$'}f.real"
-            # Every line below sits at the raw string's own indent so trimIndent()
-            # hands the script to sh with column-0 heredoc terminators and a
-            # column-0 shebang; the nested indents are the script's, not Kotlin's.
-            cat > "${'$'}f" <<'POTS_UV_WRAPPER'
-        #!/bin/sh
-        # pots-uv-wrapper — installed by Pots Build, never by pm.
-        # pm builds its own runtime with --no-config and strips every UV_* variable,
-        # so the command line is the only thing left to change. --link-mode is NOT a
-        # global uv flag (uv --link-mode=copy cache prune answers "unexpected
-        # argument"): it goes after the subcommand, and only for the subcommands that
-        # link files and accept it.
-        real=${'$'}(dirname "${'$'}0")/uv.real
-        sub=${'$'}1
-        case "${'$'}sub" in
-          venv|sync)
-            shift
-            exec "${'$'}real" "${'$'}sub" --link-mode=copy --no-cache "${'$'}@"
-            ;;
-          pip)
-            second=${'$'}2
-            case "${'$'}second" in
-              install|sync)
-                shift 2
-                exec "${'$'}real" pip "${'$'}second" --link-mode=copy --no-cache "${'$'}@"
-                ;;
-            esac
-            ;;
-        esac
-        exec "${'$'}real" "${'$'}@"
-        POTS_UV_WRAPPER
-            chmod +x "${'$'}f"
-            echo "pots: uv wrapper installed (${'$'}f)"
-            # pm re-hashes its tool closure on every explicit install and would
-            # publish a pristine uv straight over the wrapper. Recording the digest
-            # of what the entry holds now is what lets that check pass.
-            PYTHONDONTWRITEBYTECODE=1 python3 - "${'$'}(dirname "${'$'}f")" <<'POTS_UV_DIGEST' || echo "pots: uv digest not refreshed (pm may reinstall uv)"
-        import json
-        import pathlib
-        import sys
-
-        sys.path.insert(0, "/root/.hermes/hermes-agent")
-        from pm.filesystem import durable_write_bytes
-        from pm.store import tree_digest
-
-        entry = pathlib.Path(sys.argv[1])
-        facts = entry.parent / "facts.json"
-        if not facts.is_file():
-            sys.exit(0)
-        # The same two calls pm makes on this file: it reads it as utf-8-sig (a BOM
-        # left by another tool would otherwise break json.loads on an invisible
-        # \ufeff), and it only ever writes it through durable_write_bytes, which
-        # fsyncs and replaces it atomically. A plain write_text truncates first, so
-        # killing the install here would leave a half file that pm cannot read.
-        data = json.loads(facts.read_text(encoding="utf-8-sig"))
-        row = data.get("packages", {}).get("uv")
-        if not isinstance(row, dict) or row.get("entry") != entry.name:
-            sys.exit(0)
-        row["digest"] = tree_digest(entry)
-        durable_write_bytes(facts, (json.dumps(data, indent=2, sort_keys=True) + "\n").encode("utf-8"))
-        print("pots: uv digest refreshed (" + entry.name + ")")
-        POTS_UV_DIGEST
-          done
-        }
-        pots_install_hermes() {
-          # The checkout is checked again here, not only before the wrapper: the retry
-          # below reaches this function a second time, and a checkout that broke during
-          # the first attempt would otherwise fail the same way twice.
-          pots_ensure_hermes_checkout /root/.hermes/hermes-agent || return 1
-          # A shipped panel names the commit it was built from, and the installer
-          # pins the checkout there itself — on a fresh clone and on a rerun over
-          # an existing one alike (install.sh:945 and :991) — so the dependencies
-          # it installs come from that commit's uv.lock as well, not from main's.
-          # A build with no bundle passes no pin and follows main, as before.
-          POTS_PIN_ARG='--channel main'
-          if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
-            POTS_PIN_ARG="--commit ${'$'}POTS_WEBAPP_PIN"
-          fi
-          # stdin closed: no answer is coming from a sandbox if the installer asks.
-          bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use ${'$'}POTS_PIN_ARG < /dev/null
-        }
-        pots_wrap_uv
-        # A first-ever install downloads uv *inside* the installer, i.e. after the
-        # wrapper step found nothing to wrap, and pm then installs its own copy. One
-        # retry wraps that uv and lets the same script finish; the clone, uv and
-        # Python are already there, so it is the short path, not a second install.
-        if ! pots_install_hermes; then
-          echo "pots: hermes installer failed; wrapping uv again and retrying once"
-          pots_wrap_uv
-          pots_install_hermes
-        fi
+        # The installer's own channel, always `main`, and never a pinned commit: the
+        # owner installs the latest Hermes and the renderer is built from whatever
+        # that checkout is. A pinned install would walk the history to prove the
+        # commit is an ancestor of the branch — history a depth-1 clone does not
+        # carry — and it would leave the sandbox a release behind. The pin is only
+        # the fallback's address, and that fallback moves the checkout itself.
+        # stdin closed: no answer is coming from a sandbox if the installer asks.
+        bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use --channel main < /dev/null
         # The installer publishes the command for login shells; link it into the
         # bin dir Pots Build's own PATH carries so probes find it by name.
         ln -sfn /root/.hermes/hermes-agent/.hermes/bin/hermes /root/.local/bin/hermes
-        # Hermes' web panel ships with this app, built from one hermes-agent commit
-        # (POTS_WEBAPP_PIN), and the installer above was handed that commit. This
-        # reads the checkout back: the installer's own pin step is the thing that
-        # makes the backend and the panel one version, and a path through it that
-        # does not pin (a recorded channel it keeps, a release it decides not to
-        # move) must not leave a backend the panel was built against nothing.
-        if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
-          # Hermes derives its version from the newest release tag reachable from
-          # HEAD, and every fetch above that is not `--tags` leaves the tags
-          # behind: a checkout that came up through the upgrade path reports
-          # `vgit.<sha>` for ever. One ref-only fetch — no objects — before the
-          # check, so a device that already has the clone is repaired in place.
-          git -C /root/.hermes/hermes-agent fetch --filter=blob:none origin '+refs/tags/*:refs/tags/*' \
-            || echo "pots: could not fetch the Hermes release tags; its version stays undetermined"
-          if [ "${'$'}(git -C /root/.hermes/hermes-agent rev-parse HEAD)" != "${'$'}POTS_WEBAPP_PIN" ]; then
-            echo "pots: Hermes is not on ${'$'}POTS_WEBAPP_PIN after the install; pinning it here"
-            if git -C /root/.hermes/hermes-agent fetch --depth 1 origin "${'$'}POTS_WEBAPP_PIN" \
-              && git -C /root/.hermes/hermes-agent checkout --force --detach "${'$'}POTS_WEBAPP_PIN"; then
-              # The tag for the commit just checked out: without it the version
-              # reads as `git.<sha>` even though HEAD is a release.
-              git -C /root/.hermes/hermes-agent fetch --filter=blob:none origin '+refs/tags/*:refs/tags/*' \
-                || echo "pots: could not fetch the Hermes release tags; its version stays undetermined"
-              echo "pots: Hermes is at ${'$'}POTS_WEBAPP_PIN"
-            else
-              echo "pots: could not pin Hermes to ${'$'}POTS_WEBAPP_PIN; the panel will refuse until it is"
-            fi
-          fi
-          # The renderer is not built here. This proot call carries --link2symlink
-          # because dpkg needs it for the base packages, and pnpm 12's staged
-          # renames answer ENOENT under that emulation. Pots Build builds the
-          # renderer afterwards, in a proot call of its own without it, and falls
-          # back to the bundle this app ships (see HermesWebapp).
-        fi
-        # The wrapper has to leave uv and pm working, so prove both in this log. uv
-        # is not on PATH (pm never exposes it), which is why the store path is the
-        # thing to run, not `uv`.
-        for f in "${'$'}POTS_UV_STORE"/uv-*/uv; do
-          [ -x "${'$'}f" ] || continue
-          echo "pots: ${'$'}f -> ${'$'}("${'$'}f" --version 2>&1)"
-        done
+        # Hermes derives its version from the newest release tag reachable from HEAD,
+        # and the `--depth 1` clone above carries no tags at all: without this fetch
+        # `hermes --version` — the version the agent row shows — answers `git.<sha>`
+        # for ever. Ref-only, no file contents.
+        ${HermesWebapp.TAGS_FETCH} \
+          || echo "pots: could not fetch the Hermes release tags; its version stays undetermined"
+        # The renderer is not built here: its build is a pnpm install of
+        # apps/desktop, and pnpm 12's staged renames answer ENOENT under proot's
+        # emulation. Pots Build builds it afterwards in a proot call of its own
+        # without the emulation, stamps the commit it was built from, and falls
+        # back to the bundle this app ships (see HermesWebapp) when every attempt
+        # failed.
         /root/.local/bin/hermes pm doctor || echo "pots: pm doctor reported a problem"
     """
 
@@ -585,13 +333,56 @@ object BuildAgents {
             binary = "hermes",
             installCommand = HERMES_INSTALL.trimIndent(),
             // Its installer resolves uv and Python, installs the dependency tree and
-            // builds the command — none of it is a download. The renderer build is a
-            // separate proot call with a budget of its own. This covers a second
-            // attempt on the installer, which is the short path: the clone, uv and
-            // Python are already there.
+            // builds the command — none of it is a download.
             installTimeoutSeconds = 5400,
+            // The only package-manager step in the whole chain: `scripts/install.sh`
+            // calls apt/dpkg never, and `tar -xJ` needs xz, which a Debian base does
+            // not carry. dpkg is also the only reason proot's hardlink emulation is
+            // needed at all, so this step — and nothing else — gets it.
+            prereqCommand = """
+                apt-get install -y --no-install-recommends xz-utils >/dev/null 2>&1 \
+                  || echo "pots: xz-utils is missing; the panel cannot unpack its renderer"
+            """.trimIndent(),
+            // Everything an earlier install built, and nothing the owner owns: uv's
+            // cache and pm's runtime may be full of proot's `.l2s.` artifacts, and
+            // hardlinking one of those is what answers EPERM. `keepPaths` covers the
+            // credentials, state and board, and [AgentVersions.mayDelete] is what
+            // decides — a path it refuses is logged, not taken.
+            debrisPaths = listOf(
+                "/root/.hermes/hermes-agent",
+                "/root/.hermes/installs",
+                "/root/.hermes/cache/uv",
+                "/root/.hermes/tools",
+                "/root/.hermes/.pots-uv-copy-mode",
+            ),
         ),
     )
 
     fun get(id: String?): BuildAgent? = all.firstOrNull { it.id == id }
+
+    /**
+     * The proot calls an install makes, in order, each with whether it may run with
+     * proot's hardlink emulation.
+     *
+     * dpkg needs `--link2symlink` and uv must not have it (see [HERMES_INSTALL]),
+     * and one proot call cannot be both. So an agent whose install needs a package
+     * manager declares it as [BuildAgent.prereqCommand] and gets two calls: the
+     * prerequisite with the emulation, the install without. An agent that declares
+     * none keeps the single call it has always had, emulation and all.
+     */
+    fun installCalls(agent: BuildAgent): List<AgentInstallCall> {
+        val prereq = agent.prereqCommand
+        return buildList {
+            if (prereq != null) {
+                add(AgentInstallCall(prereq, agent.prereqTimeoutSeconds, hardlinkEmulation = true))
+            }
+            add(
+                AgentInstallCall(
+                    command = agent.installCommand,
+                    timeoutSeconds = agent.installTimeoutSeconds,
+                    hardlinkEmulation = prereq == null,
+                ),
+            )
+        }
+    }
 }
