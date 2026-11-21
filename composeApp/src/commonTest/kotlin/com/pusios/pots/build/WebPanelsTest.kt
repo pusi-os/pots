@@ -1461,7 +1461,7 @@ private const val ONE_USE_LINK =
 private const val LAUNCH_ONE_USE = "hermes webapp --no-open"
 
 /** The hermes-agent commit the tests pretend this app's panel was built from. */
-private const val BUNDLE_PIN = "ae2a81ccc00e9b7c06301523e5bb09608397149c"
+private const val BUNDLE_PIN = "caafe5389ae585ef77387a962aee05b1bcf17029"
 
 /** Another commit — a sandbox whose Hermes moved on after the panel was built. */
 private const val OTHER_HERMES = "0123456789abcdef0123456789abcdef01234567"
