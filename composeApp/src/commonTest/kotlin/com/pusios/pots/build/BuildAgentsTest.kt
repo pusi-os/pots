@@ -145,4 +145,22 @@ class BuildAgentsTest {
         assertFalse(hermes.contains("renderer ships with the app"), hermes)
         assertTrue(hermes.contains("refs/tags/*:refs/tags/*"), "the version still comes from the tags")
     }
+
+    @Test
+    fun `no install script sets permissions of its own`() {
+        // The guest runs as the app's own uid (proot without `--fake-root`), so
+        // `mkdir -p` leaves the owner `rwx` under any umask a phone ships, the
+        // rootfs is unpacked without the archive's tar modes, and Hermes secures
+        // its own home with `chmod 0700` when it initialises. Pots has nothing to
+        // fix here, and must not start: a `chmod -R 777` or an `umask 000` in an
+        // install script would widen what Hermes' 0700 policy and the gateway's
+        // own `unsafe_control_permissions` check then refuse.
+        val scripts = BuildAgents.all.flatMap { listOfNotNull(it.prereqCommand, it.installCommand) } +
+            AgentVersions.all.flatMap { listOfNotNull(it.installCommand) + it.updateCommand }
+        assertTrue(scripts.size >= 4, "the install and update commands are what this test reads")
+        for (script in scripts) {
+            assertFalse(script.contains("chmod"), "a script sets permissions of its own: $script")
+            assertFalse(script.contains("umask"), "a script widens the umask: $script")
+        }
+    }
 }
