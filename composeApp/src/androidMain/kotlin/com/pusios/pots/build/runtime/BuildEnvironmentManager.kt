@@ -115,8 +115,13 @@ private const val INSTALL_POLL_MS = 1000L
  * How long one on-device renderer build may run. The measured build is about
  * seven minutes (pnpm 1m 56s, vite 4m 3s); a phone with a slow flash and a cold
  * store is several times that, and a timeout here costs the whole attempt.
+ *
+ * Twenty-five minutes rather than thirty so all three attempts fit inside the
+ * install's own budget ([BuildAgent.installTimeoutSeconds], 5400 s): the chain
+ * runs under it, and an attempt cut off by it would be reported as the last one
+ * failing rather than as the clock running out.
  */
-private const val RENDERER_BUILD_TIMEOUT_SECONDS = 1800L
+private const val RENDERER_BUILD_TIMEOUT_SECONDS = 1500L
 
 /**
  * One live PTY session: its own VT screen, geometry, and capture files. Several
@@ -965,8 +970,9 @@ class BuildEnvironmentManager(
      * refuses to start on any other — a bundle and a backend from different
      * commits is a blank page with 404s on the assets.
      *
-     * A build with no bundle (a developer build) writes nothing, and the install
-     * then keeps its own channel and builds the renderer itself.
+     * A build with no bundle (a developer build) writes nothing: the install then
+     * keeps its own channel, and nothing is pinned. Either way the install never
+     * builds the renderer itself — that is [buildHermesRenderer]'s own proot call.
      */
     private fun pinHermesWebapp() {
         val pin = HermesWebappAssets.pin(assets) ?: return
@@ -984,6 +990,11 @@ class BuildEnvironmentManager(
      * proot call of its own, without the emulation: measured, that is the
      * difference between a failure in twenty-four seconds and a complete 45 MB
      * bundle in about seven minutes.
+     *
+     * The checkout, the venv and the `pm` tools were written by the installer
+     * *under* the emulation, though, and no measurement on a plain rootfs covers
+     * that mixed tree — so one attempt keeps `--link2symlink` and changes nothing
+     * else, which is the only way the device itself answers it.
      *
      * Every attempt starts from an empty pnpm store and an empty `node_modules`,
      * because a store a failed attempt leaves behind is made of `.l2s.` symlinks
@@ -1005,12 +1016,19 @@ class BuildEnvironmentManager(
             val executor = executor(extraEnv = attempt.env, hardlinkEmulation = attempt.hardlinkEmulation)
             executor.execute(HermesWebapp.CLEAN_COMMAND, timeoutSeconds = 300)
             val outcome = streamInstall(HermesWebapp.BUILD_COMMAND, RENDERER_BUILD_TIMEOUT_SECONDS, executor, log)
-            val built = outcome.exit == 0 && executor.execute(HermesWebapp.BUILT_CHECK, timeoutSeconds = 30).success
+            // `--force-build` makes "up to date" impossible, so a line saying it means
+            // the flag never reached Hermes and the bundle on disk is not this
+            // attempt's build. The whole log is read rather than this attempt's slice:
+            // the flag is in the command line, so every attempt answers alike, and one
+            // such line means the chain rebuilt nothing at all.
+            val stale = log.text().contains(HermesWebapp.UP_TO_DATE)
+            val built = outcome.exit == 0 && !stale &&
+                executor.execute(HermesWebapp.BUILT_CHECK, timeoutSeconds = 30).success
             log.appendText(
-                if (built) {
-                    "pots: ${HermesWebapp.builtOnDevice(attempt)}\n"
-                } else {
-                    "pots: renderer: attempt ${attempt.number} failed (${outcome.describe()})\n"
+                when {
+                    built -> "pots: ${HermesWebapp.builtOnDevice(attempt)}\n"
+                    stale -> "pots: ${HermesWebapp.builtNothing(attempt)}\n"
+                    else -> "pots: renderer: attempt ${attempt.number} failed (${outcome.describe()})\n"
                 },
             )
             publishInstallLog(log)

@@ -386,8 +386,10 @@ class WebPanelRuntime(
                 }
                 // Name the shipped bundle only when it is the one being served: a
                 // renderer built on the device is Hermes' own, and naming the bundle
-                // there would pin the panel to CI's copy for good.
-                if (guest.run(HermesWebapp.shipped(pin), STATUS_TIMEOUT_SECONDS).success) {
+                // there would pin the panel to CI's copy for good. Both can be
+                // there — an earlier install unpacked the fallback, a later one
+                // built the renderer — and then the build is what gets served.
+                if (!guest.run(HermesWebapp.built(pin), STATUS_TIMEOUT_SECONDS).success) {
                     hermesDist = HermesWebapp.DIST_DIR
                 }
             }

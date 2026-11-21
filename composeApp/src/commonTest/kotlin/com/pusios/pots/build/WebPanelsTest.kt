@@ -1021,6 +1021,27 @@ class WebPanelsTest {
     }
 
     @Test
+    fun `a build that came after the fallback unpack wins over it`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            // An earlier install fell back to CI's bundle; a later one built the
+            // renderer. Both are on disk for the same pin.
+            hermesUnpacked = true
+            hermesBuilt = true
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // The device build is Hermes' own renderer, so it is what gets served:
+        // naming CI's copy here would pin the panel to it for good.
+        assertFalse(guest.runEnv.containsKey(HermesWebapp.DIST_ENV))
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+    }
+
+    @Test
     fun `a sandbox running another Hermes refuses the panel and names both commits`() = runTest {
         val guest = FakeGuest().apply {
             hermesPin = BUNDLE_PIN
@@ -1364,6 +1385,7 @@ class WebPanelsTest {
                 command == HermesWebapp.check(hermesPin.orEmpty()) ->
                     WebPanelGuest.Output(hermesUnpacked || hermesBuilt)
                 command == HermesWebapp.shipped(hermesPin.orEmpty()) -> WebPanelGuest.Output(hermesUnpacked)
+                command == HermesWebapp.built(hermesPin.orEmpty()) -> WebPanelGuest.Output(hermesBuilt)
                 command == HermesWebapp.unpack(hermesPin.orEmpty()) -> {
                     if (hermesUnpacks) hermesUnpacked = true
                     WebPanelGuest.Output(hermesUnpacks, if (hermesUnpacks) "" else "tar: xz: Cannot exec")

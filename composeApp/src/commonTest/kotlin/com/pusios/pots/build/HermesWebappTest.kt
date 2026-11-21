@@ -2,6 +2,7 @@ package com.pusios.pots.build
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -14,12 +15,23 @@ import kotlin.test.assertTrue
 class HermesWebappTest {
 
     @Test
-    fun `the device builds first, and never with the emulation that breaks pnpm`() {
+    fun `the device builds first, and only one attempt keeps the emulation`() {
         // pnpm 12 renames a staged directory into place for every package, and that
         // rename answers ENOENT under proot's --link2symlink — the flag dpkg needs
         // for the base packages, which is why the build is a proot call of its own.
-        assertEquals(listOf(1, 2), HermesWebapp.buildAttempts.map { it.number })
-        assertTrue(HermesWebapp.buildAttempts.none { it.hardlinkEmulation }, "the emulation is the failure")
+        assertEquals(listOf(1, 2, 3), HermesWebapp.buildAttempts.map { it.number })
+        assertFalse(HermesWebapp.buildAttempts.first().hardlinkEmulation, "the emulation is the failure")
+
+        // The installer wrote the checkout, the venv and the pm tools under the
+        // emulation, so exactly one attempt runs in that tree as it was left —
+        // the only way the device answers whether the .l2s. artifacts break it.
+        val emulated = HermesWebapp.buildAttempts.filter { it.hardlinkEmulation }
+        assertEquals(listOf(2), emulated.map { it.number }, "one probe of the mixed tree")
+        assertEquals("copy", emulated.single().env["pnpm_config_package_import_method"])
+        assertTrue(
+            HermesWebapp.buildAttempts.last().hardlinkEmulation.not(),
+            "the last attempt is the cheap fallback, not the emulated one",
+        )
 
         // pnpm 12 reads settings as pnpm_config_* from the environment only: pacquet
         // ignores npm_config_* (so a $HERMES_HOME/npmrc hook cannot carry them), and
@@ -29,18 +41,36 @@ class HermesWebappTest {
         assertEquals("copy", HermesWebapp.buildAttempts.first().env["pnpm_config_package_import_method"])
         assertTrue(
             HermesWebapp.buildAttempts.last().env.isEmpty(),
-            "the second attempt drops the import method, so a failure says whether it mattered",
+            "the last attempt drops the import method, so a failure says whether it mattered",
         )
     }
 
     @Test
     fun `every renderer path writes its own line to the install log`() {
         val lines = HermesWebapp.buildAttempts.map { HermesWebapp.builtOnDevice(it) } +
+            HermesWebapp.buildAttempts.map { HermesWebapp.builtNothing(it) } +
             HermesWebapp.SHIPPED + HermesWebapp.NOT_BUILT
 
         assertEquals(lines.size, lines.toSet().size, "the owner must be able to tell the paths apart: $lines")
         assertEquals("renderer: built on device (attempt 1, no link2symlink)", lines.first())
+        assertEquals(
+            "renderer: built on device (attempt 2, link2symlink, copy import)",
+            lines[1],
+            "the emulated probe names itself, so a log line says which tree won",
+        )
         assertTrue(lines.contains("renderer: shipped bundle"))
+        assertTrue(lines.contains("renderer: not built and this app ships no bundle"))
+    }
+
+    @Test
+    fun `an up-to-date answer is not a build`() {
+        // `--force-build` makes this impossible, so seeing it means the flag never
+        // reached Hermes: the bundle on disk belongs to an earlier run and must not
+        // be reported as this attempt's build.
+        assertEquals("Hermes Webapp renderer is up to date", HermesWebapp.UP_TO_DATE)
+        val said = HermesWebapp.builtNothing(HermesWebapp.buildAttempts.first())
+        assertTrue(said.contains("'up to date'"), said)
+        assertTrue(said.contains("--force-build"), said)
     }
 
     @Test

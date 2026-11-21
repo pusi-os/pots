@@ -18,7 +18,7 @@ package com.pusios.pots.build
  * **The bundle this app ships is the fallback, not the first choice.** CI builds
  * `apps/desktop/dist-webapp` from the commit `hermes-webapp.pin` names, packs it
  * into one `tar.xz`, and the APK carries it as an asset; it is unpacked only when
- * both on-device attempts failed, so the panel is never dead. Naming it in
+ * every on-device attempt failed, so the panel is never dead. Naming it in
  * [DIST_ENV] is what makes Hermes serve a bundle it did not build — and that
  * variable is set *only* for that fallback: set after a successful build it would
  * pin the panel to CI's copy for good, and Hermes would never rebuild.
@@ -51,6 +51,14 @@ object HermesWebapp {
      */
     const val BUILT_CHECK = "test -f " + WebPanels.HERMES_BUNDLE + " && test -n \"\$(ls -A " +
         WebPanels.HERMES_BUNDLE_DIR + "/assets 2>/dev/null)\""
+
+    /**
+     * What Hermes prints when it decides the bundle is current and skips the
+     * build (`hermes_cli/webapp.py`). `--force-build` should make it impossible;
+     * seeing it means the flag never reached Hermes, and a bundle a failed
+     * attempt half-wrote must not then be read as this attempt's build.
+     */
+    const val UP_TO_DATE = "Hermes Webapp renderer is up to date"
 
     /**
      * The renderer the checkout built for itself, good when that checkout is the
@@ -93,8 +101,10 @@ object HermesWebapp {
     /**
      * One way to build the renderer on the device, in the order the app tries
      * them. [hardlinkEmulation] is proot's `--link2symlink`: dpkg needs it, and it
-     * is exactly what breaks pnpm's staged rename, so every attempt runs without
-     * it. [env] reaches pnpm as `pnpm_config_*` through proot's own environment —
+     * is exactly what breaks pnpm's staged rename, so the first attempt drops it —
+     * but the checkout the installer made was written *under* the emulation, so
+     * one attempt keeps it to answer whether that mixed tree is what breaks the
+     * build. [env] reaches pnpm as `pnpm_config_*` through proot's own environment —
      * the only channel pnpm 12 reads: pacquet ignores `npm_config_*` (so a
      * `$HERMES_HOME/npmrc` hook cannot carry these settings at all), and its
      * `npmrc` is for auth, registry and TLS only.
@@ -108,13 +118,16 @@ object HermesWebapp {
     )
 
     /**
-     * The chain the device runs. Attempt 1 is the measured one: no emulation, and
-     * `copy` so pnpm asks for no hardlink at all (Android's `protected_hardlinks`
-     * may refuse one inside the app sandbox). Attempt 2 keeps the proot flags and
-     * drops that setting — the only other difference worth a run: if the first
-     * attempt died, this says whether the import method was the reason. Settings
+     * The chain the device runs, most likely to work first. Attempt 1 is the
+     * measured one: no emulation, and `copy` so pnpm asks for no hardlink at all
+     * (Android's `protected_hardlinks` may refuse one inside the app sandbox).
+     * Attempt 2 keeps the emulation — the installer wrote the checkout, the venv
+     * and the `pm` tools *under* it, so this is the only attempt that runs in the
+     * tree as the install left it, and the one answer a plain rootfs cannot give:
+     * whether those `.l2s.` artifacts are what breaks the build. Attempt 3 drops
+     * the import method, which says whether `copy` was needed at all. Settings
      * alone never fix the failure (pnpm's staged rename is independent of
-     * `package-import-method`), so there is no third variant to try.
+     * `package-import-method`), so there is no fourth variant to try.
      */
     val buildAttempts: List<BuildAttempt> = listOf(
         BuildAttempt(
@@ -125,6 +138,12 @@ object HermesWebapp {
         ),
         BuildAttempt(
             number = 2,
+            hardlinkEmulation = true,
+            env = mapOf("pnpm_config_package_import_method" to "copy"),
+            why = "link2symlink, copy import",
+        ),
+        BuildAttempt(
+            number = 3,
             hardlinkEmulation = false,
             env = emptyMap(),
             why = "no link2symlink, no import method",
@@ -154,10 +173,15 @@ object HermesWebapp {
     fun builtOnDevice(attempt: BuildAttempt): String =
         "renderer: built on device (attempt ${attempt.number}, ${attempt.why})"
 
+    /** The line that says an attempt was answered "up to date": the flag never arrived. */
+    fun builtNothing(attempt: BuildAttempt): String =
+        "renderer: attempt ${attempt.number} built nothing — Hermes answered 'up to date', " +
+            "so --force-build did not reach it"
+
     /** The line that says the panel is serving the bundle CI built. */
     const val SHIPPED = "renderer: shipped bundle"
 
-    /** The line that says there is no renderer at all — a developer build, both attempts failed. */
+    /** The line that says there is no renderer at all — a developer build, every attempt failed. */
     const val NOT_BUILT = "renderer: not built and this app ships no bundle"
 
     /**

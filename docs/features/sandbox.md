@@ -190,11 +190,14 @@ Hermes is the exception in the mechanics, not in the outcome: its renderer is
 built on the device, in a proot call of its own. `hermes webapp --build-only`
 starts with a `pnpm install` of `apps/desktop`, and pnpm 12's staged renames
 answer ENOENT under proot's `--link2symlink` — the emulation dpkg needs, so it
-stays for installs and is dropped for the build (`-L` alone). Two attempts run
+stays for installs and is dropped for the build (`-L` alone). Three attempts run
 right after the agent installs — no emulation with
-`pnpm_config_package_import_method=copy` in the proot environment, then without
-that setting — each from a wiped pnpm store, and the install log names the path
-that won. A build that still fails does not leave a dead panel: the app ships the
+`pnpm_config_package_import_method=copy` in the proot environment, then with
+`--link2symlink` and the same setting (the tree the installer itself left, which
+is the only way the device answers whether its `.l2s.` artifacts break the
+build), then without the emulation and without that setting — each from a wiped
+pnpm store, and the install log names the path that won. A build that still
+fails does not leave a dead panel: the app ships the
 bundle CI built from the hermes-agent commit `hermes-webapp.pin` names, packed
 into the APK as one `tar.xz` (14 MB; the raw files are 55 MB and do not fit an
 APK sensibly), copies it into the guest and unpacks it to
