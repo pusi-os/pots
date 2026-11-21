@@ -301,10 +301,10 @@ object BuildAgents {
         # for ever. Ref-only, no file contents.
         ${HermesWebapp.TAGS_FETCH} \
           || echo "pots: could not fetch the Hermes release tags; its version stays undetermined"
-        # The renderer is not built here: `hermes webapp --build-only` is a pnpm
-        # install of apps/desktop, and pnpm 12's staged renames answer ENOENT under
-        # proot's emulation. Pots Build builds it afterwards in a proot call of its
-        # own without the emulation, stamps the commit it was built from, and falls
+        # The renderer is not built here: its build is a pnpm install of
+        # apps/desktop, and pnpm 12's staged renames answer ENOENT under proot's
+        # emulation. Pots Build builds it afterwards in a proot call of its own
+        # without the emulation, stamps the commit it was built from, and falls
         # back to the bundle this app ships (see HermesWebapp) when every attempt
         # failed.
         /root/.local/bin/hermes pm doctor || echo "pots: pm doctor reported a problem"
