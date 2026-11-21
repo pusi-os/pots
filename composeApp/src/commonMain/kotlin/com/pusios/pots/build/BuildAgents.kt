@@ -243,12 +243,12 @@ object BuildAgents {
         # re-downloads whole trees on every checkout (#129712).
         if [ -n "${'$'}POTS_WEBAPP_PIN" ] && [ -d /root/.hermes/hermes-agent/.git ]; then
           if [ "${'$'}(git -C /root/.hermes/hermes-agent rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
-            git -C /root/.hermes/hermes-agent fetch --unshallow --filter=blob:none origin main \
+            git -C /root/.hermes/hermes-agent fetch --unshallow --tags --filter=blob:none origin main \
               || echo "pots: could not deepen the Hermes checkout; the pin step will fail"
           elif ! git -C /root/.hermes/hermes-agent cat-file -e "${'$'}{POTS_WEBAPP_PIN}^{commit}" 2>/dev/null; then
             # Not shallow, yet the commit is missing: the branch ref the check walks
             # from is stale or absent. The check reads origin/main, so refresh that.
-            git -C /root/.hermes/hermes-agent fetch origin main \
+            git -C /root/.hermes/hermes-agent fetch --tags origin main \
               || echo "pots: could not refresh the Hermes checkout; the pin step will fail"
           fi
         fi
@@ -439,10 +439,21 @@ object BuildAgents {
         # does not pin (a recorded channel it keeps, a release it decides not to
         # move) must not leave a backend the panel was built against nothing.
         if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
+          # Hermes derives its version from the newest release tag reachable from
+          # HEAD, and every fetch above that is not `--tags` leaves the tags
+          # behind: a checkout that came up through the upgrade path reports
+          # `vgit.<sha>` for ever. One ref-only fetch — no objects — before the
+          # check, so a device that already has the clone is repaired in place.
+          git -C /root/.hermes/hermes-agent fetch --filter=blob:none origin '+refs/tags/*:refs/tags/*' \
+            || echo "pots: could not fetch the Hermes release tags; its version stays undetermined"
           if [ "${'$'}(git -C /root/.hermes/hermes-agent rev-parse HEAD)" != "${'$'}POTS_WEBAPP_PIN" ]; then
             echo "pots: Hermes is not on ${'$'}POTS_WEBAPP_PIN after the install; pinning it here"
             if git -C /root/.hermes/hermes-agent fetch --depth 1 origin "${'$'}POTS_WEBAPP_PIN" \
               && git -C /root/.hermes/hermes-agent checkout --force --detach "${'$'}POTS_WEBAPP_PIN"; then
+              # The tag for the commit just checked out: without it the version
+              # reads as `git.<sha>` even though HEAD is a release.
+              git -C /root/.hermes/hermes-agent fetch --filter=blob:none origin '+refs/tags/*:refs/tags/*' \
+                || echo "pots: could not fetch the Hermes release tags; its version stays undetermined"
               echo "pots: Hermes is at ${'$'}POTS_WEBAPP_PIN"
             else
               echo "pots: could not pin Hermes to ${'$'}POTS_WEBAPP_PIN; the panel will refuse until it is"

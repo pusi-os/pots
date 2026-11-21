@@ -286,6 +286,12 @@ object AgentVersions {
      * known — and so does a registry answer that could not be read, or an
      * installed version that could not be parsed: without both numbers there is
      * no comparison to make, and "up to date" would be a guess.
+     *
+     * A major component above [MAX_MAJOR] is a calendar year, not a version —
+     * none of the three agents has ever numbered itself past 100, and Hermes
+     * moved off CalVer onto SemVer. Such a number can only be a date that slipped
+     * through [AgentVersion], and comparing it says `2026 > 0`: "up to date" on a
+     * build whose version was never resolved. It is a failed check instead.
      */
     fun decide(
         present: Boolean,
@@ -297,6 +303,7 @@ object AgentVersions {
         !present -> AgentUpdate.NotInstalled
         checkFailed || latest == null -> AgentUpdate.CheckFailed(installed, checkedAt)
         installed == null -> AgentUpdate.CheckFailed(installed, checkedAt)
+        parts(installed).first() > MAX_MAJOR -> AgentUpdate.CheckFailed(installed, checkedAt)
         compare(installed, latest) < 0 -> AgentUpdate.Available(installed, latest, checkedAt)
         else -> AgentUpdate.UpToDate(installed, checkedAt)
     }
@@ -336,4 +343,10 @@ object AgentVersions {
 
     private fun parts(version: String): List<Int> =
         version.removePrefix("v").split('.').map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+
+    /**
+     * The highest major component any of the three agents has ever had. A number
+     * past it is a calendar year that reached the version slot.
+     */
+    private const val MAX_MAJOR = 100
 }

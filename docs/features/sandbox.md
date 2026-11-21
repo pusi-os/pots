@@ -1,6 +1,6 @@
 # Linux Sandbox
 
-**Last verified:** 2026-11-19
+**Last verified:** 2026-11-21
 
 Pots ships a self-contained Linux environment on Android so the assistant — and the user, via the in-app Terminal — can run real shell commands. The agent can install packages, write and run scripts, hit the network, and reach external servers over SSH/SFTP/FTP. The sandbox runs the user-space `proot` runtime against a rootfs extracted into the app's private storage; no root or system access is required.
 
@@ -183,8 +183,8 @@ device's browser: `opencode serve` (4096), `pi-web` (30141) and Hermes' `webapp`
 A panel is part of its agent's install, not a separate thing to set up. Pi's
 installer runs `npm install -g @agegr/pi-web` with the Node runtime Pi already
 needs, into that runtime's own prefix, so `pi-web` lands on the sandbox PATH next
-to `pi`; Settings → Sandbox prints its version beside Pi's. OpenCode needs
-nothing: its web UI ships inside the binary.
+to `pi`; Pots Build prints its version beside Pi's in its agent rows. OpenCode
+needs nothing: its web UI ships inside the binary.
 
 Hermes is the exception, because its renderer cannot be built in the sandbox:
 `hermes webapp --build-only` starts with a `pnpm install` of `apps/desktop`, and
@@ -241,7 +241,7 @@ owner asked for access over the LAN, not for a fortress.
 |---|---|---|
 | OpenCode | 4096 | `opencode serve --port N --hostname 127.0.0.1` |
 | Pi | 30141 | `pi-web --port N --hostname 127.0.0.1 --no-open` |
-| Hermes | 9120 | `hermes webapp --no-open` |
+| Hermes | 9120 | `hermes gateway run` (background session); `hermes webapp --no-open` then mints the address |
 
 A taken port moves the panel to the next free one (ten attempts, then an honest
 "all busy" error), and the row shows the port it actually got. Hermes takes its
@@ -254,6 +254,17 @@ dashboard-auth plugin from `plugins.disabled` when it is there
 a gated panel whose provider is disabled opens on "sign-in unavailable". The
 runtime reads the file back, and reports `Failed` with that reason if the plugin
 is still off — a panel nobody can sign in to is not "running".
+
+**Why Hermes' panel is a background session and not one command.** The panel is
+served by Hermes' gateway, and `hermes webapp --no-open` only *mints* an address
+out of a gateway that is already up — it exits as soon as it has printed one.
+Every proot Pots starts runs with `--kill-on-exit`, so a gateway that short-lived
+CLI brought up died with its proot: the row showed a link and a password, and the
+port had nobody on it. So `hermes gateway run` — Hermes' own foreground mode for
+hosts without systemd — is what `launch` starts and keeps (`WebPanels.HERMES_SERVER`),
+which is also what gives the panel a pid file and a log. Only once the port
+answers does the launcher run, for the address. `stop` signals that pid and then
+runs `hermes gateway stop`.
 
 The probe itself runs under `/bin/bash`, not `/bin/sh`: it connects through
 bash's `/dev/tcp`, which is not POSIX and which the image's `/bin/sh` (dash) does
@@ -329,13 +340,14 @@ silent try that fails is worse than a visible form that always works.
 
 ### Hermes sits behind the sign-in form
 
-`hermes webapp --no-open` prints one of two things. Behind the dashboard's
-sign-in — which is where the non-loopback bind Pots writes puts it — it prints a
-permanent address, and the row shows the LAN one with the login and password
-underneath. Without the gate it prints a private link that works once and expires
-in 60 seconds; the row then mints a fresh one on every tap and hands it straight
-to the browser, because a cached link is spent by the first open, and says so
-under the address.
+`hermes webapp --no-open` prints one of two things, and it prints them out of the
+gateway Pots already keeps up (`hermes gateway run`) — it never serves the panel
+itself. Behind the dashboard's sign-in — which is where the non-loopback bind
+Pots writes puts it — it prints a permanent address, and the row shows the LAN
+one with the login and password underneath. Without the gate it prints a private
+link that works once and expires in 60 seconds; the row then mints a fresh one on
+every tap and hands it straight to the browser, because a cached link is spent by
+the first open, and says so under the address.
 
 Which one it is cannot be known from `--status`, so the runtime decides from what
 the launcher printed at start and keeps that: a permanent address is never
