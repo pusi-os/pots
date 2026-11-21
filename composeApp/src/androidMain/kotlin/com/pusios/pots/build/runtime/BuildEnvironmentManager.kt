@@ -58,7 +58,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -1013,9 +1015,16 @@ class BuildEnvironmentManager(
      * panel then serves the shipped bundle, or says the renderer is missing.
      *
      * The chain as a whole is bounded by [HermesWebapp.BUILD_BUDGET_SECONDS]: an
-     * attempt the budget cannot pay for is not started, and a chain that runs out
-     * stops with its own line and serves the shipped bundle. Waiting is the one
-     * thing the owner cannot see, so the wait has a limit.
+     * attempt the budget cannot pay for is not started, a running attempt is
+     * cancelled when the budget ends, and a chain that runs out stops with its own
+     * line and serves the shipped bundle. Waiting is the one thing the owner
+     * cannot see, so the wait has a limit.
+     *
+     * The deadline is a coroutine timeout, so it can only stop the chain where the
+     * chain can be interrupted: the build's own wait loop asks for the cancellation
+     * every poll. The blocking steps around it — each attempt's clean, five minutes
+     * at most, and its built check, thirty seconds — cannot be cut short, so a
+     * chain can overrun the budget by one such step, never by a whole attempt.
      */
     private suspend fun buildHermesRenderer(log: InstallLog) {
         // The chain needs a deadline of its own, not one per attempt: three
@@ -1029,15 +1038,15 @@ class BuildEnvironmentManager(
             }
         } catch (e: TimeoutCancellationException) {
             // Not a failure: the chain spent the time the owner gave it. The
-            // cancelled proot is killed by streamInstall, so nothing is left
-            // running behind the fallback.
-            RendererBuild.OUT_OF_BUDGET
+            // cancellation reaches the wait inside streamInstall, which kills the
+            // proot before rethrowing, so nothing is left building behind the
+            // fallback — see the ensureActive calls there and before each attempt.
+            HermesWebapp.RendererBuild.OUT_OF_BUDGET
         }
-        if (outcome == RendererBuild.BUILT) return
-        serveShippedBundle(log, budgetSpent = outcome == RendererBuild.OUT_OF_BUDGET)
+        val fallback = HermesWebapp.afterBuild(outcome)
+        if (!fallback.serveShippedBundle) return
+        serveShippedBundle(log, line = fallback.line)
     }
-
-    private enum class RendererBuild { BUILT, FAILED, OUT_OF_BUDGET }
 
     /**
      * Runs the attempt chain while the budget lasts. Every attempt writes its own
@@ -1047,16 +1056,20 @@ class BuildEnvironmentManager(
     private suspend fun buildRendererAttempts(
         log: InstallLog,
         budget: HermesWebapp.BuildBudget,
-    ): RendererBuild {
+    ): HermesWebapp.RendererBuild {
         for (attempt in HermesWebapp.buildAttempts) {
-            // An attempt that cannot finish inside the budget is not started: one
-            // cut off mid-build leaves a pnpm store the next attempt cannot use,
-            // and the fallback is the same either way.
-            if (!budget.attemptFits()) return RendererBuild.OUT_OF_BUDGET
+            // An attempt the budget cannot pay for is not started: the fallback is
+            // the same either way, and the last minutes are better spent not
+            // burning a phone on a build that has to be cut off.
+            if (!budget.attemptFits()) return HermesWebapp.RendererBuild.OUT_OF_BUDGET
             log.appendText("pots: ${HermesWebapp.buildingOnDevice(attempt, budget.leftMinutes())}\n")
             publishInstallLog(log)
             val executor = executor(extraEnv = attempt.env, hardlinkEmulation = attempt.hardlinkEmulation)
             executor.execute(HermesWebapp.CLEAN_COMMAND, timeoutSeconds = 300)
+            // The clean is a blocking call of up to five minutes, so the budget can
+            // have run out inside it. Starting the build now would put it wholly
+            // outside the deadline: ask whether the chain is still alive first.
+            currentCoroutineContext().ensureActive()
             val outcome = streamInstall(
                 HermesWebapp.BUILD_COMMAND,
                 HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS,
@@ -1079,18 +1092,18 @@ class BuildEnvironmentManager(
                 },
             )
             publishInstallLog(log)
-            if (built) return RendererBuild.BUILT
+            if (built) return HermesWebapp.RendererBuild.BUILT
         }
-        return RendererBuild.FAILED
+        return HermesWebapp.RendererBuild.FAILED
     }
 
     /**
      * Puts the bundle CI built in front of the panel — the last resort, when the
-     * device could not build one in time. [budgetSpent] adds the line that says
-     * the chain stopped for time rather than failed, so the owner reads why the
-     * wait ended and that the panel is up regardless.
+     * device could not build one in time. [line] is the sentence that says the
+     * chain stopped for time rather than failed, so the owner reads why the wait
+     * ended and that the panel is up regardless.
      */
-    private suspend fun serveShippedBundle(log: InstallLog, budgetSpent: Boolean) {
+    private suspend fun serveShippedBundle(log: InstallLog, line: String?) {
         val pin = HermesWebappAssets.pin(assets)
         val marker = paths.readMarker()
         if (pin == null || marker == null) {
@@ -1098,8 +1111,8 @@ class BuildEnvironmentManager(
             publishInstallLog(log)
             return
         }
-        if (budgetSpent) {
-            log.appendText("pots: ${HermesWebapp.BUDGET_SPENT}\n")
+        if (line != null) {
+            log.appendText("pots: $line\n")
             publishInstallLog(log)
         }
         HermesWebappAssets.stageArchive(assets, pin, paths.homeDir(marker))
@@ -1164,6 +1177,13 @@ class BuildEnvironmentManager(
             var outcome = InstallOutcome(exit = -1, timeoutSeconds = timeoutSeconds)
             try {
                 while (true) {
+                    // Cancellation is cooperative and the wait below is a blocking
+                    // call, so without this line a cancelled chain keeps polling
+                    // until the attempt's own deadline: the budget would expire,
+                    // the fallback would start, and proot would still be building.
+                    // With it, the cancellation lands in the catch below, which is
+                    // the only place that kills the process.
+                    currentCoroutineContext().ensureActive()
                     val exit = handle.awaitExitOrNull(INSTALL_POLL_MS)
                     if (exit != null) {
                         outcome = InstallOutcome(exit, timeoutSeconds = timeoutSeconds)

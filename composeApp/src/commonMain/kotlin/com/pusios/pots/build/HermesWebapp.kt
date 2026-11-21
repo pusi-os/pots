@@ -17,8 +17,9 @@ package com.pusios.pots.build
  *
  * **The chain has one budget.** Three attempts of up to 25 minutes each were 75
  * minutes of a phone with no panel on it, so [BUILD_BUDGET_SECONDS] bounds the
- * whole chain, cleans included: an attempt that cannot finish inside what is left
- * is not started, and a chain that runs out serves the shipped bundle instead of
+ * whole chain, cleans included: an attempt that cannot be given
+ * [ATTEMPT_START_SECONDS] is not started, a running attempt is cancelled when the
+ * budget ends, and a chain that runs out serves the shipped bundle instead of
  * waiting longer. Every attempt starts with a line carrying what is left.
  *
  * **The bundle this app ships is the fallback, not the first choice.** CI builds
@@ -172,6 +173,20 @@ object HermesWebapp {
     const val BUILD_ATTEMPT_TIMEOUT_SECONDS = 1500L
 
     /**
+     * What the budget must still hold to start an attempt: the measured build
+     * (about seven minutes) with room for a phone slower than the measurement.
+     *
+     * Deliberately not [BUILD_ATTEMPT_TIMEOUT_SECONDS]. That number is a hang
+     * detector for one attempt, not what a build costs, and demanding it up front
+     * ends the chain after two attempts — 35 minutes minus two measured builds
+     * leaves 21, less than 25 — while the third, the one that answers whether
+     * `copy` was needed at all, still had twenty minutes to run in. An attempt
+     * started on ten minutes and cut by the hard deadline costs time only: the
+     * next attempt wipes the store first, and the fallback is the same either way.
+     */
+    const val ATTEMPT_START_SECONDS = 10 * 60L
+
+    /**
      * What the whole chain may spend — every attempt and its clean, not one of
      * them. Three attempts of seven to ten minutes fit in 35 minutes with room
      * for a slow network; without this bound the worst case was three attempts
@@ -202,11 +217,11 @@ object HermesWebapp {
         fun leftMinutes(): Long = (leftSeconds() + 59) / 60
 
         /**
-         * Whether one more attempt fits. An attempt that cannot finish inside the
-         * budget is not started: one cut off mid-build leaves a pnpm store the
-         * next attempt cannot use, and the panel gains nothing from it.
+         * Whether one more attempt fits. An attempt the budget cannot pay for is
+         * not started: the chain would spend its last minutes on a build that has
+         * to be cut off, and the panel gains nothing from it.
          */
-        fun attemptFits(attemptSeconds: Long = BUILD_ATTEMPT_TIMEOUT_SECONDS): Boolean =
+        fun attemptFits(attemptSeconds: Long = ATTEMPT_START_SECONDS): Boolean =
             leftSeconds() >= attemptSeconds
     }
 
@@ -258,6 +273,32 @@ object HermesWebapp {
 
     /** The line that says there is no renderer at all — a developer build, every attempt failed. */
     const val NOT_BUILT = "renderer: not built and this app ships no bundle"
+
+    /** How the chain of device builds ended. */
+    enum class RendererBuild { BUILT, FAILED, OUT_OF_BUDGET }
+
+    /**
+     * What the install does once the chain is over, decided here rather than in
+     * the proot code so the rule is testable: [serveShippedBundle] is what keeps
+     * the panel alive, and [line] is the sentence the owner reads when the chain
+     * stopped for time instead of failing.
+     */
+    data class RendererFallback(
+        val serveShippedBundle: Boolean,
+        val line: String?,
+    )
+
+    /**
+     * The rule: a build that won ends the chain; anything else serves the bundle
+     * CI built, and a chain that ran out of time says so — "budget spent" alone
+     * reads as a failure, and the owner is waiting on a screen that will appear.
+     */
+    fun afterBuild(outcome: RendererBuild): RendererFallback =
+        when (outcome) {
+            RendererBuild.BUILT -> RendererFallback(serveShippedBundle = false, line = null)
+            RendererBuild.FAILED -> RendererFallback(serveShippedBundle = true, line = null)
+            RendererBuild.OUT_OF_BUDGET -> RendererFallback(serveShippedBundle = true, line = BUDGET_SPENT)
+        }
 
     /**
      * What the row says when the sandbox and the bundle are not the same Hermes.
