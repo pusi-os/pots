@@ -3,6 +3,7 @@ package com.pusios.pots.build.runtime
 import android.content.res.AssetManager
 import android.os.StatFs
 import android.util.Log
+import com.pusios.pots.build.AgentRemovalProgress
 import com.pusios.pots.build.AgentUpdate
 import com.pusios.pots.build.AgentVersion
 import com.pusios.pots.build.AgentVersionSpec
@@ -15,6 +16,7 @@ import com.pusios.pots.build.BuildSystemInfo
 import com.pusios.pots.build.BuildTerminalSession
 import com.pusios.pots.build.InstallLog
 import com.pusios.pots.build.PotsBuildState
+import com.pusios.pots.build.RemovedPath
 import com.pusios.pots.build.SandboxAgentConfig
 import com.pusios.pots.build.SandboxAgentCredentials
 import com.pusios.pots.build.WebPanelPreferences
@@ -319,9 +321,21 @@ class BuildEnvironmentManager(
     fun install(agentIds: Set<String>) {
         if (installJob?.isActive == true) return
         installJob = scope.launch {
+            // One agent from the versions card is the row that owns the progress
+            // and the log; a batch from the setup screen has no single row to own
+            // them, and that screen shows the log itself.
+            val single = agentIds.singleOrNull()?.takeIf { AgentVersions.get(it) != null }
             // A new install owns the log: the previous one's reason is not this
             // one's, and leaving it would read as if the new run already failed.
-            _state.update { it.copy(installLog = "", installLogDropped = false) }
+            _state.update {
+                it.copy(
+                    installLog = "",
+                    installLogDropped = false,
+                    activeAgentId = single,
+                    removalProgress = null,
+                )
+            }
+            if (single != null) setAgentUpdate(single, AgentUpdate.Installing)
             try {
                 installInternal(agentIds) { isActive }
             } catch (e: CancellationException) {
@@ -330,6 +344,11 @@ class BuildEnvironmentManager(
             } catch (e: Exception) {
                 Log.e(TAG, "Install failed", e)
                 cleanUpPartialInstall(error = e.message ?: "Install failed")
+            } finally {
+                // What the row shows next is what is installed — sync() has just
+                // read it — not the task that was running.
+                if (single != null) setAgentUpdate(single, null)
+                _state.update { it.copy(activeAgentId = null, removalProgress = null) }
             }
         }
     }
@@ -413,27 +432,38 @@ class BuildEnvironmentManager(
         val spec = AgentVersions.get(agentId) ?: return
         if (installJob?.isActive == true) return
         installJob = scope.launch {
-            _state.update { it.copy(installLog = "", installLogDropped = false) }
+            _state.update {
+                it.copy(
+                    installLog = "",
+                    installLogDropped = false,
+                    activeAgentId = agentId,
+                    removalProgress = null,
+                )
+            }
             setAgentUpdate(agentId, AgentUpdate.Updating)
-            stopPanelsFor(agentId)
-            val log = InstallLog()
-            publishInstallLog(log)
-            val outcome = try {
-                streamInstall(spec.updateCommand, spec.updateTimeoutSeconds, executor(), log)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "could not run the $agentId update", e)
-                InstallOutcome(exit = -1, error = e.message ?: "could not start the update")
-            }
-            if (outcome.exit != 0) {
-                log.appendText("pots: $agentId update ended (${outcome.describe()})\n")
+            try {
+                stopPanelsFor(agentId)
+                val log = InstallLog()
                 publishInstallLog(log)
-                setAgentUpdate(agentId, AgentUpdate.UpdateFailed(_state.value.agentVersions[agentId]))
-                return@launch
+                val outcome = try {
+                    streamInstall(spec.updateCommand, spec.updateTimeoutSeconds, executor(), log)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "could not run the $agentId update", e)
+                    InstallOutcome(exit = -1, error = e.message ?: "could not start the update")
+                }
+                if (outcome.exit != 0) {
+                    log.appendText("pots: $agentId update ended (${outcome.describe()})\n")
+                    publishInstallLog(log)
+                    setAgentUpdate(agentId, AgentUpdate.UpdateFailed(_state.value.agentVersions[agentId]))
+                    return@launch
+                }
+                sync()
+                setAgentUpdate(agentId, checkOne(spec))
+            } finally {
+                _state.update { it.copy(activeAgentId = null) }
             }
-            sync()
-            setAgentUpdate(agentId, checkOne(spec))
         }
     }
 
@@ -448,10 +478,37 @@ class BuildEnvironmentManager(
         val spec = AgentVersions.get(agentId) ?: return
         if (installJob?.isActive == true) return
         installJob = scope.launch {
-            stopPanelsFor(agentId)
-            for (guestPath in AgentVersions.removalPaths(spec, includeBulk)) deleteGuestPath(guestPath)
-            setAgentUpdate(agentId, null)
-            sync()
+            // The paths are known before the first delete, so the progress is a
+            // count, not a guess — and the log gets a line per path, because a
+            // removal prints nothing of its own.
+            val paths = AgentVersions.removalPaths(spec, includeBulk)
+            _state.update {
+                it.copy(
+                    installLog = "",
+                    installLogDropped = false,
+                    activeAgentId = agentId,
+                    removalProgress = AgentRemovalProgress(done = 0, total = paths.size),
+                )
+            }
+            setAgentUpdate(agentId, AgentUpdate.Removing)
+            val log = InstallLog()
+            publishInstallLog(log)
+            try {
+                stopPanelsFor(agentId)
+                val removed = mutableListOf<RemovedPath>()
+                for ((index, guestPath) in paths.withIndex()) {
+                    removed += RemovedPath(guestPath, deleteGuestPath(guestPath))
+                    log.appendText(AgentVersions.removalLine(removed.last()) + "\n")
+                    publishInstallLog(log)
+                    _state.update { it.copy(removalProgress = AgentRemovalProgress(index + 1, paths.size)) }
+                }
+                log.appendText(AgentVersions.removalSummary(removed) + "\n")
+                publishInstallLog(log)
+                setAgentUpdate(agentId, null)
+                sync()
+            } finally {
+                _state.update { it.copy(activeAgentId = null, removalProgress = null) }
+            }
         }
     }
 
@@ -507,12 +564,25 @@ class BuildEnvironmentManager(
      * Deletes a guest path from the host side. The rootfs is a plain directory, so
      * no proot round-trip is needed — and a round-trip is exactly what fails on a
      * symlink whose target resolves only inside the guest.
+     *
+     * Returns the bytes it freed, or null when there was nothing to measure: a
+     * path that was not there, or a symlink, which costs no disk of its own. The
+     * number is what the removal log shows, so it is measured before the delete
+     * rather than guessed after it.
      */
-    private fun deleteGuestPath(guestPath: String) {
+    private fun deleteGuestPath(guestPath: String): Long? {
         val target = File(paths.rootfsDir, guestPath.trimStart('/'))
+        val path = target.toPath()
+        val freed = when {
+            Files.isSymbolicLink(path) -> null
+            target.isDirectory -> directorySize(target)
+            target.exists() -> target.length()
+            else -> null
+        }
         runCatching {
-            if (Files.isSymbolicLink(target.toPath())) target.delete() else if (target.isDirectory) deleteTree(target) else target.delete()
+            if (Files.isSymbolicLink(path)) target.delete() else if (target.isDirectory) deleteTree(target) else target.delete()
         }.onFailure { Log.w(TAG, "could not remove $guestPath", it) }
+        return freed
     }
 
     /** Local wall clock, formatted here so the UI needs no date library. */

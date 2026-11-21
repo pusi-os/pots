@@ -1,15 +1,15 @@
 package com.pusios.pots.build
 
-/**
- * The version flow for the coding agents: where each one's installed and newest
- * versions come from, how the two are compared, and what removing one may take
- * off the device.
- *
- * Plain Kotlin on purpose. The decisions that must never lie — a failed check is
- * not "up to date", `2.3.10` is newer than `2.3.9`, removing an agent leaves its
- * configuration alone — are testable on the JVM, where the guest, the network
- * and the clock can be pinned down; on a phone they cannot.
- */
+import com.pusios.pots.formatFileSize
+
+// The version flow for the coding agents: where each one's installed and newest
+// versions come from, how the two are compared, and what removing one may take
+// off the device.
+//
+// Plain Kotlin on purpose. The decisions that must never lie — a failed check is
+// not "up to date", `2.3.10` is newer than `2.3.9`, removing an agent leaves its
+// configuration alone — are testable on the JVM, where the guest, the network
+// and the clock can be pinned down; on a phone they cannot.
 
 /** Which field of a registry's JSON answer carries the newest version. */
 enum class LatestSource {
@@ -90,7 +90,36 @@ sealed interface AgentUpdate {
     data class UpdateFailed(val installed: String?) : AgentUpdate
 
     data object NotInstalled : AgentUpdate
+
+    /**
+     * The agent's installer is running from the versions card. Without it a
+     * single-agent install looks exactly like nothing happening: the row keeps
+     * offering "Install" until the job is over.
+     */
+    data object Installing : AgentUpdate
+
+    /**
+     * The installation is being deleted. Its own state because a removal can take
+     * minutes — Hermes' checkout is 5 GiB — and the row has to say so instead of
+     * sitting on the old version until the buttons turn into "Install".
+     */
+    data object Removing : AgentUpdate
 }
+
+/**
+ * How far a running removal got. [AgentVersions.removalPaths] names every path
+ * before the first delete, so this count is measured, not estimated — which is
+ * why the removal gets a determinate bar while installs and updates (network and
+ * registry time, no denominator) get an indeterminate one.
+ */
+data class AgentRemovalProgress(val done: Int, val total: Int) {
+
+    /** `done / total`, or null when there is nothing to divide by. */
+    fun fraction(): Float? = if (total <= 0) null else (done.toFloat() / total).coerceIn(0f, 1f)
+}
+
+/** One path a removal took off the device, with the bytes it freed when they could be measured. */
+data class RemovedPath(val path: String, val bytes: Long?)
 
 /**
  * One row of the agents card: what the device has, and what the last check said.
@@ -278,6 +307,21 @@ object AgentVersions {
      */
     fun removalPaths(spec: AgentVersionSpec, includeBulk: Boolean): List<String> =
         spec.installPaths + listOfNotNull(spec.bulkPath?.takeIf { includeBulk })
+
+    /**
+     * One line of the removal log: the path, and what taking it freed when the
+     * size could be measured. A removal is the one agent action that runs with no
+     * installer output of its own, so without these lines the log would be empty
+     * while Hermes' 5 GiB checkout is being deleted.
+     */
+    fun removalLine(removed: RemovedPath): String =
+        removed.bytes?.let { "удалено: ${removed.path} (${formatFileSize(it)})" }
+            ?: "удалено: ${removed.path}"
+
+    /** What a finished removal adds up to: how many paths went, and what that freed. */
+    fun removalSummary(removed: List<RemovedPath>): String =
+        "итог: удалено путей ${removed.size}, освобождено " +
+            formatFileSize(removed.sumOf { it.bytes ?: 0L })
 
     /** The command that asks the registry, with the same bounded wait for every source. */
     fun latestCommand(spec: AgentVersionSpec): String = "$CURL '${spec.latestUrl}'"

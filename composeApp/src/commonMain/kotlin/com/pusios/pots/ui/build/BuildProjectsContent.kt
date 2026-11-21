@@ -509,6 +509,10 @@ private fun BuildSystemCard(
                 onInstall = onInstallAgent,
                 onUpdate = onUpdateAgent,
                 onRemove = onRemoveAgent,
+                log = state.installLog,
+                logDropped = state.installLogDropped,
+                activeAgentId = state.activeAgentId,
+                removalProgress = state.removalProgress,
             )
         }
 

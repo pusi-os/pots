@@ -789,6 +789,16 @@
     <string name="pots_build_agents_remove_body">The command and the runtime it brought are removed. Your configuration and session history are left where they are.</string>
     <string name="pots_build_agents_remove_bulk">The git checkout takes 5.2 GiB on disk. Removing it frees that space, and installing it again takes tens of minutes.</string>
     <string name="pots_build_agents_remove_bulk_action">Remove the checkout too</string>
+    <string name="pots_build_agents_installing">Installing…</string>
+    <string name="pots_build_agents_removing">Removing…</string>
+    <string name="pots_build_agents_removing_progress">Removing… %1$d of %2$d</string>
+    <string name="pots_build_agents_about">What this agent is</string>
+    <string name="pots_build_agents_github">GitHub repository</string>
+    <string name="pots_build_agents_docs">Documentation</string>
+    <string name="pots_build_agents_log">Log</string>
+    <string name="pots_build_agents_opencode_description">An open-source coding agent for the terminal. It ships two built-in agents: build, with full access to files and commands, and plan, which is read-only and meant for reading an unfamiliar codebase. Installed here by its own installer; an update runs opencode upgrade.</string>
+    <string name="pots_build_agents_pi_description">A minimal, extensible agent harness you shape to your workflow: extensions, skills, prompt templates and themes, bundled as packages and shared over npm or git. Runs interactively in the terminal, in print or JSON mode, over RPC, or from its TypeScript SDK. Needs Node.js 22.19 or newer.</string>
+    <string name="pots_build_agents_hermes_description">A self-improving agent from Nous Research: it writes skills from experience, keeps memory across sessions and searches its own past conversations. Full terminal UI, a gateway to Telegram, Discord, Slack, WhatsApp and Signal, a cron scheduler and subagents. The model is switched with hermes model, with no code changes.</string>
     <string name="pots_build_step_download">Downloading Debian… %1$d%%</string>
     <string name="pots_build_step_extract">Extracting rootfs…</string>
     <string name="pots_build_step_configure">Configuring Debian…</string>
