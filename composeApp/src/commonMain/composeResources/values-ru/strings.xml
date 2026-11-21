@@ -722,7 +722,6 @@
     <string name="pots_build_terminal_key_enter_content_description">Ввод</string>
     <string name="settings_mcp_api_key">Ключ API (необязательно)</string>
     <string name="settings_mcp_api_key_help">Необязательно. Для инструментов поиска нужен бесплатный ключ с jina.ai; остальные инструменты работают без него.</string>
-    <string name="settings_sandbox_agents_title">Агенты для кода</string>
     <string name="settings_sandbox_agent_version_unknown">версия не определена</string>
     <string name="settings_sandbox_distro_title">Дистрибутив</string>
     <string name="settings_sandbox_distro_debian">Debian 12</string>

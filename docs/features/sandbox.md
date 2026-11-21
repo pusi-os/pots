@@ -1,6 +1,6 @@
 # Linux Sandbox
 
-**Last verified:** 2026-11-19
+**Last verified:** 2026-11-21
 
 Pots ships a self-contained Linux environment on Android so the assistant — and the user, via the in-app Terminal — can run real shell commands. The agent can install packages, write and run scripts, hit the network, and reach external servers over SSH/SFTP/FTP. The sandbox runs the user-space `proot` runtime against a rootfs extracted into the app's private storage; no root or system access is required.
 
@@ -183,8 +183,8 @@ device's browser: `opencode serve` (4096), `pi-web` (30141) and Hermes' `webapp`
 A panel is part of its agent's install, not a separate thing to set up. Pi's
 installer runs `npm install -g @agegr/pi-web` with the Node runtime Pi already
 needs, into that runtime's own prefix, so `pi-web` lands on the sandbox PATH next
-to `pi`; Settings → Sandbox prints its version beside Pi's. OpenCode needs
-nothing: its web UI ships inside the binary.
+to `pi`; Pots Build prints its version beside Pi's in its agent rows. OpenCode
+needs nothing: its web UI ships inside the binary.
 
 Hermes is the exception, because its renderer cannot be built in the sandbox:
 `hermes webapp --build-only` starts with a `pnpm install` of `apps/desktop`, and

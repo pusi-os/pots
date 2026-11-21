@@ -150,10 +150,6 @@ fun SettingsScreen(
             onResetSandbox = sandboxViewModel::onResetSandbox,
             onInstallPackages = sandboxViewModel::onInstallPackages,
             onMigrateHome = sandboxViewModel::onMigrateHome,
-            onCheckAgents = sandboxViewModel::onCheckAgents,
-            onInstallAgent = sandboxViewModel::onInstallAgent,
-            onUpdateAgent = sandboxViewModel::onUpdateAgent,
-            onRemoveAgent = sandboxViewModel::onRemoveAgent,
             onNavigateBack = onNavigateBack,
             navigationTabBar = navigationTabBar,
             onOpenPotsBuild = { isPotsBuildOpen = true }.takeIf { isPotsBuildAvailable },
@@ -174,10 +170,6 @@ fun SettingsScreenContent(
     onResetSandbox: () -> Unit = {},
     onInstallPackages: () -> Unit = {},
     onMigrateHome: () -> Unit = {},
-    onCheckAgents: (Set<String>) -> Unit = {},
-    onInstallAgent: (String) -> Unit = {},
-    onUpdateAgent: (String) -> Unit = {},
-    onRemoveAgent: (String, Boolean) -> Unit = { _, _ -> },
     onNavigateBack: () -> Unit = {},
     navigationTabBar: (@Composable () -> Unit)? = null,
     onOpenPotsBuild: (() -> Unit)? = null,
@@ -357,10 +349,6 @@ fun SettingsScreenContent(
                                     onInstallPackages = onInstallPackages,
                                     onMigrateHome = onMigrateHome,
                                     onOpenPotsBuild = onOpenPotsBuild,
-                                    onCheckAgents = onCheckAgents,
-                                    onInstallAgent = onInstallAgent,
-                                    onUpdateAgent = onUpdateAgent,
-                                    onRemoveAgent = onRemoveAgent,
                                 )
                             }
 
