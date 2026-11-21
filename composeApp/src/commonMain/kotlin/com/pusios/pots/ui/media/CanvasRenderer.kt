@@ -88,7 +88,9 @@ internal fun DrawScope.renderLayers(
         if (!layer.transform.visible) return@forEach
         when (layer) {
             is ImageLayer -> drawMediaLayer(layer, frames[layer.id], scale, zoom, cardBackground)
+
             is VideoLayer -> drawMediaLayer(layer, frames[layer.id], scale, zoom, cardBackground)
+
             // Audio is a player card, not a frame; text/strokes/arrows are the
             // next cards. They are skipped, not drawn as empty boxes.
             is AudioLayer, is TextLayer, is StrokeLayer, is ArrowLayer -> Unit
