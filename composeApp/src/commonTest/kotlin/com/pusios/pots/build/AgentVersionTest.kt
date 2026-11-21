@@ -14,8 +14,8 @@ class AgentVersionTest {
     @Test
     fun `reads the version out of Hermes' product line`() {
         assertEquals(
-            "0.23.2",
-            AgentVersion.parse("Hermes Agent v0.23.2 (2026.9.24) · stable · local ae2a81ccc00e"),
+            "0.23.3",
+            AgentVersion.parse("Hermes Agent v0.23.3 (2026.9.24) · stable · local caafe5389ae5"),
         )
     }
 
@@ -29,7 +29,7 @@ class AgentVersionTest {
     @Test
     fun `takes the first version, which is the agent's own`() {
         // A bundled runtime's version follows the agent's and must not win.
-        assertEquals("0.23.2", AgentVersion.parse("Hermes Agent v0.23.2 on node v22.23.1"))
+        assertEquals("0.23.3", AgentVersion.parse("Hermes Agent v0.23.3 on node v22.23.1"))
     }
 
     @Test

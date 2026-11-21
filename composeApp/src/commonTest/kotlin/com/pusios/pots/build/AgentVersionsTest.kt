@@ -20,7 +20,7 @@ class AgentVersionsTest {
         assertEquals("1.5.2", AgentVersion.parse("pi 1.5.2"))
         assertEquals(
             "0.23.3",
-            AgentVersion.parse("Hermes Agent v0.23.3 (2026.11.19) · stable · local ae2a81ccc00e"),
+            AgentVersion.parse("Hermes Agent v0.23.3 (2026.9.24) · stable · local caafe5389ae5"),
         )
     }
 
