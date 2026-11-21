@@ -224,7 +224,33 @@ object BuildAgents {
         apt-get install -y --no-install-recommends xz-utils >/dev/null 2>&1 \
           || echo "pots: xz-utils is missing; the panel cannot unpack its renderer"
         if [ ! -d /root/.hermes/hermes-agent/.git ]; then
-          git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /root/.hermes/hermes-agent
+          # The installer checks that the pin is an ancestor of the branch before it
+          # checks it out (install.sh:996), and that walk needs the commit objects. A
+          # depth-1 clone has none. Blobless is how the installer itself clones: every
+          # commit and tree, file contents on demand. Without a pin nothing checks
+          # ancestry, so the shallow clone stays and the saving is real.
+          if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
+            git clone --filter=blob:none https://github.com/NousResearch/hermes-agent.git /root/.hermes/hermes-agent
+          else
+            git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /root/.hermes/hermes-agent
+          fi
+        fi
+        # A checkout an older Pots Build left behind is depth-1, and the same check
+        # inside the installer cannot pass there: the pinned commit is not an object
+        # in it at all. Deepen it here, before the installer looks — a device that
+        # already has the clone never re-clones, so the branch above cannot fix it.
+        # Blobless again, for the same reason: a long-lived treeless checkout
+        # re-downloads whole trees on every checkout (#129712).
+        if [ -n "${'$'}POTS_WEBAPP_PIN" ] && [ -d /root/.hermes/hermes-agent/.git ]; then
+          if [ "${'$'}(git -C /root/.hermes/hermes-agent rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+            git -C /root/.hermes/hermes-agent fetch --unshallow --filter=blob:none origin main \
+              || echo "pots: could not deepen the Hermes checkout; the pin step will fail"
+          elif ! git -C /root/.hermes/hermes-agent cat-file -e "${'$'}{POTS_WEBAPP_PIN}^{commit}" 2>/dev/null; then
+            # Not shallow, yet the commit is missing: the branch ref the check walks
+            # from is stale or absent. The check reads origin/main, so refresh that.
+            git -C /root/.hermes/hermes-agent fetch origin main \
+              || echo "pots: could not refresh the Hermes checkout; the pin step will fail"
+          fi
         fi
         printf 'link-mode = "copy"\nno-cache = true\n' > /root/.hermes/hermes-agent/uv.toml
         grep -qxF uv.toml /root/.hermes/hermes-agent/.git/info/exclude 2>/dev/null \

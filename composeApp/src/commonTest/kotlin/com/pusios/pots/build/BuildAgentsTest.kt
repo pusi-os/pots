@@ -91,11 +91,30 @@ class BuildAgentsTest {
 
     @Test
     fun `the install leaves the checkout on the commit this app's panel was built from`() {
-        // install.sh honours `--commit` only on a fresh clone; on an existing
-        // checkout it fast-forwards to the branch's tip. So the pin is applied here,
-        // after the installer, or the panel would talk to a backend it was not built
-        // for — a blank page and 404s on the assets.
+        // install.sh pins `--commit` itself, on a fresh clone and on a rerun over an
+        // existing checkout alike (install.sh:996) — but only after it walks the
+        // history to prove the commit is an ancestor of the branch, and a depth-1
+        // clone has no history to walk: the commit is not an object there at all.
+        // That is how the install died on the phone ("commit … is not on branch
+        // main"). So a pinned clone carries the commit graph, and a depth-1 checkout
+        // an older build left behind is deepened before the installer looks. The
+        // post-install pin below stays for the paths that do not pin.
         assertTrue(hermes.contains("/root/.hermes/pots-webapp-pin"), "the app writes the pin, the install reads it")
+        val pinBranch = hermes.indexOf("if [ -n \"\$POTS_WEBAPP_PIN\" ]; then")
+        val blobless = hermes.indexOf("git clone --filter=blob:none")
+        val shallow = hermes.indexOf("git clone --depth 1")
+        assertTrue(
+            pinBranch in 0..<blobless && blobless < shallow,
+            "the pinned branch is the one that clones history; --depth 1 stays for a build with no pin",
+        )
+        assertTrue(
+            hermes.indexOf("rev-parse --is-shallow-repository") in 0..<hermes.indexOf("fetch --unshallow"),
+            "an existing depth-1 checkout is what a device already has",
+        )
+        assertTrue(
+            hermes.indexOf("fetch --unshallow") in 0..<hermes.indexOf("if ! pots_install_hermes"),
+            "the checkout is deepened before the installer checks the pin, not after",
+        )
         assertTrue(hermes.contains("fetch --depth 1 origin"), "a shallow clone has to fetch the pinned commit")
         assertTrue(hermes.contains("checkout --force --detach"), "the pin is a detached checkout, not a branch")
         assertTrue(hermes.contains("POTS_WEBAPP_PIN"), hermes)
