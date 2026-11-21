@@ -55,6 +55,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -65,6 +66,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -110,24 +112,6 @@ private const val INSTALL_STALL_MS = 20 * 60 * 1000L
 
 /** How often a waiting install re-checks its deadline and its silence. */
 private const val INSTALL_POLL_MS = 1000L
-
-/**
- * How long one on-device renderer build may run. The measured build is about
- * seven minutes (pnpm 1m 56s, vite 4m 3s); a phone with a slow flash and a cold
- * store is several times that, and a timeout here costs the whole attempt.
- *
- * Twenty-five minutes is a hard deadline for the command, but it is not the
- * bound a hung build hits first: [INSTALL_STALL_MS] (20 min of silence) fires
- * earlier and the log then reads "no output for 20 min", not "timed out".
- *
- * Nothing bounds the chain as a whole. [BuildAgent.installTimeoutSeconds]
- * (5400 s) is spent by the installer alone — [buildHermesRenderer] runs after
- * it, under no outer deadline — so the worst case is three attempts of 1500 s
- * plus their cleans, about 90 minutes past the install. That is why every step
- * of the chain publishes its own line to the log instead of relying on the
- * install's clock.
- */
-private const val RENDERER_BUILD_TIMEOUT_SECONDS = 1500L
 
 /**
  * One live PTY session: its own VT screen, geometry, and capture files. Several
@@ -1027,17 +1011,58 @@ class BuildEnvironmentManager(
      * to the log — which renderer the panel serves is not something the owner
      * should have to guess at. A build that failed is not an install failure: the
      * panel then serves the shipped bundle, or says the renderer is missing.
+     *
+     * The chain as a whole is bounded by [HermesWebapp.BUILD_BUDGET_SECONDS]: an
+     * attempt the budget cannot pay for is not started, and a chain that runs out
+     * stops with its own line and serves the shipped bundle. Waiting is the one
+     * thing the owner cannot see, so the wait has a limit.
      */
     private suspend fun buildHermesRenderer(log: InstallLog) {
+        // The chain needs a deadline of its own, not one per attempt: three
+        // attempts of 25 minutes are 75 minutes of a phone with no panel on it,
+        // and nothing outside this function covers them — the install's own
+        // timeout is spent before this call starts.
+        val budget = HermesWebapp.BuildBudget(nowMillis = System::currentTimeMillis)
+        val outcome = try {
+            withTimeout(HermesWebapp.BUILD_BUDGET_SECONDS * 1000) {
+                buildRendererAttempts(log, budget)
+            }
+        } catch (e: TimeoutCancellationException) {
+            // Not a failure: the chain spent the time the owner gave it. The
+            // cancelled proot is killed by streamInstall, so nothing is left
+            // running behind the fallback.
+            RendererBuild.OUT_OF_BUDGET
+        }
+        if (outcome == RendererBuild.BUILT) return
+        serveShippedBundle(log, budgetSpent = outcome == RendererBuild.OUT_OF_BUDGET)
+    }
+
+    private enum class RendererBuild { BUILT, FAILED, OUT_OF_BUDGET }
+
+    /**
+     * Runs the attempt chain while the budget lasts. Every attempt writes its own
+     * line before it starts, with what the budget has left, so the screen shows a
+     * countdown instead of a bar that has not moved for twenty minutes.
+     */
+    private suspend fun buildRendererAttempts(
+        log: InstallLog,
+        budget: HermesWebapp.BuildBudget,
+    ): RendererBuild {
         for (attempt in HermesWebapp.buildAttempts) {
-            log.appendText(
-                "pots: renderer: building on device (attempt ${attempt.number} of " +
-                    "${HermesWebapp.buildAttempts.size}, ${attempt.why}) — about seven minutes\n",
-            )
+            // An attempt that cannot finish inside the budget is not started: one
+            // cut off mid-build leaves a pnpm store the next attempt cannot use,
+            // and the fallback is the same either way.
+            if (!budget.attemptFits()) return RendererBuild.OUT_OF_BUDGET
+            log.appendText("pots: ${HermesWebapp.buildingOnDevice(attempt, budget.leftMinutes())}\n")
             publishInstallLog(log)
             val executor = executor(extraEnv = attempt.env, hardlinkEmulation = attempt.hardlinkEmulation)
             executor.execute(HermesWebapp.CLEAN_COMMAND, timeoutSeconds = 300)
-            val outcome = streamInstall(HermesWebapp.BUILD_COMMAND, RENDERER_BUILD_TIMEOUT_SECONDS, executor, log)
+            val outcome = streamInstall(
+                HermesWebapp.BUILD_COMMAND,
+                HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS,
+                executor,
+                log,
+            )
             // `--force-build` makes "up to date" impossible, so a line saying it means
             // the flag never reached Hermes and the bundle on disk is not this
             // attempt's build. The whole log is read rather than this attempt's slice:
@@ -1054,14 +1079,28 @@ class BuildEnvironmentManager(
                 },
             )
             publishInstallLog(log)
-            if (built) return
+            if (built) return RendererBuild.BUILT
         }
+        return RendererBuild.FAILED
+    }
+
+    /**
+     * Puts the bundle CI built in front of the panel — the last resort, when the
+     * device could not build one in time. [budgetSpent] adds the line that says
+     * the chain stopped for time rather than failed, so the owner reads why the
+     * wait ended and that the panel is up regardless.
+     */
+    private suspend fun serveShippedBundle(log: InstallLog, budgetSpent: Boolean) {
         val pin = HermesWebappAssets.pin(assets)
         val marker = paths.readMarker()
         if (pin == null || marker == null) {
             log.appendText("pots: ${HermesWebapp.NOT_BUILT}\n")
             publishInstallLog(log)
             return
+        }
+        if (budgetSpent) {
+            log.appendText("pots: ${HermesWebapp.BUDGET_SPENT}\n")
+            publishInstallLog(log)
         }
         HermesWebappAssets.stageArchive(assets, pin, paths.homeDir(marker))
         val executor = executor()
