@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.build.AgentRemovalProgress
 import com.pusios.pots.build.AgentVersionRow
 import com.pusios.pots.build.AgentVersions
 import com.pusios.pots.build.BuildAgent
@@ -107,6 +108,7 @@ internal fun BuildProjectsContent(
     onOpenWebPanel: (String) -> Unit,
     onSetWebPanelAutostart: (String, Boolean) -> Unit,
     onWebPanelPassword: (String) -> String?,
+    onPanelLog: suspend (String) -> String,
     modifier: Modifier = Modifier,
 ) {
     var showUninstall by remember { mutableStateOf(false) }
@@ -240,6 +242,7 @@ internal fun BuildProjectsContent(
                 onOpen = onOpenWebPanel,
                 onSetAutostart = onSetWebPanelAutostart,
                 onPassword = onWebPanelPassword,
+                onLog = onPanelLog,
             )
         }
 
@@ -248,6 +251,10 @@ internal fun BuildProjectsContent(
                 info = state.systemInfo,
                 agentRows = agentRows,
                 busy = state.isInstalling,
+                log = state.installLog,
+                logDropped = state.installLogDropped,
+                activeAgentId = state.activeAgentId,
+                removalProgress = state.removalProgress,
                 onCheckAgents = onCheckAgents,
                 onInstallAgent = onInstallAgent,
                 onUpdateAgent = onUpdateAgent,
@@ -456,6 +463,10 @@ private fun BuildSystemCard(
     info: BuildSystemInfo?,
     agentRows: List<AgentVersionRow>,
     busy: Boolean,
+    log: String,
+    logDropped: Boolean,
+    activeAgentId: String?,
+    removalProgress: AgentRemovalProgress?,
     onCheckAgents: (Set<String>) -> Unit,
     onInstallAgent: (String) -> Unit,
     onUpdateAgent: (String) -> Unit,
@@ -507,6 +518,10 @@ private fun BuildSystemCard(
                 onInstall = onInstallAgent,
                 onUpdate = onUpdateAgent,
                 onRemove = onRemoveAgent,
+                log = log,
+                logDropped = logDropped,
+                activeAgentId = activeAgentId,
+                removalProgress = removalProgress,
             )
         }
 

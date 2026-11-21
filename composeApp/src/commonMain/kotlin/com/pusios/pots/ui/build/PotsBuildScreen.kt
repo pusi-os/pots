@@ -82,6 +82,8 @@ data class PotsBuildActions(
     val openWebPanel: (String) -> Unit,
     val setWebPanelAutostart: (String, Boolean) -> Unit,
     val webPanelPassword: (String) -> String?,
+    /** The panel's log for its row; read on the tap, never while composing. */
+    val panelLog: suspend (String) -> String,
 )
 
 /**
@@ -127,6 +129,7 @@ fun PotsBuildScreen(
             openWebPanel = viewModel::openWebPanel,
             setWebPanelAutostart = viewModel::setWebPanelAutostart,
             webPanelPassword = viewModel::webPanelPassword,
+            panelLog = viewModel::panelLog,
         )
     }
 
@@ -259,6 +262,7 @@ internal fun PotsBuildScreenContent(
                         onOpenWebPanel = actions.openWebPanel,
                         onSetWebPanelAutostart = actions.setWebPanelAutostart,
                         onWebPanelPassword = actions.webPanelPassword,
+                        onPanelLog = actions.panelLog,
                     )
                 } else {
                     BuildSetupContent(

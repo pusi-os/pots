@@ -178,7 +178,12 @@ internal fun BuildSetupContent(
  * itself down cannot be read while an install is running.
  */
 @Composable
-internal fun InstallLogPane(log: String, dropped: Boolean) {
+internal fun InstallLogPane(
+    log: String,
+    dropped: Boolean,
+    logModifier: Modifier = Modifier.height(INSTALL_LOG_HEIGHT),
+    title: String = stringResource(Res.string.pots_build_install_log_title),
+) {
     val scroll = rememberScrollState()
     var followTail by remember { mutableStateOf(true) }
     // Recomputed from the scroll state rather than from drag gestures: this also
@@ -196,7 +201,7 @@ internal fun InstallLogPane(log: String, dropped: Boolean) {
             .padding(8.dp),
     ) {
         Text(
-            text = stringResource(Res.string.pots_build_install_log_title),
+            text = title,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -213,7 +218,7 @@ internal fun InstallLogPane(log: String, dropped: Boolean) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(INSTALL_LOG_HEIGHT)
+                .then(logModifier)
                 .verticalScroll(scroll),
         ) {
             SelectionContainer {

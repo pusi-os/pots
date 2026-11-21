@@ -88,4 +88,6 @@ class AndroidPotsBuildController : PotsBuildController {
     override fun setWebPanelAutostart(panelId: String, enabled: Boolean) = manager.setWebPanelAutostart(panelId, enabled)
 
     override fun webPanelPassword(panelId: String): String? = manager.webPanelPassword(panelId)
+
+    override fun webPanelLog(panelId: String): String = manager.webPanelLog(panelId)
 }

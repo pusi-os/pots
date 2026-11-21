@@ -685,6 +685,81 @@ class WebPanelsTest {
         assertFalse(files.single { it.path == ".hermes/.env" }.content.contains(password))
     }
 
+    // --- the log the row shows -------------------------------------------
+
+    @Test
+    fun `the row's log is masked, so a panel that echoes its environment leaks nothing`() = runTest {
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+        val password = runtime.password("opencode").orEmpty()
+        assertTrue(password.isNotEmpty())
+        // A panel that prints its environment, or a shell that fails with the
+        // command line in the message, is the case this exists for.
+        guest.log = "env: OPENCODE_SERVER_PASSWORD=$password\nlistening on 4096"
+
+        val shown = runtime.panelLog("opencode")
+
+        assertFalse(shown.contains(password), "the password reached the screen: $shown")
+        assertContains(shown, "***")
+        assertContains(shown, "listening on 4096")
+    }
+
+    @Test
+    fun `a panel with no log file says so instead of throwing`() = runTest {
+        val guest = FakeGuest().apply { log = WebPanelLog.NO_FILE }
+        val runtime = runtime(this, guest)
+
+        assertEquals(WebPanelLog.NO_FILE, runtime.panelLog("pi"))
+    }
+
+    @Test
+    fun `a password cut by the tail boundary never comes back as a fragment`() = runTest {
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
+        runtime.startPanel("opencode")
+        val password = runtime.password("opencode").orEmpty()
+        assertTrue(password.isNotEmpty())
+        // 13010 characters total, so the 8000-character tail starts at 5010 — ten
+        // characters into the password, which begins at 5000. Masking after the
+        // cut would leave the rest of it on screen, and `replace` would not find it.
+        guest.log = "y".repeat(5_000) + password + "z".repeat(13_010 - 5_000 - password.length)
+
+        val shown = runtime.panelLog("opencode")
+
+        assertFalse(shown.contains(password.drop(10)), "a fragment of the password reached the screen")
+        assertFalse(shown.contains(password))
+        assertContains(shown, "***")
+    }
+
+    @Test
+    fun `a failed start quotes one masked line, not the whole log`() = runTest {
+        val password = "Xq7Rz2LmNp4Tv8Wk"
+        val guest = FakeGuest().apply {
+            listensAfterLaunch = false
+            // A full tail of noise, and the password in the last thing it said.
+            log = "y".repeat(WebPanelLog.TAIL_CHARS) +
+                "\nenv: OPENCODE_SERVER_PASSWORD=$password\nport 4096 is taken"
+        }
+        val runtime = runtime(this, guest, prefs = { WebPanelPreferences(password = password) })
+
+        runtime.startPanel("opencode")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("opencode"))
+        assertFalse(failed.reason.contains(password), "the password reached the status line: ${failed.reason}")
+        assertContains(failed.reason, "port 4096 is taken")
+        assertTrue(
+            failed.reason.length < WebPanelLog.BRIEF_CHARS + 100,
+            "the reason is the log, not a line: ${failed.reason.length} characters",
+        )
+    }
+
+    @Test
+    fun `an unknown panel has no log to show`() = runTest {
+        val runtime = runtime(this, FakeGuest())
+        assertEquals(WebPanelLog.NO_FILE, runtime.panelLog("claude-code"))
+    }
+
     // --- Hermes -----------------------------------------------------------
 
     @Test
@@ -812,14 +887,6 @@ class WebPanelsTest {
     }
 
     @Test
-    fun `the bundle check wants the assets directory, not only the page`() {
-        // index.html alone passes while `assets/` is missing, and the page then
-        // opens blank — the owner's "Web UI shows a link but nothing opens".
-        assertContains(WebPanels.HERMES_BUNDLE_CHECK, "-f ${WebPanels.HERMES_BUNDLE_DIR}/index.html")
-        assertContains(WebPanels.HERMES_BUNDLE_CHECK, "-d ${WebPanels.HERMES_BUNDLE_DIR}/assets")
-    }
-
-    @Test
     fun `a running Hermes panel is read from its own status, not from a pid`() = runTest {
         val guest = FakeGuest().apply {
             status = "Serving at http://127.0.0.1:9120"
@@ -859,7 +926,12 @@ class WebPanelsTest {
 
     @Test
     fun `a Hermes whose webapp was never built says so instead of opening a blank page`() = runTest {
-        val guest = FakeGuest().apply { hasBundle = false }
+        // A developer build: this app ships no bundle, and the checkout — which is
+        // there — built none.
+        val guest = FakeGuest().apply {
+            hermesPin = null
+            hermesHead = OTHER_HERMES
+        }
         val runtime = runtime(this, guest)
         runtime.startPanel("hermes")
 
@@ -880,8 +952,90 @@ class WebPanelsTest {
 
         runtime.startPanel("hermes")
 
-        // Naming the bundle is what stops `hermes webapp` from building one, and the
-        // build is the step that cannot run on a phone at all.
+        // The fallback: no renderer on the device at all, so the one this app
+        // carries is unpacked — and named, which is what stops Hermes from
+        // building one itself.
+        assertEquals(1, guest.runs.count { it == HermesWebapp.unpack(BUNDLE_PIN) })
+        assertEquals(HermesWebapp.DIST_DIR, guest.runEnv[HermesWebapp.DIST_ENV])
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+    }
+
+    @Test
+    fun `a device build from a later Hermes than the pin is served`() = runTest {
+        // The install follows `main`, so the checkout is normally ahead of the
+        // commit CI built this APK's bundle from. The renderer the device built is
+        // from the Hermes the sandbox actually runs — the pin says nothing about it.
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+            hermesBuilt = true
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        assertFalse(guest.runs.any { it == HermesWebapp.unpack(BUNDLE_PIN) }, "CI's bundle is not this Hermes")
+        assertFalse(guest.runEnv.containsKey(HermesWebapp.DIST_ENV))
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+    }
+
+    @Test
+    fun `a device build left behind by another commit refuses and names both`() = runTest {
+        // The checkout moved after the build, so the page on disk belongs to a
+        // Hermes this sandbox no longer is: a blank page and 404s on the assets.
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+            hermesBuilt = true
+            hermesStamp = BUNDLE_PIN
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, BUNDLE_PIN.take(8))
+        assertContains(failed.reason, OTHER_HERMES.take(8))
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, "no panel on a renderer it was not built from")
+    }
+
+    @Test
+    fun `a renderer built on the device is served without naming the shipped bundle`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            hermesBuilt = true
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // The install built the renderer from the pinned checkout, so the panel
+        // serves Hermes' own bundle: nothing is unpacked, and DIST_ENV stays unset
+        // — naming the shipped copy here would pin the panel to CI's bundle for
+        // good and Hermes would never rebuild it.
+        assertFalse(guest.runs.any { it == HermesWebapp.unpack(BUNDLE_PIN) })
+        assertFalse(guest.runEnv.containsKey(HermesWebapp.DIST_ENV))
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+    }
+
+    @Test
+    fun `a failed device build falls back to the bundle the app ships`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            hermesBuilt = false
+            hermesUnpacked = false
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // All three on-device attempts failed during the install and nothing was
+        // unpacked yet: the panel takes the shipped bundle rather than staying dead.
         assertEquals(1, guest.runs.count { it == HermesWebapp.unpack(BUNDLE_PIN) })
         assertEquals(HermesWebapp.DIST_DIR, guest.runEnv[HermesWebapp.DIST_ENV])
         assertIs<WebPanelStatus.Running>(status("hermes"))
@@ -901,6 +1055,27 @@ class WebPanelsTest {
 
         assertFalse(guest.runs.any { it == HermesWebapp.unpack(BUNDLE_PIN) }, "the unpack is once per bundle")
         assertEquals(HermesWebapp.DIST_DIR, guest.runEnv[HermesWebapp.DIST_ENV])
+    }
+
+    @Test
+    fun `a build that came after the fallback unpack wins over it`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            // An earlier install fell back to CI's bundle; a later one built the
+            // renderer. Both are on disk for the same pin.
+            hermesUnpacked = true
+            hermesBuilt = true
+            hermesLinks += listOf(ONE_USE_LINK.replace("TICKET", "start"))
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // The device build is Hermes' own renderer, so it is what gets served:
+        // naming CI's copy here would pin the panel to it for good.
+        assertFalse(guest.runEnv.containsKey(HermesWebapp.DIST_ENV))
+        assertIs<WebPanelStatus.Running>(status("hermes"))
     }
 
     @Test
@@ -925,7 +1100,10 @@ class WebPanelsTest {
 
     @Test
     fun `a checkout that cannot be read says so instead of serving the bundle`() = runTest {
-        val guest = FakeGuest().apply { hermesPin = BUNDLE_PIN }
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = null
+        }
         val runtime = runtime(this, guest)
 
         runtime.startPanel("hermes")
@@ -950,6 +1128,58 @@ class WebPanelsTest {
         assertContains(failed.reason, "could not unpack")
         assertContains(failed.reason, "xz")
         assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) })
+    }
+
+    @Test
+    fun `Hermes' gateway is a background session, and the link comes after it listens`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // The gateway is what is launched, on the port the config was written
+        // with — and the launcher only mints the address out of it, so it runs
+        // after the port answers, never before.
+        assertEquals(listOf(WebPanels.HERMES_SERVER), guest.commands)
+        assertEquals(9120, guest.port)
+        val hermes = WebPanels.get(WebPanels.HERMES)!!
+        assertEquals(WebPanels.HERMES_USER, guest.env[hermes.usernameEnv!!])
+        // The launcher runs, and not as the first thing: the port has to answer
+        // before there is a gateway to mint an address out of.
+        assertTrue(guest.runs.indexOfFirst { it.startsWith(LAUNCH_ONE_USE) } > 0, guest.runs.toString())
+        assertEquals(
+            WebPanelStatus.Running("http://127.0.0.1:9120", WebPanelOpen.DASHBOARD_SIGN_IN),
+            status("hermes"),
+        )
+    }
+
+    @Test
+    fun `a Hermes whose gateway session cannot start says so and mints nothing`() = runTest {
+        val guest = FakeGuest().apply { launchFails = true }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "did not start")
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, "no link without a gateway")
+    }
+
+    @Test
+    fun `a Hermes gateway that never listens fails with the last line of its log`() = runTest {
+        val guest = FakeGuest().apply {
+            listensAfterLaunch = false
+            log = "pots: hermes gateway run\nerror: gateway exited with status 1"
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "is not listening on 9120")
+        // The log is what explains a gateway that refused to come up.
+        assertContains(failed.reason, "gateway exited with status 1")
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, "no link without a gateway")
     }
 
     @Test
@@ -1137,18 +1367,36 @@ class WebPanelsTest {
         var port: Int? = null
         var configuredPort: Int? = null
         var listensAfterLaunch = true
+
+        /** When true, [launch] answers false the way a proot that would not start does. */
+        var launchFails = false
         var ignoreSignals = false
         var hasWebapp = true
-        var hasBundle = true
 
-        /** The pin this build ships, or null for a build with no bundle (a developer build). */
-        var hermesPin: String? = null
+        /**
+         * The pin this build ships. A release APK carries one — the ordinary case
+         * — and a developer build, which ships none, says so with `null`.
+         */
+        var hermesPin: String? = BUNDLE_PIN
 
-        /** The commit the sandbox's Hermes checkout is on; null for one that cannot be read. */
-        var hermesHead: String? = null
+        /**
+         * The commit the sandbox's Hermes checkout is on. Defaults to the pin, so
+         * a fake that says nothing about the renderer is a sandbox the shipped
+         * bundle can serve; `null` is a checkout that cannot be read.
+         */
+        var hermesHead: String? = BUNDLE_PIN
 
         /** Whether the shipped bundle is already unpacked for [hermesPin]. */
         var hermesUnpacked = false
+
+        /** Whether the checkout built its own renderer (the install does this on the device). */
+        var hermesBuilt = false
+
+        /**
+         * The commit that build stamped. Defaults to [hermesHead] — the ordinary
+         * case, a build made from the checkout it sits in.
+         */
+        var hermesStamp: String? = null
 
         /** When false, unpacking the shipped archive fails the way a missing xz does. */
         var hermesUnpacks = true
@@ -1183,10 +1431,12 @@ class WebPanelsTest {
                     WebPanelGuest.Output(true, answer.orEmpty())
                 }
                 command == WebPanels.HERMES_HELP -> WebPanelGuest.Output(hasWebapp, "usage: hermes webapp")
-                command == WebPanels.HERMES_BUNDLE_CHECK -> WebPanelGuest.Output(hasBundle)
                 command == HermesWebapp.headCommand(WebPanels.HERMES_CHECKOUT) ->
                     WebPanelGuest.Output(hermesHead != null, hermesHead.orEmpty())
-                command == HermesWebapp.check(hermesPin.orEmpty()) -> WebPanelGuest.Output(hermesUnpacked)
+                command == HermesWebapp.stampCommand() ->
+                    WebPanelGuest.Output(hermesBuilt, hermesStamp ?: hermesHead.orEmpty())
+                command == HermesWebapp.BUILT_CHECK -> WebPanelGuest.Output(hermesBuilt)
+                command == HermesWebapp.shipped(hermesPin.orEmpty()) -> WebPanelGuest.Output(hermesUnpacked)
                 command == HermesWebapp.unpack(hermesPin.orEmpty()) -> {
                     if (hermesUnpacks) hermesUnpacked = true
                     WebPanelGuest.Output(hermesUnpacks, if (hermesUnpacks) "" else "tar: xz: Cannot exec")
@@ -1214,6 +1464,9 @@ class WebPanelsTest {
         }
 
         override fun launch(panel: WebPanel, port: Int, command: String, env: Map<String, String>): Boolean {
+            // A sandbox that cannot start the process at all: nothing is recorded,
+            // nothing listens.
+            if (launchFails) return false
             commands += command
             this.env = env
             this.port = port
@@ -1242,7 +1495,7 @@ class WebPanelsTest {
             port = null
         }
 
-        override fun logTail(panel: WebPanel): String = log
+        override fun logText(panel: WebPanel): String = log
 
         override fun stageHermesBundle(): String? = hermesPin
 
@@ -1259,7 +1512,7 @@ private const val ONE_USE_LINK =
 private const val LAUNCH_ONE_USE = "hermes webapp --no-open"
 
 /** The hermes-agent commit the tests pretend this app's panel was built from. */
-private const val BUNDLE_PIN = "ae2a81ccc00e9b7c06301523e5bb09608397149c"
+private const val BUNDLE_PIN = "caafe5389ae585ef77387a962aee05b1bcf17029"
 
 /** Another commit — a sandbox whose Hermes moved on after the panel was built. */
 private const val OTHER_HERMES = "0123456789abcdef0123456789abcdef01234567"

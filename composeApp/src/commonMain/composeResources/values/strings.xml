@@ -651,7 +651,6 @@
     <string name="notification_channel_name">AI Notifications</string>
     <string name="notification_channel_description">Notifications sent by AI assistant</string>
     <string name="settings_sandbox_description">Install a Linux environment so the AI can run shell commands, scripts, and tools on your behalf. Runs securely inside the app.</string>
-    <string name="settings_sandbox_agents_title">Coding agents</string>
     <string name="settings_sandbox_agent_version_unknown">version not determined</string>
     <string name="settings_sandbox_distro_title">Distribution</string>
     <string name="settings_sandbox_distro_debian">Debian 12</string>
@@ -789,6 +788,17 @@
     <string name="pots_build_agents_remove_body">The command and the runtime it brought are removed. Your configuration and session history are left where they are.</string>
     <string name="pots_build_agents_remove_bulk">The git checkout takes 5.2 GiB on disk. Removing it frees that space, and installing it again takes tens of minutes.</string>
     <string name="pots_build_agents_remove_bulk_action">Remove the checkout too</string>
+    <string name="pots_build_agents_installing">Installing…</string>
+    <string name="pots_build_agents_removing">Removing…</string>
+    <string name="pots_build_agents_removing_progress">Removing… %1$d of %2$d</string>
+    <string name="pots_build_agents_about">What this agent is</string>
+    <string name="pots_build_agents_github">GitHub repository</string>
+    <string name="pots_build_agents_docs">Documentation</string>
+    <string name="pots_build_agents_log">Log</string>
+    <string name="pots_build_agents_pi_web">Web UI %1$s</string>
+    <string name="pots_build_agents_opencode_description">An open-source coding agent for the terminal. It ships two built-in agents: build, with full access to files and commands, and plan, which is read-only and meant for reading an unfamiliar codebase. Installed here by its own installer; an update runs opencode upgrade.</string>
+    <string name="pots_build_agents_pi_description">A minimal, extensible agent harness you shape to your workflow: extensions, skills, prompt templates and themes, bundled as packages and shared over npm or git. Runs interactively in the terminal, in print or JSON mode, over RPC, or from its TypeScript SDK. Needs Node.js 22.19 or newer.</string>
+    <string name="pots_build_agents_hermes_description">A self-improving agent from Nous Research: it writes skills from experience, keeps memory across sessions and searches its own past conversations. Full terminal UI, a gateway to Telegram, Discord, Slack, WhatsApp and Signal, a cron scheduler and subagents. The model is switched with hermes model, with no code changes.</string>
     <string name="pots_build_step_download">Downloading Debian… %1$d%%</string>
     <string name="pots_build_step_extract">Extracting rootfs…</string>
     <string name="pots_build_step_configure">Configuring Debian…</string>
@@ -827,6 +837,11 @@
     <string name="pots_build_web_panel_hermes_link_hint">The link signs this browser in once and lives 60 seconds. If it did not open, tap the address again.</string>
     <string name="pots_build_web_panel_hermes_local_hint">No local network right now — the panel opens on this phone only. Sign in with the login and password below.</string>
     <string name="pots_build_web_panel_username">Login: %1$s</string>
+    <string name="pots_build_web_panel_log">Start log</string>
+    <string name="pots_build_web_panel_log_refresh">Refresh</string>
+    <string name="pots_build_web_panel_log_loading">Reading the log…</string>
+    <string name="pots_build_web_panel_log_missing">No log file yet — the panel has not written one</string>
+    <string name="pots_build_web_panel_log_empty">The log is empty</string>
     <string name="pots_build_system_packages">%1$d packages installed</string>
     <string name="pots_build_system_disk_system">Linux system</string>
     <string name="pots_build_system_disk_projects">Projects</string>

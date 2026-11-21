@@ -7,4 +7,4 @@
 # proot's --link2symlink, which dpkg needs (t_cf73367d).
 #
 # Bumping this is the only way to move the panel: both halves read this file.
-ae2a81ccc00e9b7c06301523e5bb09608397149c
+caafe5389ae585ef77387a962aee05b1bcf17029

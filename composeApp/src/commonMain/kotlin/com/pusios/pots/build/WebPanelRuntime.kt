@@ -50,8 +50,14 @@ interface WebPanelGuest {
     /** Drops the pid and port files; the log stays for the next failure to quote. */
     fun forget(panel: WebPanel)
 
-    /** Tail of the panel's log, for the reason line of a failure. */
-    fun logTail(panel: WebPanel): String
+    /**
+     * The panel's log file as it stands, or [WebPanelLog.NO_FILE] when there is
+     * none.
+     *
+     * The whole text, not a tail: the runtime masks the panel's password before
+     * it cuts, and a cut taken here would land before the mask.
+     */
+    fun logText(panel: WebPanel): String
 
     /**
      * Puts the Hermes panel bundle this app ships where the guest can unpack it
@@ -164,6 +170,25 @@ class WebPanelRuntime(
         val panel = WebPanels.get(panelId) ?: return null
         if (panel.passwordEnv == null) return null
         return prefs(panel.id).password?.takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * The panel's log, as the row shows it: the tail of the file, with the panel's
+     * password cut out before the tail is taken (see [WebPanelLog.show]).
+     *
+     * Read on demand — when the row's log section is opened, when a start fails,
+     * or when its refresh button is tapped — and never cached: the file grows
+     * while the panel starts, and a copy taken at composition time would be stale
+     * by the time anyone looked at it.
+     *
+     * The lock is deliberately not taken. A start holds it for the whole readiness
+     * wait (up to [startTimeoutSeconds]), and a log read is most wanted exactly
+     * then — queueing it behind the start would hide the log at the moment it
+     * explains something.
+     */
+    fun panelLog(panelId: String): String {
+        val panel = WebPanels.get(panelId) ?: return WebPanelLog.NO_FILE
+        return WebPanelLog.show(guest.logText(panel), password(panel.id))
     }
 
     /**
@@ -319,45 +344,52 @@ class WebPanelRuntime(
                 setState(panel, WebPanelStatus.Failed("this Hermes build has no webapp command"))
                 return
             }
-            // The renderer. A release APK ships one CI built (the sandbox cannot
-            // build it), and it is only served against the Hermes it was built
-            // from; a developer build ships none, and then the checkout's own
-            // renderer is the only candidate.
+            // The renderer. Pots Build builds one on the device right after the
+            // install, and a release APK also carries the one CI built — that one
+            // is the fallback when the build could not run. Each is only served
+            // against the Hermes it was built from, and the facts below are what
+            // that is decided on: the checkout's commit, the commit the device
+            // build stamped, and the commit CI's bundle was built from.
             val pin = guest.stageHermesBundle()
             hermesDist = null
-            if (pin == null) {
-                // The command exists but the renderer was never built: the link would
-                // open on a blank page, which reads as a broken app. Say it instead.
-                if (!guest.run(WebPanels.HERMES_BUNDLE_CHECK, STATUS_TIMEOUT_SECONDS).success) {
-                    setState(
-                        panel,
-                        WebPanelStatus.Failed(
-                            "Hermes' webapp is not built — run `hermes webapp --build-only` in the sandbox",
-                        ),
-                    )
-                    return
-                }
-            } else {
-                // One version or nothing. The bundle was built from Hermes [pin]; a
-                // sandbox at another commit would serve a panel that talks to a
-                // backend whose API may have moved — a blank page and 404s on the
-                // assets, with nothing on screen explaining it.
-                val head = guest.run(HermesWebapp.headCommand(WebPanels.HERMES_CHECKOUT), STATUS_TIMEOUT_SECONDS)
-                if (!head.success || head.text.trim() != pin) {
-                    setState(panel, WebPanelStatus.Failed(HermesWebapp.versionMismatch(pin, head.text.trim())))
-                    return
-                }
-                // Unpacked once per bundle, not once per start: the stamp inside the
-                // directory names the commit it was unpacked for.
-                if (!guest.run(HermesWebapp.check(pin), STATUS_TIMEOUT_SECONDS).success) {
-                    val unpacked = guest.run(HermesWebapp.unpack(pin), UNPACK_TIMEOUT_SECONDS)
-                    if (!unpacked.success || !guest.run(HermesWebapp.check(pin), STATUS_TIMEOUT_SECONDS).success) {
+            val head = guest.run(HermesWebapp.headCommand(WebPanels.HERMES_CHECKOUT), STATUS_TIMEOUT_SECONDS)
+            val stamp = guest.run(HermesWebapp.stampCommand(), STATUS_TIMEOUT_SECONDS)
+            val builtFrom = stamp.text.trim().takeIf { stamp.success && it.isNotEmpty() }
+            val facts = HermesWebapp.RendererFacts(
+                head = if (head.success) head.text.trim() else "",
+                pin = pin,
+                builtFrom = builtFrom,
+                // Only a stamped build is worth looking at: without the stamp the
+                // page in the checkout belongs to some earlier run or to nothing.
+                built = builtFrom != null && guest.run(HermesWebapp.BUILT_CHECK, STATUS_TIMEOUT_SECONDS).success,
+                shipped = pin != null && guest.run(HermesWebapp.shipped(pin), STATUS_TIMEOUT_SECONDS).success,
+            )
+            val renderer = when (val decision = HermesWebapp.decide(facts)) {
+                // Nothing is servable yet: unpack the bundle this app ships for the
+                // pin, once per bundle — the stamp inside names the commit it was
+                // unpacked for — and the panel is not dead.
+                is HermesWebapp.Renderer.Unpack -> {
+                    val unpacked = guest.run(HermesWebapp.unpack(decision.pin), UNPACK_TIMEOUT_SECONDS)
+                    if (!unpacked.success ||
+                        !guest.run(HermesWebapp.shipped(decision.pin), STATUS_TIMEOUT_SECONDS).success
+                    ) {
                         setState(panel, WebPanelStatus.Failed(HermesWebapp.unpackFailed(reasonLine(unpacked.text))))
                         return
                     }
+                    HermesWebapp.Renderer.Shipped
                 }
-                hermesDist = HermesWebapp.DIST_DIR
+                else -> decision
             }
+            if (renderer is HermesWebapp.Renderer.Refused) {
+                setState(panel, WebPanelStatus.Failed(renderer.reason))
+                return
+            }
+            // Name the shipped bundle only when it is the one being served: a
+            // renderer built on the device is Hermes' own, and naming the bundle
+            // there would pin the panel to CI's copy for good. Both can be there —
+            // an earlier install unpacked the fallback, a later one built the
+            // renderer — and then the build is what gets served.
+            if (renderer !is HermesWebapp.Renderer.Device) hermesDist = HermesWebapp.DIST_DIR
             // The panel binds every interface, so Hermes' sign-in gate is on, and a
             // disabled `basic` plugin leaves it with no provider at all: the page
             // then reads "sign-in unavailable" and looks like a broken panel.
@@ -382,10 +414,13 @@ class WebPanelRuntime(
         }
         val ready = guest.run(waitForPort(port, startTimeoutSeconds), startTimeoutSeconds + 10)
         if (!ready.success) {
+            // A line, not the log: the full tail is one tap away in the row's own
+            // section, and the password is cut out of both.
             setState(
                 panel,
                 WebPanelStatus.Failed(
-                    "${panel.title} is not listening on $port after ${startTimeoutSeconds}s: ${guest.logTail(panel)}",
+                    "${panel.title} is not listening on $port after ${startTimeoutSeconds}s: " +
+                        WebPanelLog.brief(guest.logText(panel), password(panel.id)),
                 ),
             )
             return
@@ -421,13 +456,15 @@ class WebPanelRuntime(
 
     private fun stopLocked(panelId: String) {
         val panel = WebPanels.get(panelId) ?: return
-        // Hermes records no pid file — its panel is the gateway — so the port to
-        // check afterwards comes from the address the row is showing.
+        // The pid file is the launch's own record; for Hermes it names the
+        // gateway. The port to check afterwards comes from that file, or — when
+        // there is none — from the address the row is showing.
         val port = guest.port(panel)
             ?: (states[panel.id]?.status as? WebPanelStatus.Running)?.let { WebPanels.portOf(it.url) }
         val pid = guest.pid(panel)
         if (pid != null) guest.run(stopCommand(pid), STOP_TIMEOUT_SECONDS)
-        // Hermes' panel is its gateway, which has its own documented stop.
+        // Hermes' panel is its gateway, which also has its own documented stop:
+        // the signal above ends the process, this ends the gateway's own state.
         if (panel.id == WebPanels.HERMES) guest.run(GATEWAY_STOP, STOP_TIMEOUT_SECONDS)
         guest.forget(panel)
         val stillListening = port != null && !guest.portFree(port)
@@ -442,15 +479,37 @@ class WebPanelRuntime(
     }
 
     /**
-     * Hermes' panel is its gateway: `hermes webapp --no-open` starts the gateway
-     * when it is not up, prints the address and exits. So there is no pid of ours
-     * to record — the readiness answer is the address itself, and the port it
-     * reports is the port the panel is really on.
+     * Hermes' panel is its gateway, so the gateway is what Pots keeps up.
      *
-     * The account rides in the launcher's environment: the gateway reads it from
-     * there when it registers the sign-in provider.
+     * Three steps, in this order, because the panel is only real once the gateway
+     * is: start it as a background session (which records its pid and its log —
+     * see [WebPanels.HERMES_SERVER]), wait for its port, and only then run the
+     * launcher, whose whole job is to mint the address out of the gateway that is
+     * already there. The launcher itself is a foreground call that exits, and
+     * every proot Pots starts runs with `--kill-on-exit`: a gateway it brought up
+     * would die with its proot, leaving the row showing an address nobody serves.
+     *
+     * The account rides in the launcher's environment in both steps: the gateway
+     * reads it from there when it registers the sign-in provider.
      */
     private fun startHermes(panel: WebPanel, port: Int) {
+        if (!guest.launch(panel, port, WebPanels.HERMES_SERVER, hermesEnv(panel))) {
+            setState(panel, WebPanelStatus.Failed("${panel.title} did not start"))
+            return
+        }
+        val ready = guest.run(waitForPort(port, startTimeoutSeconds), startTimeoutSeconds + 10)
+        if (!ready.success) {
+            // The log is the answer here — a gateway that refuses to start says
+            // why on its last line — and it is masked before it is quoted.
+            setState(
+                panel,
+                WebPanelStatus.Failed(
+                    "${panel.title} is not listening on $port after ${startTimeoutSeconds}s: " +
+                        WebPanelLog.brief(guest.logText(panel), password(panel.id)),
+                ),
+            )
+            return
+        }
         val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS, hermesEnv(panel))
         val link = HermesWebappOutput.parse(output.text)
         if (link == null) {
@@ -506,9 +565,9 @@ class WebPanelRuntime(
     private fun hermesEnv(panel: WebPanel): Map<String, String> = buildMap {
         panel.usernameEnv?.let { put(it, WebPanels.HERMES_USER) }
         panel.passwordEnv?.let { put(it, passwordFor(panel)) }
-        // The renderer CI built for this Hermes, when this app ships one. Naming it
-        // is what stops the launcher from trying to build one on the phone, where
-        // the renderer's pnpm install cannot run at all.
+        // The shipped renderer, when that is the one being served. Naming it is
+        // what stops the launcher from building one itself; a renderer the device
+        // built is left unnamed so Hermes keeps owning it.
         hermesDist?.let { put(HermesWebapp.DIST_ENV, it) }
     }
 

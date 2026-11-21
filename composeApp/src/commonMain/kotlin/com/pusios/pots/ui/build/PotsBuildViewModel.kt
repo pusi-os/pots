@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 
 @Immutable
 data class PotsBuildUiState(
@@ -200,4 +201,12 @@ class PotsBuildViewModel(
         controller.setWebPanelAutostart(panelId, enabled)
 
     fun webPanelPassword(panelId: String): String? = controller.webPanelPassword(panelId)
+
+    /**
+     * The panel's log, read when the row asks for it — on the log section being
+     * opened, on a failed start, on its refresh button — and never while composing.
+     * The read is a file in the sandbox's tmp dir, so it goes off the main thread.
+     */
+    suspend fun panelLog(panelId: String): String =
+        withContext(Dispatchers.Default) { controller.webPanelLog(panelId) }
 }

@@ -246,6 +246,24 @@ object WebPanels {
     const val HERMES_HELP = "hermes webapp --help"
 
     /**
+     * The process that keeps Hermes' panel up: the webapp is served by the
+     * gateway, and [command] only mints a link from it.
+     *
+     * A long-lived background session, not a foreground call. Every proot Pots
+     * starts runs with `--kill-on-exit`, so a gateway a short-lived CLI brought up
+     * dies with that CLI's proot the moment the link is printed — the row then
+     * shows an address nobody listens on. `hermes gateway run` is Hermes' own
+     * foreground mode for hosts without systemd, which is what a sandbox is.
+     *
+     * The marker line is echoed first so the panel's log says what was run. It
+     * sits inside `sh -c` because the background launcher execs the command as it
+     * is given: `exec echo …; hermes gateway run` would replace the shell with
+     * `echo` and never start the gateway. The inner shell keeps the pid the
+     * launch recorded, so a stop still signals the server.
+     */
+    const val HERMES_SERVER = "sh -c 'echo pots: hermes gateway run; exec hermes gateway run'"
+
+    /**
      * The checkout Hermes' own installer lays down. Its commit is the version the
      * panel must match: see [HermesWebapp].
      */
@@ -265,15 +283,6 @@ object WebPanels {
 
     /** The page the panel serves. */
     const val HERMES_BUNDLE = "$HERMES_BUNDLE_DIR/index.html"
-
-    /**
-     * True when the bundle above is there — the honest answer to "is it built?".
-     *
-     * The page is not the bundle: `index.html` loads the scripts under `assets/`,
-     * and a build that produced the page but not the scripts passes an index-only
-     * check, opens a blank screen and reads as a broken app. Both are asked for.
-     */
-    const val HERMES_BUNDLE_CHECK = "test -f $HERMES_BUNDLE && test -d $HERMES_BUNDLE_DIR/assets"
 
     /**
      * [preferred] when free, otherwise the next free port within

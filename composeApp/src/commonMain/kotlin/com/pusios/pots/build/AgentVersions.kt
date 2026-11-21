@@ -1,15 +1,15 @@
 package com.pusios.pots.build
 
-/**
- * The version flow for the coding agents: where each one's installed and newest
- * versions come from, how the two are compared, and what removing one may take
- * off the device.
- *
- * Plain Kotlin on purpose. The decisions that must never lie — a failed check is
- * not "up to date", `2.3.10` is newer than `2.3.9`, removing an agent leaves its
- * configuration alone — are testable on the JVM, where the guest, the network
- * and the clock can be pinned down; on a phone they cannot.
- */
+import com.pusios.pots.formatFileSize
+
+// The version flow for the coding agents: where each one's installed and newest
+// versions come from, how the two are compared, and what removing one may take
+// off the device.
+//
+// Plain Kotlin on purpose. The decisions that must never lie — a failed check is
+// not "up to date", `2.3.10` is newer than `2.3.9`, removing an agent leaves its
+// configuration alone — are testable on the JVM, where the guest, the network
+// and the clock can be pinned down; on a phone they cannot.
 
 /** Which field of a registry's JSON answer carries the newest version. */
 enum class LatestSource {
@@ -38,7 +38,8 @@ enum class UpdateCost {
 /**
  * One agent's whole flow.
  *
- * [installPaths] is the installation and nothing else; [keepPaths] is what the
+ * [installPaths] is the installation and nothing else — [AgentVersions.installTree]
+ * adds the paths of whatever rides with it; [keepPaths] is what the
  * user would lose and therefore must survive a removal. [bulkPath] is an
  * installation big enough that removing it is a second question — Hermes' 5 GiB
  * checkout is the only one, and the safe answer is the default.
@@ -53,10 +54,22 @@ data class AgentVersionSpec(
     val latestSource: LatestSource,
     /** Null when another agent's install brings this one (pi-web rides with Pi). */
     val installCommand: String?,
-    val updateCommand: String,
+    /**
+     * The steps an update runs, in order, in one proot call: chained with `&&`, so
+     * a step that fails stops the ones after it. Pi's second step is its panel's
+     * install — the panel has no update button of its own to press.
+     */
+    val updateCommand: List<String>,
     val updateCost: UpdateCost,
     val installPaths: List<String>,
     val keepPaths: List<String>,
+    /**
+     * When set, this record is a part of agent [parentId] rather than an agent of
+     * its own: it gets no row, and its install, update and removal ride with the
+     * parent's. pi-web is Pi's web panel, declared here because its version, its
+     * paths and its probe are still read by the panel's own start/stop.
+     */
+    val parentId: String? = null,
     val bulkPath: String? = null,
     val updateTimeoutSeconds: Long = 1800,
 )
@@ -90,12 +103,81 @@ sealed interface AgentUpdate {
     data class UpdateFailed(val installed: String?) : AgentUpdate
 
     data object NotInstalled : AgentUpdate
+
+    /**
+     * The agent's installer is running from the versions card. Without it a
+     * single-agent install looks exactly like nothing happening: the row keeps
+     * offering "Install" until the job is over.
+     */
+    data object Installing : AgentUpdate
+
+    /**
+     * The installation is being deleted. Its own state because a removal can take
+     * minutes — Hermes' checkout is 5 GiB — and the row has to say so instead of
+     * sitting on the old version until the buttons turn into "Install".
+     */
+    data object Removing : AgentUpdate
+}
+
+/**
+ * How far a running removal got. [AgentVersions.removalPaths] names every path
+ * before the first delete, so this count is measured, not estimated — which is
+ * why the removal gets a determinate bar while installs and updates (network and
+ * registry time, no denominator) get an indeterminate one.
+ */
+data class AgentRemovalProgress(val done: Int, val total: Int) {
+
+    /** `done / total`, or null when there is nothing to divide by. */
+    fun fraction(): Float? = if (total <= 0) null else (done.toFloat() / total).coerceIn(0f, 1f)
+}
+
+/**
+ * What became of one path a removal was pointed at. Three outcomes, because the
+ * log has to be able to say "there was nothing there" and "this did not go" as
+ * well as "gone": a delete that failed and still prints `удалено: … (5.2 GB)` is
+ * worse than no log at all.
+ */
+sealed interface RemovedOutcome {
+
+    /**
+     * The path is gone. [bytes] is what taking it freed, or null where there is
+     * nothing to measure — a symlink costs no disk of its own.
+     */
+    data class Deleted(val bytes: Long?) : RemovedOutcome
+
+    /** There was nothing at the path; the log says so instead of claiming a delete. */
+    data object Absent : RemovedOutcome
+
+    /**
+     * The delete did not finish and the path may still be there. [freed] is the
+     * bytes that did go — a tree removal that stopped halfway still freed some of
+     * them — and the summary counts only what this reports.
+     */
+    data class Failed(val reason: String, val freed: Long = 0L) : RemovedOutcome
+}
+
+/** One path a removal was pointed at, and what happened to it. */
+data class RemovedPath(val path: String, val outcome: RemovedOutcome)
+
+/**
+ * What cleaning before an install will take, and what it refuses to.
+ *
+ * [refused] is empty for every agent the app ships — none of them installs into a
+ * path it also promises to keep — but the two lists are computed together so that
+ * a spec which ever does gets a log line instead of a deleted config.
+ */
+data class AgentCleanup(val remove: List<String>, val refused: List<String>) {
+
+    /** Everything the cleanup found, whichever side of the guard it fell on. */
+    val found: List<String> get() = remove + refused
 }
 
 /**
  * One row of the agents card: what the device has, and what the last check said.
  * [update] is never null — an agent nothing has been asked about is [AgentUpdate.Unchecked],
- * which is a state the UI can render honestly.
+ * which is a state the UI can render honestly. [childVersion] is the version of
+ * what rides with this agent — Pi's web panel — shown inside its row rather than
+ * as a row of its own.
  */
 data class AgentVersionRow(
     val id: String,
@@ -103,6 +185,7 @@ data class AgentVersionRow(
     val present: Boolean,
     val version: String?,
     val update: AgentUpdate,
+    val childVersion: String? = null,
 )
 
 object AgentVersions {
@@ -134,7 +217,7 @@ object AgentVersions {
             latestUrl = "https://opencode.ai/update/api/latest/cli/npm",
             latestSource = LatestSource.Version,
             installCommand = null,
-            updateCommand = "PATH=$AGENT_PATH opencode upgrade",
+            updateCommand = listOf("PATH=$AGENT_PATH opencode upgrade"),
             updateCost = UpdateCost.Heavy,
             installPaths = listOf("/root/.opencode", "/root/.local/bin/opencode"),
             // Config and session history: v2 reads the same paths v1 wrote.
@@ -148,7 +231,13 @@ object AgentVersions {
             latestUrl = "https://registry.npmjs.org/@earendil-works/pi-coding-agent",
             latestSource = LatestSource.NpmDistTag,
             installCommand = null,
-            updateCommand = "PATH=$AGENT_PATH pi update",
+            // Two steps, one proot call: the panel has no update button of its own
+            // any more, so `pi update` alone would leave it on an old release for
+            // ever. `&&` — a failed Pi update must not reinstall the panel over it.
+            updateCommand = listOf(
+                "PATH=$AGENT_PATH pi update",
+                "PATH=$AGENT_PATH $PI_NODE/bin/npm install -g --prefix $PI_NODE --no-audit --no-fund @agegr/pi-web",
+            ),
             updateCost = UpdateCost.Light,
             installPaths = listOf("/root/.local/bin/pi"),
             // The managed install under ~/.pi/agent is Pi's configuration as much
@@ -159,11 +248,16 @@ object AgentVersions {
         AgentVersionSpec(
             id = WebPanels.PI_WEB_VERSION_KEY,
             title = "pi-web",
+            // Pi's web panel, not an agent: no row of its own, and its install,
+            // update and removal ride with Pi's.
+            parentId = BuildAgents.PI,
             installedCommand = "PATH=$AGENT_PATH npm ls -g --prefix $PI_NODE @agegr/pi-web",
             latestUrl = "https://registry.npmjs.org/@agegr/pi-web",
             latestSource = LatestSource.NpmDistTag,
             installCommand = "PATH=$AGENT_PATH npm install -g --prefix $PI_NODE --no-audit --no-fund @agegr/pi-web",
-            updateCommand = "PATH=$AGENT_PATH npm install -g --prefix $PI_NODE --no-audit --no-fund @agegr/pi-web",
+            updateCommand = listOf(
+                "PATH=$AGENT_PATH npm install -g --prefix $PI_NODE --no-audit --no-fund @agegr/pi-web",
+            ),
             updateCost = UpdateCost.Light,
             installPaths = listOf("$PI_NODE/lib/node_modules/@agegr/pi-web", "$PI_NODE/bin/pi-web"),
             // The Node runtime Pi and this panel both run on.
@@ -177,12 +271,26 @@ object AgentVersions {
             latestUrl = "https://api.github.com/repos/NousResearch/hermes-agent/releases/latest",
             latestSource = LatestSource.GithubTag,
             installCommand = null,
-            updateCommand = "PATH=$AGENT_PATH hermes update",
+            updateCommand = listOf("PATH=$AGENT_PATH hermes update"),
             updateCost = UpdateCost.Gateway,
             installPaths = listOf("/root/.local/bin/hermes"),
-            // The checkout's own config: `hermes update` never touches it, and
-            // neither does a removal.
-            keepPaths = listOf("/root/.hermes/config.yaml", "/root/.hermes/.env"),
+            // Everything in /root/.hermes that the owner would lose: the
+            // credentials, the state and the board. The directory itself is
+            // covered by these — [mayDelete] refuses a parent of a kept path —
+            // and the checkout is a child of it, so `/root/.hermes` is never a
+            // path this app deletes.
+            keepPaths = listOf(
+                "/root/.hermes/config.yaml",
+                "/root/.hermes/.env",
+                "/root/.hermes/auth.json",
+                "/root/.hermes/state.db",
+                "/root/.hermes/profiles",
+                "/root/.hermes/kanban",
+                "/root/.hermes/cron",
+                "/root/.hermes/sessions",
+                "/root/.hermes/memories",
+                "/root/.hermes/state-snapshots",
+            ),
             // 5 GiB of git checkout. Removing it is offered as a second, explicit
             // answer, because reinstalling it costs tens of minutes.
             bulkPath = "/root/.hermes/hermes-agent",
@@ -193,20 +301,34 @@ object AgentVersions {
     fun get(id: String?): AgentVersionSpec? = all.firstOrNull { it.id == id }
 
     /**
-     * The rows the card renders, in catalog order.
+     * The records that ride with [id] — Pi's web panel. They have no row of their
+     * own, but their paths and their version still belong to the agent's flow.
+     */
+    fun children(id: String): List<AgentVersionSpec> = all.filter { it.parentId == id }
+
+    /**
+     * Everything an agent's install owns: its own paths and those of whatever
+     * rides with it. Pi's install ends with the panel's npm package, so the panel's
+     * two paths are Pi's debris to clean and Pi's to remove.
+     */
+    fun installTree(spec: AgentVersionSpec): List<String> =
+        spec.installPaths + children(spec.id).flatMap { it.installPaths }
+
+    /**
+     * The rows the card renders, in catalog order: one per agent, and none for the
+     * records that are a part of one.
      *
-     * pi-web only appears once Pi is there: the panel is part of Pi's install and
-     * cannot be installed without the Node runtime that install unpacks, so a row
-     * offering to install it on its own would only ever fail.
+     * A part's version is not a row but a line inside its parent's — Pi's panel
+     * under Pi — because the panel has no install, update or removal of its own to
+     * put buttons next to.
      */
     fun rows(
         installed: Set<String>,
         versions: Map<String, String>,
         updates: Map<String, AgentUpdate>,
-    ): List<AgentVersionRow> {
-        val piPresent = BuildAgents.PI in installed
-        return all
-            .filter { it.id != WebPanels.PI_WEB_VERSION_KEY || piPresent }
+    ): List<AgentVersionRow> =
+        all
+            .filter { it.parentId == null }
             .map { spec ->
                 val version = versions[spec.id]
                 val present = spec.id in installed || version != null
@@ -217,9 +339,15 @@ object AgentVersions {
                     version = version,
                     update = updates[spec.id]
                         ?: if (present) AgentUpdate.Unchecked(version) else AgentUpdate.NotInstalled,
+                    childVersion = children(spec.id).firstNotNullOfOrNull { versions[it.id] },
                 )
             }
-    }
+
+    /**
+     * The one command an update runs: its steps, chained so that a step which fails
+     * stops the ones after it. One proot call, one log, one progress.
+     */
+    fun updateScript(spec: AgentVersionSpec): String = spec.updateCommand.joinToString(" && ")
 
     /** The newest version [body] announces, or null when this answer is not one. */
     fun latest(body: String, source: LatestSource): String? {
@@ -257,6 +385,12 @@ object AgentVersions {
      * known — and so does a registry answer that could not be read, or an
      * installed version that could not be parsed: without both numbers there is
      * no comparison to make, and "up to date" would be a guess.
+     *
+     * A major component above [MAX_MAJOR] is a calendar year, not a version —
+     * none of the three agents has ever numbered itself past 100, and Hermes
+     * moved off CalVer onto SemVer. Such a number can only be a date that slipped
+     * through [AgentVersion], and comparing it says `2026 > 0`: "up to date" on a
+     * build whose version was never resolved. It is a failed check instead.
      */
     fun decide(
         present: Boolean,
@@ -268,16 +402,132 @@ object AgentVersions {
         !present -> AgentUpdate.NotInstalled
         checkFailed || latest == null -> AgentUpdate.CheckFailed(installed, checkedAt)
         installed == null -> AgentUpdate.CheckFailed(installed, checkedAt)
+        parts(installed).first() > MAX_MAJOR -> AgentUpdate.CheckFailed(installed, checkedAt)
         compare(installed, latest) < 0 -> AgentUpdate.Available(installed, latest, checkedAt)
         else -> AgentUpdate.UpToDate(installed, checkedAt)
     }
 
     /**
-     * Guest paths a removal deletes: the installation, plus [spec]'s checkout when
+     * Guest paths a removal deletes: the installation — including what rides with
+     * it, so removing Pi takes its web panel too — plus [spec]'s checkout when
      * [includeBulk] was answered yes.
      */
     fun removalPaths(spec: AgentVersionSpec, includeBulk: Boolean): List<String> =
-        spec.installPaths + listOfNotNull(spec.bulkPath?.takeIf { includeBulk })
+        installTree(spec) + listOfNotNull(spec.bulkPath?.takeIf { includeBulk })
+
+    /**
+     * Whether deleting [path] is allowed: false when it is a [AgentVersionSpec.keepPaths]
+     * entry, a parent of one, or inside one. A part's keeps count as its parent's:
+     * the Node runtime pi-web keeps is what an update of Pi writes through, so
+     * removing Pi must not take it either.
+     *
+     * The comparison runs both ways on purpose. A parent has to be refused because
+     * `/root/.hermes` holds `auth.json` and the whole of `profiles/` — deleting it
+     * is the one mistake that cannot be undone on a device. A child has to be
+     * refused because `keepPaths` names directories as often as files. Every
+     * delete in this app goes through here; a path it refuses is logged, not taken.
+     */
+    fun mayDelete(path: String, spec: AgentVersionSpec): Boolean =
+        keptPaths(spec).none { keep -> path == keep || path.startsWith("$keep/") || keep.startsWith("$path/") }
+
+    /** [AgentVersionSpec.keepPaths] plus those of whatever rides with [spec]. */
+    private fun keptPaths(spec: AgentVersionSpec): List<String> =
+        spec.keepPaths + children(spec.id).flatMap { it.keepPaths }
+
+    /**
+     * What of [paths] a reinstall may take.
+     *
+     * [paths] is the debris an earlier install leaves — a checkout, a package
+     * runtime, a cache — and none of it is judged safe as it stands: every entry
+     * goes through [mayDelete], so a path that is, contains or sits inside a
+     * [AgentVersionSpec.keepPaths] entry is refused and reported instead of
+     * deleted. That is the one mistake a device cannot undo.
+     */
+    fun debrisPlan(spec: AgentVersionSpec, paths: List<String>): AgentCleanup {
+        val removable = paths.filter { mayDelete(it, spec) }
+        return AgentCleanup(remove = removable, refused = paths - removable.toSet())
+    }
+
+    /**
+     * What to take off before installing [spec] again.
+     *
+     * [existing] is what the rootfs actually has, [binaryAnswers] is the spec's own
+     * `--version` probe. A binary that answers means those paths are the
+     * installation, not a leftover — a reinstall is an update, and an update must
+     * not begin by deleting what it updates. A binary that does not answer while
+     * the paths are still there is exactly the debris of a run that stopped
+     * halfway.
+     *
+     * Only [installTree] is considered — the agent's own paths and those of what
+     * rides with it. Hermes' 5 GiB checkout is [AgentVersionSpec.bulkPath]: a broken
+     * one is repaired by the installer that follows, not thrown away and
+     * downloaded again.
+     */
+    fun cleanupPlan(spec: AgentVersionSpec, existing: Set<String>, binaryAnswers: Boolean): AgentCleanup {
+        if (binaryAnswers) return AgentCleanup(remove = emptyList(), refused = emptyList())
+        val found = installTree(spec).filter { it in existing }
+        return AgentCleanup(
+            remove = found.filter { mayDelete(it, spec) },
+            refused = found.filterNot { mayDelete(it, spec) },
+        )
+    }
+
+    /**
+     * The cleanup's lines. The owner greps the install log for exactly these
+     * words, so they are fixed here rather than at the call site: what was found,
+     * what was refused, and what went.
+     */
+    fun leftoversFound(spec: AgentVersionSpec, paths: List<String>): String =
+        "pots: ${spec.id}: leftovers found (${paths.joinToString(" ")})"
+
+    fun refusedToRemove(spec: AgentVersionSpec, path: String): String =
+        "pots: ${spec.id}: refusing to remove $path — it holds user data"
+
+    fun nothingToClean(spec: AgentVersionSpec): String = "pots: ${spec.id}: nothing to clean"
+
+    fun cleaned(spec: AgentVersionSpec, paths: List<String>): String =
+        if (paths.isEmpty()) nothingToClean(spec) else "pots: ${spec.id}: cleaned (${paths.joinToString(" ")})"
+
+    /**
+     * One line of the removal log: the path and its outcome. A removal is the one
+     * agent action that runs with no installer output of its own, so without these
+     * lines the log would be empty while Hermes' 5 GiB checkout is being deleted —
+     * and a line has to say "not there" or "did not go" as plainly as "gone", or
+     * the log claims work that did not happen.
+     */
+    fun removalLine(removed: RemovedPath): String = when (val outcome = removed.outcome) {
+        is RemovedOutcome.Deleted -> outcome.bytes
+            ?.let { "удалено: ${removed.path} (${formatFileSize(it)})" }
+            ?: "удалено: ${removed.path}"
+        RemovedOutcome.Absent -> "не было: ${removed.path}"
+        is RemovedOutcome.Failed -> buildString {
+            append("не удалось: ${removed.path} — ${outcome.reason}")
+            if (outcome.freed > 0) append(" (частично освобождено ${formatFileSize(outcome.freed)})")
+        }
+    }
+
+    /**
+     * What a finished removal adds up to. Only paths that actually went count as
+     * deleted, and only bytes that actually went count as freed — a failed tree
+     * removal reports the files it did take and nothing more.
+     */
+    fun removalSummary(removed: List<RemovedPath>): String {
+        val deleted = removed.count { it.outcome is RemovedOutcome.Deleted }
+        val freed = removed.sumOf { path ->
+            when (val outcome = path.outcome) {
+                is RemovedOutcome.Deleted -> outcome.bytes ?: 0L
+                is RemovedOutcome.Failed -> outcome.freed
+                RemovedOutcome.Absent -> 0L
+            }
+        }
+        val absent = removed.count { it.outcome is RemovedOutcome.Absent }
+        val failed = removed.count { it.outcome is RemovedOutcome.Failed }
+        return buildString {
+            append("итог: удалено путей $deleted, освобождено ${formatFileSize(freed)}")
+            if (absent > 0) append(", не было: $absent")
+            if (failed > 0) append(", не удалось: $failed")
+        }
+    }
 
     /** The command that asks the registry, with the same bounded wait for every source. */
     fun latestCommand(spec: AgentVersionSpec): String = "$CURL '${spec.latestUrl}'"
@@ -292,4 +542,10 @@ object AgentVersions {
 
     private fun parts(version: String): List<Int> =
         version.removePrefix("v").split('.').map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+
+    /**
+     * The highest major component any of the three agents has ever had. A number
+     * past it is a calendar year that reached the version slot.
+     */
+    private const val MAX_MAJOR = 100
 }

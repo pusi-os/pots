@@ -1,6 +1,6 @@
 # Linux Sandbox
 
-**Last verified:** 2026-11-19
+**Last verified:** 2026-11-21
 
 Pots ships a self-contained Linux environment on Android so the assistant — and the user, via the in-app Terminal — can run real shell commands. The agent can install packages, write and run scripts, hit the network, and reach external servers over SSH/SFTP/FTP. The sandbox runs the user-space `proot` runtime against a rootfs extracted into the app's private storage; no root or system access is required.
 
@@ -183,31 +183,57 @@ device's browser: `opencode serve` (4096), `pi-web` (30141) and Hermes' `webapp`
 A panel is part of its agent's install, not a separate thing to set up. Pi's
 installer runs `npm install -g @agegr/pi-web` with the Node runtime Pi already
 needs, into that runtime's own prefix, so `pi-web` lands on the sandbox PATH next
-to `pi`; Settings → Sandbox prints its version beside Pi's. OpenCode needs
-nothing: its web UI ships inside the binary.
+to `pi`; Pots Build prints its version beside Pi's in its agent rows. OpenCode
+needs nothing: its web UI ships inside the binary.
 
-Hermes is the exception, because its renderer cannot be built in the sandbox:
-`hermes webapp --build-only` starts with a `pnpm install` of `apps/desktop`, and
-pnpm 12's staged renames answer ENOENT under proot's `--link2symlink` — the
-emulation dpkg needs, so it stays. CI builds `apps/desktop/dist-webapp` instead,
-from the hermes-agent commit `hermes-webapp.pin` names, and packs it into the
-APK as one `tar.xz` (14 MB; the raw files are 55 MB and do not fit an APK
-sensibly). The app copies that archive into the guest and unpacks it to
-`/root/.hermes/webapp-dist` on the panel's first start, then names it in
-`HERMES_WEBAPP_DIST` — the variable that tells Hermes to serve a bundle it did
-not build.
+Hermes is the exception in the mechanics, not in the outcome: its renderer is
+built on the device, in a proot call of its own. `hermes webapp --build-only`
+starts with a `pnpm install` of `apps/desktop`, and pnpm 12's staged renames
+answer ENOENT under proot's `--link2symlink` — the emulation dpkg needs, so it
+survives only in the one apt call that needs it (`xz-utils`), and Hermes' own
+installer and the renderer build both run with `-L` alone. Three attempts run
+right after the agent installs — no emulation with
+`pnpm_config_package_import_method=copy` in the proot environment, then with
+`--link2symlink` and the same setting (the flag is the only difference between
+that attempt and the first, so the device is what answers whether the emulation
+by itself breaks the build), then without the emulation and without that
+setting — each from a wiped pnpm store, and the install log names the path that
+won. The chain as a whole
+has a thirty-five-minute budget: an attempt is started only while at least ten
+minutes of it remain — the measured seven-minute build plus a margin, not the
+attempt's own twenty-five-minute hang deadline, which would end the chain after
+two attempts — a running attempt is cancelled when the budget ends (the wait
+loop of the build's proot call checks for the cancellation and kills the
+process before the fallback starts), and a chain that runs out serves the
+shipped bundle and says so
+(`renderer: device build budget spent, serving the shipped bundle`). A build
+that still fails does not leave a dead panel: the app ships the
+bundle CI built from the hermes-agent commit `hermes-webapp.pin` names, packed
+into the APK as one `tar.xz` (14 MB; the raw files are 55 MB and do not fit an
+APK sensibly), copies it into the guest and unpacks it to
+`/root/.hermes/webapp-dist` on the panel's first start — naming it in
+`HERMES_WEBAPP_DIST`, the variable that tells Hermes to serve a bundle it did
+not build. A renderer the device built is left unnamed, so Hermes keeps owning
+it and a later `hermes update` can rebuild it.
 
 **One version or no panel.** A bundle built from Hermes X talking to a backend at
 Hermes Y is a blank page and 404s on the assets, with nothing on screen saying
-why. So the install hands Hermes' installer the same commit as `--commit`
-(install.sh pins it there on a fresh clone and on a rerun alike), the sandbox
-checkout is left detached at exactly the commit the bundle was built from, and
-the dependencies come from that commit's `uv.lock` too. Pots then reads
-`git rev-parse HEAD` back and pins the checkout itself if the installer's path
-skipped that step; the panel reads the same value before serving anything. A
+why. So each renderer carries the commit it was built from, and the panel serves
+it only against that Hermes. The install itself pins nothing: it follows `main`,
+so the sandbox runs the latest Hermes. A renderer the device builds stamps its
+commit in `/root/.hermes/webapp-dist/.pots-built-from` — atomically, and only
+after the page and its `assets/` are there, so a half-written bundle never reads
+as this checkout's own — and is served while `git rev-parse HEAD` in the sandbox
+still names that commit. The bundle CI ships is stamped with its pin when it is
+unpacked and served while the checkout is that commit. Both can be on disk, and
+then the device's own build wins, because that one *is* the sandbox's Hermes. A
 mismatch — `hermes update` in the sandbox is the usual way — is a sentence on
 the row naming both commits and saying to reinstall Hermes, never a silently
-mismatched panel. A developer build ships no bundle, and then the row falls back
+mismatched panel. When every on-device build failed, the pin is used once, as
+the fallback's address: the checkout is moved to it (`git fetch --depth 1 origin
+<pin>`, then `git checkout --force --detach <pin>`) and the bundle CI built from
+that commit is unpacked and served, so the panel comes up on a version its
+renderer matches. A developer build ships no bundle, and then the row falls back
 to the checkout's own renderer and says it is missing when it was never built.
 
 ### Loopback, except Hermes on the LAN
@@ -241,7 +267,7 @@ owner asked for access over the LAN, not for a fortress.
 |---|---|---|
 | OpenCode | 4096 | `opencode serve --port N --hostname 127.0.0.1` |
 | Pi | 30141 | `pi-web --port N --hostname 127.0.0.1 --no-open` |
-| Hermes | 9120 | `hermes webapp --no-open` |
+| Hermes | 9120 | `hermes gateway run` (background session); `hermes webapp --no-open` then mints the address |
 
 A taken port moves the panel to the next free one (ten attempts, then an honest
 "all busy" error), and the row shows the port it actually got. Hermes takes its
@@ -254,6 +280,17 @@ dashboard-auth plugin from `plugins.disabled` when it is there
 a gated panel whose provider is disabled opens on "sign-in unavailable". The
 runtime reads the file back, and reports `Failed` with that reason if the plugin
 is still off — a panel nobody can sign in to is not "running".
+
+**Why Hermes' panel is a background session and not one command.** The panel is
+served by Hermes' gateway, and `hermes webapp --no-open` only *mints* an address
+out of a gateway that is already up — it exits as soon as it has printed one.
+Every proot Pots starts runs with `--kill-on-exit`, so a gateway that short-lived
+CLI brought up died with its proot: the row showed a link and a password, and the
+port had nobody on it. So `hermes gateway run` — Hermes' own foreground mode for
+hosts without systemd — is what `launch` starts and keeps (`WebPanels.HERMES_SERVER`),
+which is also what gives the panel a pid file and a log. Only once the port
+answers does the launcher run, for the address. `stop` signals that pid and then
+runs `hermes gateway stop`.
 
 The probe itself runs under `/bin/bash`, not `/bin/sh`: it connects through
 bash's `/dev/tcp`, which is not POSIX and which the image's `/bin/sh` (dash) does
@@ -329,13 +366,14 @@ silent try that fails is worse than a visible form that always works.
 
 ### Hermes sits behind the sign-in form
 
-`hermes webapp --no-open` prints one of two things. Behind the dashboard's
-sign-in — which is where the non-loopback bind Pots writes puts it — it prints a
-permanent address, and the row shows the LAN one with the login and password
-underneath. Without the gate it prints a private link that works once and expires
-in 60 seconds; the row then mints a fresh one on every tap and hands it straight
-to the browser, because a cached link is spent by the first open, and says so
-under the address.
+`hermes webapp --no-open` prints one of two things, and it prints them out of the
+gateway Pots already keeps up (`hermes gateway run`) — it never serves the panel
+itself. Behind the dashboard's sign-in — which is where the non-loopback bind
+Pots writes puts it — it prints a permanent address, and the row shows the LAN
+one with the login and password underneath. Without the gate it prints a private
+link that works once and expires in 60 seconds; the row then mints a fresh one on
+every tap and hands it straight to the browser, because a cached link is spent by
+the first open, and says so under the address.
 
 Which one it is cannot be known from `--status`, so the runtime decides from what
 the launcher printed at start and keeps that: a permanent address is never
@@ -422,9 +460,9 @@ ready, and a live pid with a listening port means nothing is started twice.
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanels.kt` | The three agent web panels as declarations: preferred ports, the one command line each is started with, port choice, the password generator, the two URLs each panel has (`address` for the row, `url` for the browser — credentials for OpenCode only, `percentEncode` for the userinfo), and the parser for `hermes webapp`'s output (one-use link vs sign-in address). |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanelRuntime.kt` | Panel state machine, free of Android: start/stop/refresh/autostart over a `WebPanelGuest`, with the "start at most once", "report the port it got" and "stopped means the port is free" rules unit-tested against a fake guest. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/build/runtime/AndroidWebPanelGuest.kt` | The guest side of the above: shell calls and pid/port/log files under the bind-mounted `/tmp`, the `/dev/tcp` port probe, the Hermes `webapp.port` rewrite, and staging the Hermes panel bundle the APK carries. |
-| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/HermesWebapp.kt` | The renderer Hermes serves from `HERMES_WEBAPP_DIST`: where it is unpacked, how its pin is checked and stamped, and the wording for a version the panel will not serve. |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/HermesWebapp.kt` | The renderer: the three on-device build attempts and what each may carry, the bundle CI built as the fallback, the stamp each source is checked against (the device build's `.pots-built-from`, the shipped bundle's pin), and where `HERMES_WEBAPP_DIST` is set. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/build/runtime/HermesWebappAssets.kt` | The APK side of the same bundle: the pinned hermes-agent commit CI bakes into `assets/hermes-webapp/pin`, the `tar.xz` beside it, and the copy into the guest (once per pin). |
-| `.github/actions/hermes-webapp-bundle/action.yml`, `hermes-webapp.pin` | Where that bundle is built: CI checks out hermes-agent at the pinned commit, builds `apps/desktop/dist-webapp`, and packs it into the Android assets — the sandbox cannot build it (`--link2symlink`). |
+| `.github/actions/hermes-webapp-bundle/action.yml`, `hermes-webapp.pin` | Where the fallback bundle is built: CI checks out hermes-agent at the pinned commit, builds `apps/desktop/dist-webapp`, and packs it into the Android assets, so a device whose own build fails still has a panel. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/ui/build/WebPanelsCard.kt` | The Pots Build rows: start/stop/retry, the tappable address that opens the device browser, the per-panel sign-in hint, the hidden-by-default password with its copy button and selectable value, and the autostart toggle. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/SandboxController.android.kt` | Routes `executeCommand` and `executeCommandStreaming` through the persistent shell; one-shot fallbacks live alongside. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/tools/ShellCommandTool.kt` | The `execute_shell_command` tool the assistant calls. Description, `fresh` flag, env/working-dir wrapping. |

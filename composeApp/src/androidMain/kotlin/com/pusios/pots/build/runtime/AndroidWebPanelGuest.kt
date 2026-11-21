@@ -5,6 +5,7 @@ import android.util.Log
 import com.pusios.pots.build.SandboxAgentConfig
 import com.pusios.pots.build.WebPanel
 import com.pusios.pots.build.WebPanelGuest
+import com.pusios.pots.build.WebPanelLog
 import com.pusios.pots.build.WebPanels
 import com.pusios.pots.build.portIsFree
 import com.pusios.pots.build.portProbeCommand
@@ -13,9 +14,6 @@ import com.pusios.pots.tools.hostProcessAlive
 import java.io.File
 
 private const val TAG = "PotsWebPanels"
-
-/** How much of a failed panel's log the reason line quotes. */
-private const val LOG_TAIL_CHARS = 400
 
 /**
  * The sandbox side of [com.pusios.pots.build.WebPanelRuntime]: shell calls and
@@ -136,12 +134,10 @@ class AndroidWebPanelGuest(
         runCatching { File(paths.tmpDir, panel.portFile).delete() }
     }
 
-    override fun logTail(panel: WebPanel): String {
+    override fun logText(panel: WebPanel): String {
         val file = logFile(panel)
-        if (!file.exists()) return "no log"
-        val text = runCatching { file.readText() }.getOrDefault("")
-        val tail = text.takeLast(LOG_TAIL_CHARS).trim()
-        return tail.ifEmpty { "no output" }
+        if (!file.exists()) return WebPanelLog.NO_FILE
+        return runCatching { file.readText() }.getOrDefault("")
     }
 
     private fun logFile(panel: WebPanel): File = File(paths.tmpDir, panel.logFile)

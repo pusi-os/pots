@@ -2,9 +2,10 @@ name: Hermes webapp bundle
 description: >
   Builds the Hermes web panel renderer (apps/desktop/dist-webapp) at the
   hermes-agent commit `hermes-webapp.pin` names, and packs it into the Android
-  assets as one tar.xz. The sandbox cannot build it: `pnpm install` of the
-  renderer dies under proot's --link2symlink, which dpkg needs (t_cf73367d), so
-  the bundle is built here and shipped ready.
+  assets as one tar.xz. This is the fallback, not the source: the sandbox
+  builds the renderer on the device after the install, in a proot call without
+  --link2symlink (t_f571fb36). The bundle packed here is unpacked only when
+  every on-device attempt has failed.
 
   Leaves composeApp/src/androidMain/assets/hermes-webapp/{dist.tar.xz,pin} in the
   workspace; .gitignore keeps both out of the repo.

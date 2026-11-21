@@ -3,6 +3,7 @@ package com.pusios.pots.build.runtime
 import android.content.res.AssetManager
 import android.os.StatFs
 import android.util.Log
+import com.pusios.pots.build.AgentRemovalProgress
 import com.pusios.pots.build.AgentUpdate
 import com.pusios.pots.build.AgentVersion
 import com.pusios.pots.build.AgentVersionSpec
@@ -13,14 +14,20 @@ import com.pusios.pots.build.BuildEnvironmentState
 import com.pusios.pots.build.BuildStep
 import com.pusios.pots.build.BuildSystemInfo
 import com.pusios.pots.build.BuildTerminalSession
+import com.pusios.pots.build.HermesWebapp
 import com.pusios.pots.build.InstallLog
 import com.pusios.pots.build.PotsBuildState
+import com.pusios.pots.build.RemovedPath
 import com.pusios.pots.build.SandboxAgentConfig
 import com.pusios.pots.build.SandboxAgentCredentials
 import com.pusios.pots.build.WebPanelPreferences
 import com.pusios.pots.build.WebPanelRuntime
 import com.pusios.pots.build.WebPanelStatus
 import com.pusios.pots.build.WebPanels
+import com.pusios.pots.build.cleanLeftovers
+import com.pusios.pots.build.deleteGuestPath
+import com.pusios.pots.build.deleteTree
+import com.pusios.pots.build.directorySize
 import com.pusios.pots.build.terminal.DEFAULT_COLUMNS
 import com.pusios.pots.build.terminal.DEFAULT_ROWS
 import com.pusios.pots.build.terminal.MAX_COLUMNS
@@ -49,9 +56,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,14 +69,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import java.io.File
-import java.io.IOException
-import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
-import java.nio.file.Path
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.attribute.BasicFileAttributes
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -319,9 +325,21 @@ class BuildEnvironmentManager(
     fun install(agentIds: Set<String>) {
         if (installJob?.isActive == true) return
         installJob = scope.launch {
+            // One agent from the versions card is the row that owns the progress
+            // and the log; a batch from the setup screen has no single row to own
+            // them, and that screen shows the log itself.
+            val single = agentIds.singleOrNull()?.takeIf { AgentVersions.get(it) != null }
             // A new install owns the log: the previous one's reason is not this
             // one's, and leaving it would read as if the new run already failed.
-            _state.update { it.copy(installLog = "", installLogDropped = false) }
+            _state.update {
+                it.copy(
+                    installLog = "",
+                    installLogDropped = false,
+                    activeAgentId = single,
+                    removalProgress = null,
+                )
+            }
+            if (single != null) setAgentUpdate(single, AgentUpdate.Installing)
             try {
                 installInternal(agentIds) { isActive }
             } catch (e: CancellationException) {
@@ -330,6 +348,11 @@ class BuildEnvironmentManager(
             } catch (e: Exception) {
                 Log.e(TAG, "Install failed", e)
                 cleanUpPartialInstall(error = e.message ?: "Install failed")
+            } finally {
+                // What the row shows next is what is installed — sync() has just
+                // read it — not the task that was running.
+                if (single != null) setAgentUpdate(single, null)
+                _state.update { it.copy(activeAgentId = null, removalProgress = null) }
             }
         }
     }
@@ -404,6 +427,10 @@ class BuildEnvironmentManager(
     /**
      * Runs the agent's own update command, then re-reads what it installed.
      *
+     * The steps of [AgentVersionSpec.updateCommand] run as one chained proot call —
+     * for Pi that is `pi update` and then its panel's npm install, since the panel
+     * has no update button of its own.
+     *
      * The panel is stopped first: it is a process running the binary the update
      * replaces, so leaving it up would show the old version until the app is
      * restarted. The re-read matters as much — `opencode upgrade` on a current
@@ -413,27 +440,38 @@ class BuildEnvironmentManager(
         val spec = AgentVersions.get(agentId) ?: return
         if (installJob?.isActive == true) return
         installJob = scope.launch {
-            _state.update { it.copy(installLog = "", installLogDropped = false) }
+            _state.update {
+                it.copy(
+                    installLog = "",
+                    installLogDropped = false,
+                    activeAgentId = agentId,
+                    removalProgress = null,
+                )
+            }
             setAgentUpdate(agentId, AgentUpdate.Updating)
-            stopPanelsFor(agentId)
-            val log = InstallLog()
-            publishInstallLog(log)
-            val outcome = try {
-                streamInstall(spec.updateCommand, spec.updateTimeoutSeconds, executor(), log)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "could not run the $agentId update", e)
-                InstallOutcome(exit = -1, error = e.message ?: "could not start the update")
-            }
-            if (outcome.exit != 0) {
-                log.appendText("pots: $agentId update ended (${outcome.describe()})\n")
+            try {
+                stopPanelsFor(agentId)
+                val log = InstallLog()
                 publishInstallLog(log)
-                setAgentUpdate(agentId, AgentUpdate.UpdateFailed(_state.value.agentVersions[agentId]))
-                return@launch
+                val outcome = try {
+                    streamInstall(AgentVersions.updateScript(spec), spec.updateTimeoutSeconds, executor(), log)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "could not run the $agentId update", e)
+                    InstallOutcome(exit = -1, error = e.message ?: "could not start the update")
+                }
+                if (outcome.exit != 0) {
+                    log.appendText("pots: $agentId update ended (${outcome.describe()})\n")
+                    publishInstallLog(log)
+                    setAgentUpdate(agentId, AgentUpdate.UpdateFailed(_state.value.agentVersions[agentId]))
+                    return@launch
+                }
+                sync()
+                setAgentUpdate(agentId, checkOne(spec))
+            } finally {
+                _state.update { it.copy(activeAgentId = null) }
             }
-            sync()
-            setAgentUpdate(agentId, checkOne(spec))
         }
     }
 
@@ -448,10 +486,43 @@ class BuildEnvironmentManager(
         val spec = AgentVersions.get(agentId) ?: return
         if (installJob?.isActive == true) return
         installJob = scope.launch {
-            stopPanelsFor(agentId)
-            for (guestPath in AgentVersions.removalPaths(spec, includeBulk)) deleteGuestPath(guestPath)
-            setAgentUpdate(agentId, null)
-            sync()
+            // The paths are known before the first delete, so the progress is a
+            // count, not a guess — and the log gets a line per path, because a
+            // removal prints nothing of its own.
+            val guestPaths = AgentVersions.removalPaths(spec, includeBulk)
+            _state.update {
+                it.copy(
+                    installLog = "",
+                    installLogDropped = false,
+                    activeAgentId = agentId,
+                    removalProgress = AgentRemovalProgress(done = 0, total = guestPaths.size),
+                )
+            }
+            setAgentUpdate(agentId, AgentUpdate.Removing)
+            val log = InstallLog()
+            publishInstallLog(log)
+            try {
+                stopPanelsFor(agentId)
+                val removed = mutableListOf<RemovedPath>()
+                for ((index, guestPath) in guestPaths.withIndex()) {
+                    // The one guard every delete passes through: a path that is
+                    // the user's — or holds it — is named in the log, not taken.
+                    if (!AgentVersions.mayDelete(guestPath, spec)) {
+                        log.appendText(AgentVersions.refusedToRemove(spec, guestPath) + "\n")
+                    } else {
+                        removed += deleteGuestPath(paths.rootfsDir, guestPath)
+                        log.appendText(AgentVersions.removalLine(removed.last()) + "\n")
+                    }
+                    publishInstallLog(log)
+                    _state.update { it.copy(removalProgress = AgentRemovalProgress(index + 1, guestPaths.size)) }
+                }
+                log.appendText(AgentVersions.removalSummary(removed) + "\n")
+                publishInstallLog(log)
+                setAgentUpdate(agentId, null)
+                sync()
+            } finally {
+                _state.update { it.copy(activeAgentId = null, removalProgress = null) }
+            }
         }
     }
 
@@ -491,8 +562,9 @@ class BuildEnvironmentManager(
     }
 
     /**
-     * Stops the panels that run [agentId]'s binary. pi-web is Pi's panel, so its
-     * own row stops the same process: the panel and the agent are one install.
+     * Stops the panels that run [agentId]'s binary. pi-web is Pi's panel, so
+     * removing Pi stops the same process: the panel and the agent are one install,
+     * and the panel's own record is never removed on its own.
      */
     private suspend fun stopPanelsFor(agentId: String) {
         val panelIds = WebPanels.all
@@ -501,18 +573,6 @@ class BuildEnvironmentManager(
         for (panelId in panelIds) {
             if (_state.value.webPanels[panelId]?.status is WebPanelStatus.Running) webPanels.stopPanel(panelId)
         }
-    }
-
-    /**
-     * Deletes a guest path from the host side. The rootfs is a plain directory, so
-     * no proot round-trip is needed — and a round-trip is exactly what fails on a
-     * symlink whose target resolves only inside the guest.
-     */
-    private fun deleteGuestPath(guestPath: String) {
-        val target = File(paths.rootfsDir, guestPath.trimStart('/'))
-        runCatching {
-            if (Files.isSymbolicLink(target.toPath())) target.delete() else if (target.isDirectory) deleteTree(target) else target.delete()
-        }.onFailure { Log.w(TAG, "could not remove $guestPath", it) }
     }
 
     /** Local wall clock, formatted here so the UI needs no date library. */
@@ -575,33 +635,6 @@ class BuildEnvironmentManager(
     private fun projectDir(name: String): File? {
         if (name.isEmpty() || name == "." || name == ".." || name.contains('/')) return null
         return File(paths.projectsDir, name).takeIf { it.isDirectory }
-    }
-
-    /**
-     * Deletes [dir] and its contents without following symlinks. A project can hold
-     * a link into the rootfs (agents leave plenty), and a walk that followed one
-     * would delete the Debian install instead of the project.
-     */
-    private fun deleteTree(dir: File) {
-        runCatching {
-            Files.walkFileTree(
-                dir.toPath(),
-                object : SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        runCatching { Files.deleteIfExists(file) }
-                        return FileVisitResult.CONTINUE
-                    }
-
-                    override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult =
-                        FileVisitResult.CONTINUE
-
-                    override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
-                        runCatching { Files.deleteIfExists(dir) }
-                        return FileVisitResult.CONTINUE
-                    }
-                },
-            )
-        }
     }
 
     // --- sessions --------------------------------------------------------
@@ -751,6 +784,9 @@ class BuildEnvironmentManager(
 
     fun webPanelPassword(panelId: String): String? = webPanels.password(panelId)
 
+    /** The row's log section: read on the tap, never stored in the state. */
+    fun webPanelLog(panelId: String): String = webPanels.panelLog(panelId)
+
     /**
      * Opens the panel in the device's own browser.
      *
@@ -872,18 +908,30 @@ class BuildEnvironmentManager(
         setStep(BuildStep.Agent, agentId = agent.id)
         ensureAgentPathProfile()
         val executor = executor()
+        val log = InstallLog()
+        publishInstallLog(log)
+        // Before `mkdir -p` below, which would make every path of a previous run
+        // look like one: find what is there, say so, take it, then install.
+        AgentVersions.get(agent.id)?.let { spec ->
+            cleanBeforeInstall(spec, executor, log)
+            clearDebris(agent, spec, executor, log)
+        }
         executor.execute(
             "mkdir -p /root/.local/bin /root/.local/share/pi-node /root/.hermes " +
                 "/root/.pi/agent /root/.opencode/bin /usr/local/bin",
             timeoutSeconds = 30,
         )
-        val log = InstallLog()
-        publishInstallLog(log)
-        // Hermes' panel ships with this app, built from one hermes-agent commit:
-        // the install reads that commit from here and leaves the checkout on it.
-        // Written before the install, because that is the run that checks out.
-        if (agent.id == BuildAgents.HERMES) pinHermesWebapp()
-        val outcome = streamInstall(agent.installCommand, agent.installTimeoutSeconds, executor, log)
+        // Hermes' panel ships with this app, built from one hermes-agent commit.
+        // The install no longer pins the checkout to it — it follows `main` and the
+        // renderer is built from whatever that checkout is; the commit this app
+        // ships becomes the fallback's address when the device cannot build one.
+        // One proot call per step, each with the hardlink emulation it needs: the
+        // package manager's prerequisite with it, everything else without.
+        val outcome = BuildAgents.installCalls(agent).map { call ->
+            // `this.` because the local `executor` above shadows the builder.
+            val stepExecutor = if (call.hardlinkEmulation) executor else this.executor(hardlinkEmulation = false)
+            streamInstall(call.command, call.timeoutSeconds, stepExecutor, log)
+        }.last()
         // Vendor scripts may leave the binary only in their private dir and only
         // update shell rc files — which Pots Build never sources. Link into PATH
         // and re-probe so a successful download still counts as installed. The
@@ -910,6 +958,10 @@ class BuildEnvironmentManager(
         // The agent is only worth having if it can answer on the provider the app
         // is already using, so the config lands with the install, not on first run.
         if (installed) {
+            // Hermes' panel is a separate build of `apps/desktop`, and it runs in
+            // a proot call of its own — after the agent is on PATH, because the
+            // build needs the `hermes` command the install just published.
+            if (agent.id == BuildAgents.HERMES) buildHermesRenderer(log)
             applyAgentConfig(agent.id)
             setAgentVersion(agent.id, AgentVersion.parse(probe))
             // A reinstall is also an update: the binary under a running panel was
@@ -917,6 +969,60 @@ class BuildEnvironmentManager(
             webPanels.onAgentInstalled(agent.id)
         }
         installed
+    }
+
+    /**
+     * Removes what an earlier install left and this one must not inherit.
+     *
+     * proot's `--link2symlink` emulation — which the install's prerequisite needs
+     * for dpkg — leaves `.l2s.` artifacts behind, and hardlinking one of those is
+     * what answers EPERM to uv. Nothing in the current call emulates any more, but
+     * the artifacts on disk survive it, so the tree starts clean instead.
+     *
+     * [AgentVersions.debrisPlan] is the guard: `keepPaths` covers the credentials,
+     * the state and the board, and a path the guard refuses is reported in the log
+     * rather than taken. An agent with no debris keeps whatever it had.
+     */
+    private fun clearDebris(
+        agent: BuildAgent,
+        spec: AgentVersionSpec,
+        executor: BuildProotExecutor,
+        log: InstallLog,
+    ) {
+        if (agent.debrisPaths.isEmpty()) return
+        val plan = AgentVersions.debrisPlan(spec, agent.debrisPaths)
+        for (path in plan.refused) {
+            log.appendText("pots: ${agent.id}: kept $path — it holds the owner's data\n")
+        }
+        if (plan.remove.isEmpty()) return
+        val removed = executor.execute("rm -rf " + plan.remove.joinToString(" "), timeoutSeconds = 300)
+        log.appendText(
+            if (removed.success) {
+                "pots: ${agent.id}: cleared ${plan.remove.joinToString(", ")} of .l2s. artifacts before a clean install\n"
+            } else {
+                "pots: ${agent.id}: could not clear ${plan.remove.joinToString(", ")} " +
+                    "(${removed.failureDetail()})\n"
+            },
+        )
+        publishInstallLog(log)
+    }
+
+    /**
+     * Cleans what a previous install of [spec] left behind, before this one starts.
+     * The decision and the log lines are [cleanLeftovers]'s; this only asks the
+     * guest the two questions it needs — does the binary answer, and how much disk
+     * is there — and writes the lines it gets back.
+     */
+    private fun cleanBeforeInstall(spec: AgentVersionSpec, executor: BuildProotExecutor, log: InstallLog) {
+        val binaryAnswers = executor.execute(spec.installedCommand, timeoutSeconds = 30).success
+        val lines = cleanLeftovers(
+            rootfsDir = paths.rootfsDir,
+            spec = spec,
+            binaryAnswers = binaryAnswers,
+            disk = { executor.execute("df -h /root | tail -1", timeoutSeconds = 30).stdout },
+        )
+        for (line in lines) log.appendText(line + "\n")
+        publishInstallLog(log)
     }
 
     /**
@@ -945,18 +1051,174 @@ class BuildEnvironmentManager(
     }
 
     /**
-     * Tells the sandbox's Hermes install which commit this app's panel was built
-     * from. The install ends by checking the checkout out at it, and the panel
-     * refuses to start on any other — a bundle and a backend from different
-     * commits is a blank page with 404s on the assets.
+     * Builds Hermes' panel renderer on the device, right after Hermes itself.
      *
-     * A build with no bundle (a developer build) writes nothing, and the install
-     * then keeps its own channel and builds the renderer itself.
+     * The build cannot share the install's proot call: `hermes webapp --build-only`
+     * is a `pnpm install` of `apps/desktop`, pnpm 12 renames a staged directory
+     * into place for every package, and that rename answers ENOENT under proot's
+     * `--link2symlink` — the flag dpkg needs for the base packages. So this is a
+     * proot call of its own, without the emulation: measured, that is the
+     * difference between a failure in twenty-four seconds and a complete 45 MB
+     * bundle in about seven minutes.
+     *
+     * The install itself emulates nothing: the clone, `scripts/install.sh` and the
+     * `pm` tools are written with `-L` alone — only the `xz-utils` apt call keeps
+     * `--link2symlink` — and the tree is cleared of an earlier install's `.l2s.`
+     * artifacts before either proot call, so the checkout this build runs in was
+     * never written under the emulation. One attempt still keeps `--link2symlink`
+     * and changes nothing else, and that is this chain's own decision: attempts 1
+     * and 2 differ in that flag alone, so the device is what answers whether the
+     * emulation by itself is what breaks pnpm's staged rename.
+     *
+     * Every attempt starts from an empty pnpm store and an empty `node_modules`,
+     * because a store a failed attempt leaves behind is made of `.l2s.` symlinks
+     * and the next build dies in rolldown against them. Hermes forces that store
+     * to `$HERMES_ROOT/cache/pnpm` itself, so it can only be deleted, not moved.
+     *
+     * The bundle this app ships is the last resort. Each path writes its own line
+     * to the log — which renderer the panel serves is not something the owner
+     * should have to guess at. A build that failed is not an install failure: the
+     * panel then serves the shipped bundle, or says the renderer is missing.
+     *
+     * The chain as a whole is bounded by [HermesWebapp.BUILD_BUDGET_SECONDS]: an
+     * attempt the budget cannot pay for is not started, a running attempt is
+     * cancelled when the budget ends, and a chain that runs out stops with its own
+     * line and serves the shipped bundle. Waiting is the one thing the owner
+     * cannot see, so the wait has a limit.
+     *
+     * The deadline is a coroutine timeout, so it can only stop the chain where the
+     * chain can be interrupted: the build's own wait loop asks for the cancellation
+     * every poll. The blocking steps around it — each attempt's clean, five minutes
+     * at most, and its built check, thirty seconds — cannot be cut short, so a
+     * chain can overrun the budget by one such step, never by a whole attempt.
      */
-    private fun pinHermesWebapp() {
-        val pin = HermesWebappAssets.pin(assets) ?: return
-        val marker = paths.readMarker() ?: return
-        HermesWebappAssets.writePin(pin, paths.homeDir(marker))
+    private suspend fun buildHermesRenderer(log: InstallLog) {
+        // The chain needs a deadline of its own, not one per attempt: three
+        // attempts of 25 minutes are 75 minutes of a phone with no panel on it,
+        // and nothing outside this function covers them — the install's own
+        // timeout is spent before this call starts.
+        val budget = HermesWebapp.BuildBudget(nowMillis = System::currentTimeMillis)
+        val outcome = try {
+            withTimeout(HermesWebapp.BUILD_BUDGET_SECONDS * 1000) {
+                buildRendererAttempts(log, budget)
+            }
+        } catch (e: TimeoutCancellationException) {
+            // Not a failure: the chain spent the time the owner gave it. The
+            // cancellation reaches the wait inside streamInstall, which kills the
+            // proot before rethrowing, so nothing is left building behind the
+            // fallback — see the ensureActive calls there and before each attempt.
+            HermesWebapp.RendererBuild.OUT_OF_BUDGET
+        }
+        val fallback = HermesWebapp.afterBuild(outcome)
+        if (!fallback.serveShippedBundle) return
+        serveShippedBundle(log, line = fallback.line)
+    }
+
+    /**
+     * Runs the attempt chain while the budget lasts. Every attempt writes its own
+     * line before it starts, with what the budget has left, so the screen shows a
+     * countdown instead of a bar that has not moved for twenty minutes.
+     */
+    private suspend fun buildRendererAttempts(
+        log: InstallLog,
+        budget: HermesWebapp.BuildBudget,
+    ): HermesWebapp.RendererBuild {
+        for (attempt in HermesWebapp.buildAttempts) {
+            // An attempt the budget cannot pay for is not started: the fallback is
+            // the same either way, and the last minutes are better spent not
+            // burning a phone on a build that has to be cut off.
+            if (!budget.attemptFits()) return HermesWebapp.RendererBuild.OUT_OF_BUDGET
+            log.appendText("pots: ${HermesWebapp.buildingOnDevice(attempt, budget.leftMinutes())}\n")
+            publishInstallLog(log)
+            val executor = executor(extraEnv = attempt.env, hardlinkEmulation = attempt.hardlinkEmulation)
+            executor.execute(HermesWebapp.CLEAN_COMMAND, timeoutSeconds = 300)
+            // The clean is a blocking call of up to five minutes, so the budget can
+            // have run out inside it. Starting the build now would put it wholly
+            // outside the deadline: ask whether the chain is still alive first.
+            currentCoroutineContext().ensureActive()
+            val outcome = streamInstall(
+                HermesWebapp.BUILD_COMMAND,
+                HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS,
+                executor,
+                log,
+            )
+            // `--force-build` makes "up to date" impossible, so a line saying it means
+            // the flag never reached Hermes and the bundle on disk is not this
+            // attempt's build. The whole log is read rather than this attempt's slice:
+            // the flag is in the command line, so every attempt answers alike, and one
+            // such line means the chain rebuilt nothing at all.
+            val stale = log.text().contains(HermesWebapp.UP_TO_DATE)
+            val built = outcome.exit == 0 && !stale &&
+                executor.execute(HermesWebapp.BUILT_CHECK, timeoutSeconds = 30).success
+            // The stamp is what makes this bundle the panel's own: it names the
+            // commit the build came from, and the gate serves the bundle only while
+            // the checkout is still on that commit. A build that cannot stamp itself
+            // is not one the panel may serve, so it does not end the chain.
+            val stamped = built && executor.execute(HermesWebapp.stampBuilt(), timeoutSeconds = 30).success
+            log.appendText(
+                when {
+                    stamped -> "pots: ${HermesWebapp.builtOnDevice(attempt)}\n"
+                    built -> "pots: renderer: attempt ${attempt.number} built a bundle it could not stamp\n"
+                    stale -> "pots: ${HermesWebapp.builtNothing(attempt)}\n"
+                    else -> "pots: renderer: attempt ${attempt.number} failed (${outcome.describe()})\n"
+                },
+            )
+            publishInstallLog(log)
+            if (stamped) return HermesWebapp.RendererBuild.BUILT
+        }
+        return HermesWebapp.RendererBuild.FAILED
+    }
+
+    /**
+     * Puts the bundle CI built in front of the panel — the last resort, when the
+     * device could not build one in time. [line] is the sentence that says the
+     * chain stopped for time rather than failed, so the owner reads why the wait
+     * ended and that the panel is up regardless.
+     *
+     * The bundle is a whole Hermes, not just a renderer: it was built from the
+     * commit the pin names, so the checkout is moved there first. That is the only
+     * place the install's `main` is ever given up, and it is what keeps a panel
+     * alive on a device whose renderer build cannot finish.
+     */
+    private suspend fun serveShippedBundle(log: InstallLog, line: String?) {
+        val pin = HermesWebappAssets.pin(assets)
+        val marker = paths.readMarker()
+        if (pin == null || marker == null) {
+            log.appendText("pots: ${HermesWebapp.NOT_BUILT}\n")
+            publishInstallLog(log)
+            return
+        }
+        if (line != null) log.appendText("pots: $line\n")
+        log.appendText("pots: ${HermesWebapp.fallingBack(pin)}\n")
+        publishInstallLog(log)
+        HermesWebappAssets.stageArchive(assets, pin, paths.homeDir(marker))
+        val executor = executor()
+        val checkout = executor.execute(HermesWebapp.pinCheckout(pin), timeoutSeconds = 300)
+        if (!checkout.success) {
+            // Nothing else is worth doing: the panel refuses a renderer built from
+            // another commit, so the checkout is the whole fallback. The cause is
+            // the last line of the log, as in the repair ladder.
+            log.appendText(
+                "pots: renderer: could not move Hermes to $pin (${checkout.failureDetail()}); " +
+                    "the panel will refuse until it is\n",
+            )
+            publishInstallLog(log)
+            return
+        }
+        // The version of the commit just checked out: without its tag the row reads
+        // `git.<sha>` even though HEAD is a release.
+        executor.execute(HermesWebapp.TAGS_FETCH, timeoutSeconds = 120)
+        val unpacked = executor.execute(HermesWebapp.unpack(pin), timeoutSeconds = 300)
+        val served = unpacked.success &&
+            executor.execute(HermesWebapp.shipped(pin), timeoutSeconds = 30).success
+        log.appendText(
+            if (served) {
+                "pots: ${HermesWebapp.SHIPPED}\n"
+            } else {
+                "pots: renderer: the shipped bundle could not be unpacked (${unpacked.failureDetail()})\n"
+            },
+        )
+        publishInstallLog(log)
     }
 
     /**
@@ -1006,6 +1268,13 @@ class BuildEnvironmentManager(
             var outcome = InstallOutcome(exit = -1, timeoutSeconds = timeoutSeconds)
             try {
                 while (true) {
+                    // Cancellation is cooperative and the wait below is a blocking
+                    // call, so without this line a cancelled chain keeps polling
+                    // until the attempt's own deadline: the budget would expire,
+                    // the fallback would start, and proot would still be building.
+                    // With it, the cancellation lands in the catch below, which is
+                    // the only place that kills the process.
+                    currentCoroutineContext().ensureActive()
                     val exit = handle.awaitExitOrNull(INSTALL_POLL_MS)
                     if (exit != null) {
                         outcome = InstallOutcome(exit, timeoutSeconds = timeoutSeconds)
@@ -1439,6 +1708,12 @@ class BuildEnvironmentManager(
         session: BuildSession? = null,
         /** Panel processes need their own password in the environment. */
         extraEnv: Map<String, String> = emptyMap(),
+        /**
+         * Whether this call may run with proot's hardlink emulation. apt/dpkg
+         * needs it and the Hermes renderer build must not have it — see
+         * [DebianSpec.buildProotArgs]; everything else keeps it.
+         */
+        hardlinkEmulation: Boolean = true,
     ): BuildProotExecutor {
         paths.copyLibtalloc()
         paths.ensureLayout()
@@ -1454,7 +1729,7 @@ class BuildEnvironmentManager(
                 // vendor install dirs are executable — external storage is often
                 // mounted noexec.
                 binds = listOf(paths.projectsDir.absolutePath to "/root/projects"),
-                extraArgs = DebianSpec.prootArgs,
+                extraArgs = if (hardlinkEmulation) DebianSpec.prootArgs else DebianSpec.buildProotArgs,
                 env = DebianSpec.env + agentEnv(columns, rows, openUrlPath, session?.agentId) + extraEnv,
             ),
             tmpPath = paths.tmpDir.absolutePath,
@@ -1567,28 +1842,4 @@ private fun BuildProotExecutor.ensureAgentBinary(binary: String): String? {
     )
     if (!hasBinary(binary)) return null
     return execute("$binary --version 2>&1", timeoutSeconds = 60).takeIf { it.success }?.stdout
-}
-
-/**
- * Total size of the regular files under [dir], without following symlinks — an
- * LXC rootfs contains link loops that would trap a naive recursive walk.
- */
-private fun directorySize(dir: File): Long {
-    if (!dir.exists()) return 0L
-    var total = 0L
-    runCatching {
-        Files.walkFileTree(
-            dir.toPath(),
-            object : SimpleFileVisitor<Path>() {
-                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                    if (attrs.isRegularFile) total += attrs.size()
-                    return FileVisitResult.CONTINUE
-                }
-
-                override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult =
-                    FileVisitResult.CONTINUE
-            },
-        )
-    }
-    return total
 }
