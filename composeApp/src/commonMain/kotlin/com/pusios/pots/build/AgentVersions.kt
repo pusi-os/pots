@@ -147,6 +147,19 @@ sealed interface RemovedOutcome {
 data class RemovedPath(val path: String, val outcome: RemovedOutcome)
 
 /**
+ * What cleaning before an install will take, and what it refuses to.
+ *
+ * [refused] is empty for every agent the app ships — none of them installs into a
+ * path it also promises to keep — but the two lists are computed together so that
+ * a spec which ever does gets a log line instead of a deleted config.
+ */
+data class AgentCleanup(val remove: List<String>, val refused: List<String>) {
+
+    /** Everything the cleanup found, whichever side of the guard it fell on. */
+    val found: List<String> get() = remove + refused
+}
+
+/**
  * One row of the agents card: what the device has, and what the last check said.
  * [update] is never null — an agent nothing has been asked about is [AgentUpdate.Unchecked],
  * which is a state the UI can render honestly.
@@ -234,9 +247,23 @@ object AgentVersions {
             updateCommand = "PATH=$AGENT_PATH hermes update",
             updateCost = UpdateCost.Gateway,
             installPaths = listOf("/root/.local/bin/hermes"),
-            // The checkout's own config: `hermes update` never touches it, and
-            // neither does a removal.
-            keepPaths = listOf("/root/.hermes/config.yaml", "/root/.hermes/.env"),
+            // Everything in /root/.hermes that the owner would lose: the
+            // credentials, the state and the board. The directory itself is
+            // covered by these — [mayDelete] refuses a parent of a kept path —
+            // and the checkout is a child of it, so `/root/.hermes` is never a
+            // path this app deletes.
+            keepPaths = listOf(
+                "/root/.hermes/config.yaml",
+                "/root/.hermes/.env",
+                "/root/.hermes/auth.json",
+                "/root/.hermes/state.db",
+                "/root/.hermes/profiles",
+                "/root/.hermes/kanban",
+                "/root/.hermes/cron",
+                "/root/.hermes/sessions",
+                "/root/.hermes/memories",
+                "/root/.hermes/state-snapshots",
+            ),
             // 5 GiB of git checkout. Removing it is offered as a second, explicit
             // answer, because reinstalling it costs tens of minutes.
             bulkPath = "/root/.hermes/hermes-agent",
@@ -339,6 +366,58 @@ object AgentVersions {
      */
     fun removalPaths(spec: AgentVersionSpec, includeBulk: Boolean): List<String> =
         spec.installPaths + listOfNotNull(spec.bulkPath?.takeIf { includeBulk })
+
+    /**
+     * Whether deleting [path] is allowed: false when it is a [AgentVersionSpec.keepPaths]
+     * entry, a parent of one, or inside one.
+     *
+     * The comparison runs both ways on purpose. A parent has to be refused because
+     * `/root/.hermes` holds `auth.json` and the whole of `profiles/` — deleting it
+     * is the one mistake that cannot be undone on a device. A child has to be
+     * refused because `keepPaths` names directories as often as files. Every
+     * delete in this app goes through here; a path it refuses is logged, not taken.
+     */
+    fun mayDelete(path: String, spec: AgentVersionSpec): Boolean =
+        spec.keepPaths.none { keep -> path == keep || path.startsWith("$keep/") || keep.startsWith("$path/") }
+
+    /**
+     * What to take off before installing [spec] again.
+     *
+     * [existing] is what the rootfs actually has, [binaryAnswers] is the spec's own
+     * `--version` probe. A binary that answers means those paths are the
+     * installation, not a leftover — a reinstall is an update, and an update must
+     * not begin by deleting what it updates. A binary that does not answer while
+     * the paths are still there is exactly the debris of a run that stopped
+     * halfway.
+     *
+     * Only [AgentVersionSpec.installPaths] is considered. Hermes' 5 GiB checkout is
+     * [AgentVersionSpec.bulkPath]: a broken one is repaired by the installer that
+     * follows, not thrown away and downloaded again.
+     */
+    fun cleanupPlan(spec: AgentVersionSpec, existing: Set<String>, binaryAnswers: Boolean): AgentCleanup {
+        if (binaryAnswers) return AgentCleanup(remove = emptyList(), refused = emptyList())
+        val found = spec.installPaths.filter { it in existing }
+        return AgentCleanup(
+            remove = found.filter { mayDelete(it, spec) },
+            refused = found.filterNot { mayDelete(it, spec) },
+        )
+    }
+
+    /**
+     * The cleanup's lines. The owner greps the install log for exactly these
+     * words, so they are fixed here rather than at the call site: what was found,
+     * what was refused, and what went.
+     */
+    fun leftoversFound(spec: AgentVersionSpec, paths: List<String>): String =
+        "pots: ${spec.id}: leftovers found (${paths.joinToString(" ")})"
+
+    fun refusedToRemove(spec: AgentVersionSpec, path: String): String =
+        "pots: ${spec.id}: refusing to remove $path — it holds user data"
+
+    fun nothingToClean(spec: AgentVersionSpec): String = "pots: ${spec.id}: nothing to clean"
+
+    fun cleaned(spec: AgentVersionSpec, paths: List<String>): String =
+        if (paths.isEmpty()) nothingToClean(spec) else "pots: ${spec.id}: cleaned (${paths.joinToString(" ")})"
 
     /**
      * One line of the removal log: the path and its outcome. A removal is the one
