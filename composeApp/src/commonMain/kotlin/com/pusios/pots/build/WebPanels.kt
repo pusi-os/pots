@@ -285,15 +285,6 @@ object WebPanels {
     const val HERMES_BUNDLE = "$HERMES_BUNDLE_DIR/index.html"
 
     /**
-     * True when the bundle above is there — the honest answer to "is it built?".
-     *
-     * The page is not the bundle: `index.html` loads the scripts under `assets/`,
-     * and a build that produced the page but not the scripts passes an index-only
-     * check, opens a blank screen and reads as a broken app. Both are asked for.
-     */
-    const val HERMES_BUNDLE_CHECK = "test -f $HERMES_BUNDLE && test -d $HERMES_BUNDLE_DIR/assets"
-
-    /**
      * [preferred] when free, otherwise the next free port within
      * [PORT_ATTEMPTS]; null when that whole window is taken, which the caller
      * reports as an error instead of starting on a port nobody can open.

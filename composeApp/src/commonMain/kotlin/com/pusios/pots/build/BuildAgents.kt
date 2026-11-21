@@ -138,6 +138,19 @@ object BuildAgents {
      * The clone is the only part done here: the installer is idempotent and
      * updates an existing checkout itself, so a rerun is safe.
      *
+     * **The latest Hermes, and nothing pinned.** The checkout is one commit deep
+     * on `main` and the installer is handed `--channel main` and no `--commit`: a
+     * pinned install makes the installer walk the history to prove the commit is
+     * an ancestor of the branch — history a depth-1 clone does not carry — and it
+     * leaves the sandbox a release behind the renderer it could build for itself.
+     * The commit `hermes-webapp.pin` names is the *fallback's* address, not the
+     * install's: when the device cannot build a renderer, Pots Build moves the
+     * checkout to that commit and unpacks the bundle CI built from it
+     * ([HermesWebapp.pinCheckout]). One thing is still fetched: the release tags,
+     * because `hermes --version` names the newest tag reachable from HEAD and a
+     * depth-1 clone carries none — without that fetch the agent row reads
+     * `git.<sha>` where the release number belongs.
+     *
      * **uv must copy, and the only lever left is the uv binary itself.** Inside
      * proot on a phone, uv hardlinks its cache into the venv and the guest refuses
      * (`failed to hardlink file from …: Operation not permitted`). Both paths in
@@ -212,13 +225,6 @@ object BuildAgents {
         export UV_LINK_MODE=copy
         export UV_NO_CACHE=1
         mkdir -p /root/.hermes /root/.local/bin
-        # The hermes-agent commit this app's web panel was built from, written by the
-        # app before this install. Empty on a build that ships no bundle (a
-        # developer build), and then nothing below pins anything.
-        POTS_WEBAPP_PIN=''
-        if [ -f /root/.hermes/pots-webapp-pin ]; then
-          POTS_WEBAPP_PIN=${'$'}(tr -d '[:space:]' < /root/.hermes/pots-webapp-pin)
-        fi
         # Set when the repair ladder gave up, so the installer's retry does not try
         # to download the 5 GiB checkout a second time.
         POTS_CHECKOUT_DEAD=''
@@ -227,40 +233,17 @@ object BuildAgents {
         apt-get install -y --no-install-recommends xz-utils >/dev/null 2>&1 \
           || echo "pots: xz-utils is missing; the panel cannot unpack its renderer"
         # The clone rule, in one place: the repair ladder below re-clones with the
-        # same flags. The URL is a variable only so a unit test can point the ladder
-        # at a local repository; on a device nothing sets it.
+        # same flags. One commit deep and on `main` — nothing in this install walks
+        # the history, so nothing needs it, and the release tags are fetched
+        # separately below for the version.
+        # The URL is a variable only so a unit test can point the ladder at a local
+        # repository; on a device nothing sets it.
         pots_clone_hermes() {
           POTS_REPO=${'$'}{POTS_HERMES_REPO:-https://github.com/NousResearch/hermes-agent.git}
-          if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
-            # The installer checks that the pin is an ancestor of the branch before it
-            # checks it out (install.sh:996), and that walk needs the commit objects. A
-            # depth-1 clone has none. Blobless is how the installer itself clones: every
-            # commit and tree, file contents on demand. Without a pin nothing checks
-            # ancestry, so the shallow clone stays and the saving is real.
-            git clone --filter=blob:none "${'$'}POTS_REPO" "${'$'}1"
-          else
-            git clone --depth 1 "${'$'}POTS_REPO" "${'$'}1"
-          fi
+          git clone --depth 1 --branch main "${'$'}POTS_REPO" "${'$'}1"
         }
         if [ ! -d /root/.hermes/hermes-agent/.git ]; then
           pots_clone_hermes /root/.hermes/hermes-agent
-        fi
-        # A checkout an older Pots Build left behind is depth-1, and the same check
-        # inside the installer cannot pass there: the pinned commit is not an object
-        # in it at all. Deepen it here, before the installer looks — a device that
-        # already has the clone never re-clones, so the branch above cannot fix it.
-        # Blobless again, for the same reason: a long-lived treeless checkout
-        # re-downloads whole trees on every checkout (#129712).
-        if [ -n "${'$'}POTS_WEBAPP_PIN" ] && [ -d /root/.hermes/hermes-agent/.git ]; then
-          if [ "${'$'}(git -C /root/.hermes/hermes-agent rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
-            git -C /root/.hermes/hermes-agent fetch --unshallow --tags --filter=blob:none origin main \
-              || echo "pots: could not deepen the Hermes checkout; the pin step will fail"
-          elif ! git -C /root/.hermes/hermes-agent cat-file -e "${'$'}{POTS_WEBAPP_PIN}^{commit}" 2>/dev/null; then
-            # Not shallow, yet the commit is missing: the branch ref the check walks
-            # from is stale or absent. The check reads origin/main, so refresh that.
-            git -C /root/.hermes/hermes-agent fetch --tags origin main \
-              || echo "pots: could not refresh the Hermes checkout; the pin step will fail"
-          fi
         fi
         # A checkout is usable only if HEAD resolves and the working tree carries the
         # installer. `git clone` creates `.git` first and the files last, so a run
@@ -495,17 +478,14 @@ object BuildAgents {
           # below reaches this function a second time, and a checkout that broke during
           # the first attempt would otherwise fail the same way twice.
           pots_ensure_hermes_checkout /root/.hermes/hermes-agent || return 1
-          # A shipped panel names the commit it was built from, and the installer
-          # pins the checkout there itself — on a fresh clone and on a rerun over
-          # an existing one alike (install.sh:945 and :991) — so the dependencies
-          # it installs come from that commit's uv.lock as well, not from main's.
-          # A build with no bundle passes no pin and follows main, as before.
-          POTS_PIN_ARG='--channel main'
-          if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
-            POTS_PIN_ARG="--commit ${'$'}POTS_WEBAPP_PIN"
-          fi
+          # The installer's own channel, always `main`, and never a pinned commit: the
+          # owner installs the latest Hermes and the renderer is built from whatever
+          # that checkout is. A pinned install would walk the history to prove the
+          # commit is an ancestor of the branch — history a depth-1 clone does not
+          # carry — and it would leave the sandbox a release behind. The pin is only
+          # the fallback's address, and that fallback moves the checkout itself.
           # stdin closed: no answer is coming from a sandbox if the installer asks.
-          bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use ${'$'}POTS_PIN_ARG < /dev/null
+          bash /root/.hermes/hermes-agent/scripts/install.sh --non-interactive --skip-browser --skip-computer-use --channel main < /dev/null
         }
         pots_wrap_uv
         # A first-ever install downloads uv *inside* the installer, i.e. after the
@@ -520,39 +500,18 @@ object BuildAgents {
         # The installer publishes the command for login shells; link it into the
         # bin dir Pots Build's own PATH carries so probes find it by name.
         ln -sfn /root/.hermes/hermes-agent/.hermes/bin/hermes /root/.local/bin/hermes
-        # Hermes' web panel ships with this app, built from one hermes-agent commit
-        # (POTS_WEBAPP_PIN), and the installer above was handed that commit. This
-        # reads the checkout back: the installer's own pin step is the thing that
-        # makes the backend and the panel one version, and a path through it that
-        # does not pin (a recorded channel it keeps, a release it decides not to
-        # move) must not leave a backend the panel was built against nothing.
-        if [ -n "${'$'}POTS_WEBAPP_PIN" ]; then
-          # Hermes derives its version from the newest release tag reachable from
-          # HEAD, and every fetch above that is not `--tags` leaves the tags
-          # behind: a checkout that came up through the upgrade path reports
-          # `vgit.<sha>` for ever. One ref-only fetch — no objects — before the
-          # check, so a device that already has the clone is repaired in place.
-          git -C /root/.hermes/hermes-agent fetch --filter=blob:none origin '+refs/tags/*:refs/tags/*' \
-            || echo "pots: could not fetch the Hermes release tags; its version stays undetermined"
-          if [ "${'$'}(git -C /root/.hermes/hermes-agent rev-parse HEAD)" != "${'$'}POTS_WEBAPP_PIN" ]; then
-            echo "pots: Hermes is not on ${'$'}POTS_WEBAPP_PIN after the install; pinning it here"
-            if git -C /root/.hermes/hermes-agent fetch --depth 1 origin "${'$'}POTS_WEBAPP_PIN" \
-              && git -C /root/.hermes/hermes-agent checkout --force --detach "${'$'}POTS_WEBAPP_PIN"; then
-              # The tag for the commit just checked out: without it the version
-              # reads as `git.<sha>` even though HEAD is a release.
-              git -C /root/.hermes/hermes-agent fetch --filter=blob:none origin '+refs/tags/*:refs/tags/*' \
-                || echo "pots: could not fetch the Hermes release tags; its version stays undetermined"
-              echo "pots: Hermes is at ${'$'}POTS_WEBAPP_PIN"
-            else
-              echo "pots: could not pin Hermes to ${'$'}POTS_WEBAPP_PIN; the panel will refuse until it is"
-            fi
-          fi
-          # The renderer is not built here. This proot call carries --link2symlink
-          # because dpkg needs it for the base packages, and pnpm 12's staged
-          # renames answer ENOENT under that emulation. Pots Build builds the
-          # renderer afterwards, in a proot call of its own without it, and falls
-          # back to the bundle this app ships (see HermesWebapp).
-        fi
+        # Hermes derives its version from the newest release tag reachable from HEAD,
+        # and the `--depth 1` clone above carries no tags at all: without this fetch
+        # `hermes --version` — the version the agent row shows — answers `git.<sha>`
+        # for ever. Ref-only, no file contents.
+        ${HermesWebapp.TAGS_FETCH} \
+          || echo "pots: could not fetch the Hermes release tags; its version stays undetermined"
+        # The renderer is not built here. This proot call carries --link2symlink
+        # because dpkg needs it for the base packages, and pnpm 12's staged
+        # renames answer ENOENT under that emulation. Pots Build builds the
+        # renderer afterwards, in a proot call of its own without it, stamps the
+        # commit it was built from, and falls back to the bundle this app ships
+        # (see HermesWebapp) when every attempt failed.
         # The wrapper has to leave uv and pm working, so prove both in this log. uv
         # is not on PATH (pm never exposes it), which is why the store path is the
         # thing to run, not `uv`.
