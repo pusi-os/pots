@@ -159,9 +159,14 @@ class AgentRemovalTest {
     }
 
     @Test
-    fun `removing pi-web leaves the node runtime Pi and the panel share`() {
-        val piWeb = AgentVersions.get(WebPanels.PI_WEB_VERSION_KEY)!!
-        val removed = AgentVersions.removalPaths(piWeb, includeBulk = false)
+    fun `removing Pi takes the panel and leaves the node runtime they share`() {
+        val pi = AgentVersions.get(BuildAgents.PI)!!
+        val removed = AgentVersions.removalPaths(pi, includeBulk = false)
+        // The panel has no row of its own, so its paths go with Pi's.
+        assertTrue(removed.contains("/root/.local/share/pi-node/lib/node_modules/@agegr/pi-web"))
+        assertTrue(removed.contains("/root/.local/share/pi-node/bin/pi-web"))
+        assertTrue(removed.contains("/root/.local/bin/pi"))
+        // The Node runtime both of them run on is nobody's to delete.
         assertFalse(removed.contains("/root/.local/share/pi-node"))
         assertFalse(removed.any { it.endsWith("/bin/node") || it.endsWith("/bin/npm") })
     }
