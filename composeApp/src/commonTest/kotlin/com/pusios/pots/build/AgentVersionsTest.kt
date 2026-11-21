@@ -116,6 +116,24 @@ class AgentVersionsTest {
     }
 
     @Test
+    fun `a date in the version slot is a failed check, never up to date`() {
+        // The bug in one line: `2026.9.24` against `0.23.3` compares as 2026 > 0,
+        // so a build whose version never resolved read as "up to date".
+        assertEquals(
+            AgentUpdate.CheckFailed("2026.9.24", "14:32"),
+            AgentVersions.decide(present = true, installed = "2026.9.24", latest = "0.23.3", checkedAt = "14:32"),
+        )
+        assertFalse(
+            AgentVersions.decide(present = true, installed = "2026.9.24", latest = "0.23.3") is AgentUpdate.UpToDate,
+        )
+        // Nothing an agent really reports is caught by it: no major is near 100.
+        assertEquals(
+            AgentUpdate.UpToDate("99.0.0"),
+            AgentVersions.decide(present = true, installed = "99.0.0", latest = "99.0.0"),
+        )
+    }
+
+    @Test
     fun `an agent that is not installed has nothing to compare`() {
         assertEquals(
             AgentUpdate.NotInstalled,

@@ -1028,6 +1028,58 @@ class WebPanelsTest {
     }
 
     @Test
+    fun `Hermes' gateway is a background session, and the link comes after it listens`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        // The gateway is what is launched, on the port the config was written
+        // with — and the launcher only mints the address out of it, so it runs
+        // after the port answers, never before.
+        assertEquals(listOf(WebPanels.HERMES_SERVER), guest.commands)
+        assertEquals(9120, guest.port)
+        val hermes = WebPanels.get(WebPanels.HERMES)!!
+        assertEquals(WebPanels.HERMES_USER, guest.env[hermes.usernameEnv!!])
+        // The launcher runs, and not as the first thing: the port has to answer
+        // before there is a gateway to mint an address out of.
+        assertTrue(guest.runs.indexOfFirst { it.startsWith(LAUNCH_ONE_USE) } > 0, guest.runs.toString())
+        assertEquals(
+            WebPanelStatus.Running("http://127.0.0.1:9120", WebPanelOpen.DASHBOARD_SIGN_IN),
+            status("hermes"),
+        )
+    }
+
+    @Test
+    fun `a Hermes whose gateway session cannot start says so and mints nothing`() = runTest {
+        val guest = FakeGuest().apply { launchFails = true }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "did not start")
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, "no link without a gateway")
+    }
+
+    @Test
+    fun `a Hermes gateway that never listens fails with the last line of its log`() = runTest {
+        val guest = FakeGuest().apply {
+            listensAfterLaunch = false
+            log = "pots: hermes gateway run\nerror: gateway exited with status 1"
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "is not listening on 9120")
+        // The log is what explains a gateway that refused to come up.
+        assertContains(failed.reason, "gateway exited with status 1")
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, "no link without a gateway")
+    }
+
+    @Test
     fun `starting Hermes reports the port its link actually carries`() = runTest {
         val guest = FakeGuest().apply {
             busy += 9120
@@ -1212,6 +1264,9 @@ class WebPanelsTest {
         var port: Int? = null
         var configuredPort: Int? = null
         var listensAfterLaunch = true
+
+        /** When true, [launch] answers false the way a proot that would not start does. */
+        var launchFails = false
         var ignoreSignals = false
         var hasWebapp = true
         var hasBundle = true
@@ -1289,6 +1344,9 @@ class WebPanelsTest {
         }
 
         override fun launch(panel: WebPanel, port: Int, command: String, env: Map<String, String>): Boolean {
+            // A sandbox that cannot start the process at all: nothing is recorded,
+            // nothing listens.
+            if (launchFails) return false
             commands += command
             this.env = env
             this.port = port
