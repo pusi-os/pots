@@ -23,6 +23,9 @@ import com.pusios.pots.build.WebPanelPreferences
 import com.pusios.pots.build.WebPanelRuntime
 import com.pusios.pots.build.WebPanelStatus
 import com.pusios.pots.build.WebPanels
+import com.pusios.pots.build.deleteGuestPath
+import com.pusios.pots.build.deleteTree
+import com.pusios.pots.build.directorySize
 import com.pusios.pots.build.terminal.DEFAULT_COLUMNS
 import com.pusios.pots.build.terminal.DEFAULT_ROWS
 import com.pusios.pots.build.terminal.MAX_COLUMNS
@@ -62,13 +65,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import java.io.File
-import java.io.IOException
-import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
-import java.nio.file.Path
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.attribute.BasicFileAttributes
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -497,7 +495,7 @@ class BuildEnvironmentManager(
                 stopPanelsFor(agentId)
                 val removed = mutableListOf<RemovedPath>()
                 for ((index, guestPath) in paths.withIndex()) {
-                    removed += RemovedPath(guestPath, deleteGuestPath(guestPath))
+                    removed += deleteGuestPath(paths.rootfsDir, guestPath)
                     log.appendText(AgentVersions.removalLine(removed.last()) + "\n")
                     publishInstallLog(log)
                     _state.update { it.copy(removalProgress = AgentRemovalProgress(index + 1, paths.size)) }
@@ -560,31 +558,6 @@ class BuildEnvironmentManager(
         }
     }
 
-    /**
-     * Deletes a guest path from the host side. The rootfs is a plain directory, so
-     * no proot round-trip is needed — and a round-trip is exactly what fails on a
-     * symlink whose target resolves only inside the guest.
-     *
-     * Returns the bytes it freed, or null when there was nothing to measure: a
-     * path that was not there, or a symlink, which costs no disk of its own. The
-     * number is what the removal log shows, so it is measured before the delete
-     * rather than guessed after it.
-     */
-    private fun deleteGuestPath(guestPath: String): Long? {
-        val target = File(paths.rootfsDir, guestPath.trimStart('/'))
-        val path = target.toPath()
-        val freed = when {
-            Files.isSymbolicLink(path) -> null
-            target.isDirectory -> directorySize(target)
-            target.exists() -> target.length()
-            else -> null
-        }
-        runCatching {
-            if (Files.isSymbolicLink(path)) target.delete() else if (target.isDirectory) deleteTree(target) else target.delete()
-        }.onFailure { Log.w(TAG, "could not remove $guestPath", it) }
-        return freed
-    }
-
     /** Local wall clock, formatted here so the UI needs no date library. */
     private fun clockNow(): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
@@ -645,33 +618,6 @@ class BuildEnvironmentManager(
     private fun projectDir(name: String): File? {
         if (name.isEmpty() || name == "." || name == ".." || name.contains('/')) return null
         return File(paths.projectsDir, name).takeIf { it.isDirectory }
-    }
-
-    /**
-     * Deletes [dir] and its contents without following symlinks. A project can hold
-     * a link into the rootfs (agents leave plenty), and a walk that followed one
-     * would delete the Debian install instead of the project.
-     */
-    private fun deleteTree(dir: File) {
-        runCatching {
-            Files.walkFileTree(
-                dir.toPath(),
-                object : SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        runCatching { Files.deleteIfExists(file) }
-                        return FileVisitResult.CONTINUE
-                    }
-
-                    override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult =
-                        FileVisitResult.CONTINUE
-
-                    override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
-                        runCatching { Files.deleteIfExists(dir) }
-                        return FileVisitResult.CONTINUE
-                    }
-                },
-            )
-        }
     }
 
     // --- sessions --------------------------------------------------------
@@ -1640,28 +1586,4 @@ private fun BuildProotExecutor.ensureAgentBinary(binary: String): String? {
     )
     if (!hasBinary(binary)) return null
     return execute("$binary --version 2>&1", timeoutSeconds = 60).takeIf { it.success }?.stdout
-}
-
-/**
- * Total size of the regular files under [dir], without following symlinks — an
- * LXC rootfs contains link loops that would trap a naive recursive walk.
- */
-private fun directorySize(dir: File): Long {
-    if (!dir.exists()) return 0L
-    var total = 0L
-    runCatching {
-        Files.walkFileTree(
-            dir.toPath(),
-            object : SimpleFileVisitor<Path>() {
-                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                    if (attrs.isRegularFile) total += attrs.size()
-                    return FileVisitResult.CONTINUE
-                }
-
-                override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult =
-                    FileVisitResult.CONTINUE
-            },
-        )
-    }
-    return total
 }

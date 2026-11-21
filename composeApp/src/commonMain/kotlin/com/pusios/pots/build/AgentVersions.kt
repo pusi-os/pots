@@ -118,8 +118,33 @@ data class AgentRemovalProgress(val done: Int, val total: Int) {
     fun fraction(): Float? = if (total <= 0) null else (done.toFloat() / total).coerceIn(0f, 1f)
 }
 
-/** One path a removal took off the device, with the bytes it freed when they could be measured. */
-data class RemovedPath(val path: String, val bytes: Long?)
+/**
+ * What became of one path a removal was pointed at. Three outcomes, because the
+ * log has to be able to say "there was nothing there" and "this did not go" as
+ * well as "gone": a delete that failed and still prints `удалено: … (5.2 GB)` is
+ * worse than no log at all.
+ */
+sealed interface RemovedOutcome {
+
+    /**
+     * The path is gone. [bytes] is what taking it freed, or null where there is
+     * nothing to measure — a symlink costs no disk of its own.
+     */
+    data class Deleted(val bytes: Long?) : RemovedOutcome
+
+    /** There was nothing at the path; the log says so instead of claiming a delete. */
+    data object Absent : RemovedOutcome
+
+    /**
+     * The delete did not finish and the path may still be there. [freed] is the
+     * bytes that did go — a tree removal that stopped halfway still freed some of
+     * them — and the summary counts only what this reports.
+     */
+    data class Failed(val reason: String, val freed: Long = 0L) : RemovedOutcome
+}
+
+/** One path a removal was pointed at, and what happened to it. */
+data class RemovedPath(val path: String, val outcome: RemovedOutcome)
 
 /**
  * One row of the agents card: what the device has, and what the last check said.
@@ -316,19 +341,45 @@ object AgentVersions {
         spec.installPaths + listOfNotNull(spec.bulkPath?.takeIf { includeBulk })
 
     /**
-     * One line of the removal log: the path, and what taking it freed when the
-     * size could be measured. A removal is the one agent action that runs with no
-     * installer output of its own, so without these lines the log would be empty
-     * while Hermes' 5 GiB checkout is being deleted.
+     * One line of the removal log: the path and its outcome. A removal is the one
+     * agent action that runs with no installer output of its own, so without these
+     * lines the log would be empty while Hermes' 5 GiB checkout is being deleted —
+     * and a line has to say "not there" or "did not go" as plainly as "gone", or
+     * the log claims work that did not happen.
      */
-    fun removalLine(removed: RemovedPath): String =
-        removed.bytes?.let { "удалено: ${removed.path} (${formatFileSize(it)})" }
+    fun removalLine(removed: RemovedPath): String = when (val outcome = removed.outcome) {
+        is RemovedOutcome.Deleted -> outcome.bytes
+            ?.let { "удалено: ${removed.path} (${formatFileSize(it)})" }
             ?: "удалено: ${removed.path}"
+        RemovedOutcome.Absent -> "не было: ${removed.path}"
+        is RemovedOutcome.Failed -> buildString {
+            append("не удалось: ${removed.path} — ${outcome.reason}")
+            if (outcome.freed > 0) append(" (частично освобождено ${formatFileSize(outcome.freed)})")
+        }
+    }
 
-    /** What a finished removal adds up to: how many paths went, and what that freed. */
-    fun removalSummary(removed: List<RemovedPath>): String =
-        "итог: удалено путей ${removed.size}, освобождено " +
-            formatFileSize(removed.sumOf { it.bytes ?: 0L })
+    /**
+     * What a finished removal adds up to. Only paths that actually went count as
+     * deleted, and only bytes that actually went count as freed — a failed tree
+     * removal reports the files it did take and nothing more.
+     */
+    fun removalSummary(removed: List<RemovedPath>): String {
+        val deleted = removed.count { it.outcome is RemovedOutcome.Deleted }
+        val freed = removed.sumOf { path ->
+            when (val outcome = path.outcome) {
+                is RemovedOutcome.Deleted -> outcome.bytes ?: 0L
+                is RemovedOutcome.Failed -> outcome.freed
+                RemovedOutcome.Absent -> 0L
+            }
+        }
+        val absent = removed.count { it.outcome is RemovedOutcome.Absent }
+        val failed = removed.count { it.outcome is RemovedOutcome.Failed }
+        return buildString {
+            append("итог: удалено путей $deleted, освобождено ${formatFileSize(freed)}")
+            if (absent > 0) append(", не было: $absent")
+            if (failed > 0) append(", не удалось: $failed")
+        }
+    }
 
     /** The command that asks the registry, with the same bounded wait for every source. */
     fun latestCommand(spec: AgentVersionSpec): String = "$CURL '${spec.latestUrl}'"
