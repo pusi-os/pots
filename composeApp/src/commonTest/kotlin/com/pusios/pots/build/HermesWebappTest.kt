@@ -3,6 +3,7 @@ package com.pusios.pots.build
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -49,7 +50,7 @@ class HermesWebappTest {
     fun `every renderer path writes its own line to the install log`() {
         val lines = HermesWebapp.buildAttempts.map { HermesWebapp.builtOnDevice(it) } +
             HermesWebapp.buildAttempts.map { HermesWebapp.builtNothing(it) } +
-            HermesWebapp.SHIPPED + HermesWebapp.NOT_BUILT
+            HermesWebapp.SHIPPED + HermesWebapp.NOT_BUILT + HermesWebapp.BUDGET_SPENT
 
         assertEquals(lines.size, lines.toSet().size, "the owner must be able to tell the paths apart: $lines")
         assertEquals("renderer: built on device (attempt 1, no link2symlink)", lines.first())
@@ -60,6 +61,10 @@ class HermesWebappTest {
         )
         assertTrue(lines.contains("renderer: shipped bundle"))
         assertTrue(lines.contains("renderer: not built and this app ships no bundle"))
+        assertTrue(
+            lines.contains("renderer: device build budget spent, serving the shipped bundle"),
+            "a chain that ran out of time is its own path, not a failed attempt: $lines",
+        )
     }
 
     @Test
@@ -121,5 +126,112 @@ class HermesWebappTest {
         // symlinks and the next build dies in rolldown against them.
         assertTrue(HermesWebapp.CLEAN_COMMAND.contains("/root/.hermes/cache/pnpm/store"))
         assertTrue(HermesWebapp.CLEAN_COMMAND.contains("/root/.hermes/hermes-agent/.build/webapp-workspace/node_modules"))
+    }
+
+    @Test
+    fun `one budget pays for three measured builds, not three attempt deadlines`() {
+        // Three attempts of up to 25 minutes were 75 minutes of a phone with no
+        // panel on it, so the chain gets a deadline of its own.
+        assertTrue(
+            HermesWebapp.BUILD_BUDGET_SECONDS <
+                HermesWebapp.buildAttempts.size * HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS,
+            "the chain may not spend three full attempt timeouts",
+        )
+
+        // Walked the way the device walks it: an attempt starts only if the budget
+        // can pay the start cost, and a measured build costs about seven minutes.
+        var now = 0L
+        val budget = HermesWebapp.BuildBudget(nowMillis = { now })
+        val started = mutableListOf<Int>()
+        val leftBeforeStart = mutableListOf<Long>()
+        for (attempt in HermesWebapp.buildAttempts) {
+            if (!budget.attemptFits()) break
+            started += attempt.number
+            leftBeforeStart += budget.leftSeconds()
+            now += 7 * 60L * 1000
+        }
+        assertEquals(
+            HermesWebapp.buildAttempts.map { it.number },
+            started,
+            "three measured builds have to fit, or a slow network throws away a build that was going to work",
+        )
+
+        // And the third starts with less than its own deadline left: that deadline
+        // is a hang detector, not the price of a build — see ATTEMPT_START_SECONDS.
+        assertTrue(
+            leftBeforeStart.last() < HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS,
+            "${leftBeforeStart.last()}s left before the third build, one attempt's deadline is " +
+                "${HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS}s",
+        )
+    }
+
+    @Test
+    fun `a spent budget serves the shipped bundle instead of throwing`() {
+        // A chain that ran out of time is not an exception and not a hung status:
+        // the install unpacks the bundle CI built, so the panel comes up anyway.
+        val spent = HermesWebapp.afterBuild(HermesWebapp.RendererBuild.OUT_OF_BUDGET)
+        assertTrue(spent.serveShippedBundle, "the panel must still come up")
+        assertEquals(HermesWebapp.BUDGET_SPENT, spent.line)
+        assertTrue(
+            spent.line!!.contains("serving the shipped bundle"),
+            "the owner has to read that the panel still comes up: ${spent.line}",
+        )
+
+        // A build that won serves nothing: naming the shipped bundle after a device
+        // build would tell Hermes the renderer is ready and stop it rebuilding.
+        val built = HermesWebapp.afterBuild(HermesWebapp.RendererBuild.BUILT)
+        assertFalse(built.serveShippedBundle, "a device build is not a fallback")
+        assertNull(built.line, "nothing to say beyond the line the winning attempt wrote")
+
+        // Every attempt failed with budget to spare: the same fallback, but each
+        // attempt already wrote why, so there is no budget sentence to add.
+        val failed = HermesWebapp.afterBuild(HermesWebapp.RendererBuild.FAILED)
+        assertTrue(failed.serveShippedBundle)
+        assertNull(failed.line)
+    }
+
+    @Test
+    fun `an attempt the budget cannot pay for is not started`() {
+        var now = 0L
+        val budget = HermesWebapp.BuildBudget(nowMillis = { now })
+        assertTrue(budget.attemptFits(), "a fresh budget pays for the first attempt")
+
+        // The start cost is the measured build plus a margin, not the attempt's own
+        // hang deadline: on ten minutes left the third attempt still has a build in
+        // it, and refusing it there is what ended the chain after two attempts.
+        now = (HermesWebapp.BUILD_BUDGET_SECONDS - HermesWebapp.ATTEMPT_START_SECONDS) * 1000
+        assertEquals(HermesWebapp.ATTEMPT_START_SECONDS, budget.leftSeconds())
+        assertTrue(budget.attemptFits(), "ten minutes left is one measured build and a margin")
+
+        now += 2 * 1000
+        assertFalse(budget.attemptFits(), "a second less is not enough")
+
+        // An empty budget reads zero, not a negative number, and starts nothing.
+        now = (HermesWebapp.BUILD_BUDGET_SECONDS + 5 * 60L) * 1000
+        assertEquals(0L, budget.leftSeconds())
+        assertEquals(0L, budget.leftMinutes())
+        assertFalse(budget.attemptFits())
+    }
+
+    @Test
+    fun `every attempt starts with a line that counts the budget down`() {
+        val second = HermesWebapp.buildAttempts[1]
+        val line = HermesWebapp.buildingOnDevice(second, minutesLeft = 24)
+
+        // The owner sees the count, not just "building": which attempt of how
+        // many, and how much of the wait is still paid for.
+        assertTrue(line.contains("attempt 2 of 3"), line)
+        assertTrue(line.contains("~24 min left of the build budget"), line)
+        // The attempt's own name stays, because the line that follows it —
+        // "built on device (attempt 2, …)" — is read against it.
+        assertTrue(line.contains(second.why), line)
+        // And the estimate to compare the countdown with.
+        assertTrue(line.contains("about seven minutes"), line)
+
+        // Rounded up: a budget with a second left must not read "0 min left".
+        var now = 0L
+        val budget = HermesWebapp.BuildBudget(nowMillis = { now })
+        now = HermesWebapp.BUILD_BUDGET_SECONDS * 1000 - 1000
+        assertEquals(1L, budget.leftMinutes())
     }
 }

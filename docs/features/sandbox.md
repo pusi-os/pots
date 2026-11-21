@@ -196,8 +196,16 @@ right after the agent installs — no emulation with
 `--link2symlink` and the same setting (the tree the installer itself left, which
 is the only way the device answers whether its `.l2s.` artifacts break the
 build), then without the emulation and without that setting — each from a wiped
-pnpm store, and the install log names the path that won. A build that still
-fails does not leave a dead panel: the app ships the
+pnpm store, and the install log names the path that won. The chain as a whole
+has a thirty-five-minute budget: an attempt is started only while at least ten
+minutes of it remain — the measured seven-minute build plus a margin, not the
+attempt's own twenty-five-minute hang deadline, which would end the chain after
+two attempts — a running attempt is cancelled when the budget ends (the wait
+loop of the build's proot call checks for the cancellation and kills the
+process before the fallback starts), and a chain that runs out serves the
+shipped bundle and says so
+(`renderer: device build budget spent, serving the shipped bundle`). A build
+that still fails does not leave a dead panel: the app ships the
 bundle CI built from the hermes-agent commit `hermes-webapp.pin` names, packed
 into the APK as one `tar.xz` (14 MB; the raw files are 55 MB and do not fit an
 APK sensibly), copies it into the guest and unpacks it to

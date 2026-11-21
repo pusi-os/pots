@@ -15,6 +15,13 @@ package com.pusios.pots.build
  * it the same tree builds a complete 45 MB bundle — 1058 files under `assets/` —
  * in about seven minutes, of which the pnpm install is 1m 56s and vite 4m 3s).
  *
+ * **The chain has one budget.** Three attempts of up to 25 minutes each were 75
+ * minutes of a phone with no panel on it, so [BUILD_BUDGET_SECONDS] bounds the
+ * whole chain, cleans included: an attempt that cannot be given
+ * [ATTEMPT_START_SECONDS] is not started, a running attempt is cancelled when the
+ * budget ends, and a chain that runs out serves the shipped bundle instead of
+ * waiting longer. Every attempt starts with a line carrying what is left.
+ *
  * **The bundle this app ships is the fallback, not the first choice.** CI builds
  * `apps/desktop/dist-webapp` from the commit `hermes-webapp.pin` names, packs it
  * into one `tar.xz`, and the APK carries it as an asset; it is unpacked only when
@@ -154,6 +161,71 @@ object HermesWebapp {
     const val BUILD_COMMAND = "/root/.local/bin/hermes webapp --build-only --force-build"
 
     /**
+     * How long one on-device build may run. The measured build is about seven
+     * minutes (pnpm 1m 56s, vite 4m 3s); a phone with a slow flash and a cold
+     * store is several times that, and a timeout here costs the whole attempt.
+     *
+     * Twenty-five minutes is a hard deadline for the command, but it is not the
+     * bound a hung build hits first: the installer's silence detector (20 min of
+     * no output) fires earlier and the log then reads "no output for 20 min",
+     * not "timed out".
+     */
+    const val BUILD_ATTEMPT_TIMEOUT_SECONDS = 1500L
+
+    /**
+     * What the budget must still hold to start an attempt: the measured build
+     * (about seven minutes) with room for a phone slower than the measurement.
+     *
+     * Deliberately not [BUILD_ATTEMPT_TIMEOUT_SECONDS]. That number is a hang
+     * detector for one attempt, not what a build costs, and demanding it up front
+     * ends the chain after two attempts — 35 minutes minus two measured builds
+     * leaves 21, less than 25 — while the third, the one that answers whether
+     * `copy` was needed at all, still had twenty minutes to run in. An attempt
+     * started on ten minutes and cut by the hard deadline costs time only: the
+     * next attempt wipes the store first, and the fallback is the same either way.
+     */
+    const val ATTEMPT_START_SECONDS = 10 * 60L
+
+    /**
+     * What the whole chain may spend — every attempt and its clean, not one of
+     * them. Three attempts of seven to ten minutes fit in 35 minutes with room
+     * for a slow network; without this bound the worst case was three attempts
+     * of 25 minutes, 75 minutes of a phone screen with no end in sight.
+     *
+     * A chain that outlives it stops and the panel serves the shipped bundle: a
+     * panel that is slower to build beats a panel that never appears.
+     */
+    const val BUILD_BUDGET_SECONDS = 35 * 60L
+
+    /**
+     * What the chain of attempts may still spend, counted from the first attempt.
+     *
+     * The clock is a parameter because this file is common and only the platform
+     * knows one: the device passes `System::currentTimeMillis`, tests pass a
+     * counter they can move.
+     */
+    class BuildBudget(
+        private val nowMillis: () -> Long,
+        val totalSeconds: Long = BUILD_BUDGET_SECONDS,
+    ) {
+        private val startedAt = nowMillis()
+
+        /** Seconds still available — never negative, so a log line cannot read "-3 min". */
+        fun leftSeconds(): Long = (totalSeconds - (nowMillis() - startedAt) / 1000).coerceAtLeast(0)
+
+        /** Whole minutes, rounded up: "~0 min left" must not appear while time remains. */
+        fun leftMinutes(): Long = (leftSeconds() + 59) / 60
+
+        /**
+         * Whether one more attempt fits. An attempt the budget cannot pay for is
+         * not started: the chain would spend its last minutes on a build that has
+         * to be cut off, and the panel gains nothing from it.
+         */
+        fun attemptFits(attemptSeconds: Long = ATTEMPT_START_SECONDS): Boolean =
+            leftSeconds() >= attemptSeconds
+    }
+
+    /**
      * Wipes what a failed attempt leaves behind, before the next one starts.
      *
      * The pnpm store of this build is forced to `$HERMES_ROOT/cache/pnpm` by Hermes
@@ -173,6 +245,17 @@ object HermesWebapp {
     fun builtOnDevice(attempt: BuildAttempt): String =
         "renderer: built on device (attempt ${attempt.number}, ${attempt.why})"
 
+    /**
+     * The line an attempt starts with, carrying what the budget has left.
+     *
+     * The count is the point: a build that runs for half an hour in silence is
+     * what makes an owner think nothing is happening, so every attempt says how
+     * much of the wait is still paid for before it begins.
+     */
+    fun buildingOnDevice(attempt: BuildAttempt, minutesLeft: Long): String =
+        "renderer: building on device (attempt ${attempt.number} of ${buildAttempts.size}, " +
+            "${attempt.why}), ~$minutesLeft min left of the build budget — about seven minutes"
+
     /** The line that says an attempt was answered "up to date": the flag never arrived. */
     fun builtNothing(attempt: BuildAttempt): String =
         "renderer: attempt ${attempt.number} built nothing — Hermes answered 'up to date', " +
@@ -181,8 +264,41 @@ object HermesWebapp {
     /** The line that says the panel is serving the bundle CI built. */
     const val SHIPPED = "renderer: shipped bundle"
 
+    /**
+     * The line that says the chain ran out of time rather than failing — and that
+     * the panel comes up anyway on the bundle CI built. Both halves matter: the
+     * owner is waiting on a screen, and "budget spent" alone reads as a failure.
+     */
+    const val BUDGET_SPENT = "renderer: device build budget spent, serving the shipped bundle"
+
     /** The line that says there is no renderer at all — a developer build, every attempt failed. */
     const val NOT_BUILT = "renderer: not built and this app ships no bundle"
+
+    /** How the chain of device builds ended. */
+    enum class RendererBuild { BUILT, FAILED, OUT_OF_BUDGET }
+
+    /**
+     * What the install does once the chain is over, decided here rather than in
+     * the proot code so the rule is testable: [serveShippedBundle] is what keeps
+     * the panel alive, and [line] is the sentence the owner reads when the chain
+     * stopped for time instead of failing.
+     */
+    data class RendererFallback(
+        val serveShippedBundle: Boolean,
+        val line: String?,
+    )
+
+    /**
+     * The rule: a build that won ends the chain; anything else serves the bundle
+     * CI built, and a chain that ran out of time says so — "budget spent" alone
+     * reads as a failure, and the owner is waiting on a screen that will appear.
+     */
+    fun afterBuild(outcome: RendererBuild): RendererFallback =
+        when (outcome) {
+            RendererBuild.BUILT -> RendererFallback(serveShippedBundle = false, line = null)
+            RendererBuild.FAILED -> RendererFallback(serveShippedBundle = true, line = null)
+            RendererBuild.OUT_OF_BUDGET -> RendererFallback(serveShippedBundle = true, line = BUDGET_SPENT)
+        }
 
     /**
      * What the row says when the sandbox and the bundle are not the same Hermes.
