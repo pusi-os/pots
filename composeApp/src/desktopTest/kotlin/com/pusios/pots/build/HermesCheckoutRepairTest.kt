@@ -81,10 +81,6 @@ class HermesCheckoutRepairTest {
         assertContains(output, "pots: hermes checkout: re-cloned")
         assertContains(output, "call1=ok")
         assertTrue(File(checkout, "scripts/install.sh").isFile, "the re-clone did not land")
-        // The two files Pots Build itself writes into the checkout go with the old
-        // tree when it is deleted, so the ladder has to put them back.
-        assertContains(File(checkout, "uv.toml").readText(), "link-mode = \"copy\"")
-        assertContains(File(checkout, ".git/info/exclude").readText(), "uv.toml")
     }
 
     @Test
@@ -118,8 +114,8 @@ class HermesCheckoutRepairTest {
             output.contains("not enough free space on /root")
         assertTrue(named, output)
         assertContains(output, "call1=failed")
-        // The retry inside the install command must not download the 5 GiB checkout a
-        // second time to fail the same way.
+        // A second call must not download the 5 GiB checkout again to fail the same
+        // way: the ladder records that it gave up.
         assertContains(output, "call2=failed")
         assertContains(output, "pots: hermes checkout: broken (the repair failed)")
     }
@@ -240,7 +236,6 @@ class HermesCheckoutRepairTest {
     private val ladderFunctions = listOf(
         "pots_clone_hermes",
         "pots_checkout_usable",
-        "pots_write_hermes_config",
         "pots_ensure_hermes_checkout",
     )
 }

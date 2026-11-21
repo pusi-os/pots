@@ -103,6 +103,36 @@ class AgentRemovalTest {
     }
 
     @Test
+    fun `the debris a reinstall clears never includes the owner's data`() {
+        val hermes = AgentVersions.get(BuildAgents.HERMES)!!
+        val agent = BuildAgents.get(BuildAgents.HERMES)!!
+
+        val plan = AgentVersions.debrisPlan(hermes, agent.debrisPaths)
+
+        // Everything an earlier install built, so the next one starts without a
+        // single `.l2s.` artifact to hardlink.
+        assertEquals(
+            listOf(
+                "/root/.hermes/hermes-agent",
+                "/root/.hermes/installs",
+                "/root/.hermes/cache/uv",
+                "/root/.hermes/tools",
+                "/root/.hermes/.pots-uv-copy-mode",
+            ),
+            plan.remove,
+        )
+        assertTrue(plan.refused.isEmpty(), "nothing in that list is the owner's: ${plan.refused}")
+        // The guard is the point: a path that holds or sits in a kept path is
+        // refused here rather than deleted on a device.
+        val guarded = AgentVersions.debrisPlan(
+            hermes,
+            listOf("/root/.hermes", "/root/.hermes/auth.json", "/root/.hermes/profiles/x"),
+        )
+        assertTrue(guarded.remove.isEmpty(), "the owner's data was offered for deletion: ${guarded.remove}")
+        assertEquals(3, guarded.refused.size)
+    }
+
+    @Test
     fun `a cleanup says what it found, what it took, and when there was nothing`() {
         val pi = AgentVersions.get(BuildAgents.PI)!!
         val leftovers = AgentVersions.cleanupPlan(pi, setOf("/root/.local/bin/pi"), binaryAnswers = false)

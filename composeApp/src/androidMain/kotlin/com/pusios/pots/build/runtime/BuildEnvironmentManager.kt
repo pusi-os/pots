@@ -907,7 +907,10 @@ class BuildEnvironmentManager(
         publishInstallLog(log)
         // Before `mkdir -p` below, which would make every path of a previous run
         // look like one: find what is there, say so, take it, then install.
-        AgentVersions.get(agent.id)?.let { spec -> cleanBeforeInstall(spec, executor, log) }
+        AgentVersions.get(agent.id)?.let { spec ->
+            cleanBeforeInstall(spec, executor, log)
+            clearDebris(agent, spec, executor, log)
+        }
         executor.execute(
             "mkdir -p /root/.local/bin /root/.local/share/pi-node /root/.hermes " +
                 "/root/.pi/agent /root/.opencode/bin /usr/local/bin",
@@ -917,7 +920,13 @@ class BuildEnvironmentManager(
         // The install no longer pins the checkout to it — it follows `main` and the
         // renderer is built from whatever that checkout is; the commit this app
         // ships becomes the fallback's address when the device cannot build one.
-        val outcome = streamInstall(agent.installCommand, agent.installTimeoutSeconds, executor, log)
+        // One proot call per step, each with the hardlink emulation it needs: the
+        // package manager's prerequisite with it, everything else without.
+        val outcome = BuildAgents.installCalls(agent).map { call ->
+            // `this.` because the local `executor` above shadows the builder.
+            val stepExecutor = if (call.hardlinkEmulation) executor else this.executor(hardlinkEmulation = false)
+            streamInstall(call.command, call.timeoutSeconds, stepExecutor, log)
+        }.last()
         // Vendor scripts may leave the binary only in their private dir and only
         // update shell rc files — which Pots Build never sources. Link into PATH
         // and re-probe so a successful download still counts as installed. The
@@ -955,6 +964,42 @@ class BuildEnvironmentManager(
             webPanels.onAgentInstalled(agent.id)
         }
         installed
+    }
+
+    /**
+     * Removes what an earlier install left and this one must not inherit.
+     *
+     * proot's `--link2symlink` emulation — which the install's prerequisite needs
+     * for dpkg — leaves `.l2s.` artifacts behind, and hardlinking one of those is
+     * what answers EPERM to uv. Nothing in the current call emulates any more, but
+     * the artifacts on disk survive it, so the tree starts clean instead.
+     *
+     * [AgentVersions.debrisPlan] is the guard: `keepPaths` covers the credentials,
+     * the state and the board, and a path the guard refuses is reported in the log
+     * rather than taken. An agent with no debris keeps whatever it had.
+     */
+    private fun clearDebris(
+        agent: BuildAgent,
+        spec: AgentVersionSpec,
+        executor: BuildProotExecutor,
+        log: InstallLog,
+    ) {
+        if (agent.debrisPaths.isEmpty()) return
+        val plan = AgentVersions.debrisPlan(spec, agent.debrisPaths)
+        for (path in plan.refused) {
+            log.appendText("pots: ${agent.id}: kept $path — it holds the owner's data\n")
+        }
+        if (plan.remove.isEmpty()) return
+        val removed = executor.execute("rm -rf " + plan.remove.joinToString(" "), timeoutSeconds = 300)
+        log.appendText(
+            if (removed.success) {
+                "pots: ${agent.id}: cleared ${plan.remove.joinToString(", ")} of .l2s. artifacts before a clean install\n"
+            } else {
+                "pots: ${agent.id}: could not clear ${plan.remove.joinToString(", ")} " +
+                    "(${removed.failureDetail()})\n"
+            },
+        )
+        publishInstallLog(log)
     }
 
     /**

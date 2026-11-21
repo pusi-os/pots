@@ -2,7 +2,9 @@ package com.pusios.pots.build
 
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -27,66 +29,52 @@ class BuildAgentsTest {
     }
 
     @Test
-    fun `the link probe links between the two directories uv links between`() {
-        // The probe that shipped before linked two names inside /root. That works
-        // even where the real link (installs/… → cache/uv) is refused, so it
-        // reported ok while the install kept dying.
-        assertFalse(hermes.contains("pots-link-probe"), "single-directory probe is back")
-        assertTrue(hermes.contains("cross-dir ln:"), hermes)
-        assertTrue(hermes.contains("stat -c '%d %n'"), "the device ids are what settles it")
+    fun `Hermes installs in two proot calls, and only the prerequisite has the emulation`() {
+        // One proot call cannot be both: dpkg needs `--link2symlink`, and uv answers
+        // EPERM on the `.l2s.` artifacts that emulation leaves behind. So the single
+        // package-manager step goes in a call of its own, with the emulation, and
+        // everything else — clone, install.sh, the tags — runs without it.
+        val calls = BuildAgents.installCalls(BuildAgents.get(BuildAgents.HERMES)!!)
+
+        assertEquals(2, calls.size, "the prerequisite and the install: $calls")
+        val (prereq, install) = calls
+        assertTrue(prereq.hardlinkEmulation, "apt/dpkg needs the emulation")
+        assertContains(prereq.command, "apt-get install -y --no-install-recommends xz-utils")
+        assertFalse(prereq.command.contains("install.sh"), "the prerequisite is dpkg and nothing else")
+        assertFalse(install.hardlinkEmulation, "uv must run without it")
+        assertContains(install.command, "scripts/install.sh --non-interactive")
+        assertFalse(install.command.contains("apt-get"), "dpkg belongs to the prerequisite")
     }
 
     @Test
-    fun `the uv wrapper replaces the store binary pm actually executes`() {
-        assertTrue(hermes.contains("/uv-*/uv"), "pm runs the store entry, never `uv` from PATH")
-        assertTrue(hermes.contains("uv.real"), "the real binary has to survive")
-        assertTrue(hermes.contains("pots-uv-wrapper"), "a second run must recognise its own wrapper")
+    fun `an agent that needs no package manager stays one proot call`() {
+        for (id in listOf(BuildAgents.OPENCODE, BuildAgents.PI)) {
+            val agent = BuildAgents.get(id)!!
+            assertNull(agent.prereqCommand, "$id declares a prerequisite it does not have")
+            val calls = BuildAgents.installCalls(agent)
+            assertEquals(1, calls.size, "$id must install in one call, as it always has")
+            assertTrue(calls.single().hardlinkEmulation, "$id keeps the emulation it has always had")
+            assertTrue(agent.debrisPaths.isEmpty(), "$id clears nothing: it never ran dpkg")
+        }
     }
 
     @Test
-    fun `copy mode is injected after the subcommand, never prepended`() {
-        // `uv --link-mode=copy cache prune` answers "unexpected argument", and pm
-        // makes that call — plus `cache clean`, `python find` and `pip check`.
-        assertTrue(hermes.contains("\"\$sub\" --link-mode=copy"), hermes)
-        assertTrue(hermes.contains("--link-mode=copy --no-cache"))
-        assertFalse(hermes.contains("uv.real\" --link-mode"), "flags cannot be prepended")
-    }
-
-    @Test
-    fun `the wrapped entry keeps verifying, so pm cannot publish a pristine uv over it`() {
-        // pm re-hashes its tool closure on every explicit install and replaces an
-        // entry whose digest moved — which would undo the wrapper just before the
-        // stage it exists for.
-        assertTrue(hermes.contains("tree_digest"), "the digest is pm's own, not a copy of it")
-        assertTrue(hermes.contains("uv digest refreshed"))
-    }
-
-    @Test
-    fun `the l2s cleanup needs evidence, not the calendar`() {
-        // Deleting a healthy runtime only makes the installer rebuild it for
-        // nothing, and a scan that cannot run must never be read as "clean".
-        assertTrue(hermes.contains("-name '.l2s.*'"), "the cleanup is gated on the artifact itself")
-        assertTrue(hermes.contains("POTS_L2S=unknown"), "a failed scan counts as evidence")
-        assertTrue(hermes.contains("leaving the existing runtime alone"), hermes)
-    }
-
-    @Test
-    fun `facts json is rewritten the way pm rewrites it`() {
-        // pm reads this file as utf-8-sig and only ever writes it atomically; a
-        // plain write_text truncates first, so a killed install would leave pm a
-        // half file it cannot read — the exact class of breakage this path fixes.
-        assertTrue(hermes.contains("from pm.filesystem import durable_write_bytes"), hermes)
-        assertTrue(hermes.contains("encoding=\"utf-8-sig\""), hermes)
-        assertFalse(hermes.contains("facts.write_text"), "the non-atomic write is back")
-    }
-
-    @Test
-    fun `the l2s cleanup runs once, behind a marker`() {
-        assertTrue(hermes.contains(".pots-uv-copy-mode"))
-        assertTrue(
-            hermes.contains("rm -rf /root/.hermes/installs/*/pm-runtime /root/.hermes/cache/uv"),
-            "the poisoned runtime and cache are what the retry would trip over",
-        )
+    fun `the install script carries no uv workaround`() {
+        // Every one of these was a lever pulled at the wrong stage: pm strips every
+        // UV_* variable, builds its runtime with --no-config, and fills its cache
+        // with a hardlink `--link-mode` does not reach. The fix is the proot call,
+        // so the levers are gone rather than disabled.
+        assertFalse(hermes.contains("UV_LINK_MODE"), "the environment lever is back")
+        assertFalse(hermes.contains("UV_NO_CACHE"), hermes)
+        assertFalse(hermes.contains("uv.toml"), "the config-file lever is back")
+        assertFalse(hermes.contains("pots_wrap_uv"), "the wrapper is back")
+        assertFalse(hermes.contains("uv.real"), hermes)
+        assertFalse(hermes.contains("POTS_UV_MARK"), "the one-time marker is back")
+        assertFalse(hermes.contains(".pots-uv-copy-mode"), hermes)
+        assertFalse(hermes.contains("tree_digest"), "pm's digest is rewritten again")
+        assertFalse(hermes.contains("link probe"), "the diagnosis of a failure that is gone is back")
+        assertFalse(hermes.contains("cross-dir ln"), hermes)
+        assertFalse(hermes.contains("-name '.l2s.*'"), "the scan is back: the tree is cleared instead")
     }
 
     @Test
@@ -134,30 +122,25 @@ class BuildAgentsTest {
         // judged by HEAD and by install.sh itself, never by an exit code: `git reset
         // --hard` answers 0 on a HEAD that does not resolve.
         val definition = hermes.indexOf("pots_ensure_hermes_checkout() {")
-        val firstCall = hermes.indexOf("pots_ensure_hermes_checkout /root/.hermes/hermes-agent")
-        val wrapper = hermes.indexOf("\npots_wrap_uv\n")
+        val call = hermes.indexOf("pots_ensure_hermes_checkout /root/.hermes/hermes-agent")
+        val install = hermes.indexOf("scripts/install.sh --non-interactive")
         assertTrue(definition >= 0, "the install script validates no checkout")
-        assertTrue(
-            firstCall > definition && firstCall < wrapper,
-            "the checkout is validated after the uv wrapper, which imports pm from it",
-        )
-        // The retry reaches pots_install_hermes again, and must not repeat a failure it
-        // cannot fix — the same validation runs at its top.
-        val install = hermes.indexOf("pots_install_hermes() {")
-        val retried = hermes.indexOf("pots_ensure_hermes_checkout /root/.hermes/hermes-agent", install)
-        assertTrue(
-            retried > install && retried < hermes.indexOf("scripts/install.sh --non-interactive"),
-            "the retry does not re-validate the checkout",
+        assertTrue(call > definition, "the ladder is defined before it is called")
+        assertTrue(call < install, "the checkout is validated before the installer reads it")
+        // One call: the second one existed for the uv wrapper's retry, and both are gone.
+        assertEquals(
+            1,
+            hermes.split("pots_ensure_hermes_checkout /root/.hermes/hermes-agent").size - 1,
+            "the install validates the checkout more than once",
         )
     }
 
     @Test
     fun `the install never builds the renderer, which needs a proot call of its own`() {
         // `hermes webapp --build-only` is a pnpm install of apps/desktop, and pnpm
-        // 12's staged renames answer ENOENT under the --link2symlink this proot call
-        // carries for dpkg. Pots Build builds the renderer afterwards, in a proot
-        // call without the emulation — the install script must not try, and must not
-        // claim the bundle ships prebuilt either.
+        // 12's staged renames answer ENOENT under proot's hardlink emulation. Pots
+        // Build builds the renderer afterwards, in a proot call without it — the
+        // install script must not try, and must not claim the bundle ships prebuilt.
         assertFalse(hermes.contains("webapp --build-only"), hermes)
         assertFalse(hermes.contains("renderer ships with the app"), hermes)
         assertTrue(hermes.contains("refs/tags/*:refs/tags/*"), "the version still comes from the tags")

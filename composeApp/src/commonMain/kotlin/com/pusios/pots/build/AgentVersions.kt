@@ -381,6 +381,20 @@ object AgentVersions {
         spec.keepPaths.none { keep -> path == keep || path.startsWith("$keep/") || keep.startsWith("$path/") }
 
     /**
+     * What of [paths] a reinstall may take.
+     *
+     * [paths] is the debris an earlier install leaves — a checkout, a package
+     * runtime, a cache — and none of it is judged safe as it stands: every entry
+     * goes through [mayDelete], so a path that is, contains or sits inside a
+     * [AgentVersionSpec.keepPaths] entry is refused and reported instead of
+     * deleted. That is the one mistake a device cannot undo.
+     */
+    fun debrisPlan(spec: AgentVersionSpec, paths: List<String>): AgentCleanup {
+        val removable = paths.filter { mayDelete(it, spec) }
+        return AgentCleanup(remove = removable, refused = paths - removable.toSet())
+    }
+
+    /**
      * What to take off before installing [spec] again.
      *
      * [existing] is what the rootfs actually has, [binaryAnswers] is the spec's own

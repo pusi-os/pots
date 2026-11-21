@@ -928,7 +928,10 @@ class WebPanelsTest {
     fun `a Hermes whose webapp was never built says so instead of opening a blank page`() = runTest {
         // A developer build: this app ships no bundle, and the checkout — which is
         // there — built none.
-        val guest = FakeGuest().apply { hermesHead = OTHER_HERMES }
+        val guest = FakeGuest().apply {
+            hermesPin = null
+            hermesHead = OTHER_HERMES
+        }
         val runtime = runtime(this, guest)
         runtime.startPanel("hermes")
 
@@ -1097,7 +1100,10 @@ class WebPanelsTest {
 
     @Test
     fun `a checkout that cannot be read says so instead of serving the bundle`() = runTest {
-        val guest = FakeGuest().apply { hermesPin = BUNDLE_PIN }
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = null
+        }
         val runtime = runtime(this, guest)
 
         runtime.startPanel("hermes")
@@ -1367,11 +1373,18 @@ class WebPanelsTest {
         var ignoreSignals = false
         var hasWebapp = true
 
-        /** The pin this build ships, or null for a build with no bundle (a developer build). */
-        var hermesPin: String? = null
+        /**
+         * The pin this build ships. A release APK carries one — the ordinary case
+         * — and a developer build, which ships none, says so with `null`.
+         */
+        var hermesPin: String? = BUNDLE_PIN
 
-        /** The commit the sandbox's Hermes checkout is on; null for one that cannot be read. */
-        var hermesHead: String? = null
+        /**
+         * The commit the sandbox's Hermes checkout is on. Defaults to the pin, so
+         * a fake that says nothing about the renderer is a sandbox the shipped
+         * bundle can serve; `null` is a checkout that cannot be read.
+         */
+        var hermesHead: String? = BUNDLE_PIN
 
         /** Whether the shipped bundle is already unpacked for [hermesPin]. */
         var hermesUnpacked = false
