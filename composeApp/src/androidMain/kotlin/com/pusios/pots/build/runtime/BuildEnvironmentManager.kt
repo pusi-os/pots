@@ -1061,10 +1061,14 @@ class BuildEnvironmentManager(
      * difference between a failure in twenty-four seconds and a complete 45 MB
      * bundle in about seven minutes.
      *
-     * The checkout, the venv and the `pm` tools were written by the installer
-     * *under* the emulation, though, and no measurement on a plain rootfs covers
-     * that mixed tree — so one attempt keeps `--link2symlink` and changes nothing
-     * else, which is the only way the device itself answers it.
+     * The install itself emulates nothing: the clone, `scripts/install.sh` and the
+     * `pm` tools are written with `-L` alone — only the `xz-utils` apt call keeps
+     * `--link2symlink` — and the tree is cleared of an earlier install's `.l2s.`
+     * artifacts before either proot call, so the checkout this build runs in was
+     * never written under the emulation. One attempt still keeps `--link2symlink`
+     * and changes nothing else, and that is this chain's own decision: attempts 1
+     * and 2 differ in that flag alone, so the device is what answers whether the
+     * emulation by itself is what breaks pnpm's staged rename.
      *
      * Every attempt starts from an empty pnpm store and an empty `node_modules`,
      * because a store a failed attempt leaves behind is made of `.l2s.` symlinks

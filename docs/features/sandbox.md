@@ -194,10 +194,11 @@ survives only in the one apt call that needs it (`xz-utils`), and Hermes' own
 installer and the renderer build both run with `-L` alone. Three attempts run
 right after the agent installs — no emulation with
 `pnpm_config_package_import_method=copy` in the proot environment, then with
-`--link2symlink` and the same setting (the tree the installer itself left, which
-is the only way the device answers whether its `.l2s.` artifacts break the
-build), then without the emulation and without that setting — each from a wiped
-pnpm store, and the install log names the path that won. The chain as a whole
+`--link2symlink` and the same setting (the flag is the only difference between
+that attempt and the first, so the device is what answers whether the emulation
+by itself breaks the build), then without the emulation and without that
+setting — each from a wiped pnpm store, and the install log names the path that
+won. The chain as a whole
 has a thirty-five-minute budget: an attempt is started only while at least ten
 minutes of it remain — the measured seven-minute build plus a margin, not the
 attempt's own twenty-five-minute hang deadline, which would end the chain after
