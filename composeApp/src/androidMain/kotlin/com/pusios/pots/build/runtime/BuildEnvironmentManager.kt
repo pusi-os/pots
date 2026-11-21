@@ -116,10 +116,16 @@ private const val INSTALL_POLL_MS = 1000L
  * seven minutes (pnpm 1m 56s, vite 4m 3s); a phone with a slow flash and a cold
  * store is several times that, and a timeout here costs the whole attempt.
  *
- * Twenty-five minutes rather than thirty so all three attempts fit inside the
- * install's own budget ([BuildAgent.installTimeoutSeconds], 5400 s): the chain
- * runs under it, and an attempt cut off by it would be reported as the last one
- * failing rather than as the clock running out.
+ * Twenty-five minutes is a hard deadline for the command, but it is not the
+ * bound a hung build hits first: [INSTALL_STALL_MS] (20 min of silence) fires
+ * earlier and the log then reads "no output for 20 min", not "timed out".
+ *
+ * Nothing bounds the chain as a whole. [BuildAgent.installTimeoutSeconds]
+ * (5400 s) is spent by the installer alone — [buildHermesRenderer] runs after
+ * it, under no outer deadline — so the worst case is three attempts of 1500 s
+ * plus their cleans, about 90 minutes past the install. That is why every step
+ * of the chain publishes its own line to the log instead of relying on the
+ * install's clock.
  */
 private const val RENDERER_BUILD_TIMEOUT_SECONDS = 1500L
 
