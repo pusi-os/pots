@@ -93,3 +93,23 @@ internal fun opacityAfterDrag(current: Float, dxPx: Float, railWidthPx: Float): 
 
 /** «40%» — the number beside the rail, never a separate control. */
 internal fun opacityLabel(value: Float): String = (value.coerceIn(0f, 1f) * 100f).roundToInt().toString() + "%"
+
+// -- Dragging ----------------------------------------------------------------
+
+/** Where one drag event leaves the row, plus the travel it did not spend. */
+internal data class LayerDragStep(val toIndex: Int, val leftoverPx: Float)
+
+/**
+ * Turns one pointer event's vertical travel into a single move in draw order.
+ *
+ * Up in the panel is up in the draw list, so negative [carriedPx] asks for a
+ * higher index. Every row crossing inside the same event folds into one move:
+ * the row's index does not change until the list recomposes, so a second move
+ * computed from the same index would shift a stranger.
+ */
+internal fun layerDragStep(from: Int, count: Int, carriedPx: Float, rowHeightPx: Float): LayerDragStep {
+    if (rowHeightPx <= 0f || count <= 0) return LayerDragStep(from, carriedPx)
+    val steps = (carriedPx / rowHeightPx).toInt()
+    if (steps == 0) return LayerDragStep(from, carriedPx)
+    return LayerDragStep((from - steps).coerceIn(0, count - 1), carriedPx - steps * rowHeightPx)
+}

@@ -226,6 +226,7 @@ private fun LayersSheet(
                             LayerRow(
                                 layer = layer,
                                 drawIndex = drawIndex,
+                                layerCount = layers.size,
                                 title = titles[layer.id] ?: layer.id,
                                 subtitle = layerSubtitle(layer),
                                 selected = layer.id == selectedId,
@@ -289,6 +290,7 @@ private fun LayersCountBadge(count: Int) {
 private fun LayerRow(
     layer: CanvasLayer,
     drawIndex: Int,
+    layerCount: Int,
     title: String,
     subtitle: String,
     selected: Boolean,
@@ -361,10 +363,14 @@ private fun LayerRow(
                         .size(LAYER_TAP_TARGET_DP.dp)
                         .pointerInput(layer.id) {
                             var carried = 0f
+                            // Our own copy of the row's place: it advances with each move we
+                            // ask for, while `drawIndex` waits for the next composition.
+                            var fromIndex = drawIndex
                             detectDragGesturesAfterLongPress(
                                 onDragStart = {
                                     lifted = true
                                     carried = 0f
+                                    fromIndex = currentIndex.value
                                 },
                                 onDragEnd = {
                                     lifted = false
@@ -377,14 +383,14 @@ private fun LayerRow(
                                 onDrag = { change, dragAmount ->
                                     change.consume()
                                     carried += dragAmount.y
-                                    // Up in the panel is up in the draw list.
-                                    while (carried <= -rowHeightPx) {
-                                        carried += rowHeightPx
-                                        onReorder(currentIndex.value, currentIndex.value + 1)
-                                    }
-                                    while (carried >= rowHeightPx) {
-                                        carried -= rowHeightPx
-                                        onReorder(currentIndex.value, currentIndex.value - 1)
+                                    // Up in the panel is up in the draw list. One move per
+                                    // event: the row's index only changes on recomposition,
+                                    // so a loop would keep moving from the same stale index.
+                                    val step = layerDragStep(fromIndex, layerCount, carried, rowHeightPx)
+                                    carried = step.leftoverPx
+                                    if (step.toIndex != fromIndex) {
+                                        onReorder(fromIndex, step.toIndex)
+                                        fromIndex = step.toIndex
                                     }
                                 },
                             )
@@ -461,23 +467,29 @@ private fun OpacityRail(
     val labelColor = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant
 
     Row(
-        modifier = Modifier.width(74.dp).height(LAYER_TAP_TARGET_DP.dp).semantics { contentDescription = "Прозрачность " + opacityLabel(value) },
+        modifier = Modifier
+            .width(74.dp)
+            .height(LAYER_TAP_TARGET_DP.dp)
+            // The handlers sit on the whole 74 dp rail, so the «40%» number is part
+            // of the same control: a tap on it steps the opacity instead of
+            // selecting the layer.
+            .handCursor()
+            .pointerInput(Unit) {
+                detectTapGestures { onChange(opacityAfterTap(latest.value)) }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { change, dragAmount ->
+                    change.consume()
+                    onChange(opacityAfterDrag(latest.value, dragAmount, railWidthPx))
+                }
+            }
+            .semantics { contentDescription = "Прозрачность " + opacityLabel(value) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .width(railWidth)
-                .height(LAYER_TAP_TARGET_DP.dp)
-                .handCursor()
-                .pointerInput(Unit) {
-                    detectTapGestures { onChange(opacityAfterTap(latest.value)) }
-                }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures { change, dragAmount ->
-                        change.consume()
-                        onChange(opacityAfterDrag(latest.value, dragAmount, railWidthPx))
-                    }
-                },
+                .height(LAYER_TAP_TARGET_DP.dp),
         ) {
             Canvas(Modifier.align(Alignment.Center).width(railWidth).height(14.dp)) {
                 val railHeight = 4.dp.toPx()

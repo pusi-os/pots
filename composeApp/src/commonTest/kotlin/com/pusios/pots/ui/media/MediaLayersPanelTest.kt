@@ -77,6 +77,60 @@ class MediaLayersPanelTest {
     }
 
     @Test
+    fun aFastDragIsOneMovePerEventAndLeavesNoHoles() {
+        val row = 131f // 50 dp on a 2.6 density screen
+        val four = listOf(image("a"), image("b"), image("c"), image("d"))
+
+        // One event crossing two rows is a single move from the row's own index:
+        // a second move from the same index would shift a stranger.
+        val up = layerDragStep(from = 1, count = four.size, carriedPx = -2.5f * row, rowHeightPx = row)
+        assertEquals(3, up.toIndex)
+        assertEquals(-0.5f * row, up.leftoverPx, 0.001f)
+
+        val moved = four.movedLayer(from = 1, to = up.toIndex)
+        assertEquals(listOf("a", "c", "d", "b"), moved.map { it.id })
+        assertEquals(listOf(0, 1, 2, 3), moved.toProjectElements().map { it.zIndex })
+
+        // Down in the panel is down in the draw list.
+        val down = layerDragStep(from = 1, count = four.size, carriedPx = 1.2f * row, rowHeightPx = row)
+        assertEquals(0, down.toIndex)
+        assertEquals(0.2f * row, down.leftoverPx, 0.01f)
+
+        // Less than a row of travel moves nothing.
+        val short = layerDragStep(from = 1, count = four.size, carriedPx = 0.4f * row, rowHeightPx = row)
+        assertEquals(1, short.toIndex)
+        assertEquals(0.4f * row, short.leftoverPx, 0.001f)
+
+        // The ends hold, and the travel past them is spent instead of piling up.
+        assertEquals(3, layerDragStep(from = 3, count = four.size, carriedPx = -5f * row, rowHeightPx = row).toIndex)
+        assertEquals(0f, layerDragStep(from = 3, count = four.size, carriedPx = -5f * row, rowHeightPx = row).leftoverPx, 0.001f)
+        assertEquals(0, layerDragStep(from = 0, count = four.size, carriedPx = 5f * row, rowHeightPx = row).toIndex)
+    }
+
+    @Test
+    fun consecutiveEventsMoveTheRowTheFingerHolds() {
+        val row = 131f
+        var layers = listOf(image("a"), image("b"), image("c"), image("d"))
+        var fromIndex = 1
+        var carried = 0f
+
+        // Two events, each 1.5 rows of travel, without a recomposition in between.
+        repeat(2) {
+            carried += -1.5f * row
+            val step = layerDragStep(fromIndex, layers.size, carried, row)
+            carried = step.leftoverPx
+            if (step.toIndex != fromIndex) {
+                layers = layers.movedLayer(fromIndex, step.toIndex)
+                fromIndex = step.toIndex
+            }
+        }
+
+        // «b» walked to the top; a stale index would have moved «c» twice.
+        assertEquals(listOf("a", "c", "d", "b"), layers.map { it.id })
+        assertEquals(listOf(0, 1, 2, 3), layers.toProjectElements().map { it.zIndex })
+    }
+
+    @Test
     fun panelOrderIsTheReverseOfTheRenderOrder() {
         val layers = sample()
 
