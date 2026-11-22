@@ -47,7 +47,8 @@ class MediaServiceResolverTest {
         )
         val choices = mediaServiceChoices(appSettings)
         assertEquals(listOf("plusvibe", "plusvibe-reserve"), choices.map { it.instanceId })
-        assertEquals(Service.PlusVibeReserve, activeMediaService(appSettings)?.service)
+        // No saved choice: the fallback keeps existing installs on the primary PlusVibe.
+        assertEquals(Service.PlusVibe, activeMediaService(appSettings)?.service)
     }
 
     @Test
