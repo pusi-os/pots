@@ -200,7 +200,13 @@ class PotsBuildViewModel(
     fun setWebPanelAutostart(panelId: String, enabled: Boolean) =
         controller.setWebPanelAutostart(panelId, enabled)
 
-    fun webPanelPassword(panelId: String): String? = controller.webPanelPassword(panelId)
+    /**
+     * The panel's password, for the row's sign-in section. Suspending all the way
+     * down: the value is generated and stored on the first ask, and the runtime
+     * does that write on the background dispatcher — one place that cannot be
+     * forgotten by a caller, rather than a hop here.
+     */
+    suspend fun webPanelPassword(panelId: String): String? = controller.webPanelPassword(panelId)
 
     /**
      * The panel's log, read when the row asks for it — on the log section being
