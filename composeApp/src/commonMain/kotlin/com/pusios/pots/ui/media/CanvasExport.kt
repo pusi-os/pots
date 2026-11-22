@@ -151,6 +151,7 @@ internal suspend fun renderCanvas(
 /** The rectangle an export covers; null when the scope has no area. */
 internal fun exportRect(scope: ExportScope, content: Rect?): Rect? = when (scope) {
     ExportScope.Whole -> content?.inflate(EXPORT_PADDING)
+
     is ExportScope.Region -> if (scope.width > 0f && scope.height > 0f) {
         Rect(scope.left, scope.top, scope.right, scope.bottom)
     } else {

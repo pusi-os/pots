@@ -241,18 +241,19 @@ internal fun MediaCanvas(
                         )
                     }
 
-                    else -> Modifier
-                        .transformable(
-                            state = rememberTransformableState { zoomChange, panChange, _ ->
-                                onTransform(zoomChange, panChange)
-                            },
-                        )
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onDoubleTap = { onRecenter() },
-                                onTap = { onTapBackground() },
+                    else ->
+                        Modifier
+                            .transformable(
+                                state = rememberTransformableState { zoomChange, panChange, _ ->
+                                    onTransform(zoomChange, panChange)
+                                },
                             )
-                        }
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onDoubleTap = { onRecenter() },
+                                    onTap = { onTapBackground() },
+                                )
+                            }
                 },
             ),
     ) {
@@ -541,6 +542,7 @@ private fun ExportRegionOverlay(
         val unit = density * canvasScale
         val frame = when {
             rubber != null -> rubber
+
             region != null -> Rect(
                 region.left * unit + canvasOffset.x,
                 region.top * unit + canvasOffset.y,
