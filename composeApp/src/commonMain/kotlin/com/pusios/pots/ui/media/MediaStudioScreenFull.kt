@@ -689,6 +689,12 @@ fun MediaStudioScreenFull(
         // went to the image model.
         val canvasModel = remember { viewModel.canvasPromptModel() }
         val preparing by viewModel.isPreparingCanvasPrompt.collectAsState()
+        // The screen stays up while the screenshots are being encoded: the send
+        // button reads «Готовим скриншот…» and a second tap cannot land.
+        var accepted by remember { mutableStateOf(false) }
+        LaunchedEffect(preparing, accepted) {
+            if (accepted && !preparing) canvasPromptOpen = false
+        }
         MediaCanvasPromptDialog(
             layers = elements,
             region = exportRegion,
@@ -698,7 +704,7 @@ fun MediaStudioScreenFull(
             onSend = { request ->
                 // Kept open when the view model refuses (busy, no model), so the
                 // typed instruction is not lost.
-                if (viewModel.askModelAboutCanvas(request)) canvasPromptOpen = false
+                accepted = viewModel.askModelAboutCanvas(request)
             },
             onDismiss = { canvasPromptOpen = false },
         )
