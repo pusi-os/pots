@@ -31,6 +31,31 @@ class AgentRemovalTest {
         "/root/.hermes/sessions",
         "/root/.hermes/memories",
         "/root/.hermes/state-snapshots",
+        // What Hermes installs for itself from its own webapp. Content the owner
+        // put there, not the installation: the card promises it survives.
+        "/root/.hermes/skills",
+        "/root/.hermes/plugins",
+        "/root/.hermes/plugin-data",
+        "/root/.hermes/desktop-plugins",
+        "/root/.hermes/hooks",
+        "/root/.hermes/scripts",
+        "/root/.hermes/webapp",
+    )
+
+    /**
+     * What Hermes installs from its own webapp, one entry per kind: a skill, a
+     * plugin and its state, a desktop plugin (the panel's "extension"), a gateway
+     * hook, a cron script, the panel's browser credential. Each is named by the
+     * report behind this guard, so each gets its own line here.
+     */
+    private val hermesContent = listOf(
+        "/root/.hermes/skills",
+        "/root/.hermes/plugins",
+        "/root/.hermes/plugin-data",
+        "/root/.hermes/desktop-plugins",
+        "/root/.hermes/hooks",
+        "/root/.hermes/scripts",
+        "/root/.hermes/webapp",
     )
 
     @Test
@@ -130,6 +155,43 @@ class AgentRemovalTest {
         )
         assertTrue(guarded.remove.isEmpty(), "the owner's data was offered for deletion: ${guarded.remove}")
         assertEquals(3, guarded.refused.size)
+    }
+
+    @Test
+    fun `what Hermes installs from its webapp survives a cleanup and the debris still goes`() {
+        val hermes = AgentVersions.get(BuildAgents.HERMES)!!
+        val agent = BuildAgents.get(BuildAgents.HERMES)!!
+
+        // The debris of an earlier install and one tree of each kind Hermes
+        // installs for itself, offered to the same cleanup at once.
+        val plan = AgentVersions.debrisPlan(hermes, agent.debrisPaths + hermesContent)
+
+        // The installation still goes: a guard that refuses everything is a stuck
+        // delete, not a guard.
+        assertEquals(agent.debrisPaths, plan.remove, "the debris of an earlier install must still go")
+        // What the owner installed through Hermes stays, entry by entry.
+        assertEquals(hermesContent, plan.refused, "content Hermes installed is the owner's")
+
+        for (path in hermesContent) {
+            // The entry itself, a file inside it, a directory a skill brings.
+            assertFalse(AgentVersions.mayDelete(path, hermes), "$path itself is the owner's")
+            assertFalse(AgentVersions.mayDelete("$path/installed-by-hermes", hermes), "$path/… is inside it")
+            assertFalse(AgentVersions.mayDelete("$path/a/b/c.txt", hermes), "$path/a/b/c.txt is inside it")
+        }
+        // What a Hermes install must still be able to clear next to them: the
+        // checkout, the uv cache, the pm runtime, and the `.l2s.` artifacts an
+        // earlier run left inside those trees.
+        for (path in agent.debrisPaths) {
+            assertTrue(AgentVersions.mayDelete(path, hermes), "$path must still be deletable")
+        }
+        assertTrue(
+            AgentVersions.mayDelete("/root/.hermes/hermes-agent/venv/.l2s.uv", hermes),
+            "a .l2s. artifact inside the checkout must still be deletable",
+        )
+        assertTrue(
+            AgentVersions.mayDelete("/root/.hermes/cache/uv/.l2s.archive", hermes),
+            "a .l2s. artifact inside the uv cache must still be deletable",
+        )
     }
 
     @Test
