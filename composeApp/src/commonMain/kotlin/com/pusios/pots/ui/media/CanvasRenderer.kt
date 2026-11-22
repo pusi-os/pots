@@ -54,11 +54,11 @@ internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
  * file cannot drift away from what the user sees. It knows nothing about the
  * ViewModel, the selection or the UI chrome: everything arrives as arguments.
  *
- * Today it draws Image and Video frames, text and free-hand strokes. Arrows are
- * the next card; [fonts] and [measurer] are here for the text layer — a
- * [FontFamily] can only be resolved in a composition (`Font()` is @Composable),
- * so the renderer receives the resolved families instead of loading them. A
- * text layer without a [measurer] draws nothing rather than an empty box.
+ * Today it draws Image and Video frames, text, free-hand strokes and annotation
+ * arrows. [fonts] and [measurer] are here for the text layer — a [FontFamily]
+ * can only be resolved in a composition (`Font()` is @Composable), so the
+ * renderer receives the resolved families instead of loading them. A text layer
+ * without a [measurer] draws nothing rather than an empty box.
  *
  * @param layers draw order — the list is the z-order, nothing is sorted here.
  * @param scale canvas px per canvas unit at 100 % zoom: the screen passes the
@@ -75,6 +75,9 @@ internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
  * @param zoom canvas zoom. The box grows around its *layout* centre, exactly
  *   like the old `graphicsLayer(scaleX = layer.scale * canvasScale)` did; with
  *   the zoom folded into [scale] the box would grow from its top-left corner.
+ * @param includeAnnotations false drops the annotation layers (arrows). The
+ *   screen draws everything; a gallery export must not carry the markup the
+ *   user drew to point a model at something — «в модель» keeps it.
  *
  * Layer `x`/`y` are canvas px and are NOT multiplied by [scale] — that is what
  * the project file has always stored (pan deltas in px) and the screen keeps
@@ -83,10 +86,11 @@ internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
  * units, so the whole line scales with [scale] and an export at another size
  * keeps the ink where it was drawn.
  *
- * Video: `MediaVideoPlayer` is a composable, its frame cannot be drawn here
- * yet, so the screen keeps the player above the canvas and the renderer paints
- * only the video card. A video frame therefore does not reach an export — that
- * is a separate card.
+ * Video: `MediaVideoPlayer` is a composable, its live frame cannot be drawn
+ * here, so the screen keeps the player above the canvas and the renderer paints
+ * the video card. An export feeds it one still frame captured from the file
+ * (where the platform can capture one), so a video layer is a picture in the
+ * file rather than an empty card.
  */
 internal fun DrawScope.renderLayers(
     layers: List<CanvasLayer>,
@@ -97,6 +101,7 @@ internal fun DrawScope.renderLayers(
     strokePaths: Map<String, Path> = emptyMap(),
     cardBackground: Color? = null,
     zoom: Float = 1f,
+    includeAnnotations: Boolean = true,
 ) {
     layers.forEach { layer ->
         if (!layer.transform.visible) return@forEach
@@ -109,9 +114,11 @@ internal fun DrawScope.renderLayers(
 
             is StrokeLayer -> drawStrokeLayer(layer, strokePaths[layer.id] ?: strokePath(layer.points), scale, zoom)
 
-            // Audio is a player card, not a frame; arrows are the next card.
-            // They are skipped, not drawn as empty boxes.
-            is AudioLayer, is ArrowLayer -> Unit
+            is ArrowLayer -> if (includeAnnotations) drawArrowLayer(layer, scale, zoom)
+
+            // Audio is a player card, not a frame; it is skipped, not drawn as
+            // an empty box.
+            is AudioLayer -> Unit
         }
     }
 }
@@ -186,6 +193,61 @@ private fun DrawScope.drawStrokeLayer(layer: StrokeLayer, path: Path, scale: Flo
     }) {
         drawStrokeInk(layer.points, path, layer.colorArgb, layer.widthPx, layer.transform.opacity, 1f)
     }
+}
+
+/**
+ * One annotation arrow: the same units and the same transform stack as a
+ * stroke (translate by the layer offset, zoom around the canvas origin, then
+ * the layer's own rotation and scale around the ink's centre), so an arrow
+ * sits exactly where it was drawn at any render factor.
+ *
+ * It is an annotation, not content: a gallery export leaves it out
+ * ([renderLayers]'s `includeAnnotations`), the model path keeps it in.
+ */
+private fun DrawScope.drawArrowLayer(layer: ArrowLayer, scale: Float, zoom: Float) {
+    if (layer.transform.opacity <= 0f) return
+    val path = arrowPath(layer.from, layer.to, layer.widthPx)
+    val pivot = path.getBounds().center
+    withTransform({
+        translate(layer.transform.x * scale, layer.transform.y * scale)
+        scale(scale * zoom, scale * zoom, Offset.Zero)
+        rotate(layer.transform.rotation, pivot)
+        scale(layer.transform.scale, layer.transform.scale, pivot)
+    }) {
+        drawPath(
+            path = path,
+            color = Color(layer.colorArgb).copy(alpha = layer.transform.opacity),
+            style = Stroke(
+                width = layer.widthPx.coerceAtLeast(1f),
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+            ),
+        )
+    }
+}
+
+/**
+ * The arrow's geometry in canvas units: the shaft from [from] to [to] plus a
+ * two-stroke head. The head is proportional to the line width, capped so a
+ * thin arrow still reads and a thick one does not become a triangle, and never
+ * longer than the shaft itself.
+ */
+internal fun arrowPath(from: Offset, to: Offset, widthPx: Float): Path {
+    val path = Path().apply {
+        moveTo(from.x, from.y)
+        lineTo(to.x, to.y)
+    }
+    val length = (to - from).getDistance()
+    if (length <= 0f) return path
+    val head = (widthPx * 4f).coerceIn(12f, 36f).coerceAtMost(length)
+    val direction = (to - from) / length
+    val normal = Offset(-direction.y, direction.x)
+    val base = to - direction * head
+    val wing = head * 0.45f
+    path.moveTo(base.x + normal.x * wing, base.y + normal.y * wing)
+    path.lineTo(to.x, to.y)
+    path.lineTo(base.x - normal.x * wing, base.y - normal.y * wing)
+    return path
 }
 
 /**

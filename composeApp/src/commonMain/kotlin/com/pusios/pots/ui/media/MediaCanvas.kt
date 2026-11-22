@@ -57,6 +57,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -70,8 +71,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
@@ -92,6 +96,8 @@ import coil3.compose.rememberAsyncImagePainter
 import com.pusios.pots.media.MediaJobState
 import com.pusios.pots.media.videoEditingPlatformSupported
 import com.pusios.pots.ui.handCursor
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -155,6 +161,16 @@ internal fun MediaCanvas(
     onTextWidth: (String, Float) -> Unit = { _, _ -> },
     /** Non-null while the draw mode is on: the active tool and where its strokes go. */
     draw: DrawSurface? = null,
+    /**
+     * The region tool: one finger drags the export frame instead of panning.
+     * The frame is UI only — the export renders from [layers], so it can never
+     * end up in the file.
+     */
+    regionTool: Boolean = false,
+    /** The frame to keep showing after the gesture, screen px. */
+    region: ExportScope.Region? = null,
+    /** A finished drag, screen px, with the pan and zoom it was drawn at. */
+    onRegion: (ExportScope.Region) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current.density
@@ -186,7 +202,15 @@ internal fun MediaCanvas(
     val drawNow = rememberUpdatedState(draw)
     val offsetNow = rememberUpdatedState(canvasOffset)
     val unitNow = rememberUpdatedState(pxPerUnit)
+    val zoomNow = rememberUpdatedState(canvasScale)
     val transformNow = rememberUpdatedState(onTransform)
+    val onRegionNow = rememberUpdatedState(onRegion)
+    // The frame being dragged, in screen px. UI only: it is drawn above the
+    // canvas and never reaches a layer, so the export cannot contain it.
+    var rubber by remember { mutableStateOf<Rect?>(null) }
+    // An armed tool with nothing dragged yet shows the hint; a stale rubber
+    // band from the previous run must not linger when the tool is closed.
+    LaunchedEffect(regionTool) { if (!regionTool) rubber = null }
 
     Box(
         modifier
@@ -194,25 +218,8 @@ internal fun MediaCanvas(
             .background(MaterialTheme.colorScheme.surface)
             .semantics { contentDescription = "Медиа-канвас" }
             .then(
-                if (draw == null) {
-                    Modifier
-                        .transformable(
-                            state = rememberTransformableState { zoomChange, panChange, _ ->
-                                onTransform(zoomChange, panChange)
-                            },
-                        )
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onDoubleTap = { onRecenter() },
-                                onTap = { onTapBackground() },
-                            )
-                        }
-                } else {
-                    // Draw mode owns the gesture: a single finger inks, two
-                    // fingers pan and zoom. `transformable` is left out on
-                    // purpose — it pans with one finger too, and that is the
-                    // conflict this mode has to resolve.
-                    Modifier.pointerInput(Unit) {
+                when {
+                    draw != null -> Modifier.pointerInput(Unit) {
                         drawPointerInput(
                             draw = drawNow,
                             pan = offsetNow,
@@ -222,6 +229,32 @@ internal fun MediaCanvas(
                             onCurrentStroke = { currentStroke = it },
                         )
                     }
+
+                    // The region tool owns the gesture: one finger draws the
+                    // export frame. Panning and zooming are off while it is
+                    // armed — a drag would otherwise do both.
+                    regionTool -> Modifier.pointerInput(Unit) {
+                        regionPointerInput(
+                            pan = offsetNow,
+                            zoom = zoomNow,
+                            onRubber = { rubber = it },
+                            onRegion = { onRegionNow.value(it) },
+                        )
+                    }
+
+                    else ->
+                        Modifier
+                            .transformable(
+                                state = rememberTransformableState { zoomChange, panChange, _ ->
+                                    onTransform(zoomChange, panChange)
+                                },
+                            )
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onDoubleTap = { onRecenter() },
+                                    onTap = { onTapBackground() },
+                                )
+                            }
                 },
             ),
     ) {
@@ -278,13 +311,14 @@ internal fun MediaCanvas(
             CanvasLayerOverlay(
                 layer = layer,
                 box = canvasLayerBox(layer, frames[layer.id], measurer, fonts),
-                // Draw mode shows no selection: the finger inks, and a border
-                // left over from before would read as a target to hit.
-                selected = draw == null && layer.id == selectedId,
+                // Draw mode and the region tool show no selection: the finger
+                // inks or frames, and a border left over from before would read
+                // as a target to hit.
+                selected = draw == null && !regionTool && layer.id == selectedId,
                 canvasScale = canvasScale,
                 canvasOffset = canvasOffset,
                 frame = frames[layer.id],
-                interactive = draw == null,
+                interactive = draw == null && !regionTool,
                 onSelect = { onSelect(layer.id) },
                 onEditText = onEditText,
                 onTextWidth = onTextWidth,
@@ -331,6 +365,29 @@ internal fun MediaCanvas(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+        }
+
+        // The export frame goes over every layer: it dims what will be cut and
+        // must not be dimmed itself. It is UI only — the export renders from
+        // the layers, so it cannot reach the file.
+        if (regionTool || region != null) {
+            ExportRegionOverlay(region = region, rubber = rubber)
+        }
+
+        if (regionTool && rubber == null) {
+            Surface(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                tonalElevation = 4.dp,
+            ) {
+                Text(
+                    "Протяни пальцем рамку для экспорта",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                )
             }
         }
     }
@@ -417,6 +474,94 @@ private suspend fun PointerInputScope.drawPointerInput(
         if (inking && finished != null && finished.points.isNotEmpty()) {
             surface.onStroke(finished.points, finished.colorArgb, finished.widthPx)
         }
+    }
+}
+
+/**
+ * Region-tool gestures: one finger drags the export frame.
+ *
+ * The drag is reported live in screen px ([onRubber]) so the frame follows the
+ * finger, and once, still in screen px, on release ([onRegion]). The export
+ * renders in the screen's own space — pan and zoom included — so the frame is
+ * handed over as the rectangle it is, without converting anything: whatever the
+ * finger framed is exactly what the file will contain. A drag shorter than
+ * [MIN_EXPORT_REGION] px is a tap and changes nothing, so a stray touch does
+ * not replace a good frame.
+ */
+private suspend fun PointerInputScope.regionPointerInput(
+    pan: State<Offset>,
+    zoom: State<Float>,
+    onRubber: (Rect?) -> Unit,
+    onRegion: (ExportScope.Region) -> Unit,
+) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        val start = down.position
+        down.consume()
+        var end = start
+        onRubber(Rect(start, start))
+        while (true) {
+            val event = awaitPointerEvent()
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            end = change.position
+            change.consume()
+            onRubber(Rect(start, end))
+            if (!change.pressed) break
+        }
+        onRubber(null)
+        val left = min(start.x, end.x)
+        val top = min(start.y, end.y)
+        val right = max(start.x, end.x)
+        val bottom = max(start.y, end.y)
+        if (right - left < MIN_EXPORT_REGION || bottom - top < MIN_EXPORT_REGION) return@awaitEachGesture
+        onRegion(
+            ExportScope.Region(
+                left = left,
+                top = top,
+                right = right,
+                bottom = bottom,
+                panX = pan.value.x,
+                panY = pan.value.y,
+                zoom = zoom.value,
+            ),
+        )
+    }
+}
+
+/**
+ * The frame the export will take, drawn above the canvas: everything outside is
+ * dimmed, the frame itself is dashed. It is not a layer and is not in the
+ * renderer, which is exactly why it cannot leak into the file.
+ */
+@Composable
+private fun ExportRegionOverlay(
+    region: ExportScope.Region?,
+    rubber: Rect?,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    val scrim = Color.Black.copy(alpha = 0.66f)
+    Canvas(Modifier.fillMaxSize()) {
+        // Both are screen px already: the rubber band comes from the finger,
+        // the kept frame was stored the same way.
+        val frame = when {
+            rubber != null -> rubber
+            region != null -> Rect(region.left, region.top, region.right, region.bottom)
+            else -> return@Canvas
+        }
+        if (frame.width <= 0f || frame.height <= 0f) return@Canvas
+        drawRect(scrim, topLeft = Offset.Zero, size = Size(size.width, frame.top.coerceAtLeast(0f)))
+        drawRect(scrim, topLeft = Offset(0f, frame.bottom), size = Size(size.width, (size.height - frame.bottom).coerceAtLeast(0f)))
+        drawRect(scrim, topLeft = Offset(0f, frame.top), size = Size(frame.left.coerceAtLeast(0f), frame.height))
+        drawRect(scrim, topLeft = Offset(frame.right, frame.top), size = Size((size.width - frame.right).coerceAtLeast(0f), frame.height))
+        drawRect(
+            color = accent,
+            topLeft = frame.topLeft,
+            size = frame.size,
+            style = Stroke(
+                width = 2.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
+            ),
+        )
     }
 }
 
@@ -593,8 +738,9 @@ private fun CanvasLayerOverlay(
             )
 
             // The player cannot be drawn inside DrawScope, so it stays a
-            // composable above the canvas: the video frame does not reach an
-            // export yet (a separate card). The card under it is the renderer's.
+            // composable above the canvas; the card under it is the renderer's.
+            // An export feeds the renderer one still frame captured from the
+            // file (see MediaExportDialog), so a video is not an empty box there.
             is VideoLayer -> MediaVideoPlayer(
                 url = url ?: local ?: "",
                 autoplay = false,
