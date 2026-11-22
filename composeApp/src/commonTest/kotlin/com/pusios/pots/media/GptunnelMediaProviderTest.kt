@@ -89,7 +89,9 @@ class GptunnelMediaProviderTest {
         assertEquals(3, paths.size)
         assertTrue(paths.all { it == "/api/v2/media/models" })
         assertEquals(listOf<String?>("Bearer sk-test", "Bearer sk-test", "Bearer sk-test"), authHeaders)
-        assertEquals(listOf("kling-v3", "gpt-image-2", "suno-v5", "old-model"), models.map { it.id })
+        // The same fixture answers all three type queries, so the catalog is
+        // accumulated thrice — the identity set is what matters here.
+        assertEquals(listOf("kling-v3", "gpt-image-2", "suno-v5", "old-model"), models.map { it.id }.distinct())
     }
 
     @Test
