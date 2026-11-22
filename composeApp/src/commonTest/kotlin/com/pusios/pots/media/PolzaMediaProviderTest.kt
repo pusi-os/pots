@@ -407,12 +407,15 @@ class PolzaMediaProviderTest {
             authSeen += request.headers[HttpHeaders.Authorization]
             when (request.url.encodedPath) {
                 "/api/v1/models" -> respond(catalog, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+
                 "/api/v2/images/generations" -> respond(
                     """{"created":1,"data":[{"url":"https://s3.polza.ai/f/x.png"}],"usage":{"cost_rub":2.5}}""",
                     HttpStatusCode.OK,
                     headersOf(HttpHeaders.ContentType, "application/json"),
                 )
+
                 "/f/x.png" -> respond("PNGDATA", HttpStatusCode.OK)
+
                 else -> respond(
                     """{"error":{"message":"unexpected path"}}""",
                     HttpStatusCode.NotFound,

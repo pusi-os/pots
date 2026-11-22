@@ -389,13 +389,16 @@ class AitunnelMediaProviderTest {
             authSeen += request.headers[HttpHeaders.Authorization]
             when (request.url.encodedPath) {
                 "/public/aitunnel/models/images" -> respond(imagesCatalog, HttpStatusCode.OK, json)
+
                 "/public/aitunnel/models/videos" -> respond(videosCatalog, HttpStatusCode.OK, json)
+
                 "/v1/images/generations" -> respond(
                     """{"created":1,"data":[{"b64_json":"aGVsbG8=","media_type":"image/png"}],
                         "model":"flux.2-klein-4b","usage":{"cost_rub":5.4}}""",
                     HttpStatusCode.OK,
                     json,
                 )
+
                 else -> respond("""{"error":{"message":"unexpected path"}}""", HttpStatusCode.NotFound, json)
             }
         }
@@ -423,12 +426,15 @@ class AitunnelMediaProviderTest {
             authSeen += request.headers[HttpHeaders.Authorization]
             when (request.url.encodedPath) {
                 "/public/aitunnel/models/images" -> respond("{}", HttpStatusCode.OK, json)
+
                 "/public/aitunnel/models/videos" -> respond(videosCatalog, HttpStatusCode.OK, json)
+
                 "/v1/videos" -> respond(
                     """{"id":"vid_9","polling_url":"https://api.aitunnel.ru/v1/videos/vid_9","status":"pending"}""",
                     HttpStatusCode.Accepted,
                     json,
                 )
+
                 "/v1/videos/vid_9" -> respond(
                     """{"id":"vid_9","status":"completed","model":"gen-4.5",
                         "unsigned_urls":["https://api.aitunnel.ru/v1/videos/vid_9/content?index=0"],
@@ -436,7 +442,9 @@ class AitunnelMediaProviderTest {
                     HttpStatusCode.OK,
                     json,
                 )
+
                 "/v1/videos/vid_9/content" -> respond("MP4DATA", HttpStatusCode.OK)
+
                 else -> respond("""{"error":{"message":"unexpected path"}}""", HttpStatusCode.NotFound, json)
             }
         }
