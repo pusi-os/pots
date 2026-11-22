@@ -226,6 +226,12 @@ fun MediaStudioScreenFull(
     var drawTool by remember { mutableStateOf(DrawTool.Brush) }
     var drawColorArgb by remember { mutableIntStateOf(DRAW_COLORS.first()) }
     var drawWidthPx by remember { mutableFloatStateOf(DRAW_DEFAULT_WIDTH_PX) }
+    // Canvas export: the dialog, the frame the user dragged (canvas units) and
+    // the tool that arms the gesture. The frame is UI only — the export
+    // renders the layers, so it cannot land in the file.
+    var exportOpen by remember { mutableStateOf(false) }
+    var exportRegion by remember { mutableStateOf<ExportScope.Region?>(null) }
+    var regionTool by remember { mutableStateOf(false) }
     val drawSession by viewModel.drawSession.collectAsState()
     var editImageElement by remember { mutableStateOf<ImageLayer?>(null) }
     var editVideoElement by remember { mutableStateOf<VideoLayer?>(null) }
@@ -426,6 +432,7 @@ fun MediaStudioScreenFull(
                         onReorder = viewModel::reorderLayer,
                         onVisibility = viewModel::setLayerVisible,
                         onOpacity = viewModel::setLayerOpacity,
+                        onExport = { exportOpen = true },
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
                     MediaDock(
@@ -520,6 +527,15 @@ fun MediaStudioScreenFull(
                     )
                 } else {
                     null
+                },
+                regionTool = regionTool,
+                // The frame is shown while the tool is armed or the dialog is
+                // open; afterwards the canvas goes back to being a canvas.
+                region = if (regionTool || exportOpen) exportRegion else null,
+                onRegion = { frame ->
+                    exportRegion = frame
+                    regionTool = false
+                    exportOpen = true
                 },
             )
 
@@ -632,6 +648,25 @@ fun MediaStudioScreenFull(
                 )
             }
         }
+    }
+
+    if (exportOpen) {
+        MediaExportDialog(
+            layers = elements,
+            region = exportRegion,
+            loadImageBytes = viewModel::imageLayerBytes,
+            onSave = { bitmap ->
+                viewModel.exportCanvasToGallery(bitmap)
+                exportOpen = false
+            },
+            // «Выделить на канвасе»: the dialog steps aside, the canvas takes
+            // the drag, and the finished frame reopens the dialog on it.
+            onPickRegion = {
+                exportOpen = false
+                regionTool = true
+            },
+            onDismiss = { exportOpen = false },
+        )
     }
 
     val openSheetDef = toolbarChips.firstOrNull { it.kind == MediaToolbarChip.Kind.Sheet && it.def.key == openParam }?.def

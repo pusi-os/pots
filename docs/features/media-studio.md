@@ -199,6 +199,14 @@ The text is measured once, in canvas units (`Density(1f, 1f)`, fixed width), and
 
 The text formatting (`fontId`, `textWidthPx`, `textAlign`) is written into the flat element DTO; `schemaVersion` is 3 and older files (1 and 2) read through the defaults. The bump is the same guard as schema 2: a schema-2 build would read the text, drop the formatting on autosave and lose it silently, so it now refuses a v3 file with «Формат не поддерживается» instead.
 
+### Canvas export
+
+The «Сохранить» icon in the layers strip (and in the open layers sheet) opens the export dialog: **«Весь канвас»** or **«Выделенная область»**, a background choice (transparent / dark / light) and the button «Сохранить в галерею». «Выделенная область» steps the dialog aside and arms a frame gesture on the canvas — one finger drags a rectangle (pan and zoom are off while it is armed), and the finished frame reopens the dialog on that rectangle. The frame is UI only: the file is rendered from the layers, so the frame itself can never land in the picture.
+
+The export is not a screen capture: it calls the same `DrawScope` renderer the screen uses, into a bitmap of the exported size, off the main thread. «Весь канвас» means the bounding box of the **visible** layers with a small padding — not the viewport and not an unbounded sheet; a layer's box is taken after its own scale and rotation, so a layer turned by 45° widens the canvas instead of being clipped. An empty canvas (no visible layers, a region with no area) has nothing to save and the button stays off with «Нечего сохранять» in place of the preview. Resolution follows the source: the factor is the widest image's own pixel width against the 232-unit card, clamped to 1–4× and then capped so the longest side stays 2048 px (a 2048² ARGB bitmap is 16 MB). Hidden layers are not drawn and do not affect the bounds; audio layers are a player, not a picture. Video layers are exported as one still frame where the platform can capture one (desktop), and as their card elsewhere — the same honest degradation the pencil capture has. Annotation arrows are dropped for the gallery: they are markup for the model path, not part of the picture.
+
+The preview in the dialog is the very bitmap that will be encoded — not a second drawing — so the file cannot differ from what the user approved; the transparency checkerboard behind it is UI only. Saving reuses the studio's existing writer, with a time-stamped name (`pots-canvas-2026-11-22-1435.png`). The per-element export from the element chip is unchanged.
+
 ## Key Files
 
 | File | Purpose |
@@ -245,7 +253,9 @@ The text formatting (`fontId`, `textWidthPx`, `textAlign`) is written into the f
 | `composeApp/src/commonMain/.../ui/media/MediaVoiceSheet.kt` | «Мой голос» picker: built-in voices, cloned voices with status and mic mark, delete confirmation |
 | `composeApp/src/commonMain/.../ui/media/MediaVoiceCloneSheet.kt` | Voice creation sheet: file picker, pre-upload validation, preview player, levels, consent |
 | `composeApp/src/commonMain/.../media/MediaProject.kt` | Project format (versioned `.potsproj` JSON, schema mark, codec, sequence/mode restore) and `MediaProjectStore` (`media/projects/`, autosave target) |
-| `composeApp/src/commonMain/.../ui/media/CanvasRenderer.kt` | The one `DrawScope` renderer for the screen and the export: cards, frames, text |
+| `composeApp/src/commonMain/.../ui/media/CanvasRenderer.kt` | The one `DrawScope` renderer for the screen and the export: cards, frames, text, strokes, annotation arrows |
+| `composeApp/src/commonMain/.../ui/media/CanvasExport.kt` | Canvas export: the exported rectangle (whole canvas by content bounds, or a dragged region), the resolution factor, background/alpha, bitmap→PNG grid, file name |
+| `composeApp/src/commonMain/.../ui/media/MediaExportDialog.kt` | Export dialog: whole canvas / selection, transparent-dark-light background, the preview that *is* the file, «Сохранить в галерею» |
 | `composeApp/src/commonMain/.../ui/media/MediaText.kt` | Text measurement (`Density(1f, 1f)`, fixed box width) and the font map resolved in the composition |
 | `composeApp/src/commonMain/.../ui/media/MediaTextPanel.kt` | The text formatting panel (font, size, ink, alignment) in the studio's bottom bar |
 | `composeApp/src/commonMain/composeResources/font/pots_text_serif.ttf` | Bundled DejaVu Serif for the «Serif» text option |

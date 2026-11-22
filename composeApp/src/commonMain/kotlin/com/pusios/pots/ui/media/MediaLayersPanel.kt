@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -110,10 +111,12 @@ internal fun MediaLayersPanel(
     onReorder: (fromDrawIndex: Int, toDrawIndex: Int) -> Unit,
     onVisibility: (layerId: String, visible: Boolean) -> Unit,
     onOpacity: (layerId: String, opacity: Float) -> Unit,
+    /** Opens the canvas export dialog (whole canvas or a dragged region). */
+    onExport: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (!expanded) {
-        LayersStrip(layers = layers, onToggleExpanded = onToggleExpanded, modifier = modifier)
+        LayersStrip(layers = layers, onToggleExpanded = onToggleExpanded, onExport = onExport, modifier = modifier)
     } else {
         LayersSheet(
             layers = layers,
@@ -123,6 +126,7 @@ internal fun MediaLayersPanel(
             onReorder = onReorder,
             onVisibility = onVisibility,
             onOpacity = onOpacity,
+            onExport = onExport,
             modifier = modifier,
         )
     }
@@ -132,6 +136,7 @@ internal fun MediaLayersPanel(
 private fun LayersStrip(
     layers: List<CanvasLayer>,
     onToggleExpanded: () -> Unit,
+    onExport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -154,6 +159,12 @@ private fun LayersStrip(
                 layers.panelOrder().take(3).forEach { layer -> LayerThumb(layer, 22.dp, MaterialTheme.colorScheme.primary) }
             }
             Spacer(Modifier.weight(1f))
+            Box(
+                modifier = Modifier.size(LAYER_TAP_TARGET_DP.dp).handCursor().clickable(onClick = onExport),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.SaveAlt, contentDescription = "Сохранить канвас в галерею", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Развернуть панель слоёв", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -168,6 +179,7 @@ private fun LayersSheet(
     onReorder: (fromDrawIndex: Int, toDrawIndex: Int) -> Unit,
     onVisibility: (layerId: String, visible: Boolean) -> Unit,
     onOpacity: (layerId: String, opacity: Float) -> Unit,
+    onExport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val titles = remember(layers) { layers.layerTitles() }
@@ -191,6 +203,12 @@ private fun LayersSheet(
                 Text("Слои", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 LayersCountBadge(layers.size)
                 Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier.size(LAYER_TAP_TARGET_DP.dp).handCursor().clickable(onClick = onExport),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.SaveAlt, contentDescription = "Сохранить канвас в галерею", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 Box(
                     modifier = Modifier.size(LAYER_TAP_TARGET_DP.dp).handCursor().clickable(onClick = onToggleExpanded),
                     contentAlignment = Alignment.Center,

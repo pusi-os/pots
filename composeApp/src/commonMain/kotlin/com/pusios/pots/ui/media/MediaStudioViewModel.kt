@@ -2,6 +2,7 @@ package com.pusios.pots.ui.media
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.data.AppSettings
@@ -50,6 +51,7 @@ import com.pusios.pots.media.compressReferenceToLimit
 import com.pusios.pots.media.createLocalTtsSynthesizer
 import com.pusios.pots.media.decodeMediaProject
 import com.pusios.pots.media.defaultAudioModel
+import com.pusios.pots.media.encodeGridToPng
 import com.pusios.pots.media.encodeMediaProject
 import com.pusios.pots.media.getInstanceMediaAudioModelId
 import com.pusios.pots.media.getInstanceMediaAudioMusicModelId
@@ -1592,6 +1594,34 @@ class MediaStudioViewModel(
         // Provider download is key-free for signed URLs; reuse repository's next
         // available mechanism by fetching through a fresh provider call.
         return PlusVibeMediaProvider().downloadResult(apiKeyProvider(), url)
+    }
+
+    /**
+     * The bytes of an image layer for the canvas export renderer: the cached
+     * copy first (it is what the screen shows), the remote source as a fallback.
+     * Read off the main thread — an export is never a UI-blocking operation.
+     */
+    suspend fun imageLayerBytes(layer: ImageLayer): ByteArray? = withContext(Dispatchers.Default) {
+        layer.localPath?.let { readAppStorageBytes(it) }
+            ?: layer.url?.let { runCatching { repositoryDownload(it) }.getOrNull() }
+    }
+
+    /**
+     * Saves the bitmap the export dialog already rendered and previewed.
+     *
+     * Encoding is the only step here: the picture was drawn by `renderCanvas`
+     * off the main thread, and the preview is that very bitmap, so the file
+     * cannot differ from what the user approved. One bitmap at a time — the
+     * dialog drops it when it closes.
+     */
+    fun exportCanvasToGallery(bitmap: ImageBitmap) {
+        viewModelScope.launch {
+            val grid = withContext(Dispatchers.Default) { bitmap.toPixelGrid() }
+            val png = withContext(Dispatchers.Default) { encodeGridToPng(grid) }
+            val name = canvasExportFileName(kotlin.time.Clock.System.now().toEpochMilliseconds())
+            saveFileToDevice(png, name, "png")
+            MediaLog.d("Canvas export: ${grid.width}x${grid.height} → $name.png (${png.size} bytes)")
+        }
     }
 
     companion object {
