@@ -50,8 +50,7 @@ class ActiveMediaProvider(private val appSettings: AppSettings) : MediaProvider 
         "No media service is configured. Add a service with media models in Settings → Services.",
     )
 
-    private fun providerFor(service: Service): MediaProvider =
-        mediaProviderFor(service) ?: throw noService()
+    private fun providerFor(service: Service): MediaProvider = mediaProviderFor(service) ?: throw noService()
 
     private fun active(): MediaProvider = activeMediaService(appSettings)?.let { providerFor(it.service) } ?: throw noService()
 
