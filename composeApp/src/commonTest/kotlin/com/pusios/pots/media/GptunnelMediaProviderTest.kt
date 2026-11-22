@@ -88,7 +88,7 @@ class GptunnelMediaProviderTest {
         val models = GptunnelMediaProvider(clientOverride = HttpClient(engine)).listModels("sk-test")
         assertEquals(3, paths.size)
         assertTrue(paths.all { it == "/api/v2/media/models" })
-        assertEquals(listOf("Bearer sk-test", "Bearer sk-test", "Bearer sk-test"), authHeaders)
+        assertEquals(listOf<String?>("Bearer sk-test", "Bearer sk-test", "Bearer sk-test"), authHeaders)
         assertEquals(listOf("kling-v3", "gpt-image-2", "suno-v5", "old-model"), models.map { it.id })
     }
 
