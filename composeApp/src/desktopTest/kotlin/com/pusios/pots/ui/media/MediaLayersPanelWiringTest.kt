@@ -6,9 +6,10 @@ import com.pusios.pots.media.MediaHistoryStore
 import com.pusios.pots.media.MediaJobRequest
 import com.pusios.pots.media.MediaJobState
 import com.pusios.pots.media.MediaJobStatus
+import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.MediaPriceQuote
 import com.pusios.pots.media.MediaProvider
-import com.pusios.pots.media.MediaModel
+import com.pusios.pots.media.getMediaLayersPanelOpen
 import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
