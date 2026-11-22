@@ -482,6 +482,15 @@
     <string name="model_free_badge">Бесплатно</string>
     <string name="model_filter_free">Бесплатно</string>
     <string name="model_free_empty">Нет моделей бесплатного уровня для этого сервиса.</string>
+    <string name="model_sort_ascending">по возрастанию</string>
+    <string name="model_sort_descending">по убыванию</string>
+    <string name="media_models_title">Медиа-модели</string>
+    <string name="media_models_hint">Ключ используется тот же, что и для чата. Список и цены загружаются из публичного каталога.</string>
+    <string name="media_models_load">Загрузить список и цены</string>
+    <string name="media_models_loading">Загрузка…</string>
+    <string name="media_section_images">Изображения</string>
+    <string name="media_section_video">Видео</string>
+    <string name="media_section_audio">Аудио</string>
     <string name="tool_check_sms_name">Проверить SMS</string>
     <string name="tool_check_sms_description">Показать недавние непрочитанные SMS-сообщения</string>
     <string name="tool_read_sms_name">Прочитать SMS</string>

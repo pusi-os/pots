@@ -223,6 +223,10 @@ data class SettingsModel(
     val outputPricePerMillion: Double? = null,
     /** Cached input price per million tokens, or null when unknown. */
     val cachePricePerMillion: Double? = null,
+    /** True when the provider advertises function calling for this model. */
+    val supportsTools: Boolean = false,
+    /** True when the provider advertises image input for this model. */
+    val supportsVision: Boolean = false,
     /**
      * True when this model is on the provider's free tier according to the
      * curated [com.pusios.pots.data.FreeTierModels] catalog

@@ -1,5 +1,7 @@
 package com.pusios.pots.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,21 +15,40 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.CropFree
+import androidx.compose.material.icons.outlined.LocalOffer
+import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,6 +59,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.formatContextWindow
@@ -52,21 +77,18 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.ic_arrow_drop_down
-import pots.composeapp.generated.resources.ic_price_cache
-import pots.composeapp.generated.resources.ic_price_input
-import pots.composeapp.generated.resources.ic_price_output
 import pots.composeapp.generated.resources.model_filter_free
 import pots.composeapp.generated.resources.model_free_badge
 import pots.composeapp.generated.resources.model_free_empty
+import pots.composeapp.generated.resources.model_sort_ascending
 import pots.composeapp.generated.resources.model_sort_context
 import pots.composeapp.generated.resources.model_sort_date
+import pots.composeapp.generated.resources.model_sort_descending
 import pots.composeapp.generated.resources.model_sort_price
 import pots.composeapp.generated.resources.model_sort_recommended
 import pots.composeapp.generated.resources.model_sort_score
@@ -149,6 +171,7 @@ internal fun ModelSelection(
                     )
                 }
                 var sortOption by remember { mutableStateOf(ModelSortOption.Score) }
+                var sortAscending by remember { mutableStateOf(false) }
                 val visibleModels = remember(filteredModels, sortOption, currentSelectedModel) {
                     when (sortOption) {
                         ModelSortOption.Price -> filteredModels.filter { it.id == currentSelectedModel?.id || withinMonths(it.releaseDate, 6) }
@@ -156,8 +179,13 @@ internal fun ModelSelection(
                         else -> filteredModels
                     }
                 }
-                val sortedModels = remember(visibleModels, sortOption, searchQuery) {
-                    val base = visibleModels.sortedWith(sortOption.comparator)
+                val sortedModels = remember(visibleModels, sortOption, sortAscending, searchQuery) {
+                    val comparator = if (sortAscending && sortOption.supportsDirection) {
+                        sortOption.comparator.reversed()
+                    } else {
+                        sortOption.comparator
+                    }
+                    val base = visibleModels.sortedWith(comparator)
                     if (searchQuery.isBlank()) {
                         base
                     } else {
@@ -172,29 +200,54 @@ internal fun ModelSelection(
                     }
                 }
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     ModelSortOption.entries.forEach { option ->
                         if (!showExtendedSorts && (option == ModelSortOption.Price || option == ModelSortOption.Recommended)) return@forEach
-                        FilterChip(
-                            selected = sortOption == option,
-                            onClick = { sortOption = option },
-                            label = { Text(stringResource(option.labelRes)) },
-                            modifier = Modifier.handCursor(),
+                        val active = sortOption == option
+                        val direction = when {
+                            !active || !option.supportsDirection -> ""
+                            sortAscending -> " · " + stringResource(Res.string.model_sort_ascending)
+                            else -> " · " + stringResource(Res.string.model_sort_descending)
+                        }
+                        SortButton(
+                            icon = option.icon,
+                            label = stringResource(option.labelRes) + direction,
+                            active = active,
+                            ascending = if (active && option.supportsDirection) sortAscending else null,
+                            modifier = Modifier.weight(1f).widthIn(max = 56.dp),
+                            onClick = {
+                                if (option == sortOption && option.supportsDirection) {
+                                    sortAscending = !sortAscending
+                                } else {
+                                    sortOption = option
+                                    sortAscending = option.ascendingByDefault
+                                }
+                            },
                         )
                     }
                     if (hasFreeModels) {
-                        FilterChip(
-                            selected = freeFilterOnly,
+                        Box(
+                            Modifier
+                                .width(1.dp)
+                                .height(24.dp)
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f)),
+                        )
+                        SortButton(
+                            icon = Icons.Outlined.LocalOffer,
+                            label = stringResource(Res.string.model_filter_free),
+                            active = freeFilterOnly,
+                            ascending = null,
+                            filter = true,
+                            modifier = Modifier.weight(1f).widthIn(max = 56.dp),
                             onClick = { freeFilterOnly = !freeFilterOnly },
-                            label = { Text(stringResource(Res.string.model_filter_free)) },
-                            modifier = Modifier.handCursor(),
                         )
                     }
                 }
                 val gridState = rememberLazyGridState()
-                LaunchedEffect(sortOption, freeFilterOnly) {
+                LaunchedEffect(sortOption, sortAscending, freeFilterOnly) {
                     gridState.requestScrollToItem(0)
                 }
                 if (sortedModels.isEmpty() && freeFilterOnly) {
@@ -237,13 +290,18 @@ internal fun ModelSelection(
 
 private enum class ModelSortOption(
     val labelRes: StringResource,
+    val icon: ImageVector,
     val comparator: Comparator<SettingsModel>,
+    /** Direction the comparator already sorts in; the first tap lands here. */
+    val ascendingByDefault: Boolean = false,
+    /** False for composite keys, where the reverse order carries no meaning. */
+    val supportsDirection: Boolean = true,
 ) {
-    Date(Res.string.model_sort_date, compareByDescending<SettingsModel> { it.releaseDate }.thenBy { it.id }),
-    Score(Res.string.model_sort_score, compareByDescending<SettingsModel> { it.arenaScore }.thenBy { it.id }),
-    Ctx(Res.string.model_sort_context, compareByDescending<SettingsModel> { it.contextWindow }.thenBy { it.id }),
-    Price(Res.string.model_sort_price, compareBy<SettingsModel> { it.pricePerMillion ?: Double.MAX_VALUE }.thenBy { it.id }),
-    Recommended(Res.string.model_sort_recommended, compareByDescending<SettingsModel> { it.releaseDate }.thenByDescending { it.arenaScore }.thenBy { it.id }),
+    Date(Res.string.model_sort_date, Icons.Outlined.CalendarMonth, compareByDescending<SettingsModel> { it.releaseDate }.thenBy { it.id }),
+    Score(Res.string.model_sort_score, Icons.Filled.Star, compareByDescending<SettingsModel> { it.arenaScore }.thenBy { it.id }),
+    Ctx(Res.string.model_sort_context, Icons.Outlined.CropFree, compareByDescending<SettingsModel> { it.contextWindow }.thenBy { it.id }),
+    Price(Res.string.model_sort_price, Icons.Filled.AttachMoney, compareBy<SettingsModel> { it.pricePerMillion ?: Double.MAX_VALUE }.thenBy { it.id }, ascendingByDefault = true),
+    Recommended(Res.string.model_sort_recommended, Icons.Outlined.ThumbUp, compareByDescending<SettingsModel> { it.releaseDate }.thenByDescending { it.arenaScore }.thenBy { it.id }, supportsDirection = false),
 }
 
 private fun withinMonths(releaseDate: String?, months: Int): Boolean {
@@ -261,10 +319,10 @@ private fun ModelCard(model: SettingsModel, isSelected: Boolean, onClick: () -> 
     val displayName = model.displayName?.takeIf { it.isNotBlank() && it != model.id }
     val title = displayName ?: model.id
     val secondary = if (displayName == null && model.subtitle.isNotBlank()) model.subtitle else null
-    val contextText = model.contextWindow?.let { formatContextWindow(it) }
     val releaseText = model.releaseDate?.let { formatReleaseDate(it) }
-    val detailText = listOfNotNull(releaseText, model.parameterCount, contextText)
-        .joinToString("  ·  ").ifEmpty { null }
+    // Context moved into the tile row, so the meta line keeps only what has no tile of its own.
+    val metaText = listOfNotNull(releaseText, model.parameterCount)
+        .joinToString("  ·  ").ifEmpty { if (displayName != null) model.id else null }
 
     val primaryColor = if (isSelected) {
         MaterialTheme.colorScheme.onPrimaryContainer
@@ -303,13 +361,22 @@ private fun ModelCard(model: SettingsModel, isSelected: Boolean, onClick: () -> 
                     Spacer(Modifier.width(8.dp))
                     FreeTierBadge(isSelected = isSelected)
                 }
-                model.arenaScore?.let { score ->
+                if (isSelected) {
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "$score",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = arenaScoreColor(score),
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onPrimaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
                 }
             }
             secondary?.let {
@@ -321,46 +388,209 @@ private fun ModelCard(model: SettingsModel, isSelected: Boolean, onClick: () -> 
                     color = secondaryColor,
                 )
             }
-            detailText?.let {
+            metaText?.let {
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = it,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = secondaryColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (model.pricePerMillion != null || model.outputPricePerMillion != null || model.cachePricePerMillion != null) {
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    PriceChip(Res.drawable.ic_price_input, model.pricePerMillion, secondaryColor)
-                    Spacer(Modifier.width(10.dp))
-                    PriceChip(Res.drawable.ic_price_output, model.outputPricePerMillion, secondaryColor)
-                    Spacer(Modifier.width(10.dp))
-                    PriceChip(Res.drawable.ic_price_cache, model.cachePricePerMillion, secondaryColor)
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                ModelTile(
+                    icon = Icons.Filled.ArrowDownward,
+                    value = model.pricePerMillion?.let(::formatPricePerMillion),
+                    unit = "M",
+                    isSelected = isSelected,
+                    modifier = Modifier.weight(1f),
+                )
+                ModelTile(
+                    icon = Icons.Filled.ArrowUpward,
+                    value = model.outputPricePerMillion?.let(::formatPricePerMillion),
+                    unit = "M",
+                    isSelected = isSelected,
+                    modifier = Modifier.weight(1f),
+                )
+                ModelTile(
+                    icon = Icons.Outlined.CropFree,
+                    value = model.contextWindow?.let { formatContextWindow(it) },
+                    isSelected = isSelected,
+                    modifier = Modifier.weight(1f),
+                )
+                ModelTile(
+                    icon = Icons.Filled.Star,
+                    value = model.arenaScore?.toString(),
+                    isSelected = isSelected,
+                    valueColor = model.arenaScore?.let { arenaScoreColor(it) },
+                    modifier = Modifier.weight(1f),
+                )
+                ModelTile(
+                    icon = Icons.Filled.Build,
+                    value = if (model.supportsTools) "✓" else null,
+                    isSelected = isSelected,
+                    modifier = Modifier.weight(1f),
+                )
+                ModelTile(
+                    icon = Icons.Filled.Visibility,
+                    value = if (model.supportsVision) "✓" else null,
+                    isSelected = isSelected,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One value of a model card's tile row. A missing value keeps the tile's slot: the row must not
+ * change height or shape when the list scrolls between models with different data.
+ */
+@Composable
+private fun ModelTile(
+    icon: ImageVector,
+    value: String?,
+    modifier: Modifier = Modifier,
+    unit: String? = null,
+    isSelected: Boolean = false,
+    valueColor: Color? = null,
+) {
+    val hasData = value != null
+    val colors = MaterialTheme.colorScheme
+    val container = when {
+        !hasData -> Color.Transparent
+        isSelected -> colors.onPrimaryContainer.copy(alpha = 0.09f)
+        else -> colors.onSurface.copy(alpha = 0.07f)
+    }
+    val borderColor = when {
+        !hasData && isSelected -> colors.onPrimaryContainer.copy(alpha = 0.22f)
+        !hasData -> colors.onSurface.copy(alpha = 0.16f)
+        isSelected -> colors.onPrimaryContainer.copy(alpha = 0.16f)
+        else -> colors.onSurface.copy(alpha = 0.09f)
+    }
+    val iconTint = when {
+        !hasData && isSelected -> colors.onPrimaryContainer.copy(alpha = 0.35f)
+        !hasData -> colors.onSurfaceVariant.copy(alpha = 0.45f)
+        isSelected -> colors.onPrimaryContainer.copy(alpha = 0.62f)
+        else -> colors.onSurfaceVariant
+    }
+    val contentColor = when {
+        !hasData && isSelected -> colors.onPrimaryContainer.copy(alpha = 0.42f)
+        !hasData -> colors.onSurfaceVariant.copy(alpha = 0.55f)
+        isSelected -> colors.onPrimaryContainer
+        else -> valueColor ?: colors.onSurface
+    }
+    Box(
+        modifier = modifier
+            .height(60.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(container)
+            .border(1.dp, borderColor, RoundedCornerShape(10.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(13.dp),
+            )
+            Spacer(Modifier.height(3.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = value ?: "—",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = contentColor,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+                if (hasData && unit != null) {
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = contentColor.copy(alpha = 0.75f),
+                        maxLines = 1,
+                    )
                 }
             }
         }
     }
 }
 
+/**
+ * Icon-only sort control. The label lives in [contentDescription] and in a tooltip that Material
+ * shows on long press, so the row stays one line wide without hiding what the icons mean.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PriceChip(icon: DrawableResource, pricePerMillion: Double?, tint: Color) {
-    if (pricePerMillion == null) return
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(12.dp),
-        )
-        Spacer(Modifier.width(2.dp))
-        Text(
-            text = formatPricePerMillion(pricePerMillion),
-            style = MaterialTheme.typography.labelSmall,
-            color = tint,
-        )
+private fun SortButton(
+    icon: ImageVector,
+    label: String,
+    active: Boolean,
+    ascending: Boolean?,
+    modifier: Modifier = Modifier,
+    filter: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val accent = if (filter) FreeFilterColor else colors.primary
+    val container = if (active) accent.copy(alpha = if (filter) 0.12f else 0.16f) else Color.Transparent
+    val borderColor = if (active) {
+        accent.copy(alpha = if (filter) 0.45f else 0.50f)
+    } else {
+        colors.onSurface.copy(alpha = 0.08f)
+    }
+    val contentColor = when {
+        !active -> colors.onSurfaceVariant
+        filter -> FreeFilterColor
+        else -> colors.primary
+    }
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+        modifier = modifier,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(container)
+                .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+                .handCursor()
+                .clickable(onClick = onClick)
+                .semantics { selected = active },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = contentColor,
+                modifier = Modifier.size(20.dp),
+            )
+            if (ascending != null) {
+                Icon(
+                    imageVector = if (ascending) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 3.dp, bottom = 2.dp)
+                        .size(12.dp),
+                )
+            }
+        }
     }
 }
+
+private val FreeFilterColor = Color(0xFF6EE7A0)
 
 private fun formatPricePerMillion(price: Double): String {
     val factor = if (price >= 1) 100L else 1000L
