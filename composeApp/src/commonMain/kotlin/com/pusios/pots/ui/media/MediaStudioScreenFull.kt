@@ -226,12 +226,11 @@ fun MediaStudioScreenFull(
     var drawTool by remember { mutableStateOf(DrawTool.Brush) }
     var drawColorArgb by remember { mutableIntStateOf(DRAW_COLORS.first()) }
     var drawWidthPx by remember { mutableFloatStateOf(DRAW_DEFAULT_WIDTH_PX) }
-    // Canvas export: the dialog, the frame the user dragged (canvas units) and
-    // the tool that arms the gesture. The frame is UI only — the export
-    // renders the layers, so it cannot land in the file.
-    var exportOpen by remember { mutableStateOf(false) }
-    var exportRegion by remember { mutableStateOf<ExportScope.Region?>(null) }
-    var regionTool by remember { mutableStateOf(false) }
+    // Canvas export: the dialog, the frame the user dragged (screen px) and the
+    // tool that arms the gesture. One value, so the three cannot disagree —
+    // the flow's transitions live in [ExportUiState]. The frame is UI only: the
+    // export renders the layers, so it cannot land in the file.
+    var exportUi by remember { mutableStateOf(ExportUiState()) }
     // «Спросить модель по канвасу»: its own screen, on the same frame and layers.
     var canvasPromptOpen by remember { mutableStateOf(false) }
     val drawSession by viewModel.drawSession.collectAsState()
@@ -434,7 +433,7 @@ fun MediaStudioScreenFull(
                         onReorder = viewModel::reorderLayer,
                         onVisibility = viewModel::setLayerVisible,
                         onOpacity = viewModel::setLayerOpacity,
-                        onExport = { exportOpen = true },
+                        onExport = { exportUi = exportUi.openDialog() },
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
                     MediaDock(
@@ -479,7 +478,7 @@ fun MediaStudioScreenFull(
                     // dragged in: after a pan it would hang over other content,
                     // and the export would crop the old view. Drop it and ask
                     // for a new one.
-                    exportRegion = null
+                    exportUi = exportUi.dropRegion()
                 },
                 onTapBackground = {
                     viewModel.select(null)
@@ -490,7 +489,7 @@ fun MediaStudioScreenFull(
                 onRecenter = {
                     canvasScale = 1f
                     canvasOffset = Offset.Zero
-                    exportRegion = null
+                    exportUi = exportUi.dropRegion()
                 },
                 onSelect = { id ->
                     viewModel.select(id)
@@ -536,16 +535,15 @@ fun MediaStudioScreenFull(
                 } else {
                     null
                 },
-                regionTool = regionTool,
+                regionTool = exportUi.regionTool,
                 // The frame is shown while the tool is armed or the dialog is
                 // open; afterwards the canvas goes back to being a canvas.
-                region = if (regionTool || exportOpen) exportRegion else null,
-                onRegion = { frame ->
-                    exportRegion = frame
-                    regionTool = false
-                    exportOpen = true
-                },
-                onCancelRegion = { regionTool = false },
+                region = if (exportUi.regionTool || exportUi.dialogOpen) exportUi.region else null,
+                onRegion = { frame -> exportUi = exportUi.takeRegion(frame) },
+                // «Отмена» on the armed tool: the mode is off and the dialog is
+                // back, so a user who armed it by mistake is not left in a
+                // canvas that reads every drag as a selection.
+                onCancelRegion = { exportUi = exportUi.cancelRegion() },
             )
 
             // Потсик's place in the studio: left of the top toolbar, twice a
@@ -659,27 +657,23 @@ fun MediaStudioScreenFull(
         }
     }
 
-    if (exportOpen) {
+    if (exportUi.dialogOpen) {
         MediaExportDialog(
             layers = elements,
-            region = exportRegion,
+            region = exportUi.region,
             loadImageBytes = viewModel::imageLayerBytes,
             onSave = { bitmap ->
                 viewModel.exportCanvasToGallery(bitmap)
-                exportOpen = false
+                exportUi = exportUi.dismissDialog()
             },
             onAskModel = {
-                exportOpen = false
-                regionTool = false
+                exportUi = exportUi.handOverToModel()
                 canvasPromptOpen = true
             },
             // «Выделить на канвасе»: the dialog steps aside, the canvas takes
             // the drag, and the finished frame reopens the dialog on it.
-            onPickRegion = {
-                exportOpen = false
-                regionTool = true
-            },
-            onDismiss = { exportOpen = false },
+            onPickRegion = { exportUi = exportUi.armRegion() },
+            onDismiss = { exportUi = exportUi.dismissDialog() },
         )
     }
 
@@ -697,7 +691,7 @@ fun MediaStudioScreenFull(
         }
         MediaCanvasPromptDialog(
             layers = elements,
-            region = exportRegion,
+            region = exportUi.region,
             model = canvasModel,
             preparing = preparing,
             loadImageBytes = viewModel::imageLayerBytes,
