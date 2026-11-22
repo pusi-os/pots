@@ -88,6 +88,7 @@ fun MediaStudioScreenFull(
 ) {
     val elements by viewModel.elements.collectAsState()
     val selectedId by viewModel.selectedId.collectAsState()
+    val layersPanelOpen by viewModel.layersPanelOpen.collectAsState()
     val models by viewModel.models.collectAsState()
     val jobs by viewModel.jobs.collectAsState()
     val references by viewModel.references.collectAsState()
@@ -414,6 +415,19 @@ fun MediaStudioScreenFull(
                             )
                         }
                     }
+                    // Layers live under the canvas: collapsed it is a 58 dp strip,
+                    // open it lists the stack and the canvas keeps the rest.
+                    MediaLayersPanel(
+                        layers = elements,
+                        selectedId = selectedId,
+                        expanded = layersPanelOpen,
+                        onToggleExpanded = { viewModel.setLayersPanelOpen(!layersPanelOpen) },
+                        onSelect = { id -> viewModel.select(id) },
+                        onReorder = viewModel::reorderLayer,
+                        onVisibility = viewModel::setLayerVisible,
+                        onOpacity = viewModel::setLayerOpacity,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
                     MediaDock(
                         prompt = prompt,
                         onPromptChange = { viewModel.setDraft(mode, audioFlow, it) },

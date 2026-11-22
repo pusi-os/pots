@@ -163,6 +163,10 @@ class MediaStudioViewModel(
     private val _drawSession = MutableStateFlow(DrawSession())
     val drawSession: StateFlow<DrawSession> = _drawSession.asStateFlow()
 
+    /** Collapsed strip ↔ open list; remembered in `MediaSettings`, not in the project. */
+    private val _layersPanelOpen = MutableStateFlow(appSettings.getMediaLayersPanelOpen())
+    val layersPanelOpen: StateFlow<Boolean> = _layersPanelOpen.asStateFlow()
+
     private val _models = MutableStateFlow<List<MediaModel>>(emptyList())
     val models: StateFlow<List<MediaModel>> = _models.asStateFlow()
 
@@ -1199,6 +1203,31 @@ class MediaStudioViewModel(
      */
     fun editText(id: String, change: (TextLayer) -> TextLayer) {
         _elements.update { list -> list.map { if (it is TextLayer && it.id == id) change(it) else it } }
+    }
+
+    /** Collapsed strip ↔ open list; remembered in `MediaSettings`, not in the project. */
+    fun setLayersPanelOpen(open: Boolean) {
+        _layersPanelOpen.value = open
+        appSettings.setMediaLayersPanelOpen(open)
+    }
+
+    /**
+     * Panel reorder: the draw list is the z-order, so this is a list move. Both
+     * indices are draw-order; the panel converts from its reversed view. The
+     * saved `zIndex` is the index (`toProjectElements`), so the order is dense
+     * 0…n−1 by construction — nothing to renumber.
+     */
+    fun reorderLayer(fromDrawIndex: Int, toDrawIndex: Int) {
+        _elements.update { it.movedLayer(fromDrawIndex, toDrawIndex) }
+    }
+
+    fun setLayerVisible(id: String, visible: Boolean) {
+        _elements.update { list -> list.map { if (it.id == id) it.withVisible(visible) else it } }
+    }
+
+    /** Layer-wide opacity; the canvas composites the whole layer with this alpha. */
+    fun setLayerOpacity(id: String, opacity: Float) {
+        _elements.update { list -> list.map { if (it.id == id) it.withOpacity(opacity) else it } }
     }
 
     // -- Drawing on the canvas (draw mode) ------------------------------------

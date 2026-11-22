@@ -258,6 +258,12 @@ fun CanvasLayer.scaled(factor: Float): CanvasLayer = retransform { it.copy(scale
 /** Rotates the layer by [degrees] around its own axis. */
 fun CanvasLayer.rotated(degrees: Float): CanvasLayer = retransform { it.copy(rotation = it.rotation + degrees) }
 
+/** Layer-wide opacity, clamped to 0…1 — one alpha for the whole layer at render time. */
+fun CanvasLayer.withOpacity(value: Float): CanvasLayer = retransform { it.copy(opacity = value.coerceIn(0f, 1f)) }
+
+/** Hidden layers are not composited and not hit-tested; their data and place stay. */
+fun CanvasLayer.withVisible(visible: Boolean): CanvasLayer = retransform { it.copy(visible = visible) }
+
 /** A copy of the layer under a new [id], nudged off the source by 24 px. */
 fun CanvasLayer.duplicated(id: String): CanvasLayer = retransform { it.copy(x = it.x + DUPLICATE_OFFSET, y = it.y + DUPLICATE_OFFSET) }
     .withId(id)

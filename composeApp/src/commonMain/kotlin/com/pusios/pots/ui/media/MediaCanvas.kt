@@ -165,6 +165,9 @@ internal fun MediaCanvas(
     val frames = remember { mutableStateMapOf<String, Painter>() }
     val cardColor = MaterialTheme.colorScheme.surfaceVariant
     LayerFrames(layers, frames)
+    // One filtered list for every pass (shadows, renderer, overlay): a hidden
+    // layer is not composed, so it can neither draw nor take a tap.
+    val visibleLayers = layers.visibleLayers()
 
     // A finished stroke never changes, so its Path is built once per layer list
     // change and reused by every frame; the draw pass does not rebuild 20 paths
@@ -227,13 +230,14 @@ internal fun MediaCanvas(
         // Drop shadows sit under the frames: DrawScope has no shadow API in
         // common, so the silhouette stays a composable. A shadow of a higher
         // layer does not darken a lower layer's frame — the shadow-only delta
-        // of this split, no content moves.
-        LayerCardShadows(layers, canvasScale, canvasOffset, frames, measurer, fonts)
+        // of this split, no content moves. Hidden layers are not composed at
+        // all: no shadow, no frame, no hit target.
+        LayerCardShadows(visibleLayers, canvasScale, canvasOffset, frames, measurer, fonts)
 
         Canvas(Modifier.fillMaxSize()) {
             withTransform({ translate(canvasOffset.x, canvasOffset.y) }) {
                 renderLayers(
-                    layers = layers,
+                    layers = visibleLayers,
                     scale = density,
                     fonts = fonts,
                     measurer = measurer,
@@ -268,7 +272,9 @@ internal fun MediaCanvas(
             }
         }
 
-        layers.forEach { layer ->
+        // Hidden layers are neither drawn nor hit-tested: they are not in the
+        // composition at all, so no pointer can land on one.
+        visibleLayers.forEach { layer ->
             CanvasLayerOverlay(
                 layer = layer,
                 box = canvasLayerBox(layer, frames[layer.id], measurer, fonts),
