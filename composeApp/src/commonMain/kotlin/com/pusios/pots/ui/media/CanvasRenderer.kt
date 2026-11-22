@@ -151,8 +151,11 @@ private fun DrawScope.drawTextLayer(
         rotate(layer.transform.rotation, pivot)
         scale(grow, grow, pivot)
         // The layout is in canvas units; scale it to the caller's factor.
+        // The pivot is the origin on purpose: DrawTransform.scale's default
+        // pivot is the centre of the whole DrawScope, which would throw the
+        // glyphs off the canvas at any scale other than 1.
         translate(topLeft.x, topLeft.y)
-        scale(scale, scale)
+        scale(scale, scale, Offset.Zero)
     }) {
         drawText(layout, alpha = layer.transform.opacity)
     }
