@@ -176,8 +176,7 @@ class PolzaMediaProvider(
     }
 
     /** `parameters.<key>.max` — 0 or absent means the input is not accepted. */
-    private fun paramMax(parameters: JsonObject, key: String): Int =
-        ((parameters[key] as? JsonObject)?.get("max") as? JsonPrimitive)?.intOrNull ?: 0
+    private fun paramMax(parameters: JsonObject, key: String): Int = ((parameters[key] as? JsonObject)?.get("max") as? JsonPrimitive)?.intOrNull ?: 0
 
     /** `parameters: { "<key>": {type, required, values, default, max_length} }` → defs; `prompt` becomes [MediaModel.promptLimit]. */
     private fun parseParams(parameters: JsonObject): List<MediaParamDef> = parameters
@@ -374,6 +373,7 @@ class PolzaMediaProvider(
             kind = MediaKind.Image,
         )
     }
+
     /** `POST /v1/media` answer: `{id, status}` (we always send `async: true`). */
     internal fun parseMediaSubmit(request: MediaJobRequest, body: String): MediaJobState {
         val root = json.parseToJsonElement(body).jsonObject
@@ -405,12 +405,11 @@ class PolzaMediaProvider(
     }
 
     /** `data.url` or inline `b64_json` → a URL / data URI; null when neither. */
-    private fun dataItemUrl(o: JsonObject): String? =
-        o["url"]?.jsonPrimitive?.contentOrNull
-            ?: o["b64_json"]?.jsonPrimitive?.contentOrNull?.let { b64 ->
-                val mime = o["media_type"]?.jsonPrimitive?.contentOrNull ?: "image/png"
-                "data:$mime;base64,$b64"
-            }
+    private fun dataItemUrl(o: JsonObject): String? = o["url"]?.jsonPrimitive?.contentOrNull
+        ?: o["b64_json"]?.jsonPrimitive?.contentOrNull?.let { b64 ->
+            val mime = o["media_type"]?.jsonPrimitive?.contentOrNull ?: "image/png"
+            "data:$mime;base64,$b64"
+        }
 
     /** `GET /v1/media/{id}` → [MediaJobState]; `cancelled` maps to `Fail` (`MediaJobStatus` has no Cancelled). */
     internal fun parseMediaStatus(jobId: String, body: String): MediaJobState {

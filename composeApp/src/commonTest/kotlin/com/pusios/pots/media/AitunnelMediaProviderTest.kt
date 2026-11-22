@@ -4,8 +4,8 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
-import io.ktor.http.headersOf
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -153,7 +153,7 @@ class AitunnelMediaProviderTest {
                 content = if (request.url.encodedPath.endsWith("/videos")) videosCatalog else imagesCatalog,
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, "application/json"),
-                )
+            )
         }
         val models = AitunnelMediaProvider(clientOverride = HttpClient(engine)).listModels("sk-test")
         assertEquals(

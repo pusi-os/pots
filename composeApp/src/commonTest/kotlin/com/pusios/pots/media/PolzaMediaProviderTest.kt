@@ -4,8 +4,8 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
-import io.ktor.http.headersOf
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -205,7 +205,7 @@ class PolzaMediaProviderTest {
                 content = if (request.url.parameters["type"] == "video") liveVideosCatalog else liveImagesCatalog,
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, "application/json"),
-                )
+            )
         }
         val models = PolzaMediaProvider(clientOverride = HttpClient(engine)).listModels("sk-test")
         assertEquals(listOf<String?>("image", "video"), types)
