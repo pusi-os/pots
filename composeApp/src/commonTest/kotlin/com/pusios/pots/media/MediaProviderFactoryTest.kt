@@ -34,7 +34,7 @@ class MediaProviderFactoryTest {
         val withoutMedia = listOf(
             Service.Gptunnel,
             Service.LlmRouter,
-            Service.[OI]Compatible,
+            Service.OpenAICompatible,
             Service.LiteRT,
         )
         withoutMedia.forEach { service ->

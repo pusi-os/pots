@@ -155,8 +155,8 @@ class PolzaMediaProviderTest {
         val body = provider.buildMediaBody(
             MediaJobRequest(model = "grok-imagine-video-1-5", prompt = "p", opts = mapOf("duration" to "5"), maxPriceRub = 15.0),
         )
-        val provider_ = body["provider"] as? kotlinx.serialization.json.JsonObject
-        val maxPrice = provider_?.get("max_price") as? kotlinx.serialization.json.JsonObject
+        val routing = body["provider"] as? kotlinx.serialization.json.JsonObject
+        val maxPrice = routing?.get("max_price") as? kotlinx.serialization.json.JsonObject
         assertEquals(3.0, maxPrice?.get("video_per_second")?.toString()?.toDouble())
     }
 

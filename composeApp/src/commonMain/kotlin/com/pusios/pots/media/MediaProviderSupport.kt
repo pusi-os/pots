@@ -8,11 +8,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
-/**
- * Helpers shared by the media provider adapters (Polza, AITUNNEL, …).
- * PlusVibe predates this file and keeps its own copies — it is the reference
- * implementation and stays untouched.
- */
+// Helpers shared by the media provider adapters (Polza, AITUNNEL, …).
+// PlusVibe predates this file and keeps its own copies — it is the reference
+// implementation and stays untouched.
 
 /** Decodes a `data:<mime>;base64,…` URL; null when the string is not a data URI. */
 @OptIn(ExperimentalEncodingApi::class)
