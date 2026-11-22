@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POTS · Шапки секций настроек</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-image" viewBox="0 0 24 24"><path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></symbol>
+  <symbol id="i-movie" viewBox="0 0 24 24"><path fill="currentColor" d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></symbol>
+  <symbol id="i-audio" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+</svg>
+
+<div class="doc">
+
+<header class="doc-head">
+  <p class="kicker">POTS · Дизайн-макеты · t_b31b2265</p>
+  <h1>Шапки секций настроек: белый цвет и иконка</h1>
+  <p class="lede">Баг подтверждён в <code>ui/settings/MediaModelsSettings.kt:100</code>: <code>Text(title, style = labelLarge)</code> без указания цвета. <code>labelLarge</code> не задаёт цвет, поэтому текст наследует цвет контента по умолчанию — чёрный. На тёмном фоне <code>#121212</code> заголовок «Изображения» практически исчезает: контраст 1.12 : 1 при норме 4.5 : 1.</p>
+  <div class="chips">
+    <span class="chip chip--accent">360 dp · 1 px = 1 dp</span>
+    <span class="chip">color = onSurface #FFFFFF</span>
+    <span class="chip">titleSmall 14/20 · 600</span>
+    <span class="chip">иконка 18 dp слева</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">01</span>
+    <h2>Было → стало</h2>
+  </div>
+  <p class="block-note">Один и тот же экран настроек медиа-моделей. Слева — текущий рендер: три секции есть, но их заголовки не видны. Справа — предлагаемый: цвет <code>onSurface</code>, иконка в начале, счётчик моделей справа.</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>A. Было</b><span>Text(title, labelLarge) без цвета</span></div>
+      <div class="frame">
+        <div class="frame-bar">
+          <span class="bar-title">Медиа-модели</span>
+          <span class="bar-icon"><svg width="20" height="20"><use href="#i-close"/></svg></span>
+        </div>
+        <div class="frame-body" style="padding-bottom:18px">
+
+          <div style="padding:14px 8px 18px">
+            <div class="probe" data-label="«Изображения» здесь, но чёрный" style="padding:2px 6px;display:inline-block">
+              <span class="legacy-title">Изображения</span>
+            </div>
+          </div>
+          <div class="mrow is-selected"><span class="nm">seedream-4.5</span><span class="pr">от 3 ₽ · кадр</span></div>
+          <div class="mrow"><span class="nm">nano-banana-2</span><span class="pr">от 2 ₽ · кадр</span></div>
+          <div class="mrow"><span class="nm">flux-kontext-pro</span><span class="pr">от 4 ₽ · кадр</span></div>
+
+          <div style="padding:12px 8px 18px">
+            <div class="probe" data-label="«Видео» здесь, но чёрный" style="padding:2px 6px;display:inline-block">
+              <span class="legacy-title">Видео</span>
+            </div>
+          </div>
+          <div class="mrow"><span class="nm">veo-3.1</span><span class="pr">от 18 ₽ · секунда</span></div>
+          <div class="mrow"><span class="nm">kling-2.6</span><span class="pr">от 9 ₽ · секунда</span></div>
+
+          <div style="padding:12px 8px 18px">
+            <div class="probe" data-label="«Аудио» здесь, но чёрный" style="padding:2px 6px;display:inline-block">
+              <span class="legacy-title">Аудио</span>
+            </div>
+          </div>
+          <div class="mrow"><span class="nm">eleven-v3</span><span class="pr">от 6 ₽ · 1k знаков</span></div>
+          <div class="mrow"><span class="nm">suno-v5</span><span class="pr">от 5 ₽ · трек</span></div>
+
+        </div>
+      </div>
+      <p class="flag" style="max-width:360px;display:block">Заголовки секций невидимы: #000000 на #121212 = 1.12 : 1</p>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>B. Стало</b><span>onSurface + иконка</span></div>
+      <div class="frame">
+        <div class="frame-bar">
+          <span class="bar-title">Медиа-модели</span>
+          <span class="bar-icon"><svg width="20" height="20"><use href="#i-close"/></svg></span>
+        </div>
+        <div class="frame-body" style="padding-bottom:18px">
+
+          <div class="sec">
+            <svg><use href="#i-image"/></svg>
+            <h4>Изображения</h4>
+            <span class="cnt">12</span>
+          </div>
+          <div class="mrow is-selected"><span class="nm">seedream-4.5</span><span class="pr">от 3 ₽ · кадр</span></div>
+          <div class="mrow"><span class="nm">nano-banana-2</span><span class="pr">от 2 ₽ · кадр</span></div>
+          <div class="mrow"><span class="nm">flux-kontext-pro</span><span class="pr">от 4 ₽ · кадр</span></div>
+
+          <div class="sec">
+            <svg><use href="#i-movie"/></svg>
+            <h4>Видео</h4>
+            <span class="cnt">8</span>
+          </div>
+          <div class="mrow"><span class="nm">veo-3.1</span><span class="pr">от 18 ₽ · секунда</span></div>
+          <div class="mrow"><span class="nm">kling-2.6</span><span class="pr">от 9 ₽ · секунда</span></div>
+
+          <div class="sec">
+            <svg><use href="#i-audio"/></svg>
+            <h4>Аудио</h4>
+            <span class="cnt">5</span>
+          </div>
+          <div class="mrow"><span class="nm">eleven-v3</span><span class="pr">от 6 ₽ · 1k знаков</span></div>
+          <div class="mrow"><span class="nm">suno-v5</span><span class="pr">от 5 ₽ · трек</span></div>
+
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="num">1</span><span><b>Иконка</b> 18 dp, цвет <code>primary</code> — единственный цветной элемент шапки.</span></li>
+        <li><span class="num">2</span><span><b>Заголовок</b> <code>onSurface</code> = #FFFFFF, контраст 18.7 : 1.</span></li>
+        <li><span class="num">3</span><span><b>Счётчик</b> — сколько моделей в секции; <code>onSurfaceVariant</code> 11/16.</span></li>
+      </ul>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">02</span>
+    <h2>Почему баг виден только в тёмной теме</h2>
+  </div>
+  <p class="block-note">В светлой теме тот же код выглядел нормально: чёрный текст на почти белом фоне читался сам собой, поэтому отсутствие цвета не бросалось в глаза. Это не «сломалось при переходе на тёмную тему» — цвет просто никогда не задавался.</p>
+
+  <div class="frames">
+    <figure class="fig">
+      <div class="fig-cap"><b>C. Светлая тема, тот же код</b><span>случайно работало</span></div>
+      <div class="frame frame--light" style="width:360px">
+        <div class="frame-bar" style="border-bottom-color:rgba(0,0,0,.08)">
+          <span class="bar-title" style="color:#000">Медиа-модели</span>
+          <span class="bar-icon" style="color:rgba(0,0,0,.55)"><svg width="20" height="20"><use href="#i-close"/></svg></span>
+        </div>
+        <div class="frame-body" style="padding-bottom:16px">
+          <div style="padding:12px 8px 4px"><span style="font:500 14px/20px var(--font);color:#000">Изображения</span></div>
+          <div class="mrow" style="background:#E7E2F2"><span class="nm" style="color:#000">seedream-4.5</span><span class="pr" style="color:rgba(0,0,0,.6)">от 3 ₽ · кадр</span></div>
+          <div class="mrow"><span class="nm" style="color:#000">nano-banana-2</span><span class="pr" style="color:rgba(0,0,0,.6)">от 2 ₽ · кадр</span></div>
+          <div style="padding:12px 8px 4px"><span style="font:500 14px/20px var(--font);color:#000">Видео</span></div>
+          <div class="mrow"><span class="nm" style="color:#000">veo-3.1</span><span class="pr" style="color:rgba(0,0,0,.6)">от 18 ₽ · секунда</span></div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:360px">#000000 на #F2F2F2 = 18.6 : 1 — тот же чёрный, но здесь он уместен. Отсюда и вывод: цвет надо задавать явно, а не наследовать.</p>
+    </figure>
+
+    <figure class="fig" style="max-width:420px">
+      <div class="fig-cap"><b>Контраст по WCAG</b><span>до / после</span></div>
+      <table class="spec-table" style="max-width:420px">
+        <thead><tr><th>Пара</th><th>Отношение</th><th>Норма</th></tr></thead>
+        <tbody>
+          <tr><td>#000000 на #121212</td><td style="color:#FF8AA0">1.12 : 1</td><td>✗</td></tr>
+          <tr><td>#FFFFFF на #121212</td><td style="color:#6EE7A0">18.7 : 1</td><td>✓</td></tr>
+          <tr><td>#B7B1C4 на #121212</td><td style="color:#6EE7A0">9.0 : 1</td><td>✓</td></tr>
+          <tr><td>#BB86FC на #121212</td><td style="color:#6EE7A0">7.1 : 1</td><td>✓ (иконка)</td></tr>
+        </tbody>
+      </table>
+      <p class="block-note" style="margin:10px 0 0;max-width:420px">Норма AA для обычного текста — 4.5 : 1. Порог для крупного (18 pt / 14 pt bold) — 3 : 1. Заголовок секции — обычный текст, значит 4.5 : 1.</p>
+    </figure>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">03</span>
+    <h2>Анатомия шапки</h2>
+  </div>
+  <p class="block-note">Увеличение 2×. Заголовок всегда одна строка с ellipsis, поэтому иконка центрируется по вертикали (<code>CenterVertically</code>) — на короткой строке это совпадает с базовой линией текста и не «висит» при длинном названии секции.</p>
+
+  <div class="zoom-wrap" style="display:inline-flex;gap:40px;align-items:flex-start;padding:22px 26px">
+    <div style="position:relative;width:392px;padding-top:26px">
+      <div class="dim-h" style="left:8px;right:8px;top:10px"><span>top 12 · right 8 · bottom 8 · left 8</span></div>
+      <div style="zoom:2;width:196px;background:rgba(255,255,255,.03);border-radius:8px">
+        <div class="sec" style="padding:12px 8px 8px">
+          <svg><use href="#i-image"/></svg>
+          <h4>Изображения</h4>
+          <span class="cnt">12</span>
+        </div>
+      </div>
+      <div class="dim-h" style="left:8px;width:36px;top:calc(100% + 12px)"><span>18</span></div>
+    </div>
+
+    <table class="spec-table" style="max-width:430px;font-size:12px">
+      <tbody>
+        <tr><td>Иконка</td><td>18 × 18 dp, <code>currentColor</code>, цвет <code>primary</code></td></tr>
+        <tr><td>Зазор иконка → текст</td><td>8 dp</td></tr>
+        <tr><td>Заголовок</td><td>titleSmall 14 / 20, вес 600, letterSpacing 0.1</td></tr>
+        <tr><td>Цвет</td><td><code>onSurface</code> — #FFFFFF в тёмной, #000000 в светлой</td></tr>
+        <tr><td>Счётчик</td><td>labelSmall 11 / 16, <code>onSurfaceVariant</code></td></tr>
+        <tr><td>Отступы</td><td>сверху 12, слева/справа 8, снизу 8</td></tr>
+        <tr><td>Высота строки</td><td>20 dp (одна строка, ellipsis)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">04</span>
+    <h2>Что менять в коде</h2>
+  </div>
+
+  <table class="spec-table">
+    <thead><tr><th>Место</th><th>Сейчас</th><th>Нужно</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>MediaModelsSettings.kt:100</td>
+        <td><code>Text(title, style = labelLarge, modifier = padding(top = 12.dp))</code></td>
+        <td><code>Row(verticalAlignment = CenterVertically)</code> + <code>Icon(18.dp, tint = primary)</code> + <code>Text(title, style = titleSmall, color = onSurface)</code></td>
+      </tr>
+      <tr>
+        <td>MediaModelsSettings.kt:78-95</td>
+        <td><code>ModelPicker(title = "Изображения")</code> / <code>"Видео"</code></td>
+        <td>добавить параметр иконки; для «Аудио» — новая секция с <code>MediaKind.Audio</code></td>
+      </tr>
+      <tr>
+        <td>Строки секций</td>
+        <td>только <code>title</code></td>
+        <td><code>Res.string.media_section_images / _video / _audio</code> вместо литералов</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note" style="margin-top:18px">
+    <b>Иконки — Material, не PotsIcons.</b> <code>ui/icons/PotsIcons.kt</code> содержит клубные иконки (<code>ClubKey</code>, <code>ClubCloud</code>, <code>LocalModel</code>, <code>PotsGame</code>) — к медиа-секциям они не относятся. Для секций берём <code>Icons.Outlined.Image</code>, <code>Icons.Outlined.Movie</code>, <code>Icons.Outlined.GraphicEq</code> — тот же набор, что уже используется в настройках.
+  </div>
+  <div class="note">
+    <b>Иконка — декоративная.</b> У <code>Icon</code> должен быть <code>contentDescription = null</code>: заголовок рядом уже называет секцию, дублирование в TalkBack мешает. Счётчик, наоборот, озвучивается: «Изображения, 12 моделей».
+  </div>
+  <div class="note note--warn">
+    <b>Счётчик не обязателен.</b> Если число моделей в секции неизвестно (каталог ещё грузится), счётчик не показываем — заголовок не должен прыгать. Место под него не резервируем: он правый и уходит вместе с текстом; при появлении заголовок получает на ~24 dp меньше, а названия секций короткие — обрезки не случается.
+  </div>
+</section>
+
+</div>
+</body>
+</html>
