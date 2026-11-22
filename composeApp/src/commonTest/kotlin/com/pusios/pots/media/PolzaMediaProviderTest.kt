@@ -382,4 +382,64 @@ class PolzaMediaProviderTest {
         assertIs<MediaException.Unavailable>(mapMediaHttpError(403, """{"error":{"message":"модерация"}}"""))
         assertIs<MediaException.ModelNotFound>(mapMediaHttpError(404, "{}"))
     }
+
+    /**
+     * End-to-end through the public surface on a MockEngine: quote → submit →
+     * poll → download. The quote picks the specific 16:9 tier (the conditions-
+     * less tier is only a fallback), the sync `/v2` answer wraps into a pending
+     * local job, and polling hands out the stored result. Skeletons follow the
+     * documented answer shapes; no network, no paid calls.
+     */
+    @Test
+    fun endToEndQuoteSubmitPollDownloadThroughMockEngine() = runTest {
+        val catalog = """
+            {"object":"list","data":[{"id":"qwen/image","type":"image",
+              "architecture":{"input_modalities":["text"]},
+              "top_provider":{"pricing":{"tiers":[
+                  {"conditions":["aspect_ratio=16:9"],"cost_rub":"2.25"},
+                  {"conditions":[],"cost_rub":"3.00"}],
+                "currency":"RUB"},
+                "parameters":{"prompt":{"max_length":4000},
+                  "aspect_ratio":{"values":["1:1","16:9"],"default":"1:1"}}}}]}
+        """.trimIndent()
+        val authSeen = mutableListOf<String?>()
+        val engine = MockEngine { request ->
+            authSeen += request.headers[HttpHeaders.Authorization]
+            when (request.url.encodedPath) {
+                "/api/v1/models" -> respond(catalog, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+                "/api/v2/images/generations" -> respond(
+                    """{"created":1,"data":[{"url":"https://s3.polza.ai/f/x.png"}],"usage":{"cost_rub":2.5}}""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+                "/f/x.png" -> respond("PNGDATA", HttpStatusCode.OK)
+                else -> respond(
+                    """{"error":{"message":"unexpected path"}}""",
+                    HttpStatusCode.NotFound,
+                    headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            }
+        }
+        val live = PolzaMediaProvider(clientOverride = HttpClient(engine))
+        val quote = live.quotePrice(
+            "sk-test",
+            MediaJobRequest(model = "qwen/image", prompt = "p", opts = mapOf("aspect_ratio" to "16:9")),
+        )
+        assertEquals(2.25, quote.priceRub)
+        assertNull(quote.quoteId)
+        val submit = live.submitJob(
+            "sk-test",
+            MediaJobRequest(model = "qwen/image", prompt = "p", opts = mapOf("size" to "1024x1024")),
+        )
+        assertEquals(MediaJobStatus.Processing, submit.status)
+        assertTrue(submit.jobId.isNotBlank())
+        val polled = live.pollJob("sk-test", submit.jobId)
+        assertEquals(MediaJobStatus.Success, polled.status)
+        assertEquals(listOf("https://s3.polza.ai/f/x.png"), polled.resultUrls)
+        assertEquals(2.5, polled.priceRub)
+        assertEquals("PNGDATA", live.downloadResult("sk-test", polled.resultUrls.single()).decodeToString())
+        // Catalog GETs and the CDN download are keyless; only the /v2 submit carries the key.
+        assertTrue(authSeen.take(2).all { it == null })
+        assertTrue(authSeen.last() == null)
+    }
 }

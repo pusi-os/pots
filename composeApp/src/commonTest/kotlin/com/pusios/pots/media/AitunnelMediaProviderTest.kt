@@ -24,6 +24,9 @@ class AitunnelMediaProviderTest {
 
     private val provider = AitunnelMediaProvider()
 
+    /** Content-type header for MockEngine JSON answers. */
+    private val json = headersOf(HttpHeaders.ContentType, "application/json")
+
     // Real cards from the live images catalog: a cheap generator, a
     // mid-priced one, and an edit-only model (supports_generation = false).
     private val imagesCatalog = """{"flux.2-klein-4b":{"provider":"black-forest-labs","short_description":"Самая быстрая и экономичная генерация изображений","description":"FLUX.2 [klein] 4B — самая быстрая и экономичная модель семейства FLUX.2. Она оптимизирована для сценариев с высокой нагрузкой и при этом сохраняет отличное качество изображений.","modalities":{"input":["text","image"],"output":["image"]},"created":1768429228,"min_price_per_image":2.7,"max_price_per_image":5.4,"supported_resolutions":[],"supported_aspect_ratios":[],"supported_sizes":[],"custom_size":null,"gif_limits":null,"max_input_image_bytes":26214400,"supports_combined_resolution_and_aspect_ratio":true,"supported_quality":[],"supported_output_formats":["png","jpeg"],"supported_background":[],"supports_seed":true,"max_n":1,"max_input_references":4,"allowed_passthrough_parameters":["steps","guidance","safety_tolerance"],"supports_generation":true,"supports_edit":true},"grok-imagine-image-quality":{"provider":"x-ai","short_description":"Генерация изображений с акцентом на качество","modalities":{"input":["text","image"],"output":["image"]},"created":1779117584,"min_price_per_image":9.000000000000002,"max_price_per_image":18.000000000000004,"supported_resolutions":["1K","2K"],"supported_aspect_ratios":["1:1","3:4","4:3","9:16","16:9","2:3","3:2","9:19.5","19.5:9","9:20","20:9","1:2","2:1","auto"],"supported_sizes":[],"custom_size":null,"gif_limits":null,"max_input_image_bytes":26214400,"supports_combined_resolution_and_aspect_ratio":true,"supported_quality":[],"supported_output_formats":[],"supported_background":[],"supports_seed":false,"max_n":1,"max_input_references":3,"allowed_passthrough_parameters":[],"supports_generation":true,"supports_edit":true},"k3-edit":{"provider":"krea","short_description":"Правка по нескольким изображениям с сохранением объектов и композиции","description":"Krea K3 Edit — модель Krea для редактирования изображений, которая подходит для интерактивных редакторов и сценариев, где из одного исходника нужно получить много вариантов. В быстром режиме, который включён по умолчанию, большинство правок занимает меньше десяти секунд.\n\nМодель принимает от одного до восьми референсных изображений и текстовый промпт и возвращает одно отредактированное изображение. Она выполняет как мелкие локальные правки, так и сложные многошаговые изменения, сохраняя персонажей и композицию референсов. Формат результата повторяет исходный, если не задано другое соотношение сторон.","modalities":{"input":["text","image"],"output":["image"]},"created":1792103728,"min_price_per_image":5.4,"max_price_per_image":64.8,"supported_resolutions":["1K","2K"],"supported_aspect_ratios":["1:1","4:3","3:2","16:9","4:5","2:3","9:16"],"supported_sizes":[],"custom_size":null,"gif_limits":null,"max_input_image_bytes":26214400,"supports_combined_resolution_and_aspect_ratio":true,"supported_quality":[],"supported_output_formats":[],"supported_background":[],"supports_seed":true,"max_n":1,"max_input_references":4,"allowed_passthrough_parameters":["preserve_references","skip_prompt_expansion","thinking_mode"],"supports_generation":false,"supports_edit":true}}"""
@@ -260,6 +263,37 @@ class AitunnelMediaProviderTest {
     }
 
     @Test
+    fun videoReferenceGoesToTheVideoUrlField() {
+        val body = provider.buildVideosBody(
+            MediaJobRequest(
+                model = "gen-4.5",
+                prompt = "p",
+                references = listOf(MediaReference(url = "https://example.com/in.mp4", isVideo = true)),
+            ),
+        )
+        val refs = body["input_references"] as? kotlinx.serialization.json.JsonArray
+        val ref = refs?.first() as? kotlinx.serialization.json.JsonObject
+        assertEquals("video_url", ref?.get("type")?.toString()?.trim('"'))
+        val videoUrl = ref?.get("video_url") as? kotlinx.serialization.json.JsonObject
+        assertEquals("https://example.com/in.mp4", videoUrl?.get("url")?.toString()?.trim('"'))
+        // The video URL must not leak into the image field.
+        assertTrue(!ref.toString().contains("image_url"))
+        // An image reference keeps the documented image_url shape.
+        val imageBody = provider.buildImagesBody(
+            MediaJobRequest(
+                model = "flux.2-klein-4b",
+                prompt = "p",
+                references = listOf(MediaReference(url = "https://example.com/ref.png")),
+            ),
+        )
+        val imageRef = (imageBody["input_references"] as? kotlinx.serialization.json.JsonArray)
+            ?.first() as? kotlinx.serialization.json.JsonObject
+        assertEquals("image_url", imageRef?.get("type")?.toString()?.trim('"'))
+        val imageUrl = imageRef?.get("image_url") as? kotlinx.serialization.json.JsonObject
+        assertEquals("https://example.com/ref.png", imageUrl?.get("url")?.toString()?.trim('"'))
+    }
+
+    @Test
     fun syncImageAnswerBecomesAPendingLocalJobWithInlineBytes() {
         val body = """
             {"created":1,"data":[{"b64_json":"aGVsbG8=","media_type":"image/png"}],
@@ -341,5 +375,89 @@ class AitunnelMediaProviderTest {
         assertTrue(bytes != null)
         assertEquals(5, bytes.size)
         assertNull(decodeMediaDataUri("https://example.com/x.png"))
+    }
+
+    /**
+     * End-to-end through the public surface on a MockEngine: quote → submit →
+     * poll → download. Skeletons follow the documented answer shapes; no
+     * network, no paid calls.
+     */
+    @Test
+    fun endToEndImageQuoteSubmitPollDownloadThroughMockEngine() = runTest {
+        val authSeen = mutableListOf<String?>()
+        val engine = MockEngine { request ->
+            authSeen += request.headers[HttpHeaders.Authorization]
+            when (request.url.encodedPath) {
+                "/public/aitunnel/models/images" -> respond(imagesCatalog, HttpStatusCode.OK, json)
+                "/public/aitunnel/models/videos" -> respond(videosCatalog, HttpStatusCode.OK, json)
+                "/v1/images/generations" -> respond(
+                    """{"created":1,"data":[{"b64_json":"aGVsbG8=","media_type":"image/png"}],
+                        "model":"flux.2-klein-4b","usage":{"cost_rub":5.4}}""",
+                    HttpStatusCode.OK,
+                    json,
+                )
+                else -> respond("""{"error":{"message":"unexpected path"}}""", HttpStatusCode.NotFound, json)
+            }
+        }
+        val live = AitunnelMediaProvider(clientOverride = HttpClient(engine))
+        val quote = live.quotePrice("sk-test", MediaJobRequest(model = "flux.2-klein-4b", prompt = "p"))
+        assertEquals(5.4, quote.priceRub)
+        assertNull(quote.quoteId)
+        val submit = live.submitJob("sk-test", MediaJobRequest(model = "flux.2-klein-4b", prompt = "p"))
+        assertEquals(MediaJobStatus.Processing, submit.status)
+        assertTrue(submit.jobId.isNotBlank())
+        val polled = live.pollJob("sk-test", submit.jobId)
+        assertEquals(MediaJobStatus.Success, polled.status)
+        assertEquals("data:image/png;base64,aGVsbG8=", polled.resultUrls.single())
+        assertEquals(5.4, polled.priceRub)
+        assertEquals("hello", live.downloadResult("sk-test", polled.resultUrls.single()).decodeToString())
+        // The catalog is public; only the generation call carries the key.
+        assertEquals(listOf(null, null, "Bearer sk-test"), authSeen)
+    }
+
+    /** Same loop for the async video path, finishing with an authorized content download. */
+    @Test
+    fun endToEndVideoSubmitPollDownloadThroughMockEngine() = runTest {
+        val authSeen = mutableListOf<String?>()
+        val engine = MockEngine { request ->
+            authSeen += request.headers[HttpHeaders.Authorization]
+            when (request.url.encodedPath) {
+                "/public/aitunnel/models/images" -> respond("{}", HttpStatusCode.OK, json)
+                "/public/aitunnel/models/videos" -> respond(videosCatalog, HttpStatusCode.OK, json)
+                "/v1/videos" -> respond(
+                    """{"id":"vid_9","polling_url":"https://api.aitunnel.ru/v1/videos/vid_9","status":"pending"}""",
+                    HttpStatusCode.Accepted,
+                    json,
+                )
+                "/v1/videos/vid_9" -> respond(
+                    """{"id":"vid_9","status":"completed","model":"gen-4.5",
+                        "unsigned_urls":["https://api.aitunnel.ru/v1/videos/vid_9/content?index=0"],
+                        "usage":{"cost_rub":102.0}}""",
+                    HttpStatusCode.OK,
+                    json,
+                )
+                "/v1/videos/vid_9/content" -> respond("MP4DATA", HttpStatusCode.OK)
+                else -> respond("""{"error":{"message":"unexpected path"}}""", HttpStatusCode.NotFound, json)
+            }
+        }
+        val live = AitunnelMediaProvider(clientOverride = HttpClient(engine))
+        val quote = live.quotePrice(
+            "sk-test",
+            MediaJobRequest(model = "gen-4.5", prompt = "p", opts = mapOf("duration" to "5", "size" to "1280x720")),
+        )
+        assertEquals(102.0, quote.priceRub) // size_prices["1280x720"]=20.4 × 5 s
+        val submit = live.submitJob(
+            "sk-test",
+            MediaJobRequest(model = "gen-4.5", prompt = "p", opts = mapOf("duration" to "5", "size" to "1280x720")),
+        )
+        assertEquals("vid_9", submit.jobId)
+        assertEquals(MediaJobStatus.Processing, submit.status)
+        val polled = live.pollJob("sk-test", "vid_9")
+        assertEquals(MediaJobStatus.Success, polled.status)
+        assertEquals(102.0, polled.priceRub)
+        val bytes = live.downloadResult("sk-test", polled.resultUrls.single())
+        assertEquals("MP4DATA", bytes.decodeToString())
+        // /v1/videos/{id}/content is the only route where Authorization is mandatory.
+        assertEquals("Bearer sk-test", authSeen.last())
     }
 }

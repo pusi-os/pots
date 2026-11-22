@@ -474,7 +474,11 @@ class AitunnelMediaProvider(
         return JsonObject(map)
     }
 
-    /** `[{type: "image_url", image_url: {url}}]`; https stays a URL, the rest becomes a data URI. */
+    /**
+     * `[{"type": "image_url", "image_url": {"url": …}}]`; a video reference
+     * goes into the documented `video_url` field instead. https stays a URL,
+     * the rest becomes a data URI.
+     */
     private fun inputReference(ref: MediaReference): JsonObject? {
         val httpsUrl = ref.url?.takeIf { it.startsWith("https://") }
         val data = httpsUrl ?: resolveMediaReferenceDataUri(ref)
@@ -482,11 +486,11 @@ class AitunnelMediaProvider(
                 MediaLog.w("AITUNNEL reference skipped: no readable url or data")
                 return null
             }
-        val type = if (ref.isVideo) "video_url" else "image_url"
+        val field = if (ref.isVideo) "video_url" else "image_url"
         return JsonObject(
             mapOf(
-                "type" to JsonPrimitive(type),
-                "image_url" to JsonObject(mapOf("url" to JsonPrimitive(data))),
+                "type" to JsonPrimitive(field),
+                field to JsonObject(mapOf("url" to JsonPrimitive(data))),
             ),
         )
     }
