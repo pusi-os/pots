@@ -9,7 +9,10 @@ import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -50,10 +53,10 @@ internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
  * file cannot drift away from what the user sees. It knows nothing about the
  * ViewModel, the selection or the UI chrome: everything arrives as arguments.
  *
- * Today it draws Image and Video frames. Text and strokes are the next cards;
- * [fonts] and [measurer] are already in the signature for them — a [FontFamily]
- * can only be resolved in a composition (`Font()` is @Composable), so the
- * renderer receives the resolved families instead of loading them.
+ * Today it draws Image and Video frames and free-hand strokes. Text is the next
+ * card; [fonts] and [measurer] are already in the signature for it — a
+ * [FontFamily] can only be resolved in a composition (`Font()` is @Composable),
+ * so the renderer receives the resolved families instead of loading them.
  *
  * @param layers draw order — the list is the z-order, nothing is sorted here.
  * @param scale canvas px per canvas unit at 100 % zoom: the screen passes the
@@ -62,6 +65,9 @@ internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
  *   it is the same 232.dp wide as the old composable path.
  * @param frames decoded frames by layer id. A layer without a frame draws only
  *   its card (an image that is still loading, a video — see below).
+ * @param strokePaths prepared stroke paths by layer id. A stroke is immutable
+ *   once drawn, so its [Path] is built once by the caller and reused here;
+ *   a missing entry is built on the spot (an export, a test).
  * @param cardBackground fill of the layer card; the frame is drawn Fit inside
  *   it, so the letterbox bars show this colour. `null` leaves the card empty.
  * @param zoom canvas zoom. The box grows around its *layout* centre, exactly
@@ -71,6 +77,9 @@ internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
  * Layer `x`/`y` are canvas px and are NOT multiplied by [scale] — that is what
  * the project file has always stored (pan deltas in px) and the screen keeps
  * that geometry. A caller rendering at another scale translates the scope.
+ * Strokes are the exception: their points, thickness and offset are all canvas
+ * units, so the whole line scales with [scale] and an export at another size
+ * keeps the ink where it was drawn.
  *
  * Video: `MediaVideoPlayer` is a composable, its frame cannot be drawn here
  * yet, so the screen keeps the player above the canvas and the renderer paints
@@ -83,6 +92,7 @@ internal fun DrawScope.renderLayers(
     fonts: Map<String, FontFamily> = emptyMap(),
     measurer: TextMeasurer? = null,
     frames: Map<String, Painter> = emptyMap(),
+    strokePaths: Map<String, Path> = emptyMap(),
     cardBackground: Color? = null,
     zoom: Float = 1f,
 ) {
@@ -93,11 +103,67 @@ internal fun DrawScope.renderLayers(
 
             is VideoLayer -> drawMediaLayer(layer, frames[layer.id], scale, zoom, cardBackground)
 
-            // Audio is a player card, not a frame; text/strokes/arrows are the
+            is StrokeLayer -> drawStrokeLayer(layer, strokePaths[layer.id] ?: strokePath(layer.points), scale, zoom)
+
+            // Audio is a player card, not a frame; text and arrows are the
             // next cards. They are skipped, not drawn as empty boxes.
-            is AudioLayer, is TextLayer, is StrokeLayer, is ArrowLayer -> Unit
+            is AudioLayer, is TextLayer, is ArrowLayer -> Unit
         }
     }
+}
+
+/**
+ * One free-hand stroke: the whole layer is canvas units (points, thickness and
+ * its own offset), so the shape is drawn in unit space and the transform stack
+ * scales it — a stroke drawn across a card keeps crossing it at any export size.
+ *
+ * Zoom turns around the canvas origin, like a real zoom; the layer's own
+ * rotation and scale turn around the stroke's bbox centre, like a card turns
+ * around its layout centre. `MediaCanvas` draws the in-progress stroke with the
+ * same stack, so what the finger sees is what the layer pass draws the moment
+ * the stroke is committed.
+ *
+ * The layer alpha is the ink alpha: schema 2 holds one stroke per element, so
+ * there is nothing inside the layer to show through.
+ */
+private fun DrawScope.drawStrokeLayer(layer: StrokeLayer, path: Path, scale: Float, zoom: Float) {
+    if (layer.points.isEmpty() || layer.transform.opacity <= 0f) return
+    val pivot = path.getBounds().center
+    withTransform({
+        translate(layer.transform.x * scale, layer.transform.y * scale)
+        scale(scale * zoom, scale * zoom, Offset.Zero)
+        rotate(layer.transform.rotation, pivot)
+        scale(layer.transform.scale, layer.transform.scale, pivot)
+    }) {
+        drawStrokeInk(layer.points, path, layer.colorArgb, layer.widthPx, layer.transform.opacity, 1f)
+    }
+}
+
+/**
+ * The ink itself: round caps and joins, [alpha] as the layer's alpha, thickness
+ * in canvas units scaled by [scale].
+ *
+ * Shared with the screen's stroke-under-the-finger pass, so the line being
+ * drawn and the line that lands in the layer list are the same picture.
+ */
+internal fun DrawScope.drawStrokeInk(
+    points: List<Offset>,
+    path: Path,
+    colorArgb: Int,
+    widthPx: Float,
+    alpha: Float,
+    scale: Float,
+) {
+    if (points.isEmpty() || widthPx <= 0f || alpha <= 0f) return
+    drawPath(
+        path = path,
+        color = Color(colorArgb).copy(alpha = alpha),
+        style = Stroke(
+            width = (widthPx * scale).coerceAtLeast(1f),
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round,
+        ),
+    )
 }
 
 /** One media layer: translate to its position, then rotate/scale around the layout centre. */

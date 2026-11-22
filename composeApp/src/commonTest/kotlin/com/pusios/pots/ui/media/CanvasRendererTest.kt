@@ -1,5 +1,6 @@
 package com.pusios.pots.ui.media
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
@@ -7,6 +8,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -146,6 +148,48 @@ class CanvasRendererTest {
         assertTrue(abs(bar - 0.5f) < 0.02f, "letterbox bar: expected ~50 % alpha, got $bar")
         assertTrue(abs(frame - 0.5f) < 0.02f, "frame: expected ~50 % alpha, got $frame")
         assertEquals(bar, frame, 0.02f)
+    }
+
+    @Test
+    fun aStrokeDrawsInListOrderAndRespectsVisibilityAndOpacity() {
+        // The ink is a layer like any other: same list order, same visible, same alpha.
+        val card = ImageLayer(id = "card", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
+        val ink = StrokeLayer(
+            id = "ink",
+            points = listOf(Offset(0f, 60f), Offset(232f, 60f)),
+            colorArgb = Color.Blue.toArgb(),
+            widthPx = 12f,
+        )
+        val frames = mapOf("card" to BitmapPainter(red))
+
+        // Above the card: the pixel on the line is ink.
+        assertEquals(Color.Blue, render(listOf(card, ink), frames).colorAt(116, 60))
+        // Below it: the card covers the ink — the list is the z-order.
+        assertEquals(Color.Red, render(listOf(ink, card), frames).colorAt(116, 60))
+
+        val hidden = ink.copy(transform = LayerTransform(visible = false))
+        assertEquals(0f, render(listOf(hidden)).colorAt(116, 60).alpha)
+
+        val half = ink.copy(transform = LayerTransform(opacity = 0.5f))
+        val alpha = render(listOf(half)).colorAt(116, 60).alpha
+        assertTrue(abs(alpha - 0.5f) < 0.05f, "expected ~50 % alpha, got $alpha")
+    }
+
+    @Test
+    fun strokeThicknessAndOffsetAreCanvasUnits() {
+        // A stroke is drawn in the units the layers are measured in: at scale 2
+        // the line is twice as far from the origin and twice as thick.
+        val ink = StrokeLayer(
+            id = "ink",
+            points = listOf(Offset(10f, 10f), Offset(60f, 10f)),
+            colorArgb = Color.Blue.toArgb(),
+            widthPx = 6f,
+        )
+        // At scale 1 the line sits on y = 10; at scale 2 it is on y = 20 and
+        // reaches a pixel that was empty before.
+        assertEquals(Color.Blue, render(listOf(ink)).colorAt(30, 10))
+        assertEquals(0f, render(listOf(ink)).colorAt(30, 20).alpha)
+        assertEquals(Color.Blue, render(listOf(ink), scale = 2f).colorAt(60, 20))
     }
 
     @Test
