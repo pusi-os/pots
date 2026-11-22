@@ -58,19 +58,12 @@ internal fun mapMediaHttpError(code: Int, body: String): MediaException {
     }.getOrNull()
     return when (code) {
         400 -> MediaException.BadRequest(detail)
-
         401, 403 -> MediaException.InvalidKey(detail)
-
         402 -> MediaException.InsufficientBalance(detail)
-
         404 -> MediaException.ModelNotFound(detail)
-
         408, 502, 504 -> MediaException.UpstreamFailed(detail)
-
         429 -> MediaException.RateLimited(detail = detail)
-
         503 -> MediaException.Unavailable(detail)
-
         else -> MediaException.Unknown(detail ?: "HTTP $code")
     }
 }

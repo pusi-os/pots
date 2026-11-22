@@ -507,7 +507,14 @@ class PolzaMediaProvider(
          * routes the request to `/v1/media`, whose `input` supports it.
          */
         private val V2_IMAGE_KEYS = setOf(
-            "n", "max_images", "size", "quality", "style", "output_format", "background", "output_compression",
+            "n",
+            "max_images",
+            "size",
+            "quality",
+            "style",
+            "output_format",
+            "background",
+            "output_compression",
         )
     }
 }

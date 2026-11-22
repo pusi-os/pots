@@ -137,6 +137,7 @@ class AitunnelMediaProvider(
             acceptsImageReference = when {
                 isVideo -> (card["supports_input_references"]?.jsonPrimitive?.booleanOrNull == true) ||
                     ((card["supported_frame_images"] as? JsonArray).orEmpty().isNotEmpty())
+
                 else -> (card["max_input_references"]?.jsonPrimitive?.intOrNull ?: 0) > 0 ||
                     card["supports_edit"]?.jsonPrimitive?.booleanOrNull == true
             },
