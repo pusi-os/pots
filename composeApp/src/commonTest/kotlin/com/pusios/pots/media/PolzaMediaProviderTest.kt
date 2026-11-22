@@ -2,9 +2,8 @@ package com.pusios.pots.media
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respondText
-import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.headersOf
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -181,7 +180,11 @@ class PolzaMediaProviderTest {
         var calls = 0
         val engine = MockEngine { _ ->
             calls++
-            respondText(liveImagesCatalog, ContentType.Application.Json, HttpStatusCode.OK)
+            respond(
+                content = liveImagesCatalog,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
         }
         val cached = PolzaMediaProvider(clientOverride = HttpClient(engine))
         cached.parseCatalog(liveImagesCatalog)
@@ -197,11 +200,11 @@ class PolzaMediaProviderTest {
         val engine = MockEngine { request ->
             types += request.url.parameters["type"]
             authHeaders += request.headers[HttpHeaders.Authorization]
-            respondText(
-                if (request.url.parameters["type"] == "video") liveVideosCatalog else liveImagesCatalog,
-                ContentType.Application.Json,
-                HttpStatusCode.OK,
-            )
+            respond(
+                content = if (request.url.parameters["type"] == "video") liveVideosCatalog else liveImagesCatalog,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
         }
         val models = PolzaMediaProvider(clientOverride = HttpClient(engine)).listModels("sk-test")
         assertEquals(listOf("image", "video"), types)

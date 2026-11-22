@@ -2,9 +2,8 @@ package com.pusios.pots.media
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respondText
-import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.headersOf
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -129,7 +128,11 @@ class AitunnelMediaProviderTest {
         var calls = 0
         val engine = MockEngine { _ ->
             calls++
-            respondText(videosCatalog, ContentType.Application.Json, HttpStatusCode.OK)
+            respond(
+                content = videosCatalog,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
         }
         val cached = AitunnelMediaProvider(clientOverride = HttpClient(engine))
         cached.parseCatalogGroup(videosCatalog, "videos")
@@ -145,11 +148,11 @@ class AitunnelMediaProviderTest {
         val engine = MockEngine { request ->
             paths += request.url.encodedPath
             authHeaders += request.headers[HttpHeaders.Authorization]
-            respondText(
-                if (request.url.encodedPath.endsWith("/videos")) videosCatalog else imagesCatalog,
-                ContentType.Application.Json,
-                HttpStatusCode.OK,
-            )
+            respond(
+                content = if (request.url.encodedPath.endsWith("/videos")) videosCatalog else imagesCatalog,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
         }
         val models = AitunnelMediaProvider(clientOverride = HttpClient(engine)).listModels("sk-test")
         assertEquals(
