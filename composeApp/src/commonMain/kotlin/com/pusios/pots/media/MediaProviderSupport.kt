@@ -48,9 +48,9 @@ internal fun resolveMediaReferenceDataUri(ref: MediaReference): String? {
 
 /**
  * HTTP error mapping shared by the providers (the contract tables in
- * `docs/knowledge/media-providers/*.md` agree on the status semantics:
- * 402 → insufficient balance, 429 → retry later, 401/403 → key).
- * `detail` comes from the provider's `error.message` / `message` field.
+ * `docs/knowledge/media-providers/polza.md` and `aitunnel.md` agree on the
+ * status semantics: 402 → insufficient balance, 429 → retry later,
+ * 401/403 → key). `detail` comes from the provider's `error.message`.
  */
 internal fun mapMediaHttpError(code: Int, body: String): MediaException {
     val detail = runCatching {

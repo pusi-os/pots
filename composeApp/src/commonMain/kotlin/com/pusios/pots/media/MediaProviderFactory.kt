@@ -16,11 +16,11 @@ private val providers = mutableMapOf<Service, MediaProvider>()
  * The provider that serves [service], or null when the service has no media
  * endpoints (catalog + submit + poll).
  *
- * Implemented contracts (`docs/knowledge/media-providers/*.md`): PlusVibe
- * (the reserve is the same API on `gw`), Polza and AITUNNEL. GPTunnel and
- * LLM Router expose media endpoints in their docs, but their contracts are
- * not implemented yet — they stay null, so no screen offers a service the
- * app cannot drive.
+ * Implemented contracts (`docs/knowledge/media-providers/plusvibe.md`,
+ * `polza.md`, `aitunnel.md`): PlusVibe (the reserve is the same API on
+ * `gw`), Polza and AITUNNEL. GPTunnel and LLM Router expose media endpoints
+ * in their docs, but their contracts are not implemented yet — they stay
+ * null, so no screen offers a service the app cannot drive.
  */
 fun mediaProviderFor(service: Service): MediaProvider? = when (service) {
     Service.PlusVibe, Service.PlusVibeReserve -> providers.getOrPut(service) {
