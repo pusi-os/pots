@@ -5,11 +5,10 @@ import com.pusios.pots.data.Attachment
 import com.pusios.pots.data.EmailStore
 import com.pusios.pots.data.MemoryStore
 import com.pusios.pots.data.TaskStore
-import com.pusios.pots.data.getConfiguredServiceInstances
-import com.pusios.pots.data.getInstanceApiKey
 import com.pusios.pots.data.miniapp.MiniAppRepository
 import com.pusios.pots.mcp.McpServerManager
-import com.pusios.pots.media.resolveMediaInstance
+import com.pusios.pots.media.ActiveMediaProvider
+import com.pusios.pots.media.activeMediaService
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.ui.potsik.PotsikStage
 
@@ -65,14 +64,14 @@ fun buildAgentToolSet(
         add(PotsikTool.create(potsikStage))
     }
 
-    // Media generation tools. The billing instance is resolved lazily —
-    // the first service with an API key; the public catalog works without a key.
+    // Media generation tools. Provider, key and model defaults all come from the
+    // active media service (Settings → Services → «Сервис для медиатеки»),
+    // resolved on every call so switching it applies without rebuilding the set.
+    val mediaProvider = ActiveMediaProvider(appSettings)
+    val mediaApiKey = { appSettings.activeMediaService()?.apiKey.orEmpty() }
+    val mediaInstanceId = { appSettings.activeMediaService()?.instanceId.orEmpty() }
     if (appSettings.isToolEnabled(MediaTools.ID_LIST_MODELS, defaultEnabled = true)) {
-        add(
-            MediaTools.listModelsTool(apiKey = {
-                appSettings.resolveMediaInstance()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
-            }),
-        )
+        add(MediaTools.listModelsTool(apiKey = mediaApiKey, provider = mediaProvider))
     }
     if (appSettings.isToolEnabled(MediaTools.ID_ENHANCE_PROMPT, defaultEnabled = true)) {
         add(MediaTools.enhancePromptTool())
@@ -81,12 +80,9 @@ fun buildAgentToolSet(
         add(
             MediaTools.generateImageTool(
                 appSettings = appSettings,
-                apiKey = {
-                    appSettings.resolveMediaInstance()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
-                },
-                instanceId = {
-                    appSettings.resolveMediaInstance()?.instanceId.orEmpty()
-                },
+                apiKey = mediaApiKey,
+                instanceId = mediaInstanceId,
+                provider = mediaProvider,
                 attachmentProvider = attachmentProvider,
             ),
         )
@@ -95,12 +91,9 @@ fun buildAgentToolSet(
         add(
             MediaTools.generateVideoTool(
                 appSettings = appSettings,
-                apiKey = {
-                    appSettings.resolveMediaInstance()?.let { appSettings.getInstanceApiKey(it.instanceId) }.orEmpty()
-                },
-                instanceId = {
-                    appSettings.resolveMediaInstance()?.instanceId.orEmpty()
-                },
+                apiKey = mediaApiKey,
+                instanceId = mediaInstanceId,
+                provider = mediaProvider,
             ),
         )
     }

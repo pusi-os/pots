@@ -1,9 +1,6 @@
 package com.pusios.pots.media
 
 import com.pusios.pots.data.AppSettings
-import com.pusios.pots.data.ServiceInstance
-import com.pusios.pots.data.getConfiguredServiceInstances
-import com.pusios.pots.data.getInstanceApiKey
 
 /**
  * Per-instance media model selection. Stored in the same `Settings` backend
@@ -63,17 +60,6 @@ fun AppSettings.getMediaQuality(modelId: String): String? = settings.getStringOr
 
 fun AppSettings.setMediaQuality(modelId: String, quality: String) {
     settings.putString("media_quality_$modelId", quality)
-}
-
-/**
- * The service instance media generation bills. Chat keys double as media keys,
- * so prefer the first instance that actually has one; the first instance is
- * still returned (with an empty key) so callers can explain the missing key.
- */
-fun AppSettings.resolveMediaInstance(): ServiceInstance? {
-    val instances = getConfiguredServiceInstances()
-    return instances.firstOrNull { getInstanceApiKey(it.instanceId).isNotBlank() }
-        ?: instances.firstOrNull()
 }
 
 /** Layers panel open/collapsed, like the other studio UI preferences: survives a restart. */

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -46,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -72,8 +74,10 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.ProviderBalance
 import com.pusios.pots.data.Service
+import com.pusios.pots.data.ServiceInstance
 import com.pusios.pots.formatFileSize
 import com.pusios.pots.inference.DevicePerformance
 import com.pusios.pots.inference.DownloadError
@@ -81,6 +85,10 @@ import com.pusios.pots.inference.LocalModel
 import com.pusios.pots.inference.ModelImportError
 import com.pusios.pots.inference.calculateDevicePerformance
 import com.pusios.pots.inference.estimateGpuMemoryMb
+import com.pusios.pots.media.activeMediaService
+import com.pusios.pots.media.mediaProviderFor
+import com.pusios.pots.media.mediaServiceChoices
+import com.pusios.pots.media.setMediaServiceInstanceId
 import com.pusios.pots.network.dtos.SponsorsResponseDto
 import com.pusios.pots.ui.PotsClearableTextField
 import com.pusios.pots.ui.components.PotsSlider
@@ -131,6 +139,14 @@ import pots.composeapp.generated.resources.litert_performance_ok
 import pots.composeapp.generated.resources.litert_performance_poor
 import pots.composeapp.generated.resources.litert_recommended
 import pots.composeapp.generated.resources.litert_tool_support
+import pots.composeapp.generated.resources.media_models_clear_search
+import pots.composeapp.generated.resources.media_models_empty
+import pots.composeapp.generated.resources.media_models_search
+import pots.composeapp.generated.resources.media_service_catalog_failed
+import pots.composeapp.generated.resources.media_service_empty_hint
+import pots.composeapp.generated.resources.media_service_hint
+import pots.composeapp.generated.resources.media_service_models
+import pots.composeapp.generated.resources.media_service_title
 import pots.composeapp.generated.resources.settings_add_service
 import pots.composeapp.generated.resources.settings_api_key_label
 import pots.composeapp.generated.resources.settings_api_key_optional_label
@@ -675,6 +691,8 @@ internal fun ServicesContent(
         }
     }
 
+    MediaServiceSection(entries)
+
     // PotsGame club card (always at bottom)
     Spacer(Modifier.height(16.dp))
     PotsGameSection(
@@ -763,6 +781,91 @@ internal fun ServicesContent(
                 )
             }
         }
+    }
+}
+
+/**
+ * «Сервис для медиатеки»: which configured service the media studio and the
+ * agent's media tools use. The candidate list comes from the factory
+ * ([mediaServiceChoices]) — a service without media endpoints never shows up,
+ * and with a single candidate the section hides itself (nothing to choose).
+ */
+@Composable
+private fun MediaServiceSection(entries: List<ConfiguredServiceEntry>) {
+    val appSettings: AppSettings = koinInject()
+    val instances = remember(entries) { entries.map { ServiceInstance(it.instanceId, it.service.id) } }
+    val choices = remember(entries) { mediaServiceChoices(appSettings, instances) }
+    if (choices.size < 2) return
+
+    // The saved instance while it is still valid, else what the resolver picks.
+    val active = remember(entries) { activeMediaService(appSettings, instances) }
+    var chosenId by remember(entries) { mutableStateOf(active?.instanceId.orEmpty()) }
+    val selected = choices.firstOrNull { it.instanceId == chosenId } ?: active?.let { a -> choices.firstOrNull { it.instanceId == a.instanceId } } ?: choices.first()
+
+    // Model counts per candidate, loaded once when the section appears.
+    var counts by remember(entries) { mutableStateOf<Map<String, Int?>>(emptyMap()) }
+    LaunchedEffect(choices.map { it.instanceId }) {
+        choices.forEach { choice ->
+            if (counts.containsKey(choice.instanceId)) return@forEach
+            val size = runCatching { mediaProviderFor(choice.service)?.listModels(choice.apiKey)?.size }.getOrNull()
+            counts = counts + (choice.instanceId to size)
+        }
+    }
+    val failedLabel = stringResource(Res.string.media_service_catalog_failed)
+    // Labels are resolved here, not inside a lambda: stringResource is composable.
+    val trailing = mutableMapOf<String, String>()
+    for (choice in choices) {
+        val count = counts[choice.instanceId]
+        trailing[choice.instanceId] = when {
+            !counts.containsKey(choice.instanceId) -> ""
+            count == null -> failedLabel
+            else -> stringResource(Res.string.media_service_models, count)
+        }
+    }
+
+    Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Collections,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = stringResource(Res.string.media_service_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        Text(
+            text = stringResource(Res.string.media_service_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        SettingsDropdown(
+            placeholder = stringResource(Res.string.media_service_title),
+            selectedLabel = selected.service.displayName,
+            selectedTrailing = trailing[selected.instanceId].orEmpty(),
+            searchPlaceholder = stringResource(Res.string.media_models_search),
+            emptyTitle = stringResource(Res.string.media_models_empty),
+            emptyHint = { stringResource(Res.string.media_service_empty_hint) },
+            clearSearchLabel = stringResource(Res.string.media_models_clear_search),
+            items = choices,
+            itemKey = { it.instanceId },
+            itemLabel = { it.service.displayName },
+            itemTrailing = { trailing[it.instanceId].orEmpty() },
+            selectedKey = selected.instanceId,
+            onSelect = { choice ->
+                appSettings.setMediaServiceInstanceId(choice.instanceId)
+                chosenId = choice.instanceId
+            },
+        )
     }
 }
 
@@ -973,7 +1076,7 @@ private fun ConfiguredServiceCardContent(
                 }
 
                 if (!entry.service.isOnDevice) {
-                    MediaModelsSettings(instanceId = entry.instanceId, apiKey = entry.apiKey)
+                    MediaModelsSettings(service = entry.service, instanceId = entry.instanceId, apiKey = entry.apiKey)
                 }
 
                 Spacer(Modifier.height(12.dp))
