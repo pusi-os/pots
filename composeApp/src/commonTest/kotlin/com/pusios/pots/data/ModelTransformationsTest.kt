@@ -105,6 +105,39 @@ class ModelTransformationsTest {
     }
 
     @Test
+    fun `mapOpenAICompatibleModels propagates tools and vision from the wire payload`() {
+        val models = listOf(
+            OpenAICompatibleModelResponseDto.Model(
+                id = "vision-with-tools",
+                supported_parameters = listOf("temperature", "tools"),
+                architecture = OpenAICompatibleModelResponseDto.Model.Architecture(
+                    input_modalities = listOf("text", "image"),
+                ),
+            ),
+            OpenAICompatibleModelResponseDto.Model(
+                id = "polza-style-top-provider",
+                top_provider = OpenAICompatibleModelResponseDto.Model.TopProvider(
+                    supported_parameters = listOf("tool_choice"),
+                ),
+            ),
+            OpenAICompatibleModelResponseDto.Model(id = "plain-text"),
+        )
+        val result = mapOpenAICompatibleModels(models, Service.Polza, selectedModelId = "")
+
+        val vision = result.first { it.id == "vision-with-tools" }
+        assertTrue(vision.supportsTools)
+        assertTrue(vision.supportsVision)
+
+        val topProvider = result.first { it.id == "polza-style-top-provider" }
+        assertTrue(topProvider.supportsTools)
+        assertFalse(topProvider.supportsVision)
+
+        val plain = result.first { it.id == "plain-text" }
+        assertFalse(plain.supportsTools)
+        assertFalse(plain.supportsVision)
+    }
+
+    @Test
     fun `mapOpenAICompatibleModels catalog wins over OpenRouter context_length and name`() {
         val models = listOf(
             OpenAICompatibleModelResponseDto.Model(
