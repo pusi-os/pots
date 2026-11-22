@@ -213,10 +213,8 @@ internal fun OpenAICompatibleModelResponseDto.Model.pricePerMillion(): Double? {
 }
 
 /** True when the model advertises function calling in its supported parameter list. */
-internal fun OpenAICompatibleModelResponseDto.Model.supportsTools(): Boolean =
-    (supported_parameters ?: top_provider?.supported_parameters).orEmpty()
-        .any { it == "tools" || it == "tool_choice" }
+internal fun OpenAICompatibleModelResponseDto.Model.supportsTools(): Boolean = (supported_parameters ?: top_provider?.supported_parameters).orEmpty()
+    .any { it == "tools" || it == "tool_choice" }
 
 /** True when the model accepts images as input. */
-internal fun OpenAICompatibleModelResponseDto.Model.supportsVision(): Boolean =
-    architecture?.input_modalities.orEmpty().any { it == "image" }
+internal fun OpenAICompatibleModelResponseDto.Model.supportsVision(): Boolean = architecture?.input_modalities.orEmpty().any { it == "image" }
