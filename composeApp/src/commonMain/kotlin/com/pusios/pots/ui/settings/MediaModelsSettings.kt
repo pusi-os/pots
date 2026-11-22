@@ -1,13 +1,20 @@
 package com.pusios.pots.ui.settings
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -21,17 +28,31 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaModel
 import com.pusios.pots.media.PlusVibeMediaProvider
+import com.pusios.pots.media.getInstanceMediaAudioModelId
 import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
+import com.pusios.pots.media.setInstanceMediaAudioModelId
 import com.pusios.pots.media.setInstanceMediaImageModelId
 import com.pusios.pots.media.setInstanceMediaVideoModelId
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.media_models_hint
+import pots.composeapp.generated.resources.media_models_load
+import pots.composeapp.generated.resources.media_models_loading
+import pots.composeapp.generated.resources.media_models_title
+import pots.composeapp.generated.resources.media_section_audio
+import pots.composeapp.generated.resources.media_section_images
+import pots.composeapp.generated.resources.media_section_video
 
 /**
  * Per-instance image/video model picker. The catalog is public, so the list
@@ -47,6 +68,7 @@ fun MediaModelsSettings(instanceId: String, apiKey: String) {
     var error by remember { mutableStateOf<String?>(null) }
     var imageId by remember { mutableStateOf(appSettings.getInstanceMediaImageModelId(instanceId)) }
     var videoId by remember { mutableStateOf(appSettings.getInstanceMediaVideoModelId(instanceId)) }
+    var audioId by remember { mutableStateOf(appSettings.getInstanceMediaAudioModelId(instanceId)) }
 
     suspend fun load() {
         loading = true
@@ -60,23 +82,29 @@ fun MediaModelsSettings(instanceId: String, apiKey: String) {
     LaunchedEffect(instanceId, apiKey) {
         imageId = appSettings.getInstanceMediaImageModelId(instanceId)
         videoId = appSettings.getInstanceMediaVideoModelId(instanceId)
+        audioId = appSettings.getInstanceMediaAudioModelId(instanceId)
     }
 
     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        Text("Медиа-модели (PlusVibe)", style = MaterialTheme.typography.titleSmall)
+        Text(
+            stringResource(Res.string.media_models_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Ключ используется тот же, что и для чата. Список загружается из публичного каталога.",
+            stringResource(Res.string.media_models_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         OutlinedButton(onClick = { scope.launch { load() } }, modifier = Modifier.padding(top = 8.dp)) {
-            Text(if (loading) "Загрузка…" else "Загрузить список и цены")
+            Text(stringResource(if (loading) Res.string.media_models_loading else Res.string.media_models_load))
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
 
         ModelPicker(
-            title = "Изображения",
+            title = stringResource(Res.string.media_section_images),
+            icon = Icons.Outlined.Image,
             models = models.filter { it.kind == MediaKind.Image },
             selectedId = imageId,
             onSelect = {
@@ -85,7 +113,8 @@ fun MediaModelsSettings(instanceId: String, apiKey: String) {
             },
         )
         ModelPicker(
-            title = "Видео",
+            title = stringResource(Res.string.media_section_video),
+            icon = Icons.Outlined.Movie,
             models = models.filter { it.kind == MediaKind.Video },
             selectedId = videoId,
             onSelect = {
@@ -93,13 +122,54 @@ fun MediaModelsSettings(instanceId: String, apiKey: String) {
                 appSettings.setInstanceMediaVideoModelId(instanceId, it)
             },
         )
+        ModelPicker(
+            title = stringResource(Res.string.media_section_audio),
+            icon = Icons.Outlined.GraphicEq,
+            models = models.filter { it.kind == MediaKind.Audio },
+            selectedId = audioId,
+            onSelect = {
+                audioId = it
+                appSettings.setInstanceMediaAudioModelId(instanceId, it)
+            },
+        )
     }
 }
 
 @Composable
-private fun ModelPicker(title: String, models: List<MediaModel>, selectedId: String, onSelect: (String) -> Unit) {
+private fun ModelPicker(
+    title: String,
+    icon: ImageVector,
+    models: List<MediaModel>,
+    selectedId: String,
+    onSelect: (String) -> Unit,
+) {
     if (models.isEmpty()) return
-    Text(title, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp, start = 8.dp, end = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "${models.size}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     models.take(30).forEach { model ->
         val selected = model.id == selectedId
         Surface(

@@ -21,9 +21,18 @@ data class OpenAICompatibleModelResponseDto(
         val context_length: Long? = null,
         val isSelected: Boolean = false,
         val type: String? = null,
+        /** OpenRouter-style: request parameters the model accepts, e.g. `tools`, `tool_choice`. */
+        val supported_parameters: List<String>? = null,
+        val architecture: Architecture? = null,
         val pricing: Pricing? = null,
         val top_provider: TopProvider? = null,
     ) {
+        @Serializable
+        data class Architecture(
+            /** e.g. `text`, `image`, `audio` — `image` means the model reads pictures. */
+            val input_modalities: List<String>? = null,
+        )
+
         @Serializable
         data class Pricing(
             val prompt: String? = null,
@@ -35,6 +44,8 @@ data class OpenAICompatibleModelResponseDto(
         @Serializable
         data class TopProvider(
             val pricing: Pricing? = null,
+            /** Polza repeats the parameter list here instead of on the model itself. */
+            val supported_parameters: List<String>? = null,
         )
     }
 }

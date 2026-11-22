@@ -107,6 +107,8 @@ private fun buildSettingsModel(
     apiPricePerMillion: Double? = null,
     apiOutputPricePerMillion: Double? = null,
     apiCachePricePerMillion: Double? = null,
+    apiSupportsTools: Boolean = false,
+    apiSupportsVision: Boolean = false,
 ): SettingsModel {
     val curated = ModelCatalog.lookup(id)
     return SettingsModel(
@@ -121,6 +123,8 @@ private fun buildSettingsModel(
         pricePerMillion = apiPricePerMillion,
         outputPricePerMillion = apiOutputPricePerMillion,
         cachePricePerMillion = apiCachePricePerMillion,
+        supportsTools = apiSupportsTools,
+        supportsVision = apiSupportsVision,
     )
 }
 
@@ -154,6 +158,8 @@ internal fun mapOpenAICompatibleModels(
             apiPricePerMillion = it.pricePerMillion() ?: pricesById[it.id]?.perMillion("input"),
             apiOutputPricePerMillion = pricesById[it.id]?.perMillion("output"),
             apiCachePricePerMillion = pricesById[it.id]?.perMillion("cache_read"),
+            apiSupportsTools = it.supportsTools(),
+            apiSupportsVision = it.supportsVision(),
         )
     }
     return if (service.sortModelsById) {
@@ -205,3 +211,12 @@ internal fun OpenAICompatibleModelResponseDto.Model.pricePerMillion(): Double? {
     val value = raw.toDoubleOrNull() ?: return null
     return if (pricing.prompt_per_million != null) value else value * 1_000_000.0
 }
+
+/** True when the model advertises function calling in its supported parameter list. */
+internal fun OpenAICompatibleModelResponseDto.Model.supportsTools(): Boolean =
+    (supported_parameters ?: top_provider?.supported_parameters).orEmpty()
+        .any { it == "tools" || it == "tool_choice" }
+
+/** True when the model accepts images as input. */
+internal fun OpenAICompatibleModelResponseDto.Model.supportsVision(): Boolean =
+    architecture?.input_modalities.orEmpty().any { it == "image" }

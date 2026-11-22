@@ -755,6 +755,15 @@
     <string name="model_free_badge">Free</string>
     <string name="model_filter_free">Free</string>
     <string name="model_free_empty">No free-tier models for this service.</string>
+    <string name="model_sort_ascending">ascending</string>
+    <string name="model_sort_descending">descending</string>
+    <string name="media_models_title">Media models</string>
+    <string name="media_models_hint">The same key as for chat. The list and prices come from the public catalog.</string>
+    <string name="media_models_load">Load list and prices</string>
+    <string name="media_models_loading">Loading…</string>
+    <string name="media_section_images">Images</string>
+    <string name="media_section_video">Video</string>
+    <string name="media_section_audio">Audio</string>
     <string name="pots_build_open">Open Pots Build</string>
     <string name="pots_build_title">Pots Build</string>
     <string name="pots_build_exit_content_description">Exit Pots Build</string>
