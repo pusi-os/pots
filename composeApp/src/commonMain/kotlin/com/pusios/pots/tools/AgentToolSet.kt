@@ -68,8 +68,8 @@ fun buildAgentToolSet(
     // active media service (Settings → Services → «Сервис для медиатеки»),
     // resolved on every call so switching it applies without rebuilding the set.
     val mediaProvider = ActiveMediaProvider(appSettings)
-    val mediaApiKey = { appSettings.activeMediaService()?.apiKey.orEmpty() }
-    val mediaInstanceId = { appSettings.activeMediaService()?.instanceId.orEmpty() }
+    val mediaApiKey = { activeMediaService(appSettings)?.apiKey.orEmpty() }
+    val mediaInstanceId = { activeMediaService(appSettings)?.instanceId.orEmpty() }
     if (appSettings.isToolEnabled(MediaTools.ID_LIST_MODELS, defaultEnabled = true)) {
         add(MediaTools.listModelsTool(apiKey = mediaApiKey, provider = mediaProvider))
     }

@@ -53,24 +53,24 @@ class ActiveMediaProvider(private val appSettings: AppSettings) : MediaProvider 
     private fun providerFor(service: Service): MediaProvider =
         mediaProviderFor(service) ?: throw noService()
 
-    private fun active(): MediaProvider = appSettings.activeMediaService()?.let { providerFor(it.service) } ?: throw noService()
+    private fun active(): MediaProvider = activeMediaService(appSettings)?.let { providerFor(it.service) } ?: throw noService()
 
     private fun forJob(jobId: String): MediaProvider = jobServices[jobId]?.let { providerFor(it) } ?: active()
 
     override suspend fun listModels(apiKey: String): List<MediaModel> = active().listModels(apiKey)
 
-    override suspend fun priceTable(apiKey: String modelId: String): MediaPriceTable? = active().priceTable(apiKey, modelId)
+    override suspend fun priceTable(apiKey: String, modelId: String): MediaPriceTable? = active().priceTable(apiKey, modelId)
 
-    override suspend fun quotePrice(apiKey: String request: MediaJobRequest): MediaPriceQuote = active().quotePrice(apiKey, request)
+    override suspend fun quotePrice(apiKey: String, request: MediaJobRequest): MediaPriceQuote = active().quotePrice(apiKey, request)
 
-    override suspend fun submitJob(apiKey: String request: MediaJobRequest): MediaJobState {
-        val choice = appSettings.activeMediaService() ?: throw noService()
+    override suspend fun submitJob(apiKey: String, request: MediaJobRequest): MediaJobState {
+        val choice = activeMediaService(appSettings) ?: throw noService()
         val state = providerFor(choice.service).submitJob(apiKey, request)
         jobServices[state.jobId] = choice.service
         return state
     }
 
-    override suspend fun pollJob(apiKey: String jobId: String): MediaJobState = forJob(jobId).pollJob(apiKey, jobId)
+    override suspend fun pollJob(apiKey: String, jobId: String): MediaJobState = forJob(jobId).pollJob(apiKey, jobId)
 
-    override suspend fun downloadResult(apiKey: String url: String): ByteArray = active().downloadResult(apiKey, url)
+    override suspend fun downloadResult(apiKey: String, url: String): ByteArray = active().downloadResult(apiKey, url)
 }
