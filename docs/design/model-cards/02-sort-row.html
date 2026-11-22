@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POTS · Ряд сортировки иконками</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-close" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><path fill="currentColor" d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></symbol>
+  <symbol id="i-ctx" viewBox="0 0 24 24"><path fill="currentColor" d="M3 5v4h2V5h4V3H5c-1.1 0-2 .9-2 2zm2 10H3v4c0 1.1.9 2 2 2h4v-2H5v-4zm14 4h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4zM19 3h-4v2h4v4h2V5c0-1.1-.9-2-2-2z"/></symbol>
+  <symbol id="i-money" viewBox="0 0 24 24"><path fill="currentColor" d="M11.8 10.9c-2.27-.65-3-1.05-3-2.15 0-1.15 1.15-1.85 2.9-1.85 1.7 0 2.6.75 2.7 1.85h2.2c-.1-1.85-1.2-3.35-3.2-3.85V3h-3v1.9c-1.95.45-3.2 1.75-3.2 3.65 0 2.1 1.7 3.15 4.4 3.9 2.3.6 2.8 1.3 2.8 2.2 0 1.1-1.05 1.95-2.85 1.95-1.9 0-2.85-.85-2.95-1.95H6.35c.1 2 1.35 3.35 3.45 3.8V21h3v-1.85c2.1-.4 3.35-1.7 3.35-3.75 0-2.55-2.15-3.4-4.4-4.1z"/></symbol>
+  <symbol id="i-thumb" viewBox="0 0 24 24"><path fill="currentColor" d="M1 21h4V9H1v12zM23 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path fill="currentColor" d="m21.41 11.58-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></symbol>
+  <symbol id="i-drop-down" viewBox="0 0 24 24"><path fill="currentColor" d="M7 10l5 5 5-5z"/></symbol>
+  <symbol id="i-drop-up" viewBox="0 0 24 24"><path fill="currentColor" d="M7 14l5-5 5 5z"/></symbol>
+  <symbol id="i-in" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4v12.17L6.41 10.59 5 12l7 7 7-7-1.41-1.41L12 16.17V4z"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path fill="currentColor" d="M12 20V7.83L17.59 13.41 19 12l-7-7-7 7 1.41 1.41L12 7.83V20z"/></symbol>
+  <symbol id="i-tools" viewBox="0 0 24 24"><path fill="currentColor" d="M22.7 19 13.6 9.9c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.4-.4.4-1 .1-1.4z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></symbol>
+</svg>
+
+<div class="doc">
+
+<header class="doc-head">
+  <p class="kicker">POTS · Дизайн-макеты · t_b31b2265</p>
+  <h1>Ряд сортировки: шесть кнопок-иконок в одну строку</h1>
+  <p class="lede">Сейчас это шесть <code>FilterChip</code> с текстовыми подписями в <code>Row</code> без горизонтального скролла: на 360 dp им нужно ~542 dp при доступных 344 — они не помещаются и расползаются. Решение: только иконки, 44 × 44 dp каждая, подпись по долгому нажатию.</p>
+  <div class="chips">
+    <span class="chip chip--accent">360 dp · 1 px = 1 dp</span>
+    <span class="chip">6 × 46 + 6 × 8 + 1 = 325 ≤ 344</span>
+    <span class="chip">touch target 44 × 44</span>
+    <span class="chip">подписи — по long-press</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">01</span>
+    <h2>Было → стало</h2>
+  </div>
+  <p class="block-note">Один и тот же экран, одна и та же ширина. Слева подписи упираются в край и обрезаются (последние чипы вообще недоступны), справа всё влезает с запасом 40 dp.</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>A. Было</b><span>FilterChip с подписями</span></div>
+      <div class="frame">
+        <div class="frame-bar">
+          <span class="bar-title">Выбор модели</span>
+          <span class="bar-icon"><svg width="20" height="20"><use href="#i-close"/></svg></span>
+        </div>
+        <div class="frame-body" style="padding-bottom:16px">
+          <div class="searchf"><svg><use href="#i-search"/></svg><span class="ph">Поиск модели</span></div>
+          <div class="chiprow">
+            <span class="fchip">Дата</span>
+            <span class="fchip is-selected">Оценка</span>
+            <span class="fchip">Контекст</span>
+            <span class="fchip">Цена</span>
+            <span class="fchip">Рекомендуемые</span>
+            <span class="fchip">Бесплатно</span>
+            <span class="clip-flag"></span>
+          </div>
+          <div class="flag" style="padding:8px 8px 0">542 dp содержимого в 344 dp: «Рекомендуемые» и «Бесплатно» за краем</div>
+          <div class="mcard" style="margin-top:8px">
+            <div class="mcard-head"><h3 class="mcard-title">Gemini 3.8 Flash</h3><span class="mcard-badge">Free</span></div>
+            <p class="mcard-meta">Sep 2026</p>
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-in"/></svg><span class="v">0.3<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-out"/></svg><span class="v">2.5<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">1M</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1494</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">14</span></div>
+              <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="flag" style="max-width:360px;display:block">«Рекомендуемые» и «Бесплатно» уехали за край: 542 dp содержимого в 344 dp контейнера</p>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>B. Стало</b><span>6 кнопок-иконок</span></div>
+      <div class="frame">
+        <div class="frame-bar">
+          <span class="bar-title">Выбор модели</span>
+          <span class="bar-icon"><svg width="20" height="20"><use href="#i-close"/></svg></span>
+        </div>
+        <div class="frame-body" style="padding-bottom:16px">
+          <div class="searchf"><svg><use href="#i-search"/></svg><span class="ph">Поиск модели</span></div>
+
+          <div class="srow">
+            <button class="sbtn" aria-label="Сортировать по дате"><svg class="ic"><use href="#i-calendar"/></svg></button>
+            <button class="sbtn is-active" aria-label="Сортировать по оценке, по убыванию"><svg class="ic"><use href="#i-star"/></svg><svg class="dir"><use href="#i-drop-down"/></svg></button>
+            <button class="sbtn" aria-label="Сортировать по контексту"><svg class="ic"><use href="#i-ctx"/></svg></button>
+            <button class="sbtn" aria-label="Сортировать по цене"><svg class="ic"><use href="#i-money"/></svg></button>
+            <button class="sbtn" aria-label="Рекомендуемые"><svg class="ic"><use href="#i-thumb"/></svg></button>
+            <span class="sdiv"></span>
+            <button class="sbtn is-free" aria-label="Только бесплатные"><svg class="ic"><use href="#i-tag"/></svg></button>
+          </div>
+
+          <div class="mcard">
+            <div class="mcard-head"><h3 class="mcard-title">Gemini 3.8 Flash</h3><span class="mcard-badge">Free</span></div>
+            <p class="mcard-meta">Sep 2026</p>
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-in"/></svg><span class="v">0.3<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-out"/></svg><span class="v">2.5<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">1M</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1494</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">14</span></div>
+              <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+            </div>
+          </div>
+          <div class="mcard">
+            <div class="mcard-head"><h3 class="mcard-title">Claude Sonnet 4.5</h3></div>
+            <p class="mcard-meta">Sep 2025</p>
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-in"/></svg><span class="v">3<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-out"/></svg><span class="v">15<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">200K</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1455</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">9</span></div>
+              <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:360px">Кнопки тянутся по <code>weight(1f)</code> и получают 46 dp при 360 dp. Активная — «Оценка» по убыванию (как <code>ModelSortOption.Score</code> по умолчанию).</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">02</span>
+    <h2>Состояния кнопки</h2>
+  </div>
+  <p class="block-note">Активная кнопка — заливка 16 % <code>primary</code>, контур 50 % <code>primary</code>, иконка <code>#D9B8FF</code>. Направление сортировки показывает каретка 10 dp в правом нижнем углу, а не поворот иконки: у звезды и ключа поворот читается как поломка.</p>
+
+  <div class="states">
+    <div class="state-card">
+      <p class="st-name">неактивна</p>
+      <div class="srow" style="padding:0"><button class="sbtn" style="max-width:44px"><svg class="ic"><use href="#i-ctx"/></svg></button></div>
+      <p class="st-desc">фон прозрачный, контур <code>rgba(255,255,255,.08)</code>, иконка <code>#9C96A8</code> (6.5:1)</p>
+    </div>
+    <div class="state-card">
+      <p class="st-name">активна · по убыванию</p>
+      <div class="srow" style="padding:0"><button class="sbtn is-active" style="max-width:44px"><svg class="ic"><use href="#i-ctx"/></svg><svg class="dir"><use href="#i-drop-down"/></svg></button></div>
+      <p class="st-desc">каретка вниз; повторный тап по активной — переключение на возрастание</p>
+    </div>
+    <div class="state-card">
+      <p class="st-name">активна · по возрастанию</p>
+      <div class="srow" style="padding:0"><button class="sbtn is-active" style="max-width:44px"><svg class="ic"><use href="#i-ctx"/></svg><svg class="dir"><use href="#i-drop-up"/></svg></button></div>
+      <p class="st-desc">каретка вверх; для «Дата» возрастание = сначала старые</p>
+    </div>
+    <div class="state-card">
+      <p class="st-name">нажата (ripple)</p>
+      <div class="srow" style="padding:0"><button class="sbtn is-pressed" style="max-width:44px"><svg class="ic"><use href="#i-ctx"/></svg></button></div>
+      <p class="st-desc">фон 7 % белого, 120 мс; отпускание применяет выбор</p>
+    </div>
+    <div class="state-card">
+      <p class="st-name">фильтр включён</p>
+      <div class="srow" style="padding:0"><button class="sbtn is-free is-active" style="max-width:44px"><svg class="ic"><use href="#i-tag"/></svg></button></div>
+      <p class="st-desc">зелёный акцент <code>#6EE7A0</code> — это фильтр, а не сортировка</p>
+    </div>
+    <div class="state-card">
+      <p class="st-name">нет бесплатных моделей</p>
+      <div class="srow" style="padding:0;opacity:.38"><button class="sbtn" style="max-width:44px"><svg class="ic"><use href="#i-tag"/></svg></button></div>
+      <p class="st-desc">кнопка не рендерится вовсе (как сейчас: <code>if (hasFreeModels)</code>). Схема — на случай, если её оставят выключенной</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">03</span>
+    <h2>Долгое нажатие и нехватка места</h2>
+  </div>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>C. Подпись по long-press</b><span>360 dp</span></div>
+      <div class="frame">
+        <div class="frame-body" style="padding-top:44px">
+          <div class="srow" style="align-items:flex-end">
+            <button class="sbtn" style="max-width:44px"><svg class="ic"><use href="#i-calendar"/></svg></button>
+            <div class="tip">
+              <span class="tip-bubble">Контекст · по убыванию</span>
+              <button class="sbtn is-active" style="max-width:44px"><svg class="ic"><use href="#i-ctx"/></svg><svg class="dir"><use href="#i-drop-down"/></svg></button>
+            </div>
+            <button class="sbtn" style="max-width:44px"><svg class="ic"><use href="#i-money"/></svg></button>
+            <button class="sbtn" style="max-width:44px"><svg class="ic"><use href="#i-thumb"/></svg></button>
+            <span class="sdiv"></span>
+            <button class="sbtn is-free" style="max-width:44px"><svg class="ic"><use href="#i-tag"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:360px">Текст подсказки = подпись из ресурса + текущее направление. 400 мс удержания, показывается над кнопкой, гаснет через 2 с после отпускания.</p>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>D. Узкий экран: зазор сжимается</b><span>320 dp</span></div>
+      <div class="frame frame--narrow">
+        <div class="frame-body">
+          <div class="srow" style="gap:6px">
+            <button class="sbtn" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-calendar"/></svg></button>
+            <button class="sbtn is-active" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-star"/></svg><svg class="dir"><use href="#i-drop-down"/></svg></button>
+            <button class="sbtn" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-ctx"/></svg></button>
+            <button class="sbtn" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-money"/></svg></button>
+            <button class="sbtn" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-thumb"/></svg></button>
+            <span class="sdiv" style="flex:0 0 1px"></span>
+            <button class="sbtn is-free" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-tag"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:320px">Экран 320 dp → доступно 304 dp. С зазором 6 dp ряд занимает 6 × 44 + 5 × 6 = 294 dp и влезает без прокрутки. Кнопки не растягиваются: <code>weight</code> включается только когда места с избытком.</p>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>E. Совсем узко: прокрутка</b><span>300 dp</span></div>
+      <div class="frame" style="width:300px">
+        <div class="frame-body">
+          <div class="scrollbox">
+            <div class="scrollrow" style="gap:6px">
+              <button class="sbtn" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-calendar"/></svg></button>
+              <button class="sbtn is-active" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-star"/></svg><svg class="dir"><use href="#i-drop-down"/></svg></button>
+              <button class="sbtn" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-ctx"/></svg></button>
+              <button class="sbtn" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-money"/></svg></button>
+              <button class="sbtn" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-thumb"/></svg></button>
+              <span class="sdiv" style="flex:0 0 1px"></span>
+              <button class="sbtn is-free" style="flex:0 0 44px;max-width:44px"><svg class="ic"><use href="#i-tag"/></svg></button>
+            </div>
+            <span class="fade-r"></span>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:300px">Меньше 320 dp ряд не сжимается: <code>LazyRow</code>, зазор 6 dp, справа затухание 16 dp. Последняя кнопка видна частично — это и есть подсказка, что ряд прокручивается. Кнопка никогда не становится уже 44 dp.</p>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>F. Планшет</b><span>600 dp</span></div>
+      <div class="frame frame--wide" style="height:132px">
+        <div class="frame-body">
+          <div class="srow" style="gap:10px;padding:6px 12px">
+            <button class="sbtn" style="max-width:56px"><svg class="ic"><use href="#i-calendar"/></svg></button>
+            <button class="sbtn is-active" style="max-width:56px"><svg class="ic"><use href="#i-star"/></svg><svg class="dir"><use href="#i-drop-down"/></svg></button>
+            <button class="sbtn" style="max-width:56px"><svg class="ic"><use href="#i-ctx"/></svg></button>
+            <button class="sbtn" style="max-width:56px"><svg class="ic"><use href="#i-money"/></svg></button>
+            <button class="sbtn" style="max-width:56px"><svg class="ic"><use href="#i-thumb"/></svg></button>
+            <span class="sdiv"></span>
+            <button class="sbtn is-free" style="max-width:56px"><svg class="ic"><use href="#i-tag"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:420px">Ширина кнопки растёт до 56 dp и останавливается: дальше ряд не разъезжается, свободное место остаётся справа. Подписи на планшете <b>не появляются</b> — ряд остаётся иконочным, чтобы поведение не менялось между экранами.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">04</span>
+    <h2>Анатомия кнопки</h2>
+  </div>
+  <p class="block-note">Увеличение 2×. Площадь нажатия = весь квадрат 44 × 44, иконка 20 dp по центру, каретка направления 12 dp прижата к правому нижнему углу с отступом 3 / 2 dp.</p>
+
+  <div class="zoom-wrap" style="display:inline-flex;gap:34px;align-items:flex-start;padding:24px 28px">
+    <div style="position:relative;width:88px;padding-top:20px">
+      <div class="dim-h" style="left:0;right:0;top:8px"><span>44 dp</span></div>
+      <div style="zoom:2;width:44px"><button class="sbtn is-active" style="max-width:44px"><svg class="ic"><use href="#i-star"/></svg><svg class="dir"><use href="#i-drop-down"/></svg></button></div>
+      <div class="dim-v" style="left:-26px;top:20px;height:88px"><span>44</span></div>
+    </div>
+    <div style="position:relative;width:88px;padding-top:20px">
+      <div class="dim-h" style="left:0;right:0;top:8px"><span>44 dp</span></div>
+      <div style="zoom:2;width:44px"><button class="sbtn" style="max-width:44px"><svg class="ic"><use href="#i-ctx"/></svg></button></div>
+      <div class="dim-v" style="left:-26px;top:20px;height:88px"><span>44</span></div>
+    </div>
+    <table class="spec-table" style="max-width:420px;font-size:12px">
+      <tbody>
+        <tr><td>Кнопка</td><td>44 × 44 dp, радиус 12 dp</td></tr>
+        <tr><td>Иконка</td><td>20 dp, <code>currentColor</code>, заливка</td></tr>
+        <tr><td>Каретка</td><td>12 dp, right 3 / bottom 2</td></tr>
+        <tr><td>Зазор</td><td>8 dp (6 dp при 320 dp)</td></tr>
+        <tr><td>Разделитель</td><td>1 × 24 dp, <code>rgba(255,255,255,.09)</code></td></tr>
+        <tr><td>Отступ ряда</td><td>6 dp сверху/снизу, 8 dp по бокам</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">05</span>
+    <h2>Поведение</h2>
+  </div>
+
+  <table class="spec-table">
+    <thead>
+      <tr><th>Кнопка</th><th>Иконка</th><th>Тап</th><th>Повторный тап</th><th>Подпись (long-press)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Дата</td><td>календарь</td><td>сортировка по <code>releaseDate</code></td><td>новые ↔ старые</td><td>Дата · по убыванию</td></tr>
+      <tr><td>Оценка</td><td>звезда</td><td>по <code>arenaScore</code></td><td>выше ↔ ниже</td><td>Оценка · по убыванию</td></tr>
+      <tr><td>Контекст</td><td>уголки</td><td>по <code>contextWindow</code></td><td>больше ↔ меньше</td><td>Контекст · по убыванию</td></tr>
+      <tr><td>Цена</td><td>$</td><td>по <code>pricePerMillion</code></td><td>дороже ↔ дешевле</td><td>Цена · по возрастанию</td></tr>
+      <tr><td>Рекомендуемые</td><td>палец вверх</td><td>свежие + высокий Elo</td><td>направление не меняется</td><td>Рекомендуемые</td></tr>
+      <tr><td>Бесплатно</td><td>ярлык</td><td>фильтр <code>isFreeTier</code></td><td>выкл/вкл</td><td>Только бесплатные</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note" style="margin-top:18px">
+    <b>Направление по умолчанию.</b> Для «Цены» первое нажатие — по возрастанию (дешёвые сверху), для остальных — по убыванию. Это то, что делает <code>comparator</code> в <code>ModelSortOption</code>; иконка каретки просто показывает фактическое направление, а не зашитое «вниз».
+  </div>
+  <div class="note">
+    <b>«Рекомендуемые» без направления.</b> Составной ключ (дата + Elo) не имеет осмысленного обратного порядка, поэтому каретка у неё не показывается: только активная заливка.
+  </div>
+  <div class="note note--warn">
+    <b>Доступность.</b> У каждой кнопки обязателен <code>contentDescription</code> с подписью и направлением — иконка без текста иначе нема для TalkBack. Активная кнопка помечается <code>Modifier.semantics { selected = true }</code>; фильтр — <code>toggleable</code>, а не <code>selectable</code>.
+  </div>
+</section>
+
+</div>
+</body>
+</html>
