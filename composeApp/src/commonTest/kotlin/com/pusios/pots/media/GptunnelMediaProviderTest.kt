@@ -71,8 +71,7 @@ class GptunnelMediaProviderTest {
         status: HttpStatusCode = HttpStatusCode.OK,
     ) = respond(content = content, status = status, headers = jsonHeaders)
 
-    private fun bodyText(request: io.ktor.client.request.HttpRequestData): String =
-        (request.body as? TextContent)?.text.orEmpty()
+    private fun bodyText(request: io.ktor.client.request.HttpRequestData): String = (request.body as? TextContent)?.text.orEmpty()
 
     @Test
     fun listModelsSendsTheAuthorizationHeaderOnEveryCatalogCall() = runTest {
@@ -146,10 +145,12 @@ class GptunnelMediaProviderTest {
         val engine = engine(requests) { request ->
             when {
                 request.method.value == "GET" -> respondJson(catalog)
+
                 request.url.encodedPath == "/api/v2/media/price" -> respondJson(
                     """{"code":0,"model":"kling-v3","price":210,"currency":"RUB",
                         "params":{"resolution":"1080p","duration":5,"aspect_ratio":"16:9"}}""",
                 )
+
                 else -> respondJson("""{"code":99,"message":"API method not found"}""", HttpStatusCode.NotFound)
             }
         }
@@ -264,6 +265,7 @@ class GptunnelMediaProviderTest {
         val engine = MockEngine { request ->
             when {
                 request.method.value == "GET" -> respondJson(catalog)
+
                 else -> respondJson(
                     """{"code":5,"message":"Insufficient balance, check account balance."}""",
                     HttpStatusCode.PaymentRequired,

@@ -25,8 +25,7 @@ class LlmRouterMediaProviderTest {
 
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
 
-    private fun bodyText(request: io.ktor.client.request.HttpRequestData): String =
-        (request.body as? TextContent)?.text.orEmpty()
+    private fun bodyText(request: io.ktor.client.request.HttpRequestData): String = (request.body as? TextContent)?.text.orEmpty()
 
     @Test
     fun listModelsSendsTheAuthorizationHeaderAndKeepsOnlyImageModels() = runTest {

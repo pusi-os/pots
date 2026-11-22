@@ -149,10 +149,9 @@ class GptunnelMediaProvider(
     }
 
     /** Any `inputs[]` entry of that kind makes the reference input accepted. */
-    private fun inputsKind(card: JsonObject, kind: String): Boolean =
-        (card["inputs"] as? JsonArray).orEmpty().any { entry ->
-            (entry as? JsonObject)?.get("kind")?.jsonPrimitive?.contentOrNull == kind
-        }
+    private fun inputsKind(card: JsonObject, kind: String): Boolean = (card["inputs"] as? JsonArray).orEmpty().any { entry ->
+        (entry as? JsonObject)?.get("kind")?.jsonPrimitive?.contentOrNull == kind
+    }
 
     /** `params[]` schema → defs; enum → select, number → number, the rest → text. */
     private fun parseParams(card: JsonObject): List<MediaParamDef> = (card["params"] as? JsonArray).orEmpty()
