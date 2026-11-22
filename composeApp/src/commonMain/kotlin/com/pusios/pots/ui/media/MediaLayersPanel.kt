@@ -44,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -218,17 +219,22 @@ private fun LayersSheet(
                     ordered.forEach { layer ->
                         // Draw index is what the view model moves: index 0 is the bottom layer.
                         val drawIndex = layers.indexOfFirst { it.id == layer.id }
-                        LayerRow(
-                            layer = layer,
-                            drawIndex = drawIndex,
-                            title = titles[layer.id] ?: layer.id,
-                            subtitle = layerSubtitle(layer),
-                            selected = layer.id == selectedId,
-                            onSelect = { onSelect(layer.id) },
-                            onReorder = onReorder,
-                            onVisibility = { visible -> onVisibility(layer.id, visible) },
-                            onOpacity = { value -> onOpacity(layer.id, value) },
-                        )
+                        // Keyed by id: a reorder moves the composition group with
+                        // the layer, so the drag gesture that caused the move is
+                        // not cancelled by its own result.
+                        key(layer.id) {
+                            LayerRow(
+                                layer = layer,
+                                drawIndex = drawIndex,
+                                title = titles[layer.id] ?: layer.id,
+                                subtitle = layerSubtitle(layer),
+                                selected = layer.id == selectedId,
+                                onSelect = { onSelect(layer.id) },
+                                onReorder = onReorder,
+                                onVisibility = { visible -> onVisibility(layer.id, visible) },
+                                onOpacity = { value -> onOpacity(layer.id, value) },
+                            )
+                        }
                     }
                 }
             }
