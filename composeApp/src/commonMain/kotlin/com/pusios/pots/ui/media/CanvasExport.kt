@@ -1,6 +1,5 @@
 package com.pusios.pots.ui.media
 
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -9,8 +8,6 @@ import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toPixelMap
@@ -81,9 +78,6 @@ internal sealed interface ExportScope {
     }
 }
 
-/** The frame as a rectangle, for [renderCanvas]'s `frame` parameter. */
-internal fun ExportScope.Region.toRect(): Rect = Rect(left, top, right, bottom)
-
 /** Breathing room around the content of a whole-canvas export, density-independent. */
 internal const val EXPORT_PADDING = 24f
 
@@ -102,18 +96,6 @@ internal const val MIN_EXPORT_REGION = 16f
 /** The two opaque backgrounds the dialog offers; alpha is the third option. */
 internal val EXPORT_DARK_BACKGROUND = Color(0xFF14141A)
 internal val EXPORT_LIGHT_BACKGROUND = Color(0xFFF4F4F7)
-
-/**
- * The frame the user dragged, baked into the model's picture: amber reads on
- * both offered backgrounds and on any photo.
- */
-internal val CANVAS_PROMPT_FRAME_COLOR = Color(0xFFFFC107)
-
-/** The frame's line width in *exported* pixels, whatever the export factor is. */
-internal const val CANVAS_PROMPT_FRAME_WIDTH_PX = 2f
-
-/** The frame's corner radius in exported pixels. */
-internal const val CANVAS_PROMPT_FRAME_CORNER_RADIUS_PX = 12f
 
 /**
  * What the export draws and how: the rectangle in the renderer's space, the
@@ -135,10 +117,6 @@ internal data class ExportView(val rect: Rect, val pan: Offset, val zoom: Float)
  *   leak into the file.
  * @param background null = transparent PNG; a colour fills the whole bitmap
  *   first (the model path needs an opaque image).
- * @param frame the zone the user dragged, in screen px (the same rectangle as
- *   [ExportScope.Region]); when [includeAnnotation] is on it is drawn over the
- *   layers so the model can see *where* the edit goes. Null = no frame. The
- *   zone's own crop passes null: a frame inside the crop would be litter.
  * @param frames decoded frames by layer id, exactly as the screen has them: an
  *   image's bytes or a video's still frame. A layer without a frame draws only
  *   its card.
@@ -151,7 +129,6 @@ internal suspend fun renderCanvas(
     scope: ExportScope,
     includeAnnotation: Boolean = false,
     background: Color? = null,
-    frame: Rect? = null,
     frames: Map<String, Painter> = emptyMap(),
     fonts: Map<String, FontFamily> = emptyMap(),
     measurer: TextMeasurer? = null,
@@ -159,15 +136,7 @@ internal suspend fun renderCanvas(
     maxSidePx: Int = EXPORT_MAX_SIDE_PX,
 ): ImageBitmap? {
     val content = canvasContentBounds(layers, frames, measurer, fonts, includeAnnotation, density) ?: return null
-    // The frame is part of the model's picture, so a whole-canvas view has to
-    // contain it: a zone dragged in the empty part of the screen would otherwise
-    // be cut off, and «зона обведена» would point at nothing.
-    val framedContent = if (includeAnnotation && frame != null && scope is ExportScope.Whole) {
-        content.union(frame)
-    } else {
-        content
-    }
-    val view = exportView(scope, framedContent, density) ?: return null
+    val view = exportView(scope, content, density) ?: return null
     val scale = canvasExportScale(view, layers, frames, density, maxSidePx)
     val width = (view.rect.width * scale).roundToInt().coerceAtLeast(1)
     val height = (view.rect.height * scale).roundToInt().coerceAtLeast(1)
@@ -203,7 +172,6 @@ internal suspend fun renderCanvas(
                     zoom = view.zoom,
                     includeAnnotations = includeAnnotation,
                 )
-                if (includeAnnotation && frame != null) drawPromptFrame(frame, scale)
             }
         }
         // A video the platform cannot capture a frame for, an image that failed
@@ -213,22 +181,6 @@ internal suspend fun renderCanvas(
         if (background == null && !bitmap.hasVisiblePixels()) return@withContext null
         bitmap
     }
-}
-
-/**
- * The dragged frame, baked into the picture: [CANVAS_PROMPT_FRAME_COLOR] over
- * the layers, in the export's own transform. The width is divided by the export
- * factor, so the line is two *exported* pixels wide whatever the factor is
- * (the transform would otherwise thicken it with the picture).
- */
-private fun DrawScope.drawPromptFrame(frame: Rect, scale: Float) {
-    drawRoundRect(
-        color = CANVAS_PROMPT_FRAME_COLOR,
-        topLeft = Offset(frame.left, frame.top),
-        size = Size(frame.width, frame.height),
-        cornerRadius = CornerRadius(CANVAS_PROMPT_FRAME_CORNER_RADIUS_PX / scale),
-        style = Stroke(width = CANVAS_PROMPT_FRAME_WIDTH_PX / scale),
-    )
 }
 
 /** The view an export covers; null when the scope has no area. */

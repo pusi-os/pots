@@ -93,21 +93,59 @@ class CanvasPromptPlanTest {
     }
 
     @Test
-    fun aOnePictureModelGetsTheCanvasOnlyAndTheZoneIsDescribedInText() {
+    fun aOnePictureModelGetsTheZoneItselfWhenOneIsDragged() {
         val support = canvasPromptSupport(onePictureModel())
         assertIs<CanvasPromptSupport.Ready>(support)
 
         val images = canvasPromptImages(support.limit, hasZone = true)
-        assertTrue(images.canvas)
-        assertFalse(images.zone, "a second picture would overwrite the canvas on a single-key model")
-        assertTrue(images.zoneDescribedOnly)
+        assertFalse(images.canvas, "a second picture would overwrite the first, so the canvas stays home")
+        assertTrue(images.zone, "the model gets the picture of what the user asked to change")
+        assertFalse(images.zoneDescribedOnly)
 
-        val text = canvasPromptText("убери подпись", canvas, images, zone)
-        assertTrue(text.contains("убери подпись"), "the instruction is the head of the request")
-        assertTrue(text.contains("1280×720"), "the canvas size is named: $text")
-        assertTrue(text.contains("300×200"), "the zone size is named: $text")
-        assertTrue(text.contains("обведена на канвасе"), "the zone is on the canvas itself: $text")
-        assertFalse(text.contains("отдельным фрагментом"), "no picture was attached: $text")
+        val text = canvasPromptText("убери подпись", canvas = null, images, zone)
+        assertTrue(text.startsWith("убери подпись\n\n"), text)
+        assertTrue(text.contains("фрагмент канваса 300×200"), "the fragment is named: $text")
+        assertFalse(text.contains("1280×720"), "no canvas was attached, so its size is not promised: $text")
+    }
+
+    @Test
+    fun aOnePictureModelWithoutAZoneGetsTheWholeCanvas() {
+        val images = canvasPromptImages(1, hasZone = false)
+        assertTrue(images.canvas)
+        assertFalse(images.zone)
+        assertFalse(images.zoneDescribedOnly)
+
+        val text = canvasPromptText("добавь подпись", canvas, images, zone = null)
+        assertEquals("добавь подпись\n\nКанвас приложен целиком, 1280×720 px, с разметкой.", text)
+    }
+
+    @Test
+    fun aModelWithNoPictureFieldOnlyGetsTheText() {
+        val images = canvasPromptImages(limit = 0, hasZone = true)
+        assertFalse(images.canvas)
+        assertFalse(images.zone)
+        assertTrue(images.zoneDescribedOnly, "no picture travels: the text is the only carrier")
+
+        val text = canvasPromptText("убери подпись", canvas = null, images, zone)
+        assertTrue(text.contains("Зона правки 300×200"), text)
+    }
+
+    @Test
+    fun noTextEverClaimsTheZoneIsDrawnOnTheCanvas() {
+        // The frame is gone: a rectangle baked into the picture cannot be right
+        // at any zoom but 1 (cards grow around their centre, ink from the
+        // origin), so no branch may promise an outline that is not there.
+        val texts = listOf(
+            canvasPromptText("правка", canvas, canvasPromptImages(2, hasZone = true), zone),
+            canvasPromptText("правка", canvas, canvasPromptImages(2, hasZone = false), null),
+            canvasPromptText("правка", null, canvasPromptImages(1, hasZone = true), zone),
+            canvasPromptText("правка", canvas, canvasPromptImages(1, hasZone = false), null),
+            canvasPromptText("правка", null, canvasPromptImages(0, hasZone = true), zone),
+        )
+        texts.forEach { text ->
+            assertFalse(text.contains("обведена"), text)
+            assertFalse(text.contains("рамк"), text)
+        }
     }
 
     @Test
@@ -169,13 +207,5 @@ class CanvasPromptPlanTest {
         assertFalse(canvasPromptSend(null, "   ", canvasReady = true, preparing = false).enabled, "no instruction")
         assertFalse(canvasPromptSend(null, "текст", canvasReady = false, preparing = false).enabled, "nothing rendered")
         assertFalse(canvasPromptSend("нет модели", "текст", canvasReady = true, preparing = false).enabled, "refusal")
-    }
-
-    @Test
-    fun nothingIsSentWhenNoModelCanTakeAPicture() {
-        val images = canvasPromptImages(limit = 0, hasZone = true)
-        assertFalse(images.canvas)
-        assertFalse(images.zone)
-        assertEquals("убери подпись", canvasPromptText("убери подпись", canvas, images, zone))
     }
 }
