@@ -743,7 +743,7 @@
     <string name="pots_build_system_disk_free">Свободное место</string>
     <string name="pots_build_uninstall">Удалить Linux</string>
     <string name="pots_build_uninstall_title">Удалить Linux?</string>
-    <string name="pots_build_uninstall_message">Это удалит систему Debian и всё, что в ней установлено. Папки проектов сохранятся.</string>
+    <string name="pots_build_uninstall_message">Это удалит систему Debian и всё, что в ней установлено, — в том числе данные агентов, которые в ней живут: настройки, учётные данные для входа, навыки и плагины. После повторной установки Debian их не вернуть. Если песочница Linux тоже работает на Debian, это та же система, и она удалится вместе с ней. Папки проектов останутся на месте.</string>
     <string name="pots_build_terminal_placeholder">Команда shell</string>
     <string name="pots_build_terminal_running">Выполняется…</string>
     <string name="pots_build_terminal_run_content_description">Запустить</string>
