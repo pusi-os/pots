@@ -84,6 +84,13 @@ import kotlin.math.roundToInt
 private const val CANVAS_DEFAULT_FONT = "default"
 
 /**
+ * The card shape every pass shares: the renderer's rounded fill, the overlay
+ * clip of the video player and the selection ring all use the same radius, so
+ * they cannot drift apart.
+ */
+private val CanvasCardShape = RoundedCornerShape(CANVAS_CARD_CORNER_DP.dp)
+
+/**
  * The creative surface: a dotted-grid canvas with pan/zoom, draggable rounded
  * layers, selection ring with quick-transform chips, generation skeletons
  * and an inviting empty state.
@@ -94,6 +101,11 @@ private const val CANVAS_DEFAULT_FONT = "default"
  * chips. Frames are decoded by Coil and handed to the renderer as painters, so
  * the Coil cache stays the only copy of the bitmap (a decoded 2048² ImageBitmap
  * in state would be 16 MB per layer).
+ *
+ * The video player cannot live in a [DrawScope], so it stays a composable above
+ * the canvas, clipped to [CanvasCardShape] to match the card the renderer
+ * paints underneath. Its frame is therefore not part of the renderer yet and
+ * does not reach an export (a separate card).
  *
  * [layers] arrives in draw order (the list is the z-order); nothing here sorts.
  */
@@ -151,8 +163,8 @@ internal fun MediaCanvas(
 
         // Drop shadows sit under the frames: DrawScope has no shadow API in
         // common, so the silhouette stays a composable. A shadow of a higher
-        // layer does not darken a lower layer's frame — the only visual
-        // difference of this split, and it is a shadow, not content.
+        // layer does not darken a lower layer's frame — the shadow-only delta
+        // of this split, no content moves.
         LayerCardShadows(layers, canvasScale, canvasOffset, frames)
 
         Canvas(Modifier.fillMaxSize()) {
@@ -254,7 +266,12 @@ private fun LayerCardShadows(
 ) {
     layers.forEach { layer ->
         if (!layer.transform.visible) return@forEach
-        Box(Modifier.layerBox(layer, canvasScale, canvasOffset, frames[layer.id]).shadow(6.dp, RoundedCornerShape(12.dp)))
+        // Only the kinds that own a card get a shadow: the renderer draws one
+        // for image/video, the audio player paints its own. Text, strokes and
+        // arrows draw no card here, and a shadow without a card is a grey
+        // smudge on the canvas.
+        if (layer is TextLayer || layer is StrokeLayer || layer is ArrowLayer) return@forEach
+        Box(Modifier.layerBox(layer, canvasScale, canvasOffset, frames[layer.id]).shadow(6.dp, CanvasCardShape))
     }
 }
 
@@ -316,17 +333,20 @@ private fun CanvasLayerOverlay(
         Modifier
             .layerBox(layer, canvasScale, canvasOffset, frame)
             .then(
-                // The card fill of an audio layer is its own: the renderer
-                // draws frames, and an audio card is a player, not a frame.
-                if (layer is AudioLayer) {
-                    Modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
-                } else {
-                    Modifier
+                // The renderer paints the card fill and clips the frame to the
+                // card, so the composable overlay must not paint outside it.
+                // Audio draws its own fill; the video player paints a square
+                // surface that would otherwise show its corners over the
+                // rounded card. Same radius as the renderer, one constant.
+                when (layer) {
+                    is AudioLayer -> Modifier.clip(CanvasCardShape).background(MaterialTheme.colorScheme.surfaceVariant)
+                    is VideoLayer -> Modifier.clip(CanvasCardShape)
+                    else -> Modifier
                 },
             )
             .then(
                 if (selected) {
-                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CanvasCardShape)
                 } else {
                     Modifier
                 },

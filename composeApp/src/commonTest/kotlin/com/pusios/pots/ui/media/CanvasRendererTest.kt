@@ -129,6 +129,26 @@ class CanvasRendererTest {
     }
 
     @Test
+    fun opacityCompositesTheCardAsOneGroup() {
+        // A 3:1 frame in a 16:9 card: the frame sits between the letterbox bars,
+        // so one render gives a bar pixel and a frame pixel of the same layer.
+        val layer = ImageLayer(id = "half", transform = LayerTransform(x = 0f, y = 0f, opacity = 0.5f))
+        val pixels = render(
+            layers = listOf(layer),
+            frames = mapOf("half" to BitmapPainter(solid(300, 100, Color.Red))),
+            cardBackground = Color.Blue,
+        )
+        // The old graphicsLayer(alpha) faded the whole element: the bar and the
+        // frame are equally 50 % opaque. Fading the fill and the frame
+        // separately stacks them in the frame area (0.5 over 0.5 = 0.75).
+        val bar = pixels.colorAt(116, 5).alpha
+        val frame = pixels.colorAt(116, 65).alpha
+        assertTrue(abs(bar - 0.5f) < 0.02f, "letterbox bar: expected ~50 % alpha, got $bar")
+        assertTrue(abs(frame - 0.5f) < 0.02f, "frame: expected ~50 % alpha, got $frame")
+        assertEquals(bar, frame, 0.02f)
+    }
+
+    @Test
     fun audioAndTextLayersAreSkipped() {
         val audio = AudioLayer(id = "audio", transform = LayerTransform(x = 0f, y = 0f))
         val text = TextLayer(id = "text", transform = LayerTransform(x = 0f, y = 0f), text = "hi")

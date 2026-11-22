@@ -7,9 +7,11 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.TextMeasurer
@@ -121,7 +123,15 @@ private fun DrawScope.drawMediaLayer(
     }
 }
 
-/** The rounded card plus the frame fitted into it, clipped to the card. */
+/**
+ * The rounded card plus the frame fitted into it, clipped to the card.
+ *
+ * The whole card composites as ONE group: with `opacity < 1` the background and
+ * the frame go into a `saveLayer` that carries the layer alpha, exactly like
+ * the old `graphicsLayer(alpha)` on the element box. Fading them separately
+ * would stack them — 0.5 over 0.5 = 0.75 in the frame area against 0.5 in the
+ * letterbox bars, i.e. one layer with two different opacities.
+ */
 private fun DrawScope.drawCard(
     topLeft: Offset,
     box: Size,
@@ -131,8 +141,27 @@ private fun DrawScope.drawCard(
     frame: Painter?,
 ) {
     if (alpha <= 0f) return
+    if (alpha >= 1f) {
+        drawCardContent(topLeft, box, corner, background, frame)
+        return
+    }
+    drawIntoCanvas { canvas ->
+        canvas.saveLayer(Rect(topLeft, box), Paint().apply { this.alpha = alpha })
+        drawCardContent(topLeft, box, corner, background, frame)
+        canvas.restore()
+    }
+}
+
+/** Card fill and frame at full opacity; the caller owns the layer alpha. */
+private fun DrawScope.drawCardContent(
+    topLeft: Offset,
+    box: Size,
+    corner: Float,
+    background: Color?,
+    frame: Painter?,
+) {
     if (background != null) {
-        drawRoundRect(background, topLeft, box, CornerRadius(corner, corner), alpha = alpha)
+        drawRoundRect(background, topLeft, box, CornerRadius(corner, corner))
     }
     if (frame == null) return
     val source = frame.intrinsicSize
@@ -147,7 +176,7 @@ private fun DrawScope.drawCard(
     val card = Path().apply { addRoundRect(RoundRect(Rect(topLeft, box), CornerRadius(corner, corner))) }
     clipPath(card) {
         withTransform({ translate(origin.x, origin.y) }) {
-            drawPainter(frame, drawn, alpha)
+            drawPainter(frame, drawn)
         }
     }
 }
@@ -162,11 +191,11 @@ private fun DrawScope.drawCard(
  * scope size is set to the box before drawing: the shrink becomes a no-op and
  * the painter keeps drawing its own size.
  */
-private fun DrawScope.drawPainter(painter: Painter, size: Size, alpha: Float) {
+private fun DrawScope.drawPainter(painter: Painter, size: Size) {
     val previous = drawContext.size
     drawContext.size = size
     try {
-        with(painter) { draw(size, alpha = alpha) }
+        with(painter) { draw(size) }
     } finally {
         drawContext.size = previous
     }
