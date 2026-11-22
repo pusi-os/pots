@@ -1,6 +1,7 @@
 package com.pusios.pots.ui.media
 
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.data.AppSettings
@@ -153,6 +154,14 @@ class MediaStudioViewModel(
 
     private val _selectedId = MutableStateFlow<String?>(null)
     val selectedId: StateFlow<String?> = _selectedId.asStateFlow()
+
+    /**
+     * The strokes of the running drawing session (see [DrawSession]): the canvas
+     * holds the layers, this holds the ids undo and the eraser are allowed to
+     * touch. Not persisted — the strokes themselves are, as layers.
+     */
+    private val _drawSession = MutableStateFlow(DrawSession())
+    val drawSession: StateFlow<DrawSession> = _drawSession.asStateFlow()
 
     private val _models = MutableStateFlow<List<MediaModel>>(emptyList())
     val models: StateFlow<List<MediaModel>> = _models.asStateFlow()
@@ -1190,6 +1199,58 @@ class MediaStudioViewModel(
      */
     fun editText(id: String, change: (TextLayer) -> TextLayer) {
         _elements.update { list -> list.map { if (it is TextLayer && it.id == id) change(it) else it } }
+    }
+
+    // -- Drawing on the canvas (draw mode) ------------------------------------
+    // The strokes are ordinary layers: they take part in the z-order, the
+    // opacity, the visibility, the autosave and (later) the export. Nothing is
+    // baked into a PNG, so a stroke can still be removed, hidden or faded after
+    // it was drawn.
+
+    /** Starts a drawing session: the counter resets and undo cannot reach older work. */
+    fun beginDrawSession() {
+        _drawSession.value = DrawSession()
+    }
+
+    /** Ends the session; the strokes stay on the canvas as layers. */
+    fun endDrawSession() {
+        _drawSession.value = DrawSession()
+    }
+
+    /**
+     * Puts one finished stroke on top of the canvas and remembers it for undo.
+     * An empty stroke (a tap that never landed a point) is dropped.
+     */
+    fun addStroke(points: List<Offset>, colorArgb: Int, widthPx: Float) {
+        if (points.isEmpty()) return
+        val layer = StrokeLayer(
+            id = Uuid.random().toString(),
+            points = points,
+            colorArgb = colorArgb,
+            widthPx = widthPx,
+        )
+        // New ink lands on top: appending to the draw list is the top.
+        _elements.update { it.withStroke(layer) }
+        _drawSession.update { it.with(layer.id) }
+    }
+
+    /** Removes the last stroke of this session; earlier work is out of reach. */
+    fun undoLastStroke() {
+        val id = _drawSession.value.strokeIds.lastOrNull() ?: return
+        _elements.update { it.withoutStrokes(setOf(id)) }
+        _drawSession.update { it.undone() }
+    }
+
+    /**
+     * The eraser: whole strokes the finger crossed, removed from the canvas.
+     * Cutting a hole in a vector line would mean splitting it into pieces and
+     * rewriting its points — and the layer model has no notion of a gap.
+     */
+    fun eraseStrokesAt(point: Offset) {
+        val hits = _elements.value.filter { it.isStrokeHitBy(point) }.map { it.id }.toSet()
+        if (hits.isEmpty()) return
+        _elements.update { it.withoutStrokes(hits) }
+        _drawSession.update { it.without(hits) }
     }
 
     fun applyAction(id: String, action: CanvasAction) {

@@ -9,6 +9,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -53,10 +57,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +76,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -109,6 +118,13 @@ private val CanvasCardShape = RoundedCornerShape(CANVAS_CARD_CORNER_DP.dp)
  * paints underneath. Its frame is therefore not part of the renderer yet and
  * does not reach an export (a separate card).
  *
+ * [draw] turns the canvas into a drawing surface: the layers stay where they
+ * are, the strokes land on top of them as layers of their own, and the gestures
+ * are split by finger count — one finger inks, two fingers pan and zoom (see
+ * [drawPointerInput]). The stroke under the finger is drawn on its own canvas,
+ * so a finger move invalidates that draw alone: the layer pass, its decoded
+ * frames and its cached stroke paths are left alone until the stroke lands.
+ *
  * [layers] arrives in draw order (the list is the z-order); nothing here sorts.
  */
 @Composable
@@ -131,13 +147,14 @@ internal fun MediaCanvas(
     onOpenLightbox: (MediaLayer) -> Unit,
     onEditAudio: (AudioLayer) -> Unit,
     onMakeClip: (AudioLayer) -> Unit,
-    onDrawImage: (MediaLayer) -> Unit,
     onEditImage: (ImageLayer) -> Unit,
     onEditVideo: (VideoLayer) -> Unit,
     /** A tap on a text layer opens the text editor (the card's rule: tap = edit). */
     onEditText: (TextLayer) -> Unit = {},
     /** Width factor of a text layer's box, from the «уже»/«шире» chips. */
     onTextWidth: (String, Float) -> Unit = { _, _ -> },
+    /** Non-null while the draw mode is on: the active tool and where its strokes go. */
+    draw: DrawSurface? = null,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current.density
@@ -149,22 +166,61 @@ internal fun MediaCanvas(
     val cardColor = MaterialTheme.colorScheme.surfaceVariant
     LayerFrames(layers, frames)
 
+    // A finished stroke never changes, so its Path is built once per layer list
+    // change and reused by every frame; the draw pass does not rebuild 20 paths
+    // on each finger move.
+    val strokePaths = remember(layers) {
+        layers.filterIsInstance<StrokeLayer>().associate { it.id to strokePath(it.points) }
+    }
+    // Pixels per canvas unit on screen: density times the canvas zoom. The ink
+    // is stored in canvas units, so this one number converts both ways — a
+    // point under the finger and a stroke on the layer pass agree at any zoom.
+    val pxPerUnit = density * canvasScale
+    // The stroke under the finger. Read only inside a draw block, so a new point
+    // invalidates that draw and nothing else; equal points are dropped by the
+    // snapshot policy and cause no invalidation at all.
+    var currentStroke by remember { mutableStateOf<CurrentStroke?>(null) }
+    val drawNow = rememberUpdatedState(draw)
+    val offsetNow = rememberUpdatedState(canvasOffset)
+    val unitNow = rememberUpdatedState(pxPerUnit)
+    val transformNow = rememberUpdatedState(onTransform)
+
     Box(
         modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
             .semantics { contentDescription = "Медиа-канвас" }
-            .transformable(
-                state = rememberTransformableState { zoomChange, panChange, _ ->
-                    onTransform(zoomChange, panChange)
+            .then(
+                if (draw == null) {
+                    Modifier
+                        .transformable(
+                            state = rememberTransformableState { zoomChange, panChange, _ ->
+                                onTransform(zoomChange, panChange)
+                            },
+                        )
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onDoubleTap = { onRecenter() },
+                                onTap = { onTapBackground() },
+                            )
+                        }
+                } else {
+                    // Draw mode owns the gesture: a single finger inks, two
+                    // fingers pan and zoom. `transformable` is left out on
+                    // purpose — it pans with one finger too, and that is the
+                    // conflict this mode has to resolve.
+                    Modifier.pointerInput(Unit) {
+                        drawPointerInput(
+                            draw = drawNow,
+                            pan = offsetNow,
+                            pxPerUnit = unitNow,
+                            onTransform = { zoom, panChange -> transformNow.value(zoom, panChange) },
+                            currentStroke = { currentStroke },
+                            onCurrentStroke = { currentStroke = it },
+                        )
+                    }
                 },
-            )
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = { onRecenter() },
-                    onTap = { onTapBackground() },
-                )
-            },
+            ),
     ) {
         CanvasDotGrid(canvasOffset)
 
@@ -182,9 +238,33 @@ internal fun MediaCanvas(
                     fonts = fonts,
                     measurer = measurer,
                     frames = frames,
+                    strokePaths = strokePaths,
                     cardBackground = cardColor,
                     zoom = canvasScale,
                 )
+            }
+        }
+
+        if (draw != null) {
+            // The stroke under the finger, on top of the finished ones. Its own
+            // Canvas: only this draw invalidates while the finger moves. Same
+            // transform stack as the layer pass, so nothing jumps on commit.
+            Canvas(Modifier.fillMaxSize()) {
+                val ink = currentStroke ?: return@Canvas
+                val path = strokePath(ink.points)
+                withTransform({
+                    translate(canvasOffset.x, canvasOffset.y)
+                    scale(pxPerUnit, pxPerUnit, Offset.Zero)
+                }) {
+                    drawStrokeInk(
+                        points = ink.points,
+                        path = path,
+                        colorArgb = ink.colorArgb,
+                        widthPx = ink.widthPx,
+                        alpha = 1f,
+                        scale = 1f,
+                    )
+                }
             }
         }
 
@@ -192,10 +272,13 @@ internal fun MediaCanvas(
             CanvasLayerOverlay(
                 layer = layer,
                 box = canvasLayerBox(layer, frames[layer.id], measurer, fonts),
-                selected = layer.id == selectedId,
+                // Draw mode shows no selection: the finger inks, and a border
+                // left over from before would read as a target to hit.
+                selected = draw == null && layer.id == selectedId,
                 canvasScale = canvasScale,
                 canvasOffset = canvasOffset,
                 frame = frames[layer.id],
+                interactive = draw == null,
                 onSelect = { onSelect(layer.id) },
                 onEditText = onEditText,
                 onTextWidth = onTextWidth,
@@ -207,7 +290,6 @@ internal fun MediaCanvas(
                 onOpenLightbox = onOpenLightbox,
                 onEditAudio = onEditAudio,
                 onMakeClip = onMakeClip,
-                onDrawImage = onDrawImage,
                 onEditImage = onEditImage,
                 onEditVideo = onEditVideo,
             )
@@ -244,6 +326,90 @@ internal fun MediaCanvas(
                     )
                 }
             }
+        }
+    }
+}
+
+/** The stroke under the finger: canvas units, the ink it started with. */
+private data class CurrentStroke(
+    val points: List<Offset>,
+    val colorArgb: Int,
+    val widthPx: Float,
+)
+
+/**
+ * Draw-mode gestures: one finger inks, two fingers pan and zoom.
+ *
+ * The split is by pointer count inside one handler rather than by two competing
+ * detectors, because both alternatives fight: `transformable` pans with a
+ * single finger (so a stroke would drag the canvas), and a drawing detector that
+ * consumes moves cancels `transformable`'s gesture for the rest of the touch.
+ * So:
+ * - every move of a single pointer is consumed here — nothing pans under the pen;
+ * - a second pointer that lands abandons the unfinished stroke (nothing half-drawn
+ *   is committed) and the rest of the gesture is a pinch;
+ * - a pinch that starts with two fingers never inks: the first event already
+ *   carries two pointers.
+ *
+ * Positions arrive in screen px and are converted to canvas units here — the
+ * canvas is panned by [pan] and one unit is [pxPerUnit] px on screen (density
+ * times zoom), and the ink is stored in the units the layers are measured in.
+ */
+private suspend fun PointerInputScope.drawPointerInput(
+    draw: State<DrawSurface?>,
+    pan: State<Offset>,
+    pxPerUnit: State<Float>,
+    onTransform: (zoom: Float, panChange: Offset) -> Unit,
+    currentStroke: () -> CurrentStroke?,
+    onCurrentStroke: (CurrentStroke?) -> Unit,
+) {
+    awaitEachGesture {
+        val surface = draw.value ?: return@awaitEachGesture
+        val down = awaitFirstDown(requireUnconsumed = false)
+        fun toCanvas(position: Offset): Offset = (position - pan.value) / pxPerUnit.value
+
+        var inking = surface.tool == DrawTool.Brush
+        if (inking) {
+            onCurrentStroke(CurrentStroke(listOf(toCanvas(down.position)), surface.colorArgb, surface.widthPx))
+        } else {
+            surface.onErase(toCanvas(down.position))
+        }
+        down.consume()
+
+        var pinching = false
+        while (true) {
+            val event = awaitPointerEvent()
+            if (event.changes.count { it.pressed } >= 2) {
+                if (inking) {
+                    // Second finger: this is a pinch, not a stroke. The half-drawn
+                    // line is dropped rather than committed with a straight jump.
+                    onCurrentStroke(null)
+                    inking = false
+                }
+                pinching = true
+                val zoom = event.calculateZoom()
+                val panChange = event.calculatePan()
+                if (zoom != 1f || panChange != Offset.Zero) onTransform(zoom, panChange)
+                event.changes.forEach { if (it.pressed) it.consume() }
+                continue
+            }
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            if (!change.pressed) break
+            change.consume()
+            if (pinching) continue
+            val point = toCanvas(change.position)
+            if (inking) {
+                val stroke = currentStroke() ?: continue
+                onCurrentStroke(stroke.copy(points = stroke.points.withThinnedPoint(point)))
+            } else {
+                surface.onErase(point)
+            }
+        }
+
+        val finished = currentStroke()
+        onCurrentStroke(null)
+        if (inking && finished != null && finished.points.isNotEmpty()) {
+            surface.onStroke(finished.points, finished.colorArgb, finished.widthPx)
         }
     }
 }
@@ -294,8 +460,12 @@ private fun LayerCardShadows(
 /**
  * The geometry every pass shares with the old composable element: offset by the
  * layer position plus the canvas pan (px), the layer's box (canvas units — a
- * card is 232.dp wide, a text layer is its measured box), then scale/rotate/
- * alpha around the layout centre.
+ * card is 232.dp wide, a text layer is its measured box, a stroke's is its
+ * bbox), then scale/rotate/alpha around the layout centre.
+ *
+ * A stroke's own offset is in canvas units, like its points and its thickness;
+ * every other layer's position is in px. [density] is what turns one into the
+ * other, so the selection box, the drag and the ink stay on top of each other.
  */
 private fun Modifier.layerBox(
     layer: CanvasLayer,
@@ -304,9 +474,10 @@ private fun Modifier.layerBox(
     canvasOffset: Offset,
 ): Modifier = this
     .offset {
+        val unit = if (layer is StrokeLayer) density else 1f
         IntOffset(
-            (layer.transform.x + canvasOffset.x).roundToInt(),
-            (layer.transform.y + canvasOffset.y).roundToInt(),
+            (layer.transform.x * unit + canvasOffset.x).roundToInt(),
+            (layer.transform.y * unit + canvasOffset.y).roundToInt(),
         )
     }
     .width(box.width.dp)
@@ -328,6 +499,8 @@ private fun CanvasLayerOverlay(
     canvasScale: Float,
     canvasOffset: Offset,
     frame: Painter?,
+    /** False while the draw mode is on: the finger inks, it does not select or drag. */
+    interactive: Boolean,
     onSelect: () -> Unit,
     onEditText: (TextLayer) -> Unit,
     onTextWidth: (String, Float) -> Unit,
@@ -339,13 +512,13 @@ private fun CanvasLayerOverlay(
     onOpenLightbox: (MediaLayer) -> Unit,
     onEditAudio: (AudioLayer) -> Unit,
     onMakeClip: (AudioLayer) -> Unit,
-    onDrawImage: (MediaLayer) -> Unit,
     onEditImage: (ImageLayer) -> Unit,
     onEditVideo: (VideoLayer) -> Unit,
 ) {
     // A hidden layer keeps its data and its place in the draw order; it just
     // is not composited.
     if (!layer.transform.visible) return
+    val density = LocalDensity.current.density
     val media = layer as? MediaLayer
     val url = media?.url
     val local = media?.localPath
@@ -371,26 +544,41 @@ private fun CanvasLayerOverlay(
                     Modifier
                 },
             )
-            .pointerInput(layer.id) {
-                detectTransformGestures { _, pan, zoom, rotation ->
-                    onMove(layer.id, pan.x, pan.y)
-                    if (zoom != 1f) onScale(layer.id, zoom)
-                    if (rotation != 0f) onRotate(layer.id, rotation)
-                }
-            }
-            .semantics {
-                contentDescription = when (layer) {
-                    is AudioLayer -> "Аудио-элемент"
-                    is VideoLayer -> "Видео-элемент"
-                    is ImageLayer -> "Изображение"
-                    is TextLayer -> "Текст"
-                    is StrokeLayer -> "Штрих"
-                    is ArrowLayer -> "Стрелка"
-                }
-            }
-            // Tap = select, except for a text layer: a tap on it opens the
-            // editor (the card's rule — the caret lives in the input field).
-            .clickable(role = Role.Button) { if (layer is TextLayer) onEditText(layer) else onSelect() },
+            .then(
+                if (!interactive) {
+                    Modifier
+                } else {
+                    Modifier
+                        .pointerInput(layer.id) {
+                            detectTransformGestures { _, pan, zoom, rotation ->
+                                // A stroke's position is in canvas units, every
+                                // other layer's is in px: one px of drag has to
+                                // move a stroke by 1/density units, or it runs
+                                // away from the finger on a dense screen.
+                                val unit = if (layer is StrokeLayer) 1f / density else 1f
+                                onMove(layer.id, pan.x * unit, pan.y * unit)
+                                if (zoom != 1f) onScale(layer.id, zoom)
+                                if (rotation != 0f) onRotate(layer.id, rotation)
+                            }
+                        }
+                        .semantics {
+                            contentDescription = when (layer) {
+                                is AudioLayer -> "Аудио-элемент"
+                                is VideoLayer -> "Видео-элемент"
+                                is ImageLayer -> "Изображение"
+                                is TextLayer -> "Текст"
+                                is StrokeLayer -> "Штрих"
+                                is ArrowLayer -> "Стрелка"
+                            }
+                        }
+                        // Tap = select, except for a text layer: a tap on it
+                        // opens the editor (the card's rule — the caret lives
+                        // in the input field).
+                        .clickable(role = Role.Button) {
+                            if (layer is TextLayer) onEditText(layer) else onSelect()
+                        }
+                },
+            ),
     ) {
         when (layer) {
             is AudioLayer -> MediaAudioPlayer(
@@ -410,15 +598,14 @@ private fun CanvasLayerOverlay(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // Frames are painted by the renderer; text too (measured there with
-            // the same TextMeasurer this overlay boxes it with). Strokes and
-            // arrows are the next cards. No tool creates them yet, so an empty
-            // body here is not a visible gap — the selection box and its chips
-            // still work.
+            // Frames are painted by the renderer; text and strokes too (text is
+            // measured there with the same TextMeasurer this overlay boxes it
+            // with). Arrows are the next card. Nothing to compose here — the
+            // overlay only carries the box, the ring and the chips.
             is ImageLayer, is TextLayer, is StrokeLayer, is ArrowLayer -> Unit
         }
 
-        if (selected) {
+        if (selected && interactive) {
             Surface(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(6.dp),
                 shape = RoundedCornerShape(16.dp),
@@ -468,16 +655,13 @@ private fun CanvasLayerOverlay(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (layer is ImageLayer) {
-                                // Image-only actions: video elements cannot be
-                                // decoded for pixel editing.
-                                ElementChip(Icons.Filled.Brush, "Карандаш") { onDrawImage(layer) }
+                                // Image-only action: the pixel editor. Drawing
+                                // moved to the canvas itself — the old pencil
+                                // sheet that baked strokes into a PNG is gone.
                                 ElementChip(Icons.Filled.Edit, "Редактировать") { onEditImage(layer) }
                             } else if (layer is VideoLayer && videoEditingPlatformSupported()) {
-                                // Video editor (trim/speed/audio track) and the pencil
-                                // capture run on the desktop ffmpeg; other targets never
-                                // show them. Block 7: the pencil draws over a still frame
-                                // taken off the track at native resolution.
-                                ElementChip(Icons.Filled.Brush, "Кадр с карандашом") { onDrawImage(layer) }
+                                // Video editor (trim/speed/audio track) runs on the
+                                // desktop ffmpeg; other targets never show it.
                                 ElementChip(Icons.Filled.Edit, "Редактировать") { onEditVideo(layer) }
                             }
                             ElementChip(Icons.Filled.FlipToFront, "Выше по слоям") { onAction(layer.id, CanvasAction.BringForward) }

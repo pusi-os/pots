@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -216,9 +217,13 @@ fun MediaStudioScreenFull(
     var lightboxIsVideo by remember { mutableStateOf(false) }
     var lightboxIsAudio by remember { mutableStateOf(false) }
     var editAudioElement by remember { mutableStateOf<AudioLayer?>(null) }
-    // Drawing mode: drawElement == null means an empty-canvas sketch.
-    var drawOpen by remember { mutableStateOf(false) }
-    var drawElement by remember { mutableStateOf<MediaLayer?>(null) }
+    // Draw mode: the canvas itself is the surface — no dialog, the pictures stay
+    // visible and the strokes land on top of them as layers.
+    var drawMode by remember { mutableStateOf(false) }
+    var drawTool by remember { mutableStateOf(DrawTool.Brush) }
+    var drawColorArgb by remember { mutableIntStateOf(DRAW_COLORS.first()) }
+    var drawWidthPx by remember { mutableFloatStateOf(DRAW_DEFAULT_WIDTH_PX) }
+    val drawSession by viewModel.drawSession.collectAsState()
     var editImageElement by remember { mutableStateOf<ImageLayer?>(null) }
     var editVideoElement by remember { mutableStateOf<VideoLayer?>(null) }
     var sequenceOpen by remember { mutableStateOf(false) }
@@ -484,15 +489,22 @@ fun MediaStudioScreenFull(
                 },
                 onEditAudio = { element -> editAudioElement = element },
                 onMakeClip = { element -> clipTrackElement = element },
-                onDrawImage = { element ->
-                    drawElement = element
-                    drawOpen = true
-                },
                 onEditImage = { element -> editImageElement = element },
                 onEditVideo = { element -> editVideoElement = element },
                 // The visible canvas size: the text tool centres a new layer in
                 // it, and the editor pans the active text above the panel.
                 modifier = Modifier.fillMaxSize().onSizeChanged { canvasViewport = it },
+                draw = if (drawMode) {
+                    DrawSurface(
+                        tool = drawTool,
+                        colorArgb = drawColorArgb,
+                        widthPx = drawWidthPx,
+                        onStroke = viewModel::addStroke,
+                        onErase = viewModel::eraseStrokesAt,
+                    )
+                } else {
+                    null
+                },
             )
 
             // Потсик's place in the studio: left of the top toolbar, twice a
@@ -508,8 +520,9 @@ fun MediaStudioScreenFull(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp),
                 onImport = { importPicker.launch() },
                 onDraw = {
-                    drawElement = null
-                    drawOpen = true
+                    // Draw mode, not a dialog: the same canvas, the ink on top.
+                    viewModel.beginDrawSession()
+                    drawMode = true
                 },
                 onAddText = {
                     // The new layer's box lands in the middle of the visible
@@ -582,6 +595,26 @@ fun MediaStudioScreenFull(
                     viewModel.resetParams()
                 },
             )
+
+            // The draw dock floats over the canvas: the ink, the eraser, undo,
+            // the thickness presets, the session counter and «Готово».
+            if (drawMode) {
+                MediaDrawDock(
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                    tool = drawTool,
+                    colorArgb = drawColorArgb,
+                    widthPx = drawWidthPx,
+                    strokeCount = drawSession.strokeCount,
+                    onTool = { drawTool = it },
+                    onColor = { drawColorArgb = it },
+                    onWidth = { drawWidthPx = it },
+                    onUndo = viewModel::undoLastStroke,
+                    onDone = {
+                        drawMode = false
+                        viewModel.endDrawSession()
+                    },
+                )
+            }
         }
     }
 
@@ -781,14 +814,6 @@ fun MediaStudioScreenFull(
             audioElements = elements.filterIsInstance<AudioLayer>(),
             onDismiss = { editAudioElement = null },
             onResult = { wavBytes -> viewModel.addEditedAudioElement(wavBytes) },
-        )
-    }
-
-    if (drawOpen) {
-        MediaDrawSheet(
-            target = drawElement,
-            onDismiss = { drawOpen = false },
-            onResult = { pngBytes -> viewModel.addEditedImageElement(pngBytes) },
         )
     }
 
