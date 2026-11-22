@@ -176,6 +176,7 @@ fun MediaStudioScreenFull(
             val restore = !keep && snapshot != null && snapshot.text.isNotEmpty()
             when {
                 keep && layer.text.isEmpty() -> viewModel.applyAction(layer.id, CanvasAction.Delete)
+
                 restore && snapshot != null -> viewModel.editText(layer.id) {
                     it.copy(
                         text = snapshot.text,
@@ -186,6 +187,7 @@ fun MediaStudioScreenFull(
                         widthPx = snapshot.widthPx,
                     )
                 }
+
                 !keep -> viewModel.applyAction(layer.id, CanvasAction.Delete)
             }
         }
@@ -393,49 +395,49 @@ fun MediaStudioScreenFull(
                 )
             } else {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-                if (references.isNotEmpty()) {
-                    ReferenceStrip(
-                        references = references,
-                        onRemoveReference = viewModel::removeReference,
-                        onAddReference = { referencePicker.launch() },
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                    // Honest reference support: the model declares `mode` but no
-                    // route of its own family, so the request carries no mode and
-                    // the provider default applies (see MediaModeOptions.kt).
-                    if (currentModel != null && currentModel.modeHasNoReferenceRoute()) {
-                        Text(
-                            text = "Модель ${currentModel.id} не переключается в режим референса — запрос уйдёт без него",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                    if (references.isNotEmpty()) {
+                        ReferenceStrip(
+                            references = references,
+                            onRemoveReference = viewModel::removeReference,
+                            onAddReference = { referencePicker.launch() },
+                            modifier = Modifier.padding(bottom = 8.dp),
                         )
-                    }
-                }
-                MediaDock(
-                    prompt = prompt,
-                    onPromptChange = { viewModel.setDraft(mode, audioFlow, it) },
-                    placeholder = dockPlaceholder,
-                    isBusy = isStarting || isLocalBusy || pending.isNotEmpty(),
-                    isEnhancing = isEnhancing,
-                    onCreate = {
-                        if (prompt.isBlank()) {
-                            scope.launch { snackbarHostState.showSnackbar("Опиши, что нужно сгенерировать") }
-                        } else {
-                            when (mode) {
-                                MediaMode.Image -> viewModel.generateImage(prompt, params)
-                                MediaMode.Video -> viewModel.generateVideo(prompt, params)
-                                MediaMode.Audio -> viewModel.generateAudio(prompt, params)
-                            }
+                        // Honest reference support: the model declares `mode` but no
+                        // route of its own family, so the request carries no mode and
+                        // the provider default applies (see MediaModeOptions.kt).
+                        if (currentModel != null && currentModel.modeHasNoReferenceRoute()) {
+                            Text(
+                                text = "Модель ${currentModel.id} не переключается в режим референса — запрос уйдёт без него",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                            )
                         }
-                    },
-                    onEnhancePrompt = {
-                        viewModel.enhancePrompt(prompt) { viewModel.setDraft(mode, audioFlow, it) }
-                    },
-                    onExpand = { showExpandedPrompt = true },
-                    createEnabled = !overLimit,
-                    overLimitNote = if (overLimit) "Лимит модели: $promptLimit символов" else null,
-                )
+                    }
+                    MediaDock(
+                        prompt = prompt,
+                        onPromptChange = { viewModel.setDraft(mode, audioFlow, it) },
+                        placeholder = dockPlaceholder,
+                        isBusy = isStarting || isLocalBusy || pending.isNotEmpty(),
+                        isEnhancing = isEnhancing,
+                        onCreate = {
+                            if (prompt.isBlank()) {
+                                scope.launch { snackbarHostState.showSnackbar("Опиши, что нужно сгенерировать") }
+                            } else {
+                                when (mode) {
+                                    MediaMode.Image -> viewModel.generateImage(prompt, params)
+                                    MediaMode.Video -> viewModel.generateVideo(prompt, params)
+                                    MediaMode.Audio -> viewModel.generateAudio(prompt, params)
+                                }
+                            }
+                        },
+                        onEnhancePrompt = {
+                            viewModel.enhancePrompt(prompt) { viewModel.setDraft(mode, audioFlow, it) }
+                        },
+                        onExpand = { showExpandedPrompt = true },
+                        createEnabled = !overLimit,
+                        overLimitNote = if (overLimit) "Лимит модели: $promptLimit символов" else null,
+                    )
                 }
             }
         },

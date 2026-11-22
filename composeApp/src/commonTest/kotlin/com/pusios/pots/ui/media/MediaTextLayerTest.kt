@@ -1,7 +1,7 @@
 package com.pusios.pots.ui.media
 
-import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Density
@@ -33,8 +33,7 @@ class MediaTextLayerTest {
 
     private fun measure(layer: TextLayer): TextLayoutResult = textLayout(layer, measurer, fonts)
 
-    private fun layer(text: String = "", widthPx: Float = DEFAULT_TEXT_WIDTH): TextLayer =
-        newTextLayer("txt", 40f, 60f).copy(text = text, widthPx = widthPx)
+    private fun layer(text: String = "", widthPx: Float = DEFAULT_TEXT_WIDTH): TextLayer = newTextLayer("txt", 40f, 60f).copy(text = text, widthPx = widthPx)
 
     // -- Creation and hit target ---------------------------------------------
 
