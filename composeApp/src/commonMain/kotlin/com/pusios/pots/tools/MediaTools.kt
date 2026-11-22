@@ -7,7 +7,6 @@ import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaLog
 import com.pusios.pots.media.MediaProvider
 import com.pusios.pots.media.MediaReference
-import com.pusios.pots.media.PlusVibeMediaProvider
 import com.pusios.pots.media.PromptEnhancer
 import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
@@ -15,10 +14,16 @@ import com.pusios.pots.network.tools.ParameterSchema
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.network.tools.ToolSchema
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * Agent media tools. Gated by the per-tool toggles `generate_image`,
  * `generate_video`, `list_media_models`, `enhance_prompt` (see `tools.md`).
+ *
+ * The provider and the API key come from the *active media service*
+ * (`activeMediaService`), not from the chat instance: the tool set passes
+ * `ActiveMediaProvider` plus the key of that instance.
  *
  * The tools take an optional `model` override; when omitted they use the
  * per-instance image/video model chosen in Settings → Services → Media.
@@ -48,6 +53,10 @@ object MediaTools {
         }
         return state
     }
+
+    /** One key per submit: the provider replays the same job for 24 h instead of charging twice. */
+    @OptIn(ExperimentalUuidApi::class)
+    private fun newIdempotencyKey(): String = Uuid.random().toString()
 
     const val ID_GENERATE_IMAGE = "generate_image"
     const val ID_GENERATE_VIDEO = "generate_video"
@@ -89,7 +98,7 @@ object MediaTools {
         appSettings: AppSettings,
         apiKey: () -> String,
         instanceId: () -> String,
-        provider: MediaProvider = PlusVibeMediaProvider(),
+        provider: MediaProvider,
         attachmentProvider: () -> List<Attachment> = { emptyList() },
     ): Tool = object : Tool {
         override val schema = ToolSchema(
@@ -153,7 +162,7 @@ object MediaTools {
                     prompt = prompt,
                     opts = opts,
                     references = listOfNotNull(reference),
-                    idempotencyKey = PlusVibeMediaProvider.newIdempotencyKey(),
+                    idempotencyKey = newIdempotencyKey(),
                 ),
                 provider = provider,
                 maxWaits = 60,
@@ -194,7 +203,7 @@ object MediaTools {
         appSettings: AppSettings,
         apiKey: () -> String,
         instanceId: () -> String,
-        provider: MediaProvider = PlusVibeMediaProvider(),
+        provider: MediaProvider,
     ): Tool = object : Tool {
         override val schema = ToolSchema(
             name = ID_GENERATE_VIDEO,
@@ -228,7 +237,7 @@ object MediaTools {
             MediaLog.i("generate_video: model=$model opts=${opts.keys} promptLen=${prompt.length}")
             val state = pollUntilDone(
                 apiKey = key,
-                request = MediaJobRequest(model = model, prompt = prompt, opts = opts, idempotencyKey = PlusVibeMediaProvider.newIdempotencyKey()),
+                request = MediaJobRequest(model = model, prompt = prompt, opts = opts, idempotencyKey = newIdempotencyKey()),
                 provider = provider,
                 maxWaits = 120,
             )
@@ -247,7 +256,7 @@ object MediaTools {
         }
     }
 
-    fun listModelsTool(apiKey: () -> String, provider: MediaProvider = PlusVibeMediaProvider()): Tool = object : Tool {
+    fun listModelsTool(apiKey: () -> String, provider: MediaProvider): Tool = object : Tool {
         override val schema = ToolSchema(
             name = ID_LIST_MODELS,
             description = "List media models with prices. Pass kind=image|video to filter.",

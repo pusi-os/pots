@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pusios.pots.BackIcon
 import com.pusios.pots.Version
+import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.EmailAccount
 import com.pusios.pots.data.Service
 import com.pusios.pots.linux.LinuxDistro
@@ -83,6 +84,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.github_mark
@@ -154,6 +156,9 @@ fun SettingsScreen(
             navigationTabBar = navigationTabBar,
             onOpenPotsBuild = { isPotsBuildOpen = true }.takeIf { isPotsBuildAvailable },
             onRestartOnboarding = onRestartOnboarding,
+            mediaServiceSection = { entries ->
+                MediaServiceSection(entries, koinInject<AppSettings>())
+            },
         )
     }
 }
@@ -174,6 +179,7 @@ fun SettingsScreenContent(
     navigationTabBar: (@Composable () -> Unit)? = null,
     onOpenPotsBuild: (() -> Unit)? = null,
     onRestartOnboarding: () -> Unit = {},
+    mediaServiceSection: (@Composable (List<ConfiguredServiceEntry>) -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val undoLabel = stringResource(Res.string.snackbar_undo)
@@ -290,6 +296,7 @@ fun SettingsScreenContent(
                                     uiState = filteredUiState,
                                     actions = actions,
                                     onRestartOnboarding = onRestartOnboarding,
+                                    mediaServiceSection = mediaServiceSection,
                                 )
                             }
 

@@ -15,7 +15,6 @@ import com.pusios.pots.data.TaskStore
 import com.pusios.pots.data.ToolExecutor
 import com.pusios.pots.data.createConversationPersistence
 import com.pusios.pots.data.getConfiguredServiceInstances
-import com.pusios.pots.data.getInstanceApiKey
 import com.pusios.pots.data.miniapp.MiniAppRepository
 import com.pusios.pots.data.miniapp.MiniAppServer
 import com.pusios.pots.data.miniapp.MiniAppServerController
@@ -27,7 +26,6 @@ import com.pusios.pots.email.EmailPoller
 import com.pusios.pots.inference.createLocalInferenceEngine
 import com.pusios.pots.inference.createVectorizationManager
 import com.pusios.pots.mcp.McpServerManager
-import com.pusios.pots.media.resolveMediaInstance
 import com.pusios.pots.network.Requests
 import com.pusios.pots.notifications.NotificationReader
 import com.pusios.pots.skills.SkillManager
@@ -193,7 +191,7 @@ val appModule = module {
     viewModel { SplinterlandsViewModel(get<DataRepository>(), get(), get(), get<SplinterlandsApi>()) }
     viewModel { MiniAppServerViewModel(get(), get(), get(), get()) }
     viewModel { ChatViewModel(get<DataRepository>(), get<TaskScheduler>(), localNetworkPermissionController = get(permissionQualifier(AppPermission.LOCAL_NETWORK)), miniAppRepository = get(), taskStore = get()) }
-    single<com.pusios.pots.media.MediaProvider> { com.pusios.pots.media.PlusVibeMediaProvider() }
+    single<com.pusios.pots.media.MediaProvider> { com.pusios.pots.media.ActiveMediaProvider(get()) }
     single<com.pusios.pots.media.MediaGenerationRepository> {
         com.pusios.pots.media.MediaGenerationRepository(get(), kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default))
     }
@@ -202,8 +200,7 @@ val appModule = module {
             repository = get(),
             scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
             apiKeyProvider = {
-                val s = get<AppSettings>()
-                s.resolveMediaInstance()?.let { s.getInstanceApiKey(it.instanceId) }.orEmpty()
+                com.pusios.pots.media.activeMediaService(get<AppSettings>())?.apiKey.orEmpty()
             },
         )
     }
@@ -211,11 +208,10 @@ val appModule = module {
         com.pusios.pots.ui.media.MediaStudioViewModel(
             appSettings = get(),
             apiKeyProvider = {
-                val s = get<AppSettings>()
-                s.resolveMediaInstance()?.let { s.getInstanceApiKey(it.instanceId) }.orEmpty()
+                com.pusios.pots.media.activeMediaService(get<AppSettings>())?.apiKey.orEmpty()
             },
             instanceIdProvider = {
-                get<AppSettings>().resolveMediaInstance()?.instanceId.orEmpty()
+                com.pusios.pots.media.activeMediaService(get<AppSettings>())?.instanceId.orEmpty()
             },
             repository = get(),
             history = get(),

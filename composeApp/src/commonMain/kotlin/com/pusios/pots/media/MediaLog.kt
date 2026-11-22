@@ -39,5 +39,6 @@ fun MediaException.userMessageRu(): String = when (this) {
     is MediaException.UpstreamFailed -> "Провайдер не справился с задачей — попробуй другую модель"
     is MediaException.Unavailable -> "Модель временно недоступна"
     is MediaException.Expired -> "Результат генерации истёк (хранится 5 дней)"
+    is MediaException.NoMediaService -> detail ?: "Сервис для медиатеки не выбран"
     is MediaException.Unknown -> detail?.let { "Ошибка генерации: $it" } ?: "Неизвестная ошибка генерации"
 }
