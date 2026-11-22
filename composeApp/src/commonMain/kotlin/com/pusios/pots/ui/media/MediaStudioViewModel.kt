@@ -58,6 +58,7 @@ import com.pusios.pots.media.getInstanceMediaImageModelId
 import com.pusios.pots.media.getInstanceMediaVideoModelId
 import com.pusios.pots.media.getMediaAudioFlow
 import com.pusios.pots.media.getMediaDraft
+import com.pusios.pots.media.getMediaLayersPanelOpen
 import com.pusios.pots.media.getMediaQuality
 import com.pusios.pots.media.isKnownLocalTtsId
 import com.pusios.pots.media.isLocalTts
@@ -78,6 +79,7 @@ import com.pusios.pots.media.setInstanceMediaImageModelId
 import com.pusios.pots.media.setInstanceMediaVideoModelId
 import com.pusios.pots.media.setMediaAudioFlow
 import com.pusios.pots.media.setMediaDraft
+import com.pusios.pots.media.setMediaLayersPanelOpen
 import com.pusios.pots.media.setMediaQuality
 import com.pusios.pots.media.toHistoryReference
 import com.pusios.pots.media.userMessageRu
