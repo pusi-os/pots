@@ -85,6 +85,7 @@ import com.pusios.pots.inference.LocalModel
 import com.pusios.pots.inference.ModelImportError
 import com.pusios.pots.inference.calculateDevicePerformance
 import com.pusios.pots.inference.estimateGpuMemoryMb
+import com.pusios.pots.media.MediaServiceChoice
 import com.pusios.pots.media.activeMediaService
 import com.pusios.pots.media.mediaProviderFor
 import com.pusios.pots.media.mediaServiceChoices
@@ -632,6 +633,7 @@ internal fun ServicesContent(
     uiState: SettingsUiState,
     actions: SettingsActions,
     onRestartOnboarding: () -> Unit = {},
+    mediaServiceSection: (@Composable (List<ConfiguredServiceEntry>) -> Unit)? = null,
 ) {
     var showAddServiceSheet by remember { mutableStateOf(false) }
 
@@ -691,7 +693,9 @@ internal fun ServicesContent(
         }
     }
 
-    MediaServiceSection(entries)
+    // Injected by SettingsScreen: the picker needs AppSettings (Koin), and the
+    // screen content has to compose without a container (Paparazzi previews/tests).
+    mediaServiceSection?.invoke(entries)
 
     // PotsGame club card (always at bottom)
     Spacer(Modifier.height(16.dp))
@@ -791,11 +795,14 @@ internal fun ServicesContent(
  * and with a single candidate the section hides itself (nothing to choose).
  */
 @Composable
-private fun MediaServiceSection(entries: List<ConfiguredServiceEntry>) {
-    // No Koin container under Paparazzi/LocalInspectionMode; the section needs
-    // AppSettings, so screenshots render the list without it (as AgentSettings does).
-    if (LocalInspectionMode.current) return
-    val appSettings: AppSettings = koinInject()
+internal fun MediaServiceSection(
+    entries: List<ConfiguredServiceEntry>,
+    appSettings: AppSettings,
+    // The section's only I/O: the desktop UI test renders it without touching the network.
+    modelCount: suspend (MediaServiceChoice) -> Int? = { choice ->
+        mediaProviderFor(choice.service)?.listModels(choice.apiKey)?.size
+    },
+) {
     val instances = remember(entries) { entries.map { ServiceInstance(it.instanceId, it.service.id) } }
     val choices = remember(entries) { mediaServiceChoices(appSettings, instances) }
     if (choices.size < 2) return
@@ -810,7 +817,7 @@ private fun MediaServiceSection(entries: List<ConfiguredServiceEntry>) {
     LaunchedEffect(choices.map { it.instanceId }) {
         choices.forEach { choice ->
             if (counts.containsKey(choice.instanceId)) return@forEach
-            val size = runCatching { mediaProviderFor(choice.service)?.listModels(choice.apiKey)?.size }.getOrNull()
+            val size = runCatching { modelCount(choice) }.getOrNull()
             counts = counts + (choice.instanceId to size)
         }
     }

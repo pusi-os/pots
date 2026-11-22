@@ -38,6 +38,19 @@ class MediaServiceResolverTest {
     }
 
     @Test
+    fun twoInstancesOfOneServiceAreTwoCandidates() {
+        // PlusVibe + its reserve: the only pair the factory can drive today, and the
+        // case the «Сервис для медиатеки» section exists for.
+        val appSettings = AppSettings(MapSettings())
+        appSettings.setConfiguredServiceInstances(
+            listOf(ServiceInstance("plusvibe", Service.PlusVibe.id), ServiceInstance("plusvibe-reserve", Service.PlusVibeReserve.id)),
+        )
+        val choices = mediaServiceChoices(appSettings)
+        assertEquals(listOf("plusvibe", "plusvibe-reserve"), choices.map { it.instanceId })
+        assertEquals(Service.PlusVibeReserve, activeMediaService(appSettings)?.service)
+    }
+
+    @Test
     fun savedChoiceWins() {
         val appSettings = settings(Service.PlusVibe, Service.PlusVibeReserve)
         appSettings.setMediaServiceInstanceId(Service.PlusVibeReserve.id)
