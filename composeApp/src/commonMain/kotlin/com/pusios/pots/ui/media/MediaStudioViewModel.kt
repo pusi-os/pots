@@ -3,6 +3,7 @@ package com.pusios.pots.ui.media
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusios.pots.data.AppSettings
@@ -87,6 +88,7 @@ import com.pusios.pots.media.toHistoryReference
 import com.pusios.pots.media.userMessageRu
 import com.pusios.pots.readAppStorageBytes
 import com.pusios.pots.saveFileToDevice
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -144,6 +146,12 @@ class MediaStudioViewModel(
      * on desktop, MediaMetadataRetriever on Android, null elsewhere).
      */
     private val videoAspectProber: suspend (String) -> Float? = { probeVideoAspect(it) },
+    /**
+     * Off-main dispatcher for pixel work (reference size checks, canvas
+     * screenshots). Injectable so a test can keep the whole flow on its own
+     * scheduler instead of waiting on a real thread pool.
+     */
+    private val pixelDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     /** Journal of generations, newest first. Survives app restarts. */
@@ -193,6 +201,10 @@ class MediaStudioViewModel(
     /** References merged into the next generation (mapped onto model opts by the provider). */
     private val _references = MutableStateFlow<List<MediaReference>>(emptyList())
     val references: StateFlow<List<MediaReference>> = _references.asStateFlow()
+
+    /** True while the canvas screenshots are being encoded and written; the send button waits. */
+    private val _isPreparingCanvasPrompt = MutableStateFlow(false)
+    val isPreparingCanvasPrompt: StateFlow<Boolean> = _isPreparingCanvasPrompt.asStateFlow()
 
     /** Persisted per-instance model ids; empty until the catalog or settings say otherwise. */
     private val _selectedImageModelId = MutableStateFlow(appSettings.getInstanceMediaImageModelId(instanceIdProvider()))
@@ -453,7 +465,7 @@ class MediaStudioViewModel(
     ) {
         // An empty list measures nothing: skipping the hop keeps the whole submit on the
         // caller's dispatcher, so nothing has to wait on the real-time pool.
-        val oversized = if (references.isEmpty()) null else withContext(Dispatchers.Default) { oversizedReferenceIndex(references) }
+        val oversized = if (references.isEmpty()) null else withContext(pixelDispatcher) { oversizedReferenceIndex(references) }
         if (oversized != null) {
             MediaLog.w("Reference ${oversized + 1} exceeds $MAX_INLINE_REFERENCE_BYTES bytes")
             history.remove(localId)
@@ -683,8 +695,8 @@ class MediaStudioViewModel(
     fun compressReference(index: Int) {
         val path = _references.value.getOrNull(index)?.localPath ?: return
         viewModelScope.launch {
-            val source = withContext(Dispatchers.Default) { readAppStorageBytes(path) }
-            val compressed = source?.let { withContext(Dispatchers.Default) { compressReferenceToLimit(it) } }
+            val source = withContext(pixelDispatcher) { readAppStorageBytes(path) }
+            val compressed = source?.let { withContext(pixelDispatcher) { compressReferenceToLimit(it) } }
             if (source == null || compressed == null) {
                 MediaLog.w("Reference ${index + 1} compression failed")
                 _error.value = MediaStudioError(
@@ -706,6 +718,14 @@ class MediaStudioViewModel(
             pendingGeneration?.let { generate(it.prompt, it.opts, it.kind) }
         }
     }
+
+    /**
+     * The model «Спросить модель по канвасу» talks to: the image model, whatever
+     * mode the studio is in. The screen shows this model and the send uses it —
+     * one function, two readers, so the line «Модель: …» cannot name a video or
+     * audio model while the request goes to an image one.
+     */
+    internal fun canvasPromptModel(): MediaModel? = resolveModel(MediaKind.Image, instanceIdProvider())
 
     /** Saved choice wins; otherwise auto-pick and persist (audio uses the research defaults per flow). */
     private fun resolveModel(kind: MediaKind, instanceId: String): MediaModel? {
@@ -1325,6 +1345,101 @@ class MediaStudioViewModel(
             if (list.any { it.url == reference.url && it.localPath == reference.localPath }) list else list + reference
         }
         MediaLog.d("Reference added: url=${reference.url != null} base64=${reference.base64DataUri != null} local=${reference.localPath} video=${reference.isVideo}")
+    }
+
+    /**
+     * «Спросить модель по канвасу»: the screenshots become the request's
+     * pictures, the typed instruction becomes its text, and the ordinary image
+     * edit route runs — the same path «Как референс» and the agent's photo edits
+     * take (`mode` is injected by the provider from the model's own catalog
+     * options, `ImageReferenceFields.kt` decides the field).
+     *
+     * The canvas itself is never touched: nothing is re-layered or replaced
+     * here, and the answer lands as a new layer on top through the same
+     * auto-place the journal uses. The references are *replaced* by exactly
+     * these pictures, because the screen promised «Уйдёт: …» — an older
+     * reference riding along would make that line a lie.
+     *
+     * Returns false when nothing was sent (busy, no model, a model that takes no
+     * picture, a blank instruction); [error] carries the reason.
+     */
+    internal fun askModelAboutCanvas(request: CanvasPromptRequest): Boolean {
+        if (isGenerationBusy() || _isPreparingCanvasPrompt.value) return false
+        if (request.instruction.isBlank()) {
+            _error.value = MediaStudioError(
+                "Нет инструкции",
+                "Напишите, что сделать с канвасом: что убрать, что перекрасить, куда перенести.",
+                MediaErrorCategory.Other,
+            )
+            return false
+        }
+        val model = canvasPromptModel()
+        val support = canvasPromptSupport(model)
+        canvasPromptError(support, model)?.let { refusal ->
+            _error.value = refusal
+            MediaLog.w("Canvas prompt refused: ${refusal.title} (model=${model?.id})")
+            return false
+        }
+        val limit = (support as CanvasPromptSupport.Ready).limit
+        val hasZone = request.zoneSize != null
+        val images = canvasPromptImages(limit, hasZone)
+        // Never hand a one-picture model a second picture: it would overwrite the
+        // canvas instead of adding to it. The zone stays drawn on the canvas.
+        val zone = request.zone.takeIf { images.zone }
+        val text = canvasPromptText(
+            instruction = request.instruction,
+            canvas = IntSize(request.canvas.width, request.canvas.height),
+            images = images,
+            zone = request.zoneSize,
+        )
+        _isPreparingCanvasPrompt.value = true
+        // The chips belong to the *mode's* model, so in Video they still hold
+        // `duration`/`resolution`. Only the image model's own axes travel: a
+        // foreign key is a 400 `unsupported_parameter` at best, a silent drop at
+        // worst.
+        val opts = canvasPromptOpts(model)
+        viewModelScope.launch {
+            try {
+                val references = withContext(pixelDispatcher) {
+                    buildList {
+                        canvasPromptReference(request.canvas)?.let { add(it) }
+                        zone?.let { canvasPromptReference(it) }?.let { add(it) }
+                    }
+                }
+                if (references.isEmpty()) {
+                    _error.value = MediaStudioError.fromInfo(mediaStorageError())
+                    return@launch
+                }
+                _references.value = references
+                setDraft(MediaMode.Image, _audioFlow.value, text)
+                MediaLog.i(
+                    "Canvas prompt: ${references.size} picture(s), canvas=${request.canvas.width}x${request.canvas.height}, " +
+                        "zone=${zone != null}, model=${model?.id}",
+                )
+                generateImage(text, opts)
+            } finally {
+                _isPreparingCanvasPrompt.value = false
+            }
+        }
+        return true
+    }
+
+    /** The chips that belong to [model] itself; the other mode's keys stay behind. */
+    private fun canvasPromptOpts(model: MediaModel?): Map<String, String> {
+        val own = model?.params?.mapTo(mutableSetOf()) { it.key }.orEmpty()
+        return _params.value.filterKeys { it in own }
+    }
+
+    /** One screenshot as a PNG reference; null when storage refuses the write. */
+    private fun canvasPromptReference(bitmap: ImageBitmap): MediaReference? {
+        val path = "media/refs/${Uuid.random()}.png"
+        val png = encodeGridToPng(bitmap.toPixelGrid())
+        if (!com.pusios.pots.writeAppStorageBytes(path, png)) {
+            MediaLog.e("Canvas prompt: storage refused $path (${png.size} bytes)")
+            return null
+        }
+        MediaLog.d("Canvas prompt picture: $path (${bitmap.width}x${bitmap.height}, ${png.size} bytes)")
+        return MediaReference(localPath = path)
     }
 
     fun removeReference(index: Int) {

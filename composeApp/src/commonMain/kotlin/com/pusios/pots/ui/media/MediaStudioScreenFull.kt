@@ -232,6 +232,8 @@ fun MediaStudioScreenFull(
     var exportOpen by remember { mutableStateOf(false) }
     var exportRegion by remember { mutableStateOf<ExportScope.Region?>(null) }
     var regionTool by remember { mutableStateOf(false) }
+    // «Спросить модель по канвасу»: its own screen, on the same frame and layers.
+    var canvasPromptOpen by remember { mutableStateOf(false) }
     val drawSession by viewModel.drawSession.collectAsState()
     var editImageElement by remember { mutableStateOf<ImageLayer?>(null) }
     var editVideoElement by remember { mutableStateOf<VideoLayer?>(null) }
@@ -543,6 +545,7 @@ fun MediaStudioScreenFull(
                     regionTool = false
                     exportOpen = true
                 },
+                onCancelRegion = { regionTool = false },
             )
 
             // Потсик's place in the studio: left of the top toolbar, twice a
@@ -665,6 +668,11 @@ fun MediaStudioScreenFull(
                 viewModel.exportCanvasToGallery(bitmap)
                 exportOpen = false
             },
+            onAskModel = {
+                exportOpen = false
+                regionTool = false
+                canvasPromptOpen = true
+            },
             // «Выделить на канвасе»: the dialog steps aside, the canvas takes
             // the drag, and the finished frame reopens the dialog on it.
             onPickRegion = {
@@ -672,6 +680,33 @@ fun MediaStudioScreenFull(
                 regionTool = true
             },
             onDismiss = { exportOpen = false },
+        )
+    }
+
+    if (canvasPromptOpen) {
+        // The same resolver the send uses, read once per open: the mode switch's
+        // model (video/audio) would otherwise name itself here while the request
+        // went to the image model.
+        val canvasModel = remember { viewModel.canvasPromptModel() }
+        val preparing by viewModel.isPreparingCanvasPrompt.collectAsState()
+        // The screen stays up while the screenshots are being encoded: the send
+        // button reads «Готовим скриншот…» and a second tap cannot land.
+        var accepted by remember { mutableStateOf(false) }
+        LaunchedEffect(preparing, accepted) {
+            if (accepted && !preparing) canvasPromptOpen = false
+        }
+        MediaCanvasPromptDialog(
+            layers = elements,
+            region = exportRegion,
+            model = canvasModel,
+            preparing = preparing,
+            loadImageBytes = viewModel::imageLayerBytes,
+            onSend = { request ->
+                // Kept open when the view model refuses (busy, no model), so the
+                // typed instruction is not lost.
+                accepted = viewModel.askModelAboutCanvas(request)
+            },
+            onDismiss = { canvasPromptOpen = false },
         )
     }
 

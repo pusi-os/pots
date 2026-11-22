@@ -55,6 +55,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -171,6 +172,8 @@ internal fun MediaCanvas(
     region: ExportScope.Region? = null,
     /** A finished drag, screen px, with the pan and zoom it was drawn at. */
     onRegion: (ExportScope.Region) -> Unit = {},
+    /** «Отмена» while the frame tool is armed: back to a plain canvas. */
+    onCancelRegion: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current.density
@@ -382,12 +385,19 @@ internal fun MediaCanvas(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
                 tonalElevation = 4.dp,
             ) {
-                Text(
-                    "Протяни пальцем рамку для экспорта",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Протяни пальцем рамку для экспорта",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp),
+                    )
+                    // The armed tool must be escapable: without this the only way
+                    // out was to drag a frame nobody wanted.
+                    TextButton(onClick = onCancelRegion, modifier = Modifier.handCursor()) {
+                        Text("Отмена", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             }
         }
     }
