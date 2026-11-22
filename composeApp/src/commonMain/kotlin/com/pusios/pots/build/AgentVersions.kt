@@ -275,10 +275,19 @@ object AgentVersions {
             updateCost = UpdateCost.Gateway,
             installPaths = listOf("/root/.local/bin/hermes"),
             // Everything in /root/.hermes that the owner would lose: the
-            // credentials, the state and the board. The directory itself is
-            // covered by these — [mayDelete] refuses a parent of a kept path —
-            // and the checkout is a child of it, so `/root/.hermes` is never a
-            // path this app deletes.
+            // credentials, the state, the board, and the content Hermes itself
+            // installs — skills, plugins, plugin data, the webapp's desktop
+            // plugins, hooks, cron scripts and the panel's browser credential.
+            // Hermes calls skills/ and plugins/ content, not code
+            // (`backup_keep_host.py` keeps exactly those two trees when an agent
+            // is moved to another machine), and `home_data_layout.py` exempts
+            // skills/ from its protected-subpath sweep as user-editable. The
+            // directory itself is covered by these — [mayDelete] refuses a parent
+            // of a kept path — and the checkout is a child of it, so
+            // `/root/.hermes` is never a path this app deletes. Do not add
+            // `/root/.hermes` or `/root/.hermes/cache` here: the first refuses
+            // every path under it, the second takes `cache/uv` with it, and both
+            // would leave the debris of an earlier install undeletable.
             keepPaths = listOf(
                 "/root/.hermes/config.yaml",
                 "/root/.hermes/.env",
@@ -290,6 +299,17 @@ object AgentVersions {
                 "/root/.hermes/sessions",
                 "/root/.hermes/memories",
                 "/root/.hermes/state-snapshots",
+                // Installed by Hermes itself, from its own webapp: a skill, a
+                // plugin and its state, a desktop plugin ("extension" in the
+                // panel), a gateway hook, a cron script, the panel's
+                // session-token. Children are covered by these entries.
+                "/root/.hermes/skills",
+                "/root/.hermes/plugins",
+                "/root/.hermes/plugin-data",
+                "/root/.hermes/desktop-plugins",
+                "/root/.hermes/hooks",
+                "/root/.hermes/scripts",
+                "/root/.hermes/webapp",
             ),
             // 5 GiB of git checkout. Removing it is offered as a second, explicit
             // answer, because reinstalling it costs tens of minutes.
