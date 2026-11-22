@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POTS · Карточка модели — состояния</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-close" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path fill="#2A2140" d="M10.55 16.2 6.8 12.45l1.35-1.35 2.4 2.4 5.3-5.3 1.35 1.35z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><path fill="currentColor" d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></symbol>
+  <symbol id="i-ctx" viewBox="0 0 24 24"><path fill="currentColor" d="M3 5v4h2V5h4V3H5c-1.1 0-2 .9-2 2zm2 10H3v4c0 1.1.9 2 2 2h4v-2H5v-4zm14 4h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4zM19 3h-4v2h4v4h2V5c0-1.1-.9-2-2-2z"/></symbol>
+  <symbol id="i-in" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4v12.17L6.41 10.59 5 12l7 7 7-7-1.41-1.41L12 16.17V4z"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path fill="currentColor" d="M12 20V7.83L17.59 13.41 19 12l-7-7-7 7 1.41 1.41L12 7.83V20z"/></symbol>
+  <symbol id="i-tools" viewBox="0 0 24 24"><path fill="currentColor" d="M22.7 19 13.6 9.9c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.4-.4.4-1 .1-1.4z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></symbol>
+  <symbol id="i-cache" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3 3 7.5 12 12l9-4.5zM3 11.5 12 16l9-4.5-1.4-1.4L12 13.9 4.4 10.1zM3 15.5 12 20l9-4.5-1.4-1.4L12 17.9 4.4 14.1z"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path fill="currentColor" d="m21.41 11.58-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></symbol>
+</svg>
+
+<div class="doc">
+
+<header class="doc-head">
+  <p class="kicker">POTS · Дизайн-макеты · t_b31b2265</p>
+  <h1>Карточка модели: четыре состояния и ряд плиток</h1>
+  <p class="lede">Замена текстовой строки «дата · параметры · контекст» одним рядом прямоугольных плиток: значение крупно по центру, обозначение — иконкой. Плитки не исчезают при отсутствии данных: место сохраняется, ряд не «прыгает» при прокрутке списка.</p>
+  <div class="chips">
+    <span class="chip chip--accent">360 dp · 1 px = 1 dp</span>
+    <span class="chip">тёмная тема #121212</span>
+    <span class="chip">primary #BB86FC</span>
+    <span class="chip">Roboto / FontFamily.Default</span>
+    <span class="chip">6 плиток в ряд, не сетка</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">01</span>
+    <h2>Обычная и выбранная</h2>
+  </div>
+  <p class="block-note">Слева — список в покое: карточки на <code>surfaceContainerHigh</code> с тонкой границей. Справа — та же карточка выбрана: заливка уходит в фиолетовый <code>primaryContainer</code>, появляется галочка 20 dp справа от названия, заголовок переходит на <code>onPrimaryContainer</code>.</p>
+
+  <div class="frames">
+    <figure class="fig">
+      <div class="fig-cap"><b>A. Обычное состояние</b><span>360 × 288</span></div>
+      <div class="frame">
+        <div class="frame-bar">
+          <span class="bar-title">Выбор модели</span>
+          <span class="bar-icon"><svg width="20" height="20"><use href="#i-close"/></svg></span>
+        </div>
+        <div class="frame-body">
+
+          <article class="mcard">
+            <div class="mcard-head">
+              <h3 class="mcard-title">Gemini 3.8 Flash</h3>
+              <span class="mcard-badge">Free</span>
+            </div>
+            <p class="mcard-meta">Sep 2026</p>
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-in"/></svg><span class="v">0.3<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-out"/></svg><span class="v">2.5<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">1M</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1494</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">14</span></div>
+              <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+            </div>
+          </article>
+
+          <article class="mcard">
+            <div class="mcard-head">
+              <h3 class="mcard-title">Claude Sonnet 4.5</h3>
+            </div>
+            <p class="mcard-meta">Sep 2025</p>
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-in"/></svg><span class="v">3<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-out"/></svg><span class="v">15<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">200K</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1455</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">9</span></div>
+              <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+            </div>
+          </article>
+
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="num">1</span><span><b>Название</b> — titleMedium 16/24, одна строка, ellipsis.</span></li>
+        <li><span class="num">2</span><span><b>Мета</b> — дата релиза · параметры (то, что не влезло в плитки). Контекст сюда больше не дублируется.</span></li>
+        <li><span class="num">3</span><span><b>Ряд плиток</b> — 6 равных плиток, высота 60 dp, зазор 6 dp.</span></li>
+      </ul>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>B. Выбранная</b><span>360 × 288</span></div>
+      <div class="frame">
+        <div class="frame-bar">
+          <span class="bar-title">Выбор модели</span>
+          <span class="bar-icon"><svg width="20" height="20"><use href="#i-close"/></svg></span>
+        </div>
+        <div class="frame-body">
+
+          <article class="mcard">
+            <div class="mcard-head">
+              <h3 class="mcard-title">Gemini 3.8 Flash</h3>
+              <span class="mcard-badge">Free</span>
+            </div>
+            <p class="mcard-meta">Sep 2026</p>
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-in"/></svg><span class="v">0.3<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-out"/></svg><span class="v">2.5<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">1M</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1494</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">14</span></div>
+              <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+            </div>
+          </article>
+
+          <article class="mcard is-selected">
+            <div class="mcard-head">
+              <h3 class="mcard-title">Claude Sonnet 4.5</h3>
+              <span class="mcard-check"><svg><use href="#i-check-circle"/></svg></span>
+            </div>
+            <p class="mcard-meta">Sep 2025</p>
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-in"/></svg><span class="v">3<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-out"/></svg><span class="v">15<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">200K</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1455</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">9</span></div>
+              <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+            </div>
+          </article>
+
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="num">1</span><span><b>Галочка в залитом круге</b> 20 dp, цвет <code>#D9B8FF</code> — единственный новый элемент состояния. Позиция фиксирована, поэтому название не «прыгает» при выборе. Круг выбран оттого, что в плитке Vision стоит обычная галочка: две разные «галочки» не должны читаться как одно.</span></li>
+        <li><span class="num">2</span><span><b>Плитки</b> чуть светлее (заливка 6 % белого) — на фиолетовом фоне иначе проваливаются.</span></li>
+      </ul>
+    </figure>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">02</span>
+    <h2>Полнота данных</h2>
+  </div>
+  <p class="block-note">Один и тот же ряд в трёх ситуациях. Ключевое: <b>количество и порядок плиток не меняются никогда</b>. Нет данных — плитка остаётся на месте, но без заливки и цвета: только приглушённый контур и «—».</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>C. Полный набор</b><span>все 6 значений</span></div>
+      <div class="frame">
+        <div class="frame-body">
+          <article class="mcard">
+            <div class="mcard-head">
+              <h3 class="mcard-title">DeepSeek V3.2</h3>
+            </div>
+            <p class="mcard-meta">Sep 2025<span class="dot">·</span>671B</p>
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-in"/></svg><span class="v">0.28<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-out"/></svg><span class="v">0.42<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">163K</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1425</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">11</span></div>
+              <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+            </div>
+          </article>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:360px">Параметры модели (671B) живут в мете, контекст — в плитке. Дубля нет.</p>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>D. Частично отсутствующие</b><span>локальная модель</span></div>
+      <div class="frame">
+        <div class="frame-body">
+          <article class="mcard">
+            <div class="mcard-head">
+              <h3 class="mcard-title">Qwen3 32B</h3>
+            </div>
+            <p class="mcard-meta">Apr 2025<span class="dot">·</span>32B</p>
+            <div class="tiles">
+              <div class="tile tile--empty"><svg><use href="#i-in"/></svg><span class="v">—</span></div>
+              <div class="tile tile--empty"><svg><use href="#i-out"/></svg><span class="v">—</span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">128K</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1347</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+              <div class="tile tile--empty"><svg><use href="#i-eye"/></svg><span class="v">—</span></div>
+            </div>
+          </article>
+          <article class="mcard">
+            <div class="mcard-head">
+              <h3 class="mcard-title">DeepSeek V3.2</h3>
+            </div>
+            <p class="mcard-meta">Sep 2025<span class="dot">·</span>671B</p>
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-in"/></svg><span class="v">0.28<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-out"/></svg><span class="v">0.42<span class="u">M</span></span></div>
+              <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">163K</span></div>
+              <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1425</span></div>
+              <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">11</span></div>
+              <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+            </div>
+          </article>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:360px">Соседняя карточка нужна для проверки: границы плиток совпадают строка в строку, ряд не смещается.</p>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>E. Совсем без данных</b><span>своя дообученная</span></div>
+      <div class="frame">
+        <div class="frame-body">
+          <article class="mcard">
+            <div class="mcard-head">
+              <h3 class="mcard-title">pots-finetune-v3</h3>
+            </div>
+            <p class="mcard-meta"><span class="id">локальная модель</span></p>
+            <div class="tiles">
+              <div class="tile tile--empty"><svg><use href="#i-in"/></svg><span class="v">—</span></div>
+              <div class="tile tile--empty"><svg><use href="#i-out"/></svg><span class="v">—</span></div>
+              <div class="tile tile--empty"><svg><use href="#i-ctx"/></svg><span class="v">—</span></div>
+              <div class="tile tile--empty"><svg><use href="#i-star"/></svg><span class="v">—</span></div>
+              <div class="tile tile--empty"><svg><use href="#i-tools"/></svg><span class="v">—</span></div>
+              <div class="tile tile--empty"><svg><use href="#i-eye"/></svg><span class="v">—</span></div>
+            </div>
+          </article>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:360px">Высота карточки та же, что у полной: 16 + 24 + 6 + 16 + 10 + 60 + 16 = 148 dp. Пустой ряд не схлопывается.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">03</span>
+    <h2>Анатомия плитки</h2>
+  </div>
+  <p class="block-note">Увеличение 2×. Плитка не кликабельна, поэтому минимальный размер 44 dp к ней не применяется — работает расчёт по ширине ряда (см. таблицу ниже).</p>
+
+  <div class="zoom-wrap" style="width:720px;padding:22px 26px 30px">
+    <div style="position:relative;width:616px;padding-top:30px">
+      <div class="dim-h" style="left:0;right:0;top:14px"><span>ряд 308 dp = 6 × 46.3 + 5 × 6</span></div>
+      <div style="zoom:2;width:308px">
+        <div class="tiles" style="margin:0">
+          <div class="tile"><svg><use href="#i-in"/></svg><span class="v">0.28<span class="u">M</span></span></div>
+          <div class="tile"><svg><use href="#i-out"/></svg><span class="v">0.42<span class="u">M</span></span></div>
+          <div class="tile"><svg><use href="#i-ctx"/></svg><span class="v">163K</span></div>
+          <div class="tile"><svg><use href="#i-star"/></svg><span class="v">1425</span></div>
+          <div class="tile"><svg><use href="#i-tools"/></svg><span class="v">11</span></div>
+          <div class="tile"><svg><use href="#i-eye"/></svg><span class="v"><svg><use href="#i-check"/></svg></span></div>
+        </div>
+      </div>
+      <div class="dim-h" style="left:0;width:93px;top:calc(100% + 16px)"><span>46.3 dp</span></div>
+      <div class="dim-v" style="left:-26px;top:30px;height:120px"><span>60</span></div>
+    </div>
+  </div>
+
+  <div class="frames" style="margin-top:24px;align-items:flex-start">
+    <div class="zoom-wrap" style="display:flex;gap:20px;align-items:flex-start;padding:20px">
+      <div style="zoom:2;width:47px"><div class="tile"><svg><use href="#i-out"/></svg><span class="v">15<span class="u">M</span></span></div></div>
+      <div class="state-card" style="border:0;background:none;padding:0;max-width:210px">
+        <p class="st-name">есть данные</p>
+        <p class="st-desc" style="margin:0">Заливка <code>rgba(255,255,255,.07)</code>, контур <code>rgba(255,255,255,.09)</code>, значение <code>#F2F0F6</code>, иконка <code>#A29BB0</code>.<br>Иконка 13 dp · зазор 3 dp · значение 14/16 · радиус 10 dp.</p>
+      </div>
+    </div>
+
+    <div class="zoom-wrap" style="display:flex;gap:20px;align-items:flex-start;padding:20px">
+      <div style="zoom:2;width:47px"><div class="tile tile--empty"><svg><use href="#i-out"/></svg><span class="v">—</span></div></div>
+      <div class="state-card" style="border:0;background:none;padding:0;max-width:210px">
+        <p class="st-name">нет данных</p>
+        <p class="st-desc" style="margin:0">Заливки нет, контур <code>rgba(255,255,255,.16)</code>, значение <code>#6E6879</code>, иконка <code>#5C5768</code>. Размеры те же — место в ряду сохранено.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">04</span>
+    <h2>Порядок и содержание плиток</h2>
+  </div>
+
+  <table class="spec-table">
+    <thead>
+      <tr><th>#</th><th>Плитка</th><th>Иконка</th><th>Значение</th><th>Поле</th><th>Нет данных</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Цена входа</td><td><code>↓</code> (ic_price_input)</td><td>число + «M»</td><td><code>pricePerMillion</code></td><td>контур + «—»</td></tr>
+      <tr><td>2</td><td>Цена выхода</td><td><code>↑</code> (ic_price_output)</td><td>число + «M»</td><td><code>outputPricePerMillion</code></td><td>контур + «—»</td></tr>
+      <tr><td>3</td><td>Контекст</td><td>уголки</td><td><code>200K</code> / <code>1M</code></td><td><code>contextWindow</code></td><td>контур + «—»</td></tr>
+      <tr><td>4</td><td>Оценка</td><td>звезда</td><td><code>1455</code></td><td><code>arenaScore</code></td><td>контур + «—»</td></tr>
+      <tr><td>5</td><td>Tools</td><td>гаечный ключ</td><td>количество или ✓</td><td>после карты исследователя</td><td>контур + «—»</td></tr>
+      <tr><td>6</td><td>Vision</td><td>глаз</td><td>✓ / —</td><td>после карты исследователя</td><td>контур + «—»</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note" style="margin-top:18px">
+    <b>Кэш (<code>cachePricePerMillion</code>) в ряд не входит.</b> Шесть плиток — предел на 360 dp: седьмая ужимает каждую до 40 dp, и «163K» перестаёт влезать. Кэш — производная от цены входа, показывать его в карточке списка не нужно; если понадобится, он идёт третьей строкой в раскрытой карточке, а не в этом ряду.
+  </div>
+  <div class="note">
+    <b>Tools числом, если бэкенд отдаёт список.</b> Плитка показывает количество инструментов («11»), если пришёл только флаг — ✓. Vision всегда бинарна: ✓ или «—». Слот и высота не меняются, поэтому разнобой данных не ломает ряд.
+  </div>
+  <div class="note note--warn">
+    <b>Цена без валюты.</b> Как и сейчас в приложении, число — это USD за 1 млн токенов; «M» в плитке и есть эта единица. Символ «$» не добавляем: он съедает 6 dp в каждой из двух плиток, а смысл уже задан «M».
+  </div>
+</section>
+
+</div>
+</body>
+</html>
