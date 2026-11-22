@@ -113,7 +113,7 @@ class GptunnelMediaProvider(
     }
 
     private fun parseModel(id: String, card: JsonObject, type: String): MediaModel {
-        val kind = MediaKind.fromProviderId(
+        val kind = MediaKind.Image.fromProviderId(
             card["type"]?.jsonPrimitive?.contentOrNull ?: type,
         )
         val price = card["price"]?.jsonPrimitive?.doubleOrNull
