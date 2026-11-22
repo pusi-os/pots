@@ -719,6 +719,14 @@ class MediaStudioViewModel(
         }
     }
 
+    /**
+     * The model «Спросить модель по канвасу» talks to: the image model, whatever
+     * mode the studio is in. The screen shows this model and the send uses it —
+     * one function, two readers, so the line «Модель: …» cannot name a video or
+     * audio model while the request goes to an image one.
+     */
+    internal fun canvasPromptModel(): MediaModel? = resolveModel(MediaKind.Image, instanceIdProvider())
+
     /** Saved choice wins; otherwise auto-pick and persist (audio uses the research defaults per flow). */
     private fun resolveModel(kind: MediaKind, instanceId: String): MediaModel? {
         if (kind == MediaKind.Audio || kind == MediaKind.Music) {
@@ -1365,7 +1373,7 @@ class MediaStudioViewModel(
             )
             return false
         }
-        val model = resolveModel(MediaKind.Image, instanceIdProvider())
+        val model = canvasPromptModel()
         val support = canvasPromptSupport(model)
         canvasPromptError(support, model)?.let { refusal ->
             _error.value = refusal
@@ -1385,6 +1393,11 @@ class MediaStudioViewModel(
             zone = request.zoneSize,
         )
         _isPreparingCanvasPrompt.value = true
+        // The chips belong to the *mode's* model, so in Video they still hold
+        // `duration`/`resolution`. Only the image model's own axes travel: a
+        // foreign key is a 400 `unsupported_parameter` at best, a silent drop at
+        // worst.
+        val opts = canvasPromptOpts(model)
         viewModelScope.launch {
             try {
                 val references = withContext(pixelDispatcher) {
@@ -1403,12 +1416,18 @@ class MediaStudioViewModel(
                     "Canvas prompt: ${references.size} picture(s), canvas=${request.canvas.width}x${request.canvas.height}, " +
                         "zone=${zone != null}, model=${model?.id}",
                 )
-                generateImage(text, _params.value)
+                generateImage(text, opts)
             } finally {
                 _isPreparingCanvasPrompt.value = false
             }
         }
         return true
+    }
+
+    /** The chips that belong to [model] itself; the other mode's keys stay behind. */
+    private fun canvasPromptOpts(model: MediaModel?): Map<String, String> {
+        val own = model?.params?.mapTo(mutableSetOf()) { it.key }.orEmpty()
+        return _params.value.filterKeys { it in own }
     }
 
     /** One screenshot as a PNG reference; null when storage refuses the write. */

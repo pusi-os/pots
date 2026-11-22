@@ -58,11 +58,12 @@ import kotlinx.coroutines.withContext
  *
  * What it shows is what it sends. Both previews are the very bitmaps
  * [renderCanvas] produced at the size the model will receive, with the
- * annotation included (the arrows and strokes the user drew) and an opaque
- * background — models read transparency badly. The line under them spells out
- * the arity: «Уйдёт: канвас 1280×720 + зона 300×200», or the honest version of
- * it when the selected model takes one picture per request and the zone can only
- * be drawn on the canvas and named in the text.
+ * annotation included (the arrows and strokes the user drew, plus the dragged
+ * frame baked in amber) and an opaque background — models read transparency
+ * badly. The line under them spells out the arity: «Уйдёт: канвас 1280×720 +
+ * зона 300×200», or the honest version of it when the selected model takes one
+ * picture per request and the zone can only be framed on the canvas and named
+ * in the text.
  *
  * Rendering runs off the main thread inside [renderCanvas]; the dialog holds at
  * most two bitmaps and drops them when it closes.
@@ -73,6 +74,8 @@ internal fun MediaCanvasPromptDialog(
     /** The frame the user dragged, or null for the whole canvas. */
     region: ExportScope.Region?,
     model: MediaModel?,
+    /** True while the previous tap is encoding the screenshots: the button waits. */
+    preparing: Boolean = false,
     /** Reads a layer's bytes: the cached copy first, the URL as a fallback. */
     loadImageBytes: suspend (ImageLayer) -> ByteArray?,
     onSend: (CanvasPromptRequest) -> Unit,
@@ -100,11 +103,14 @@ internal fun MediaCanvasPromptDialog(
         canvas = null
         zone = null
         // The model path, not the gallery one: annotation in, transparency out.
+        // The dragged frame rides along as amber ink, so «зона обведена» is
+        // something the model can actually see.
         canvas = renderCanvas(
             layers = layers,
             scope = ExportScope.Whole,
             includeAnnotation = true,
             background = EXPORT_DARK_BACKGROUND,
+            frame = region?.toRect(),
             frames = frames,
             fonts = fonts,
             measurer = measurer,
@@ -116,6 +122,9 @@ internal fun MediaCanvasPromptDialog(
                 scope = framed,
                 includeAnnotation = true,
                 background = EXPORT_DARK_BACKGROUND,
+                // No frame here: this bitmap *is* the frame's inside, and a
+                // line drawn on its edge would be litter in the crop.
+                frame = null,
                 frames = frames,
                 fonts = fonts,
                 measurer = measurer,
@@ -130,7 +139,12 @@ internal fun MediaCanvasPromptDialog(
     val limit = (support as? CanvasPromptSupport.Ready)?.limit ?: 0
     val images = canvasPromptImages(limit, hasZone = zoneSize != null)
     val refusal = canvasPromptRefusal(support, model)
-    val canSend = refusal == null && instruction.isNotBlank() && canvas != null && !rendering
+    val send = canvasPromptSend(
+        refusal = refusal,
+        instruction = instruction,
+        canvasReady = canvas != null && !rendering,
+        preparing = preparing,
+    )
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -244,7 +258,7 @@ internal fun MediaCanvasPromptDialog(
                                     append(" + зона ").append(attachedZone.width).append("×").append(attachedZone.height)
 
                                 images.zoneDescribedOnly ->
-                                    append(" — модель принимает одну картинку, зона описана в тексте")
+                                    append(" — модель принимает одну картинку, зона обведена рамкой на канвасе")
                             }
                         }
                     },
@@ -270,7 +284,7 @@ internal fun MediaCanvasPromptDialog(
                         .fillMaxWidth()
                         .height(48.dp)
                         .handCursor()
-                        .clickable(enabled = canSend) {
+                        .clickable(enabled = send.enabled) {
                             val picture = canvas ?: return@clickable
                             onSend(
                                 CanvasPromptRequest(
@@ -282,7 +296,7 @@ internal fun MediaCanvasPromptDialog(
                             )
                         },
                     shape = RoundedCornerShape(16.dp),
-                    color = if (canSend) {
+                    color = if (send.enabled) {
                         MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.surfaceVariant
@@ -297,7 +311,7 @@ internal fun MediaCanvasPromptDialog(
                             Icons.Filled.AutoAwesome,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = if (canSend) {
+                            tint = if (send.enabled) {
                                 MaterialTheme.colorScheme.onPrimary
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -305,9 +319,9 @@ internal fun MediaCanvasPromptDialog(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Отправить в модель",
+                            send.label,
                             style = MaterialTheme.typography.titleSmall,
-                            color = if (canSend) {
+                            color = if (send.enabled) {
                                 MaterialTheme.colorScheme.onPrimary
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant

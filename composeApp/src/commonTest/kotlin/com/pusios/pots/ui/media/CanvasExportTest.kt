@@ -1,6 +1,7 @@
 package com.pusios.pots.ui.media
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
@@ -350,6 +351,73 @@ class CanvasExportTest {
     }
 
     @Test
+    fun theDraggedFrameIsBakedIntoTheModelPicture() = runTest {
+        val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
+        val frames = mapOf("one" to BitmapPainter(red))
+        val frame = Rect(40f, 40f, 180f, 180f)
+
+        // Without a frame there is no amber at all: the model path's annotation
+        // is what the user drew, nothing else.
+        val plain = render(listOf(layer), ExportScope.Whole, frames, includeAnnotation = true)
+        assertNotNull(plain)
+        assertNull(plain.frameBounds(), "no frame asked for — no frame drawn")
+
+        val model = render(listOf(layer), ExportScope.Whole, frames, includeAnnotation = true, frame = frame)
+        assertNotNull(model)
+        val ink = assertNotNull(model.frameBounds(), "the dragged frame must be in the picture")
+
+        // Content is 0…232 with 24 px of padding, so the frame at 40…180 lands
+        // at 64…204 in the file. The line is 2 px wide and sits on the edge.
+        assertTrue(abs(ink.left - 64) <= 2, "frame left ${ink.left}")
+        assertTrue(abs(ink.top - 64) <= 2, "frame top ${ink.top}")
+        assertTrue(abs(ink.right - 204) <= 2, "frame right ${ink.right}")
+        assertTrue(abs(ink.bottom - 204) <= 2, "frame bottom ${ink.bottom}")
+        // …and the inside is untouched: the model sees a frame, not a filled box.
+        assertEquals(Color.Red, model.colorAt(140, 140))
+        assertTrue(!isFrameColor(model.colorAt(140, 140)), "the frame must not fill its inside")
+    }
+
+    @Test
+    fun aFrameOutsideTheContentStillLandsInThePicture() = runTest {
+        val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
+        val frames = mapOf("one" to BitmapPainter(red))
+        // The user framed the empty part of the screen: a canvas sized from the
+        // layers alone would cut the frame off and «зона обведена» would point
+        // at nothing.
+        val far = Rect(400f, 400f, 500f, 500f)
+
+        val bitmap = render(listOf(layer), ExportScope.Whole, frames, includeAnnotation = true, frame = far)
+        assertNotNull(bitmap)
+        // Content 0…232 ∪ frame 400…500, plus 24 px of padding on each side.
+        assertEquals(548, bitmap.width)
+        assertEquals(548, bitmap.height)
+        val ink = assertNotNull(bitmap.frameBounds(), "the frame is in the picture")
+        assertTrue(abs(ink.left - 424) <= 2, "frame left ${ink.left}")
+        assertTrue(abs(ink.right - 524) <= 2, "frame right ${ink.right}")
+    }
+
+    @Test
+    fun theZoneCropCarriesNoFrameOfItsOwn() = runTest {
+        val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
+        val frames = mapOf("one" to BitmapPainter(red))
+        val region = ExportScope.Region(left = 0f, top = 0f, right = 100f, bottom = 100f)
+
+        // The canvas fragment carries the frame, so the model can see where the
+        // zone is…
+        val canvas = render(listOf(layer), ExportScope.Whole, frames, includeAnnotation = true, frame = region.toRect())
+        assertNotNull(canvas)
+        assertNotNull(canvas.frameBounds(), "the whole-canvas picture marks the zone")
+
+        // …while the crop is exactly the frame's inside: a line on its edge
+        // would be litter in the fragment the model is asked to edit.
+        val crop = render(listOf(layer), region, frames, includeAnnotation = true, frame = null)
+        assertNotNull(crop)
+        assertEquals(100, crop.width)
+        assertEquals(100, crop.height)
+        assertNull(crop.frameBounds(), "the crop must not contain the frame colour")
+    }
+
+    @Test
     fun pixelGridKeepsTheRenderedPixels() = runTest {
         val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
         val bitmap = render(listOf(layer), ExportScope.Whole, mapOf("one" to BitmapPainter(red)))
@@ -378,6 +446,7 @@ class CanvasExportTest {
         frames: Map<String, Painter>,
         background: Color? = null,
         includeAnnotation: Boolean = false,
+        frame: Rect? = null,
         measurer: TextMeasurer? = null,
         fonts: Map<String, FontFamily> = emptyMap(),
         density: Float = 1f,
@@ -386,6 +455,7 @@ class CanvasExportTest {
         scope = scope,
         includeAnnotation = includeAnnotation,
         background = background,
+        frame = frame,
         frames = frames,
         fonts = fonts,
         measurer = measurer,
@@ -442,6 +512,33 @@ class CanvasExportTest {
     }
 
     private fun ImageBitmap.colorAt(x: Int, y: Int): Color = toPixelMap()[x, y]
+
+    /** True when the pixel is the amber the frame is drawn in (antialiasing aside). */
+    private fun isFrameColor(pixel: Color): Boolean {
+        val frame = CANVAS_PROMPT_FRAME_COLOR
+        return abs(pixel.red - frame.red) <= 0.03f &&
+            abs(pixel.green - frame.green) <= 0.03f &&
+            abs(pixel.blue - frame.blue) <= 0.03f
+    }
+
+    /** The box of the frame's amber pixels, or null when the picture has none. */
+    private fun ImageBitmap.frameBounds(): InkBounds? {
+        val pixels = toPixelMap()
+        var left = width
+        var top = height
+        var right = -1
+        var bottom = -1
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                if (!isFrameColor(pixels[x, y])) continue
+                if (x < left) left = x
+                if (x > right) right = x
+                if (y < top) top = y
+                if (y > bottom) bottom = y
+            }
+        }
+        return if (right < 0) null else InkBounds(left, top, right, bottom)
+    }
 
     private fun solid(width: Int, height: Int, color: Color): ImageBitmap {
         val bitmap = ImageBitmap(width, height)

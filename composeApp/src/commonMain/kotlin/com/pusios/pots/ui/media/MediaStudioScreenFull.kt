@@ -684,10 +684,16 @@ fun MediaStudioScreenFull(
     }
 
     if (canvasPromptOpen) {
+        // The same resolver the send uses, read once per open: the mode switch's
+        // model (video/audio) would otherwise name itself here while the request
+        // went to the image model.
+        val canvasModel = remember { viewModel.canvasPromptModel() }
+        val preparing by viewModel.isPreparingCanvasPrompt.collectAsState()
         MediaCanvasPromptDialog(
             layers = elements,
             region = exportRegion,
-            model = currentModel,
+            model = canvasModel,
+            preparing = preparing,
             loadImageBytes = viewModel::imageLayerBytes,
             onSend = { request ->
                 // Kept open when the view model refuses (busy, no model), so the

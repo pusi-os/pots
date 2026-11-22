@@ -155,6 +155,23 @@ class CanvasPromptPlanTest {
     }
 
     @Test
+    fun theSendButtonWaitsWhileTheScreenshotsAreBeingEncoded() {
+        val ready = canvasPromptSend(refusal = null, instruction = "убери подпись", canvasReady = true, preparing = false)
+        assertTrue(ready.enabled)
+        assertEquals("Отправить в модель", ready.label)
+
+        // Encoding two PNGs takes seconds; a second tap in that window would
+        // submit the same request twice.
+        val waiting = canvasPromptSend(refusal = null, instruction = "убери подпись", canvasReady = true, preparing = true)
+        assertFalse(waiting.enabled, "the button waits while the screenshots are being written")
+        assertEquals("Готовим скриншот…", waiting.label)
+
+        assertFalse(canvasPromptSend(null, "   ", canvasReady = true, preparing = false).enabled, "no instruction")
+        assertFalse(canvasPromptSend(null, "текст", canvasReady = false, preparing = false).enabled, "nothing rendered")
+        assertFalse(canvasPromptSend("нет модели", "текст", canvasReady = true, preparing = false).enabled, "refusal")
+    }
+
+    @Test
     fun nothingIsSentWhenNoModelCanTakeAPicture() {
         val images = canvasPromptImages(limit = 0, hasZone = true)
         assertFalse(images.canvas)

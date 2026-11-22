@@ -14,13 +14,14 @@ import com.pusios.pots.media.imageReferenceLimit
 // `mask` parameter with 400 `unsupported_parameter`, and only two image models in
 // the live catalog declare `mask_url` at all (`flux-fill`, `qwen-image-2-1` — a
 // separate card). So the annotation is *visible ink in the picture* — arrows and
-// strokes the user drew land in the PNG — plus a text sentence naming the zone.
+// strokes the user drew, plus the dragged zone frame baked in amber, land in the
+// PNG — together with a text sentence naming the zone.
 //
 // The one hard limit is arity: a model with a single-key image field cannot take
 // two pictures, and sending both would silently replace the canvas with the zone
 // (`appendImageReference` wrote one key per reference). Therefore the plan says
 // up front what the model can carry, and the screen states it: with one picture
-// the zone is still drawn on the canvas and described in the text, it just does
+// the zone is still framed on the canvas and described in the text, it just does
 // not travel as its own image.
 
 /** Which pictures the request carries, and what happened to the framed zone. */
@@ -30,7 +31,7 @@ internal data class CanvasPromptImages(
     val canvas: Boolean,
     /** The framed zone as its own picture. */
     val zone: Boolean,
-    /** The zone is drawn on the canvas and named in the text, but not attached. */
+    /** The zone is framed on the canvas and named in the text, but not attached. */
     val zoneDescribedOnly: Boolean,
 )
 
@@ -91,6 +92,27 @@ internal fun canvasPromptRefusal(support: CanvasPromptSupport, model: MediaModel
         "«${model?.id ?: "Модель"}» не принимает картинку — правку по канвасу отправить некуда. Выберите модель, которая умеет редактировать изображение."
 
     is CanvasPromptSupport.Ready -> null
+}
+
+/**
+ * The send button's state, decided in one place so the screen and its tests
+ * read the same rule: off while a refusal stands, while the instruction is
+ * empty, while the picture is still rendering — and while the previous tap is
+ * encoding the screenshots, which takes seconds and would otherwise send the
+ * same request twice.
+ */
+@Immutable
+internal data class CanvasPromptSend(val enabled: Boolean, val label: String)
+
+internal fun canvasPromptSend(
+    refusal: String?,
+    instruction: String,
+    canvasReady: Boolean,
+    preparing: Boolean,
+): CanvasPromptSend = when {
+    preparing -> CanvasPromptSend(enabled = false, label = "Готовим скриншот…")
+    refusal != null || !canvasReady || instruction.isBlank() -> CanvasPromptSend(enabled = false, label = "Отправить в модель")
+    else -> CanvasPromptSend(enabled = true, label = "Отправить в модель")
 }
 
 /** The same refusal as a §8 studio error, for the path that skips the screen; null when allowed. */

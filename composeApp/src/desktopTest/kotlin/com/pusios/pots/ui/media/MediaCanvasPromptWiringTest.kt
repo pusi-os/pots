@@ -114,6 +114,58 @@ class MediaCanvasPromptWiringTest {
     }
 
     @Test
+    fun theScreenAndTheSendNameTheSameImageModelWhateverTheModeIs() = runTest(testDispatcher) {
+        val viewModel = newViewModel()
+        runCurrent()
+        viewModel.selectImageModel(MULTI_PICTURE_MODEL)
+        // The mode switch says «video», and the video model takes a picture too —
+        // so the old screen named it while the request went to the image model.
+        viewModel.selectMode(MediaMode.Video)
+        viewModel.setParam("duration", "5")
+        viewModel.setParam("resolution", "720p")
+
+        assertEquals(
+            MULTI_PICTURE_MODEL,
+            viewModel.canvasPromptModel()?.id,
+            "the screen and the send read one resolver: the image model, not the video one",
+        )
+
+        assertTrue(viewModel.askModelAboutCanvas(CanvasPromptRequest("убери подпись", canvasBitmap())))
+        runCurrent()
+
+        val request = assertNotNull(provider.submitted.single())
+        assertEquals(MULTI_PICTURE_MODEL, request.model)
+        assertTrue(
+            "duration" !in request.opts && "resolution" !in request.opts,
+            "the video mode's chips must not ride an image request: ${request.opts}",
+        )
+        assertNull(viewModel.error.value)
+    }
+
+    @Test
+    fun theAudioModeIsNotARefusalAndItsChipsStayBehind() = runTest(testDispatcher) {
+        val viewModel = newViewModel()
+        runCurrent()
+        viewModel.selectImageModel(MULTI_PICTURE_MODEL)
+        // No audio model in the catalog takes a picture, but the send never asks
+        // one — it asks the image model. The screen used to show the audio model
+        // and refuse the whole feature in this mode.
+        viewModel.selectMode(MediaMode.Audio)
+        viewModel.setParam("speed", "1.5")
+
+        val model = assertNotNull(viewModel.canvasPromptModel(), "the image model is still there in audio mode")
+        assertEquals(MULTI_PICTURE_MODEL, model.id)
+        assertNull(canvasPromptRefusal(canvasPromptSupport(model), model), "audio mode is not a refusal")
+
+        assertTrue(viewModel.askModelAboutCanvas(CanvasPromptRequest("убери подпись", canvasBitmap())))
+        runCurrent()
+
+        val request = assertNotNull(provider.submitted.single())
+        assertEquals(MULTI_PICTURE_MODEL, request.model)
+        assertTrue("speed" !in request.opts, "the audio chip stays behind: ${request.opts}")
+    }
+
+    @Test
     fun theScreenshotGoesIntoTheReferencesAndTheInstructionIntoThePrompt() = runTest(testDispatcher) {
         val viewModel = newViewModel()
         runCurrent()
@@ -327,7 +379,12 @@ class MediaCanvasPromptWiringTest {
     private class RecordingProvider : MediaProvider {
         val submitted = mutableListOf<MediaJobRequest>()
 
-        override suspend fun listModels(apiKey: String): List<MediaModel> = listOf(canvasPromptMultiPictureModel(), canvasPromptOnePictureModel(), canvasPromptTextOnlyModel())
+        override suspend fun listModels(apiKey: String): List<MediaModel> = listOf(
+            canvasPromptMultiPictureModel(),
+            canvasPromptOnePictureModel(),
+            canvasPromptTextOnlyModel(),
+            canvasPromptVideoModel(),
+        )
 
         override suspend fun quotePrice(apiKey: String, request: MediaJobRequest): MediaPriceQuote = MediaPriceQuote(priceRub = 0.0, quoteId = "quote-test")
 
@@ -349,6 +406,7 @@ class MediaCanvasPromptWiringTest {
 private const val MULTI_PICTURE_MODEL = "nano-banana"
 private const val ONE_PICTURE_MODEL = "ideogram-v3"
 private const val TEXT_ONLY_MODEL = "z-image"
+private const val VIDEO_MODEL = "seedance-2.0"
 
 /** nano-banana's shape: `mode` with `edit`, `image_url` and `input_urls`. */
 private fun canvasPromptMultiPictureModel() = MediaModel(
@@ -389,4 +447,20 @@ private fun canvasPromptTextOnlyModel() = MediaModel(
     kind = MediaKind.Image,
     params = listOf(MediaParamDef(key = "aspect_ratio", label = "Пропорции")),
     acceptsImageReference = false,
+)
+
+/**
+ * A video model that takes a picture (72 of them do in the live catalog): in
+ * Video mode it is the mode's model, and the canvas prompt must still name and
+ * use the image one.
+ */
+private fun canvasPromptVideoModel() = MediaModel(
+    id = VIDEO_MODEL,
+    kind = MediaKind.Video,
+    params = listOf(
+        MediaParamDef(key = "image_url", label = "Кадр"),
+        MediaParamDef(key = "duration", label = "Длительность"),
+        MediaParamDef(key = "resolution", label = "Разрешение"),
+    ),
+    acceptsImageReference = true,
 )
