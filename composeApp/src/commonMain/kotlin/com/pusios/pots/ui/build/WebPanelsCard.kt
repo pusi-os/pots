@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.group
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontFamily
@@ -56,6 +58,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_web_panel_autostart
+import pots.composeapp.generated.resources.pots_build_web_panel_credentials
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_lan_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_link_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_local_hint
@@ -64,6 +67,7 @@ import pots.composeapp.generated.resources.pots_build_web_panel_log_empty
 import pots.composeapp.generated.resources.pots_build_web_panel_log_loading
 import pots.composeapp.generated.resources.pots_build_web_panel_log_missing
 import pots.composeapp.generated.resources.pots_build_web_panel_log_refresh
+import pots.composeapp.generated.resources.pots_build_web_panel_open_in_browser
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copied
 import pots.composeapp.generated.resources.pots_build_web_panel_password_copy
 import pots.composeapp.generated.resources.pots_build_web_panel_password_hide
@@ -95,7 +99,7 @@ internal fun WebPanelsCard(
     onStop: (String) -> Unit,
     onOpen: (String) -> Unit,
     onSetAutostart: (String, Boolean) -> Unit,
-    onPassword: (String) -> String?,
+    onPassword: suspend (String) -> String?,
     onLog: suspend (String) -> String,
     modifier: Modifier = Modifier,
 ) {
@@ -151,16 +155,9 @@ private fun WebPanelRow(
     onStop: (String) -> Unit,
     onOpen: (String) -> Unit,
     onSetAutostart: (String, Boolean) -> Unit,
-    onPassword: (String) -> String?,
+    onPassword: suspend (String) -> String?,
     onLog: suspend (String) -> String,
 ) {
-    // The password is fetched when the button is tapped, not while composing: the
-    // getter reads stored settings, and composing must stay free of side effects.
-    var revealedPassword by remember(panel.id, state.status) { mutableStateOf<String?>(null) }
-    // Sensitive: the system keeps the clip out of its history and out of the paste
-    // preview, so a copied password is not left lying around for the next app.
-    val copyToClipboard = rememberCopyToClipboard(sensitive = true)
-
     // The log follows the same rule: read on the row's own actions — the section
     // being opened, a failed start, the refresh button — and never while composing.
     // It is not part of WebPanelState either: that is the polled state, and the log
@@ -193,12 +190,11 @@ private fun WebPanelRow(
                 modifier = Modifier.weight(1f),
             )
             when (state.status) {
-                WebPanelStatus.NotRunning -> TextButton(
+                WebPanelStatus.NotRunning -> PanelActionButton(
+                    icon = PanelPlayIcon,
+                    label = stringResource(Res.string.pots_build_web_panel_start),
                     onClick = { onStart(panel.id) },
-                    modifier = Modifier.handCursor(),
-                ) {
-                    Text(stringResource(Res.string.pots_build_web_panel_start))
-                }
+                )
 
                 WebPanelStatus.Starting -> Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -212,34 +208,47 @@ private fun WebPanelRow(
                     )
                 }
 
-                is WebPanelStatus.Running -> TextButton(
+                is WebPanelStatus.Running -> PanelActionButton(
+                    icon = PanelStopIcon,
+                    label = stringResource(Res.string.pots_build_web_panel_stop),
                     onClick = { onStop(panel.id) },
-                    modifier = Modifier.handCursor(),
-                ) {
-                    Text(stringResource(Res.string.pots_build_web_panel_stop))
-                }
+                )
 
-                is WebPanelStatus.Failed -> TextButton(
+                is WebPanelStatus.Failed -> PanelActionButton(
+                    icon = PanelRetryIcon,
+                    label = stringResource(Res.string.pots_build_web_panel_retry),
                     onClick = { onStart(panel.id) },
-                    modifier = Modifier.handCursor(),
-                ) {
-                    Text(stringResource(Res.string.pots_build_web_panel_retry))
-                }
+                )
             }
         }
 
         when (val status = state.status) {
-            // The address, tappable: it opens in the browser the phone defaults to.
+            // The address, and the button that opens it: the owner reads and copies
+            // the address, and taps a button — two different jobs on one line, so
+            // neither is a hidden gesture on the other's text.
             is WebPanelStatus.Running -> {
-                Text(
-                    text = status.url,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpen(panel.id) }
-                        .handCursor(),
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = status.url,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(
+                        onClick = { onOpen(panel.id) },
+                        modifier = Modifier.handCursor(),
+                    ) {
+                        Icon(
+                            imageVector = PanelOpenIcon,
+                            contentDescription = stringResource(Res.string.pots_build_web_panel_open_in_browser),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
                 // Two of the three panels cannot come up already signed in, and
                 // saying so is cheaper than letting the owner wait for a login
                 // that is not coming (pi-web) or tap a link that is already spent.
@@ -270,28 +279,9 @@ private fun WebPanelRow(
                             Unit
                         }
                 }
-                // The login the panel asks for, right above the password it goes with.
-                if (panel.id == WebPanels.HERMES) {
-                    Text(
-                        text = stringResource(Res.string.pots_build_web_panel_username, WebPanels.HERMES_USER),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-                if (panel.passwordEnv != null) {
-                    PasswordLine(
-                        password = revealedPassword,
-                        onToggle = {
-                            revealedPassword = if (revealedPassword == null) onPassword(panel.id) else null
-                        },
-                        onCopy = {
-                            val password = onPassword(panel.id)
-                            if (password != null) copyToClipboard(password)
-                            password != null
-                        },
-                    )
-                }
+                // The login and the password are not here: they are the panel's
+                // sign-in details, shown above the log at every status — see
+                // [PanelCredentialsSection].
             }
 
             // Never an empty screen: the reason, in the words the runtime used.
@@ -302,6 +292,14 @@ private fun WebPanelRow(
             )
 
             else -> Unit
+        }
+
+        // The panel's sign-in details, above its log and folded away by default.
+        // Shown at every status: the password is resolved on the first ask, so
+        // there is something to show before the panel has ever started — which is
+        // exactly when it is wanted, in front of a browser asking for a login.
+        if (panel.passwordEnv != null) {
+            PanelCredentialsSection(panel = panel, onPassword = onPassword)
         }
 
         // The panel's own log, folded away by default. It is the only thing that
@@ -344,6 +342,91 @@ private fun PanelHint(text: String) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/**
+ * A row action: a drawn glyph and its word on one line.
+ *
+ * The word stays — a triangle and a square do not say "start" and "stop" on their
+ * own, and the row already speaks in words — and the glyph is what makes the
+ * buttons one set. It carries no description of its own: the label beside it is
+ * the description.
+ */
+@Composable
+private fun PanelActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.handCursor()) {
+        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.size(4.dp))
+        Text(label)
+    }
+}
+
+/**
+ * The account a panel asks for, folded away by default and present at every
+ * status — the login if the panel has one, and the password behind the same
+ * Show/Hide/Copy the row always had.
+ *
+ * The password is read when the section is opened, not while composing: resolving
+ * it may generate and store one, and composing must stay free of side effects.
+ * Shown only on the Show tap, so a password is never on screen unless it was asked
+ * for.
+ */
+@Composable
+private fun PanelCredentialsSection(
+    panel: WebPanel,
+    onPassword: suspend (String) -> String?,
+) {
+    var open by remember(panel.id) { mutableStateOf(false) }
+    var shown by remember(panel.id) { mutableStateOf(false) }
+    var password by remember(panel.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(open) {
+        if (open) password = onPassword(panel.id)
+    }
+    // Sensitive: the system keeps the clip out of its history and out of the paste
+    // preview, so a copied password is not left lying around for the next app.
+    val copyToClipboard = rememberCopyToClipboard(sensitive = true)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { open = !open }
+            .handCursor(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(
+            imageVector = if (open) PanelChevronDown else PanelChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = stringResource(Res.string.pots_build_web_panel_credentials),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (open) {
+        // Only the panels that ask for a login by name get the line; pi-web's
+        // form takes the password alone, and an empty "Login:" would be a lie.
+        panel.username?.let { username ->
+            Text(
+                text = stringResource(Res.string.pots_build_web_panel_username, username),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        PasswordLine(
+            password = password.takeIf { shown },
+            onToggle = { shown = !shown },
+            onCopy = {
+                val value = password
+                if (value != null) copyToClipboard(value)
+                value != null
+            },
+        )
+    }
 }
 
 /**
@@ -452,7 +535,7 @@ private fun PanelLogSection(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Icon(
-                imageVector = if (open) PanelLogChevronDown else PanelLogChevronRight,
+                imageVector = if (open) PanelChevronDown else PanelChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp),
@@ -501,12 +584,30 @@ private fun logText(log: String?): String = when (log) {
     else -> log
 }
 
-// The fold marker is drawn, not typed: "▸"/"▾" are text and come out at whatever
-// weight the fallback font has, sized by the caption rather than the icon. Tinted
-// with the row's own colour (currentColor, in Compose terms), like the other
-// hand-drawn glyphs in this app.
+// The row's glyphs are drawn, not typed: "▸"/"▾" are text and come out at whatever
+// weight the fallback font has, sized by the caption rather than the icon, and an
+// emoji is the same problem with colours the theme cannot reach. Strokes on a
+// 24-unit grid, tinted with the row's own colour (currentColor, in Compose terms),
+// like the other hand-drawn glyphs in this app.
+private fun strokedIcon(name: String, pathBuilder: PathBuilder.() -> Unit): ImageVector =
+    ImageVector.Builder(
+        name = name,
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 2f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+            pathBuilder = pathBuilder,
+        )
+    }.build()
+
 private fun chevron(expanded: Boolean): ImageVector = ImageVector.Builder(
-    name = if (expanded) "PanelLogChevronDown" else "PanelLogChevronRight",
+    name = if (expanded) "PanelChevronDown" else "PanelChevronRight",
     defaultWidth = 24.dp,
     defaultHeight = 24.dp,
     viewportWidth = 24f,
@@ -526,5 +627,54 @@ private fun chevron(expanded: Boolean): ImageVector = ImageVector.Builder(
     }
 }.build()
 
-private val PanelLogChevronRight: ImageVector by lazy { chevron(expanded = false) }
-private val PanelLogChevronDown: ImageVector by lazy { chevron(expanded = true) }
+/** A page with an arrow leaving its top-right corner: "open in the browser". */
+private fun openInBrowser(): ImageVector = strokedIcon("PanelOpen") {
+    moveTo(11f, 4.5f)
+    lineTo(5f, 4.5f)
+    lineTo(5f, 19.5f)
+    lineTo(19.5f, 19.5f)
+    lineTo(19.5f, 13f)
+    moveTo(14.5f, 4.5f)
+    lineTo(19.5f, 4.5f)
+    lineTo(19.5f, 9.5f)
+    moveTo(19.5f, 4.5f)
+    lineTo(11.5f, 12.5f)
+}
+
+/** A triangle pointing right: start. */
+private fun play(): ImageVector = strokedIcon("PanelPlay") {
+    moveTo(8f, 5.5f)
+    lineTo(19f, 12f)
+    lineTo(8f, 18.5f)
+    close()
+}
+
+/** The same weight as the triangle, square: stop. */
+private fun stop(): ImageVector = strokedIcon("PanelStop") {
+    moveTo(7f, 7f)
+    lineTo(17f, 7f)
+    lineTo(17f, 17f)
+    lineTo(7f, 17f)
+    close()
+}
+
+/**
+ * A circle with a gap and an arrowhead where the sweep ends: retry.
+ *
+ * The arc runs from three o'clock clockwise 300° to the lower right; the two
+ * strokes at its end are the arrowhead, aimed along the sweep.
+ */
+private fun retry(): ImageVector = strokedIcon("PanelRetry") {
+    moveTo(19f, 12f)
+    arcTo(7f, 7f, 0f, isMoreThanHalf = true, isPositiveArc = true, x1 = 15.5f, y1 = 18.06f)
+    moveTo(19f, 18.06f)
+    lineTo(15.5f, 18.06f)
+    lineTo(17.25f, 15.03f)
+}
+
+private val PanelChevronRight: ImageVector by lazy { chevron(expanded = false) }
+private val PanelChevronDown: ImageVector by lazy { chevron(expanded = true) }
+private val PanelOpenIcon: ImageVector by lazy { openInBrowser() }
+private val PanelPlayIcon: ImageVector by lazy { play() }
+private val PanelStopIcon: ImageVector by lazy { stop() }
+private val PanelRetryIcon: ImageVector by lazy { retry() }

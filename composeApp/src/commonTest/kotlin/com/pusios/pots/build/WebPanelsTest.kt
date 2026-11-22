@@ -133,6 +133,29 @@ class WebPanelsTest {
         assertContains(WebPanels.command(WebPanels.get(WebPanels.PI)!!, 30141), "--no-open")
     }
 
+    // --- the sign-in details ---------------------------------------------
+
+    @Test
+    fun `the panels that ask for a login declare it, and pi-web asks for none`() {
+        // The login is the panel's own property: the row renders whatever is here,
+        // so an agent that starts asking for one is a line in this list, not an
+        // `if (panel.id == ...)` somewhere in the UI.
+        assertEquals(WebPanels.HERMES_USER, WebPanels.get(WebPanels.HERMES)?.username)
+        assertEquals(WebPanels.OPENCODE_USER, WebPanels.get(WebPanels.OPENCODE)?.username)
+        // pi-web's /login asks for the password alone.
+        assertNull(WebPanels.get(WebPanels.PI)?.username)
+    }
+
+    @Test
+    fun `the login Hermes is given is the one its row shows`() = runTest {
+        val guest = FakeGuest().apply { hermesLinks += listOf(SIGN_IN_LINK) }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+
+        val hermes = WebPanels.get(WebPanels.HERMES)!!
+        assertEquals(hermes.username, guest.runEnv[hermes.usernameEnv!!])
+    }
+
     // --- state ------------------------------------------------------------
 
     @Test
@@ -634,9 +657,39 @@ class WebPanelsTest {
     }
 
     @Test
-    fun `a panel that never started has no password yet`() = runTest {
+    fun `a panel that never started still has a password, generated on the first ask`() = runTest {
+        val saved = mutableMapOf<String, WebPanelPreferences>()
+        val runtime = runtime(this, FakeGuest(), saved = saved)
+
+        // The row shows the account before the panel is started — that is the
+        // whole point — so the value cannot wait for a start to create it.
+        val password = runtime.password("opencode")
+
+        assertTrue(!password.isNullOrEmpty())
+        assertEquals(WebPanelPasswords.LENGTH, password.length)
+        assertEquals(password, saved["opencode"]?.password, "the generated value is stored, not recomputed")
+    }
+
+    @Test
+    fun `asking for the password twice gives the same one, and the start uses it`() = runTest {
+        val guest = FakeGuest()
+        val runtime = runtime(this, guest)
+
+        // Two readers must never be handed two different values: the second one
+        // would be a password no open browser tab knows.
+        val first = runtime.password("opencode")
+        val second = runtime.password("opencode")
+        runtime.startPanel("opencode")
+
+        assertEquals(first, second)
+        assertEquals(first, guest.env["OPENCODE_SERVER_PASSWORD"], "the start reuses the shown value")
+    }
+
+    @Test
+    fun `a panel with no password asks for none`() = runTest {
         val runtime = runtime(this, FakeGuest())
-        assertNull(runtime.password("opencode"))
+        // pi-web is the one panel that still has a password; an unknown id has none.
+        assertNull(runtime.password("claude-code"))
     }
 
     @Test

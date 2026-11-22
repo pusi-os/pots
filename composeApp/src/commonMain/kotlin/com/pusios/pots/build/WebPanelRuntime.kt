@@ -1,11 +1,13 @@
 package com.pusios.pots.build
 
+import com.pusios.pots.getBackgroundDispatcher
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * What starting and stopping a panel needs from the sandbox.
@@ -129,6 +131,18 @@ class WebPanelRuntime(
 ) {
 
     private val mutex = Mutex()
+
+    /**
+     * Guards [passwordLocked], and nothing else.
+     *
+     * Its own lock rather than [mutex]: a start holds [mutex] for the whole
+     * readiness wait (up to [startTimeoutSeconds]), and the row's sign-in section
+     * is most wanted exactly then — queueing a password read behind a start would
+     * leave the section blank for as long as the panel takes to come up. The two
+     * locks are taken in one order only, [mutex] then this one, so they cannot
+     * deadlock.
+     */
+    private val passwordMutex = Mutex()
     private val states = LinkedHashMap<String, WebPanelState>()
 
     /**
@@ -159,17 +173,21 @@ class WebPanelRuntime(
     }
 
     /**
-     * The password a panel was given on its first start, or null when it has
-     * never started.
+     * The password a panel answers with: the one it already has, or a fresh one
+     * stored now — so the row can show it before the panel has ever started.
      *
-     * Generated in one place only — [startLocked], under the lock — so two
-     * readers can never be handed two different values, and nothing here writes
-     * to shared state.
+     * Generated in one place only, [passwordLocked], under [passwordMutex]: two
+     * readers must never be handed two different values, and a value that changes
+     * would lock out a browser tab that is already signed in.
+     *
+     * Suspending, and resolved on the background dispatcher: storing the value
+     * writes the settings file, and that write must not happen on the UI thread
+     * while a frame is being drawn.
      */
-    fun password(panelId: String): String? {
+    suspend fun password(panelId: String): String? {
         val panel = WebPanels.get(panelId) ?: return null
         if (panel.passwordEnv == null) return null
-        return prefs(panel.id).password?.takeIf { it.isNotEmpty() }
+        return passwordFor(panel)
     }
 
     /**
@@ -188,7 +206,10 @@ class WebPanelRuntime(
      */
     fun panelLog(panelId: String): String {
         val panel = WebPanels.get(panelId) ?: return WebPanelLog.NO_FILE
-        return WebPanelLog.show(guest.logText(panel), password(panel.id))
+        // The stored value, never [password]: masking a log must not generate one
+        // — that writes settings, and a log read is a file read. A password can
+        // only be in the log if the panel ran, which means it is already stored.
+        return WebPanelLog.show(guest.logText(panel), storedPassword(panel))
     }
 
     /**
@@ -245,7 +266,7 @@ class WebPanelRuntime(
      * sign-in. The password travels in the guest's environment, never in the
      * command line and never in the link.
      */
-    private fun mintOpenCodeLink(panel: WebPanel, port: Int): String? {
+    private suspend fun mintOpenCodeLink(panel: WebPanel, port: Int): String? {
         val passwordEnv = panel.passwordEnv
         val secret = passwordEnv?.let { password(panel.id) }
         if (passwordEnv == null || secret == null) {
@@ -314,7 +335,7 @@ class WebPanelRuntime(
         publishStates {}
     }
 
-    private fun startLocked(panelId: String) {
+    private suspend fun startLocked(panelId: String) {
         val panel = WebPanels.get(panelId) ?: return
         if (panel.agentId !in installed()) {
             setState(panel, WebPanelStatus.Failed("${panel.title} is not installed"))
@@ -424,7 +445,7 @@ class WebPanelRuntime(
                 panel,
                 WebPanelStatus.Failed(
                     "${panel.title} is not listening on $port after ${startTimeoutSeconds}s: " +
-                        WebPanelLog.brief(guest.logText(panel), password(panel.id)),
+                        WebPanelLog.brief(guest.logText(panel), storedPassword(panel)),
                 ),
             )
             return
@@ -496,7 +517,7 @@ class WebPanelRuntime(
      * The account rides in the launcher's environment in both steps: the gateway
      * reads it from there when it registers the sign-in provider.
      */
-    private fun startHermes(panel: WebPanel, port: Int) {
+    private suspend fun startHermes(panel: WebPanel, port: Int) {
         if (!guest.launch(panel, port, WebPanels.HERMES_SERVER, hermesEnv(panel))) {
             setState(panel, WebPanelStatus.Failed("${panel.title} did not start"))
             return
@@ -509,7 +530,7 @@ class WebPanelRuntime(
                 panel,
                 WebPanelStatus.Failed(
                     "${panel.title} is not listening on $port after ${startTimeoutSeconds}s: " +
-                        WebPanelLog.brief(guest.logText(panel), password(panel.id)),
+                        WebPanelLog.brief(guest.logText(panel), storedPassword(panel)),
                 ),
             )
             return
@@ -542,7 +563,7 @@ class WebPanelRuntime(
      * mint one, the panel says why instead of leaving a dead button behind: the
      * first non-empty line of the output is the reason, as on a failed start.
      */
-    private fun mintHermesLink(panel: WebPanel, port: Int): String? {
+    private suspend fun mintHermesLink(panel: WebPanel, port: Int): String? {
         val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS, hermesEnv(panel))
         val link = HermesWebappOutput.parse(output.text)
         if (link == null) {
@@ -567,8 +588,10 @@ class WebPanelRuntime(
      * would be erased, and a plaintext password in a config file is worse than
      * none. Hermes reads both variables, and env wins over the file.
      */
-    private fun hermesEnv(panel: WebPanel): Map<String, String> = buildMap {
-        panel.usernameEnv?.let { put(it, WebPanels.HERMES_USER) }
+    private suspend fun hermesEnv(panel: WebPanel): Map<String, String> = buildMap {
+        // The account is the panel's own, so the login the row shows and the login
+        // the gateway is given cannot drift apart.
+        panel.usernameEnv?.let { env -> panel.username?.let { put(env, it) } }
         panel.passwordEnv?.let { put(it, passwordFor(panel)) }
         // The shipped renderer, when that is the one being served. Naming it is
         // what stops the launcher from building one itself; a renderer the device
@@ -625,18 +648,32 @@ class WebPanelRuntime(
     }
 
     /**
-     * The panel's password: the one it was given on its first start, or a fresh
-     * one stored now. Stable for the life of the install — the agent keeps
-     * answering with it, so a new one per start would lock out an already open
-     * browser tab. Only ever called under the lock, from [startLocked].
+     * The panel's password: the one it already has, or a fresh one stored now.
+     * Stable for the life of the install — the agent keeps answering with it, so a
+     * new one per start would lock out an already open browser tab.
+     *
+     * Every caller goes through here, and here is the only place a value is
+     * generated. The stored write is the settings file, so it happens on the
+     * background dispatcher: the row asks for a password while it is drawing, and
+     * a disk write there is a dropped frame at best.
      */
-    private fun passwordFor(panel: WebPanel): String {
-        val stored = prefs(panel.id).password?.takeIf { it.isNotEmpty() }
+    private suspend fun passwordFor(panel: WebPanel): String =
+        passwordMutex.withLock {
+            withContext(getBackgroundDispatcher()) { passwordLocked(panel) }
+        }
+
+    /** [passwordFor] without the lock and the dispatcher hop; the caller holds [passwordMutex]. */
+    private fun passwordLocked(panel: WebPanel): String {
+        val stored = storedPassword(panel)
         if (stored != null) return stored
         val password = WebPanelPasswords.generate()
         savePrefs(panel.id, prefs(panel.id).copy(password = password))
         return password
     }
+
+    /** The password already in settings, or null — reads, never generates. */
+    private fun storedPassword(panel: WebPanel): String? =
+        prefs(panel.id).password?.takeIf { it.isNotEmpty() }
 
     private fun setState(panel: WebPanel, status: WebPanelStatus) {
         publishStates {

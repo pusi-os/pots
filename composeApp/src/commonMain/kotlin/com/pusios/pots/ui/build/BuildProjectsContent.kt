@@ -107,7 +107,7 @@ internal fun BuildProjectsContent(
     onStopWebPanel: (String) -> Unit,
     onOpenWebPanel: (String) -> Unit,
     onSetWebPanelAutostart: (String, Boolean) -> Unit,
-    onWebPanelPassword: (String) -> String?,
+    onWebPanelPassword: suspend (String) -> String?,
     onPanelLog: suspend (String) -> String,
     modifier: Modifier = Modifier,
 ) {

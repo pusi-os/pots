@@ -782,7 +782,11 @@ class BuildEnvironmentManager(
         webPanels.setAutostart(panelId, enabled)
     }
 
-    fun webPanelPassword(panelId: String): String? = webPanels.password(panelId)
+    /**
+     * The panel's password, generated on first ask — the row shows it before the
+     * panel has ever started, so this cannot wait for a start to create one.
+     */
+    suspend fun webPanelPassword(panelId: String): String? = webPanels.password(panelId)
 
     /** The row's log section: read on the tap, never stored in the state. */
     fun webPanelLog(panelId: String): String = webPanels.panelLog(panelId)

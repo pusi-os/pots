@@ -74,7 +74,7 @@ class PotsBuildViewModelTest {
         override fun stopWebPanel(panelId: String) {}
         override fun openWebPanel(panelId: String) {}
         override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
-        override fun webPanelPassword(panelId: String): String? = null
+        override suspend fun webPanelPassword(panelId: String): String? = null
         override fun webPanelLog(panelId: String): String {
             logRequests += panelId
             return "starting\nlistening on 4096"

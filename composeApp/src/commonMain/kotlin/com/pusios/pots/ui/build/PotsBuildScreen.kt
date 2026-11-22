@@ -81,7 +81,7 @@ data class PotsBuildActions(
     val stopWebPanel: (String) -> Unit,
     val openWebPanel: (String) -> Unit,
     val setWebPanelAutostart: (String, Boolean) -> Unit,
-    val webPanelPassword: (String) -> String?,
+    val webPanelPassword: suspend (String) -> String?,
     /** The panel's log for its row; read on the tap, never while composing. */
     val panelLog: suspend (String) -> String,
 )
