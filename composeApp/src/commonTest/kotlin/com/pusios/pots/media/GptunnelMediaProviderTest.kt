@@ -215,17 +215,42 @@ class GptunnelMediaProviderTest {
         assertEquals(210.0, done.priceRub)
         assertTrue(done.isTerminal)
         // Root code stays 0 for a failed task — branch on status/error, not code.
+        // `price` has no status binding (contract §Получение задачи): a refunded
+        // failure carries the charged sum, which the refund line needs.
         val failed = provider.parseTaskPoll(
             "j1",
-            """{"code":0,"id":"j1","model":"kling-v3","status":"failed",
+            """{"code":0,"id":"j1","model":"kling-v3","status":"failed","price":210,
                 "error":{"code":1001,"title":"SENSITIVE_CONTENT","message":"Sensitive content has been detected"},
                 "refunded":true}""",
         )
         assertEquals(MediaJobStatus.Fail, failed.status)
         assertEquals("SENSITIVE_CONTENT", failed.errorCode)
         assertEquals("Sensitive content has been detected", failed.failMsg)
+        assertEquals(210.0, failed.priceRub)
         assertTrue(failed.refunded)
         assertTrue(failed.isTerminal)
+        // The documented failed example carries no price at all — no invented sum.
+        val failedNoPrice = provider.parseTaskPoll(
+            "j2",
+            """{"code":0,"id":"j2","model":"kling-v3","status":"failed",
+                "error":{"code":1001,"title":"SENSITIVE_CONTENT","message":"Sensitive content has been detected"},
+                "refunded":true}""",
+        )
+        assertEquals(0.0, failedNoPrice.priceRub)
+        assertTrue(failedNoPrice.refunded)
+    }
+
+    @Test
+    fun listModelsSurfacesAuthErrorWhenEveryGroupFails() = runTest {
+        // The catalog is key-gated: a bad/expired key answers 401 on all three
+        // type queries — the empty-list path must not swallow it (contract §Base URLs).
+        val engine = MockEngine { _ ->
+            respondJson("""{"error":{"message":"Unauthorized"}}""", HttpStatusCode.Unauthorized)
+        }
+        val error = runCatching {
+            GptunnelMediaProvider(clientOverride = HttpClient(engine)).listModels("bad-key")
+        }.exceptionOrNull()
+        assertIs<MediaException.InvalidKey>(error)
     }
 
     @Test

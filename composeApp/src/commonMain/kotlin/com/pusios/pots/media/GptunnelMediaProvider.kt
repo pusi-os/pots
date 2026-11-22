@@ -19,7 +19,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -65,6 +64,7 @@ class GptunnelMediaProvider(
     private val cardsById = mutableMapOf<String, JsonObject>()
 
     override suspend fun listModels(apiKey: String): List<MediaModel> {
+        var firstError: Pair<Int, String>? = null
         val models = buildList {
             for (type in listOf("IMAGE", "VIDEO", "AUDIO")) {
                 val response = client.get("$baseUrl/api/v2/media/models") {
@@ -74,10 +74,17 @@ class GptunnelMediaProvider(
                 val body = response.bodyAsText()
                 if (response.status.value !in 200..299) {
                     MediaLog.e("GPTunnel catalog $type failed: HTTP ${response.status.value} body=${body.take(300)}")
+                    if (firstError == null) firstError = response.status.value to body
                     continue
                 }
                 addAll(parseCatalogGroup(body, type))
             }
+        }
+        // The catalog is key-gated (live 401 without the key): if every group
+        // failed and nothing parsed, the empty list would silently hide a bad
+        // or expired key — surface the first HTTP error through the shared map.
+        if (models.isEmpty()) {
+            firstError?.let { (status, body) -> throw mapMediaHttpError(status, body) }
         }
         MediaLog.i(
             "GPTunnel catalog: ${models.size} models (" +
@@ -380,6 +387,9 @@ class GptunnelMediaProvider(
                 errorCode = (root["error"] as? JsonObject)?.get("title")?.jsonPrimitive?.contentOrNull
                     ?: (root["error"] as? JsonObject)?.get("code")?.jsonPrimitive?.contentOrNull
                     ?: statusRaw,
+                // `price` is documented as "списанная стоимость в рублях" with no
+                // status binding — a refunded failure can still carry the sum.
+                priceRub = root["price"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
                 refunded = root["refunded"]?.jsonPrimitive?.booleanOrNull == true,
                 definitive = true,
             )

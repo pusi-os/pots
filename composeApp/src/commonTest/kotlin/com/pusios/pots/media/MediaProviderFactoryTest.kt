@@ -38,7 +38,7 @@ class MediaProviderFactoryTest {
     @Test
     fun servicesWithoutAnImplementedContractStayNull() {
         val withoutMedia = listOf(
-            Service.[OI]Compatible,
+            Service.OpenAICompatible,
             Service.LiteRT,
         )
         withoutMedia.forEach { service ->

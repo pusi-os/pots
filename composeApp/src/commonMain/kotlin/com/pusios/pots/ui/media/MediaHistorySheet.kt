@@ -270,10 +270,16 @@ private fun HistoryCard(
                 }
                 if (entry.status == MediaHistoryStatus.Failed && entry.refunded) {
                     // GPTunnel returned the money for the failed job; the «списано»
-                    // meta line alone would read as if the charge stayed.
+                    // meta line alone would read as if the charge stayed. The failed
+                    // task object often carries no price at all — show the fact
+                    // rather than a made-up 0.0 ₽.
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Возврат ${formatRub(entry.priceRub ?: 0.0)} — деньги вернулись на баланс",
+                        if ((entry.priceRub ?: 0.0) > 0.0) {
+                            "Возврат ${formatRub(entry.priceRub ?: 0.0)} — деньги вернулись на баланс"
+                        } else {
+                            "Возврат — деньги вернулись на баланс"
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
