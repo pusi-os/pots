@@ -96,10 +96,10 @@ class MediaProjectSerializationTest {
     }
 
     @Test
-    fun schemaVersionIsTwo() {
-        assertEquals(2, MEDIA_PROJECT_SCHEMA_VERSION)
+    fun schemaVersionIsThree() {
+        assertEquals(3, MEDIA_PROJECT_SCHEMA_VERSION)
         val root = Json.parseToJsonElement(encodeMediaProject(sampleProject())).jsonObject
-        assertEquals("2", root["schemaVersion"]!!.jsonPrimitive.content)
+        assertEquals("3", root["schemaVersion"]!!.jsonPrimitive.content)
         assertEquals(MEDIA_PROJECT_MARK, root["app"]!!.jsonPrimitive.content)
     }
 
@@ -131,17 +131,17 @@ class MediaProjectSerializationTest {
         assertNull(element.text)
     }
 
-    /** The very next schema (a v3 build writing a file) must be refused, not guessed. */
+    /** The very next schema (a v4 build writing a file) must be refused, not guessed. */
     @Test
     fun futureSchemaVersionRefusedWithVersionText() {
-        val text = withRootField(sampleProject(), "schemaVersion", JsonPrimitive(3))
+        val text = withRootField(sampleProject(), "schemaVersion", JsonPrimitive(4))
         try {
             decodeMediaProject(text)
             fail("expected UnsupportedVersion")
         } catch (e: MediaProjectException.UnsupportedVersion) {
-            assertEquals(3, e.found)
+            assertEquals(4, e.found)
             assertEquals("Формат не поддерживается", e.title)
-            assertTrue(e.detail.contains("3"), "detail must name the foreign version")
+            assertTrue(e.detail.contains("4"), "detail must name the foreign version")
             assertTrue(e.detail.contains(MEDIA_PROJECT_SCHEMA_VERSION.toString()), "detail must name the known version")
         }
     }

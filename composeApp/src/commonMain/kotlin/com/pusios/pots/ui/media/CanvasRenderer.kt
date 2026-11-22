@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import kotlin.math.min
 
@@ -53,10 +54,11 @@ internal fun canvasElementHeightDp(aspectRatio: Float?): Float {
  * file cannot drift away from what the user sees. It knows nothing about the
  * ViewModel, the selection or the UI chrome: everything arrives as arguments.
  *
- * Today it draws Image and Video frames and free-hand strokes. Text is the next
- * card; [fonts] and [measurer] are already in the signature for it — a
+ * Today it draws Image and Video frames, text and free-hand strokes. Arrows are
+ * the next card; [fonts] and [measurer] are here for the text layer — a
  * [FontFamily] can only be resolved in a composition (`Font()` is @Composable),
- * so the renderer receives the resolved families instead of loading them.
+ * so the renderer receives the resolved families instead of loading them. A
+ * text layer without a [measurer] draws nothing rather than an empty box.
  *
  * @param layers draw order — the list is the z-order, nothing is sorted here.
  * @param scale canvas px per canvas unit at 100 % zoom: the screen passes the
@@ -103,12 +105,59 @@ internal fun DrawScope.renderLayers(
 
             is VideoLayer -> drawMediaLayer(layer, frames[layer.id], scale, zoom, cardBackground)
 
+            is TextLayer -> drawTextLayer(layer, measurer, fonts, scale, zoom)
+
             is StrokeLayer -> drawStrokeLayer(layer, strokePaths[layer.id] ?: strokePath(layer.points), scale, zoom)
 
-            // Audio is a player card, not a frame; text and arrows are the
-            // next cards. They are skipped, not drawn as empty boxes.
-            is AudioLayer, is TextLayer, is ArrowLayer -> Unit
+            // Audio is a player card, not a frame; arrows are the next card.
+            // They are skipped, not drawn as empty boxes.
+            is AudioLayer, is ArrowLayer -> Unit
         }
+    }
+}
+
+/**
+ * One text layer.
+ *
+ * The layout is measured in canvas units ([textLayout], `Density(1f, 1f)`) and
+ * the scope is scaled by [scale] before the glyphs are drawn, so the line
+ * breaks are the same on the screen, on another device and in an export at any
+ * size: only the factor differs, not the layout. Layer `scale`/`rotation`/zoom
+ * turn around the box centre, exactly like a card does, and the alpha goes into
+ * the glyphs — one text layer has nothing inside it to show through.
+ *
+ * A text layer's own `scale` therefore scales the whole box (the frame and the
+ * glyphs together), not [TextLayer.fontSizePx]: pinching a caption must not
+ * re-wrap it, or the lines the user arranged would jump around under the
+ * fingers. The font size stays the number the panel shows.
+ */
+private fun DrawScope.drawTextLayer(
+    layer: TextLayer,
+    measurer: TextMeasurer?,
+    fonts: Map<String, FontFamily>,
+    scale: Float,
+    zoom: Float,
+) {
+    if (measurer == null || layer.transform.opacity <= 0f) return
+    val layout = textLayout(layer, measurer, fonts)
+    val box = textLayerBox(layout)
+    val topLeft = Offset(layer.transform.x, layer.transform.y)
+    val pivot = Offset(
+        topLeft.x + box.width * scale / 2f,
+        topLeft.y + box.height * scale / 2f,
+    )
+    val grow = layer.transform.scale * zoom
+    withTransform({
+        rotate(layer.transform.rotation, pivot)
+        scale(grow, grow, pivot)
+        // The layout is in canvas units; scale it to the caller's factor.
+        // The pivot is the origin on purpose: DrawTransform.scale's default
+        // pivot is the centre of the whole DrawScope, which would throw the
+        // glyphs off the canvas at any scale other than 1.
+        translate(topLeft.x, topLeft.y)
+        scale(scale, scale, Offset.Zero)
+    }) {
+        drawText(layout, alpha = layer.transform.opacity)
     }
 }
 
@@ -284,6 +333,26 @@ internal fun canvasLayerHeightDp(layer: CanvasLayer, frame: Painter?): Float = i
     CANVAS_ELEMENT_SIZE_DP
 } else {
     canvasElementHeightDp(canvasLayerAspect(layer, frame))
+}
+
+/**
+ * The layer's box in canvas units — the renderer, the selection frame and the
+ * hit target all ask here, so a frame can never sit somewhere the ink is not.
+ *
+ * Cards are [CANVAS_ELEMENT_SIZE_DP] wide with the source aspect; a text layer
+ * is its stored wrapping width and its *measured* height, which is why the
+ * measurement is passed in (a text box is as tall as its lines).
+ */
+internal fun canvasLayerBox(
+    layer: CanvasLayer,
+    frame: Painter?,
+    measurer: TextMeasurer? = null,
+    fonts: Map<String, FontFamily> = emptyMap(),
+): Size = when (layer) {
+    is TextLayer -> measurer?.let { textLayerBox(textLayout(layer, it, fonts)) }
+        ?: Size(layer.widthPx, layer.fontSizePx * TEXT_FALLBACK_LINE_HEIGHT)
+
+    else -> Size(CANVAS_ELEMENT_SIZE_DP, canvasLayerHeightDp(layer, frame))
 }
 
 private fun frameAspect(frame: Painter?): Float? {

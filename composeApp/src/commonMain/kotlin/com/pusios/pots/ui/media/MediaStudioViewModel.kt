@@ -158,19 +158,16 @@ class MediaStudioViewModel(
     val selectedId: StateFlow<String?> = _selectedId.asStateFlow()
 
     /**
-     * Layers panel: collapsed strip or open list. A UI preference, so it lives
-     * in `MediaSettings` beside the other studio ones, not in the project file.
-     */
-    private val _layersPanelOpen = MutableStateFlow(appSettings.getMediaLayersPanelOpen())
-    val layersPanelOpen: StateFlow<Boolean> = _layersPanelOpen.asStateFlow()
-
-    /**
      * The strokes of the running drawing session (see [DrawSession]): the canvas
      * holds the layers, this holds the ids undo and the eraser are allowed to
      * touch. Not persisted — the strokes themselves are, as layers.
      */
     private val _drawSession = MutableStateFlow(DrawSession())
     val drawSession: StateFlow<DrawSession> = _drawSession.asStateFlow()
+
+    /** Collapsed strip ↔ open list; remembered in `MediaSettings`, not in the project. */
+    private val _layersPanelOpen = MutableStateFlow(appSettings.getMediaLayersPanelOpen())
+    val layersPanelOpen: StateFlow<Boolean> = _layersPanelOpen.asStateFlow()
 
     private val _models = MutableStateFlow<List<MediaModel>>(emptyList())
     val models: StateFlow<List<MediaModel>> = _models.asStateFlow()
@@ -1188,6 +1185,26 @@ class MediaStudioViewModel(
 
     fun select(id: String?) {
         _selectedId.value = id
+    }
+
+    /**
+     * Adds an empty text layer on top of the draw list and returns it, so the
+     * screen can open the editor on it right away. [x]/[y] are the box's
+     * top-left corner in canvas px — the screen centres it in the visible area.
+     */
+    fun addTextLayer(x: Float, y: Float): TextLayer {
+        val layer = newTextLayer(Uuid.random().toString(), x, y)
+        _elements.update { list -> list + layer }
+        return layer
+    }
+
+    /**
+     * Changes one text layer in place: text, font, size, colour, alignment and
+     * box width all arrive through here. One hook instead of six setters — the
+     * layer is immutable, so a change is a `copy`.
+     */
+    fun editText(id: String, change: (TextLayer) -> TextLayer) {
+        _elements.update { list -> list.map { if (it is TextLayer && it.id == id) change(it) else it } }
     }
 
     /** Collapsed strip ↔ open list; remembered in `MediaSettings`, not in the project. */

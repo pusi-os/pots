@@ -39,3 +39,11 @@ Offline speech synthesis and recognition, linked on Android with models shipped 
 - **Vosk model vosk-model-small-ru-0.22** — Apache-2.0, https://alphacephei.com/vosk/models (bundled in `androidApp/src/main/assets/vosk/`)
 
 Note: piper-phonemize is GPLv3 and linked into the Android build. See `docs/features/voice-engines.md`.
+
+## Bundled fonts
+
+- **DejaVu Serif** — Bitstream Vera Fonts Copyright (permissive, requires the notice), https://dejavu-fonts.github.io/
+- **File:** `composeApp/src/commonMain/composeResources/font/pots_text_serif.ttf` (the media studio's serif text layer; the sans option is the platform default family and ships no file)
+- **Copyright:** Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved; DejaVu changes are in public domain.
+- **Notice:** the full Bitstream Vera notice is shown under Settings › Licenses (`composeApp/src/commonMain/composeResources/files/licenses/THIRD_PARTY_NOTICES.txt`, section «Bundled fonts»).
+

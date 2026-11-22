@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -40,6 +41,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.pusios.pots.isImageCompressionSupported
@@ -144,6 +149,66 @@ fun MediaStudioScreenFull(
     val prompt = drafts[promptKey].orEmpty()
     var canvasScale by remember { mutableFloatStateOf(1f) }
     var canvasOffset by remember { mutableStateOf(Offset.Zero) }
+    // Text editing. The panel lives in the bottom bar — part of the layout — so
+    // it cannot cover the text being typed; the snapshot is what «×» puts back.
+    var editingTextId by remember { mutableStateOf<String?>(null) }
+    var editingTextSnapshot by remember { mutableStateOf<TextLayer?>(null) }
+    var canvasViewport by remember { mutableStateOf(IntSize.Zero) }
+    val canvasFonts = rememberCanvasFonts()
+    val textMeasurer = rememberTextMeasurer()
+    val canvasDensity = LocalDensity.current.density
+    val editingText = elements.firstOrNull { it.id == editingTextId } as? TextLayer
+    val editingTextBox = editingText?.let { canvasLayerBox(it, null, textMeasurer, canvasFonts) }
+
+    // Opening the editor: select the layer and remember what «×» must restore.
+    val openTextEditor: (TextLayer) -> Unit = { layer ->
+        viewModel.select(layer.id)
+        editingTextSnapshot = layer
+        editingTextId = layer.id
+    }
+
+    // Closing it. «✓» keeps the text; an empty one is dropped, because an
+    // invisible layer on the canvas is junk nobody can find again. «×» puts the
+    // snapshot back — and drops a layer that was created empty in this session.
+    val closeTextEditor: (Boolean) -> Unit = { keep ->
+        val layer = editingText
+        val snapshot = editingTextSnapshot
+        if (layer != null) {
+            val restore = !keep && snapshot != null && snapshot.text.isNotEmpty()
+            when {
+                keep && layer.text.isEmpty() -> viewModel.applyAction(layer.id, CanvasAction.Delete)
+
+                restore && snapshot != null -> viewModel.editText(layer.id) {
+                    it.copy(
+                        text = snapshot.text,
+                        fontId = snapshot.fontId,
+                        fontSizePx = snapshot.fontSizePx,
+                        colorArgb = snapshot.colorArgb,
+                        align = snapshot.align,
+                        widthPx = snapshot.widthPx,
+                    )
+                }
+
+                !keep -> viewModel.applyAction(layer.id, CanvasAction.Delete)
+            }
+        }
+        editingTextId = null
+        editingTextSnapshot = null
+    }
+
+    // The mockup's rule for the raised keyboard: the active text ends at least
+    // 40 dp above the panel. The panel is in the layout already, so this is
+    // comfort, not correctness — the text can never end up under it.
+    LaunchedEffect(editingTextId, editingTextBox, canvasViewport.height) {
+        val layer = editingText ?: return@LaunchedEffect
+        val box = editingTextBox ?: return@LaunchedEffect
+        if (canvasViewport.height <= 0) return@LaunchedEffect
+        val heightPx = box.height * canvasDensity
+        val centreY = layer.transform.y + canvasOffset.y + heightPx / 2f
+        val bottom = centreY + heightPx * layer.transform.scale * canvasScale / 2f
+        val limit = canvasViewport.height - 40.dp.value * canvasDensity
+        if (bottom > limit) canvasOffset = canvasOffset.copy(y = canvasOffset.y - (bottom - limit))
+    }
     val params by viewModel.params.collectAsState()
     var showModelSheet by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
@@ -313,63 +378,81 @@ fun MediaStudioScreenFull(
         containerColor = MaterialTheme.colorScheme.surface,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-                if (references.isNotEmpty()) {
-                    ReferenceStrip(
-                        references = references,
-                        onRemoveReference = viewModel::removeReference,
-                        onAddReference = { referencePicker.launch() },
+            if (editingText != null) {
+                // The formatting panel is part of the layout, not an overlay, and
+                // it rides above the IME (`imePadding`): with the keyboard up the
+                // canvas keeps the rest of the screen and the text being typed
+                // cannot end up under the toolbar.
+                MediaTextPanel(
+                    layer = editingText,
+                    onTextChange = { value -> viewModel.editText(editingText.id) { it.copy(text = value) } },
+                    onFont = { fontId -> viewModel.editText(editingText.id) { it.copy(fontId = fontId) } },
+                    onSize = { size -> viewModel.editText(editingText.id) { it.copy(fontSizePx = size) } },
+                    onColor = { argb -> viewModel.editText(editingText.id) { it.copy(colorArgb = argb) } },
+                    onAlign = { align -> viewModel.editText(editingText.id) { it.copy(align = align) } },
+                    onDone = { closeTextEditor(true) },
+                    onCancel = { closeTextEditor(false) },
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp).imePadding(),
+                )
+            } else {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    if (references.isNotEmpty()) {
+                        ReferenceStrip(
+                            references = references,
+                            onRemoveReference = viewModel::removeReference,
+                            onAddReference = { referencePicker.launch() },
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                        // Honest reference support: the model declares `mode` but no
+                        // route of its own family, so the request carries no mode and
+                        // the provider default applies (see MediaModeOptions.kt).
+                        if (currentModel != null && currentModel.modeHasNoReferenceRoute()) {
+                            Text(
+                                text = "Модель ${currentModel.id} не переключается в режим референса — запрос уйдёт без него",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                            )
+                        }
+                    }
+                    // Layers live under the canvas: collapsed it is a 58 dp strip,
+                    // open it lists the stack and the canvas keeps the rest.
+                    MediaLayersPanel(
+                        layers = elements,
+                        selectedId = selectedId,
+                        expanded = layersPanelOpen,
+                        onToggleExpanded = { viewModel.setLayersPanelOpen(!layersPanelOpen) },
+                        onSelect = { id -> viewModel.select(id) },
+                        onReorder = viewModel::reorderLayer,
+                        onVisibility = viewModel::setLayerVisible,
+                        onOpacity = viewModel::setLayerOpacity,
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
-                    // Honest reference support: the model declares `mode` but no
-                    // route of its own family, so the request carries no mode and
-                    // the provider default applies (see MediaModeOptions.kt).
-                    if (currentModel != null && currentModel.modeHasNoReferenceRoute()) {
-                        Text(
-                            text = "Модель ${currentModel.id} не переключается в режим референса — запрос уйдёт без него",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
-                        )
-                    }
-                }
-                // Layers live under the canvas: collapsed it is a 58 dp strip,
-                // open it lists the stack and the canvas keeps the rest.
-                MediaLayersPanel(
-                    layers = elements,
-                    selectedId = selectedId,
-                    expanded = layersPanelOpen,
-                    onToggleExpanded = { viewModel.setLayersPanelOpen(!layersPanelOpen) },
-                    onSelect = { id -> viewModel.select(id) },
-                    onReorder = viewModel::reorderLayer,
-                    onVisibility = viewModel::setLayerVisible,
-                    onOpacity = viewModel::setLayerOpacity,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-                MediaDock(
-                    prompt = prompt,
-                    onPromptChange = { viewModel.setDraft(mode, audioFlow, it) },
-                    placeholder = dockPlaceholder,
-                    isBusy = isStarting || isLocalBusy || pending.isNotEmpty(),
-                    isEnhancing = isEnhancing,
-                    onCreate = {
-                        if (prompt.isBlank()) {
-                            scope.launch { snackbarHostState.showSnackbar("Опиши, что нужно сгенерировать") }
-                        } else {
-                            when (mode) {
-                                MediaMode.Image -> viewModel.generateImage(prompt, params)
-                                MediaMode.Video -> viewModel.generateVideo(prompt, params)
-                                MediaMode.Audio -> viewModel.generateAudio(prompt, params)
+                    MediaDock(
+                        prompt = prompt,
+                        onPromptChange = { viewModel.setDraft(mode, audioFlow, it) },
+                        placeholder = dockPlaceholder,
+                        isBusy = isStarting || isLocalBusy || pending.isNotEmpty(),
+                        isEnhancing = isEnhancing,
+                        onCreate = {
+                            if (prompt.isBlank()) {
+                                scope.launch { snackbarHostState.showSnackbar("Опиши, что нужно сгенерировать") }
+                            } else {
+                                when (mode) {
+                                    MediaMode.Image -> viewModel.generateImage(prompt, params)
+                                    MediaMode.Video -> viewModel.generateVideo(prompt, params)
+                                    MediaMode.Audio -> viewModel.generateAudio(prompt, params)
+                                }
                             }
-                        }
-                    },
-                    onEnhancePrompt = {
-                        viewModel.enhancePrompt(prompt) { viewModel.setDraft(mode, audioFlow, it) }
-                    },
-                    onExpand = { showExpandedPrompt = true },
-                    createEnabled = !overLimit,
-                    overLimitNote = if (overLimit) "Лимит модели: $promptLimit символов" else null,
-                )
+                        },
+                        onEnhancePrompt = {
+                            viewModel.enhancePrompt(prompt) { viewModel.setDraft(mode, audioFlow, it) }
+                        },
+                        onExpand = { showExpandedPrompt = true },
+                        createEnabled = !overLimit,
+                        overLimitNote = if (overLimit) "Лимит модели: $promptLimit символов" else null,
+                    )
+                }
             }
         },
     ) { innerPadding ->
@@ -386,6 +469,9 @@ fun MediaStudioScreenFull(
                 },
                 onTapBackground = {
                     viewModel.select(null)
+                    // A tap on the empty canvas is also «I am done typing».
+                    editingTextId = null
+                    editingTextSnapshot = null
                 },
                 onRecenter = {
                     canvasScale = 1f
@@ -393,6 +479,17 @@ fun MediaStudioScreenFull(
                 },
                 onSelect = { id ->
                     viewModel.select(id)
+                    // Selecting anything else closes the editor.
+                    if (editingTextId != id) {
+                        editingTextId = null
+                        editingTextSnapshot = null
+                    }
+                },
+                onEditText = openTextEditor,
+                onTextWidth = { id, factor ->
+                    viewModel.editText(id) {
+                        it.copy(widthPx = (it.widthPx * factor).coerceIn(MIN_TEXT_WIDTH, MAX_TEXT_WIDTH))
+                    }
                 },
                 onMove = viewModel::move,
                 onRotate = viewModel::rotate,
@@ -410,6 +507,9 @@ fun MediaStudioScreenFull(
                 onMakeClip = { element -> clipTrackElement = element },
                 onEditImage = { element -> editImageElement = element },
                 onEditVideo = { element -> editVideoElement = element },
+                // The visible canvas size: the text tool centres a new layer in
+                // it, and the editor pans the active text above the panel.
+                modifier = Modifier.fillMaxSize().onSizeChanged { canvasViewport = it },
                 draw = if (drawMode) {
                     DrawSurface(
                         tool = drawTool,
@@ -439,6 +539,15 @@ fun MediaStudioScreenFull(
                     // Draw mode, not a dialog: the same canvas, the ink on top.
                     viewModel.beginDrawSession()
                     drawMode = true
+                },
+                onAddText = {
+                    // The new layer's box lands in the middle of the visible
+                    // canvas: positions are canvas px, sizes canvas units.
+                    val probe = newTextLayer("probe", 0f, 0f)
+                    val box = canvasLayerBox(probe, null, textMeasurer, canvasFonts)
+                    val x = canvasViewport.width / 2f - canvasOffset.x - box.width * canvasDensity / 2f
+                    val y = canvasViewport.height / 2f - canvasOffset.y - box.height * canvasDensity / 2f
+                    openTextEditor(viewModel.addTextLayer(x, y))
                 },
                 onOpenModels = { showModelSheet = true },
                 onOpenHistory = { showHistory = true },

@@ -34,6 +34,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.RotateLeft
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -67,6 +70,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
@@ -78,7 +82,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -87,9 +93,6 @@ import com.pusios.pots.media.MediaJobState
 import com.pusios.pots.media.videoEditingPlatformSupported
 import com.pusios.pots.ui.handCursor
 import kotlin.math.roundToInt
-
-/** Key of the system family in the renderer's font map; no custom font ships yet. */
-private const val CANVAS_DEFAULT_FONT = "default"
 
 /**
  * The card shape every pass shares: the renderer's rounded fill, the overlay
@@ -146,14 +149,19 @@ internal fun MediaCanvas(
     onMakeClip: (AudioLayer) -> Unit,
     onEditImage: (ImageLayer) -> Unit,
     onEditVideo: (VideoLayer) -> Unit,
+    /** A tap on a text layer opens the text editor (the card's rule: tap = edit). */
+    onEditText: (TextLayer) -> Unit = {},
+    /** Width factor of a text layer's box, from the «уже»/«шире» chips. */
+    onTextWidth: (String, Float) -> Unit = { _, _ -> },
     /** Non-null while the draw mode is on: the active tool and where its strokes go. */
     draw: DrawSurface? = null,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current.density
     // Font() is @Composable, so families are resolved here and handed to the
-    // renderer; it cannot load one itself. Text layers are the next card.
-    val fonts = remember { mapOf(CANVAS_DEFAULT_FONT to FontFamily.Default) }
+    // renderer; it cannot load one itself.
+    val fonts = rememberCanvasFonts()
+    val measurer = rememberTextMeasurer()
     val frames = remember { mutableStateMapOf<String, Painter>() }
     val cardColor = MaterialTheme.colorScheme.surfaceVariant
     LayerFrames(layers, frames)
@@ -224,7 +232,7 @@ internal fun MediaCanvas(
         // layer does not darken a lower layer's frame — the shadow-only delta
         // of this split, no content moves. Hidden layers are not composed at
         // all: no shadow, no frame, no hit target.
-        LayerCardShadows(visibleLayers, canvasScale, canvasOffset, frames)
+        LayerCardShadows(visibleLayers, canvasScale, canvasOffset, frames, measurer, fonts)
 
         Canvas(Modifier.fillMaxSize()) {
             withTransform({ translate(canvasOffset.x, canvasOffset.y) }) {
@@ -232,7 +240,7 @@ internal fun MediaCanvas(
                     layers = visibleLayers,
                     scale = density,
                     fonts = fonts,
-                    measurer = null,
+                    measurer = measurer,
                     frames = frames,
                     strokePaths = strokePaths,
                     cardBackground = cardColor,
@@ -269,6 +277,7 @@ internal fun MediaCanvas(
         visibleLayers.forEach { layer ->
             CanvasLayerOverlay(
                 layer = layer,
+                box = canvasLayerBox(layer, frames[layer.id], measurer, fonts),
                 // Draw mode shows no selection: the finger inks, and a border
                 // left over from before would read as a target to hit.
                 selected = draw == null && layer.id == selectedId,
@@ -277,6 +286,8 @@ internal fun MediaCanvas(
                 frame = frames[layer.id],
                 interactive = draw == null,
                 onSelect = { onSelect(layer.id) },
+                onEditText = onEditText,
+                onTextWidth = onTextWidth,
                 onMove = onMove,
                 onRotate = onRotate,
                 onScale = onScale,
@@ -434,8 +445,9 @@ private fun LayerCardShadows(
     canvasScale: Float,
     canvasOffset: Offset,
     frames: Map<String, Painter>,
+    measurer: TextMeasurer,
+    fonts: Map<String, FontFamily>,
 ) {
-    val density = LocalDensity.current.density
     layers.forEach { layer ->
         if (!layer.transform.visible) return@forEach
         // Only the kinds that own a card get a shadow: the renderer draws one
@@ -443,14 +455,19 @@ private fun LayerCardShadows(
         // arrows draw no card here, and a shadow without a card is a grey
         // smudge on the canvas.
         if (layer is TextLayer || layer is StrokeLayer || layer is ArrowLayer) return@forEach
-        Box(Modifier.layerBox(layer, canvasScale, canvasOffset, frames[layer.id], density).shadow(6.dp, CanvasCardShape))
+        Box(
+            Modifier
+                .layerBox(layer, canvasLayerBox(layer, frames[layer.id], measurer, fonts), canvasScale, canvasOffset)
+                .shadow(6.dp, CanvasCardShape),
+        )
     }
 }
 
 /**
  * The geometry every pass shares with the old composable element: offset by the
- * layer position plus the canvas pan (px), 232.dp wide, height from the source
- * aspect, then scale/rotate/alpha around the layout centre.
+ * layer position plus the canvas pan (px), the layer's box (canvas units — a
+ * card is 232.dp wide, a text layer is its measured box, a stroke's is its
+ * bbox), then scale/rotate/alpha around the layout centre.
  *
  * A stroke's own offset is in canvas units, like its points and its thickness;
  * every other layer's position is in px. [density] is what turns one into the
@@ -458,10 +475,9 @@ private fun LayerCardShadows(
  */
 private fun Modifier.layerBox(
     layer: CanvasLayer,
+    box: Size,
     canvasScale: Float,
     canvasOffset: Offset,
-    frame: Painter?,
-    density: Float,
 ): Modifier = this
     .offset {
         val unit = if (layer is StrokeLayer) density else 1f
@@ -470,8 +486,8 @@ private fun Modifier.layerBox(
             (layer.transform.y * unit + canvasOffset.y).roundToInt(),
         )
     }
-    .width(CANVAS_ELEMENT_SIZE_DP.dp)
-    .height(canvasLayerHeightDp(layer, frame).dp)
+    .width(box.width.dp)
+    .height(box.height.dp)
     .graphicsLayer(
         scaleX = layer.transform.scale * canvasScale,
         scaleY = layer.transform.scale * canvasScale,
@@ -484,6 +500,7 @@ private fun Modifier.layerBox(
 @Composable
 private fun CanvasLayerOverlay(
     layer: CanvasLayer,
+    box: Size,
     selected: Boolean,
     canvasScale: Float,
     canvasOffset: Offset,
@@ -491,6 +508,8 @@ private fun CanvasLayerOverlay(
     /** False while the draw mode is on: the finger inks, it does not select or drag. */
     interactive: Boolean,
     onSelect: () -> Unit,
+    onEditText: (TextLayer) -> Unit,
+    onTextWidth: (String, Float) -> Unit,
     onMove: (String, Float, Float) -> Unit,
     onRotate: (String, Float) -> Unit,
     onScale: (String, Float) -> Unit,
@@ -502,9 +521,8 @@ private fun CanvasLayerOverlay(
     onEditImage: (ImageLayer) -> Unit,
     onEditVideo: (VideoLayer) -> Unit,
 ) {
-    // The caller filters hidden layers out (`visibleLayers`); the guard stays as
-    // a second belt: a hidden layer is not composited, so it cannot be drawn and
-    // cannot take a tap.
+    // A hidden layer keeps its data and its place in the draw order; it just
+    // is not composited.
     if (!layer.transform.visible) return
     val density = LocalDensity.current.density
     val media = layer as? MediaLayer
@@ -512,7 +530,7 @@ private fun CanvasLayerOverlay(
     val local = media?.localPath
     Box(
         Modifier
-            .layerBox(layer, canvasScale, canvasOffset, frame, density)
+            .layerBox(layer, box, canvasScale, canvasOffset)
             .then(
                 // The renderer paints the card fill and clips the frame to the
                 // card, so the composable overlay must not paint outside it.
@@ -559,7 +577,12 @@ private fun CanvasLayerOverlay(
                                 is ArrowLayer -> "Стрелка"
                             }
                         }
-                        .clickable(role = Role.Button, onClick = onSelect)
+                        // Tap = select, except for a text layer: a tap on it
+                        // opens the editor (the card's rule — the caret lives
+                        // in the input field).
+                        .clickable(role = Role.Button) {
+                            if (layer is TextLayer) onEditText(layer) else onSelect()
+                        }
                 },
             ),
     ) {
@@ -581,9 +604,10 @@ private fun CanvasLayerOverlay(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // Frames are painted by the renderer; text and arrows are the next
-            // cards. Strokes are painted by the renderer too — nothing to
-            // compose here, the overlay only carries the box and the chips.
+            // Frames are painted by the renderer; text and strokes too (text is
+            // measured there with the same TextMeasurer this overlay boxes it
+            // with). Arrows are the next card. Nothing to compose here — the
+            // overlay only carries the box, the ring and the chips.
             is ImageLayer, is TextLayer, is StrokeLayer, is ArrowLayer -> Unit
         }
 
@@ -620,7 +644,20 @@ private fun CanvasLayerOverlay(
                             ElementChip(Icons.AutoMirrored.Filled.RotateRight, "Повернуть вправо") { onRotate(layer.id, 15f) }
                             ElementChip(Icons.Filled.Remove, "Уменьшить") { onScale(layer.id, 0.85f) }
                             ElementChip(Icons.Filled.Add, "Увеличить") { onScale(layer.id, 1.2f) }
-                            ElementChip(Icons.Filled.Fullscreen, "Открыть на весь экран") { media?.let(onOpenLightbox) }
+                            // A text layer has no frame to open in the lightbox.
+                            if (media != null) {
+                                ElementChip(Icons.Filled.Fullscreen, "Открыть на весь экран") { onOpenLightbox(media) }
+                            }
+                        }
+                        if (layer is TextLayer) {
+                            // The box width is the wrapping width, so it is a
+                            // control of its own: scale would move the text,
+                            // narrowing it re-wraps.
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                ElementChip(Icons.Filled.Edit, "Изменить текст") { onEditText(layer) }
+                                ElementChip(Icons.Filled.ArrowBack, "Уже") { onTextWidth(layer.id, 0.85f) }
+                                ElementChip(Icons.Filled.ArrowForward, "Шире") { onTextWidth(layer.id, 1.2f) }
+                            }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (layer is ImageLayer) {
