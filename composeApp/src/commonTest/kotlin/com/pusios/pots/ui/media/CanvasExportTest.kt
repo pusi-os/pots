@@ -1,12 +1,12 @@
 package com.pusios.pots.ui.media
 
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toArgb
@@ -351,70 +351,58 @@ class CanvasExportTest {
     }
 
     @Test
-    fun theDraggedFrameIsBakedIntoTheModelPicture() = runTest {
-        val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
-        val frames = mapOf("one" to BitmapPainter(red))
-        val frame = Rect(40f, 40f, 180f, 180f)
+    fun theZoneCropIsTheScreenRectangleAtAnyZoomAndPan() = runTest {
+        // A frame baked into the canvas cannot be right at zoom ≠ 1: cards grow
+        // around their centre while ink grows from the origin, so no single
+        // rectangle describes the zone in the renderer's space. The crop needs no
+        // such math — it *is* the screen rectangle the finger dragged — and this
+        // test pins that at zoom 2 with a non-zero pan: the file is the drag's
+        // own size, and every pixel in it is the screen pixel under the finger.
+        val density = 1f
+        val redCard = ImageLayer(id = "red", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
+        val greenCard = ImageLayer(id = "green", transform = LayerTransform(x = 300f, y = 0f), aspectRatio = 1f)
+        // The red card is drawn last, so it covers the green one up to its own
+        // right edge and the crop straddles the boundary.
+        val layers = listOf(greenCard, redCard)
+        val frames = mapOf("red" to BitmapPainter(red), "green" to BitmapPainter(green))
+        val region = ExportScope.Region(
+            left = 350f,
+            top = 100f,
+            right = 550f,
+            bottom = 250f,
+            panX = 100f,
+            panY = 50f,
+            zoom = 2f,
+        )
 
-        // Without a frame there is no amber at all: the model path's annotation
-        // is what the user drew, nothing else.
-        val plain = render(listOf(layer), ExportScope.Whole, frames, includeAnnotation = true)
-        assertNotNull(plain)
-        assertNull(plain.frameBounds(), "no frame asked for — no frame drawn")
-
-        val model = render(listOf(layer), ExportScope.Whole, frames, includeAnnotation = true, frame = frame)
-        assertNotNull(model)
-        val ink = assertNotNull(model.frameBounds(), "the dragged frame must be in the picture")
-
-        // Content is 0…232 with 24 px of padding, so the frame at 40…180 lands
-        // at 64…204 in the file. The line is 2 px wide and sits on the edge.
-        assertTrue(abs(ink.left - 64) <= 2, "frame left ${ink.left}")
-        assertTrue(abs(ink.top - 64) <= 2, "frame top ${ink.top}")
-        assertTrue(abs(ink.right - 204) <= 2, "frame right ${ink.right}")
-        assertTrue(abs(ink.bottom - 204) <= 2, "frame bottom ${ink.bottom}")
-        // …and the inside is untouched: the model sees a frame, not a filled box.
-        assertEquals(Color.Red, model.colorAt(140, 140))
-        assertTrue(!isFrameColor(model.colorAt(140, 140)), "the frame must not fill its inside")
-    }
-
-    @Test
-    fun aFrameOutsideTheContentStillLandsInThePicture() = runTest {
-        val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
-        val frames = mapOf("one" to BitmapPainter(red))
-        // The user framed the empty part of the screen: a canvas sized from the
-        // layers alone would cut the frame off and «зона обведена» would point
-        // at nothing.
-        val far = Rect(400f, 400f, 500f, 500f)
-
-        val bitmap = render(listOf(layer), ExportScope.Whole, frames, includeAnnotation = true, frame = far)
-        assertNotNull(bitmap)
-        // Content 0…232 ∪ frame 400…500, plus 24 px of padding on each side.
-        assertEquals(548, bitmap.width)
-        assertEquals(548, bitmap.height)
-        val ink = assertNotNull(bitmap.frameBounds(), "the frame is in the picture")
-        assertTrue(abs(ink.left - 424) <= 2, "frame left ${ink.left}")
-        assertTrue(abs(ink.right - 524) <= 2, "frame right ${ink.right}")
-    }
-
-    @Test
-    fun theZoneCropCarriesNoFrameOfItsOwn() = runTest {
-        val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
-        val frames = mapOf("one" to BitmapPainter(red))
-        val region = ExportScope.Region(left = 0f, top = 0f, right = 100f, bottom = 100f)
-
-        // The canvas fragment carries the frame, so the model can see where the
-        // zone is…
-        val canvas = render(listOf(layer), ExportScope.Whole, frames, includeAnnotation = true, frame = region.toRect())
-        assertNotNull(canvas)
-        assertNotNull(canvas.frameBounds(), "the whole-canvas picture marks the zone")
-
-        // …while the crop is exactly the frame's inside: a line on its edge
-        // would be litter in the fragment the model is asked to edit.
-        val crop = render(listOf(layer), region, frames, includeAnnotation = true, frame = null)
+        val crop = render(layers, region, frames, density = density)
         assertNotNull(crop)
-        assertEquals(100, crop.width)
-        assertEquals(100, crop.height)
-        assertNull(crop.frameBounds(), "the crop must not contain the frame colour")
+        // The drag, not the drag scaled by the zoom.
+        assertEquals(200, crop.width)
+        assertEquals(150, crop.height)
+
+        val screen = renderScreen(
+            layers = layers,
+            frames = frames,
+            density = density,
+            width = 700,
+            height = 500,
+            pan = Offset(100f, 50f),
+            zoom = 2f,
+        )
+        var mismatches = 0
+        val cropPixels = crop.toPixelMap()
+        val screenPixels = screen.toPixelMap()
+        for (y in 0 until crop.height) {
+            for (x in 0 until crop.width) {
+                if (cropPixels[x, y] != screenPixels[350 + x, 100 + y]) mismatches++
+            }
+        }
+        assertEquals(0, mismatches, "the crop must be the screen pixels under the drag")
+        // Both cards are in the fragment, so the comparison above is not a
+        // uniform fill that any transform would satisfy.
+        assertEquals(Color.Red, cropPixels[10, 10])
+        assertEquals(Color.Green, cropPixels[190, 10])
     }
 
     @Test
@@ -446,7 +434,6 @@ class CanvasExportTest {
         frames: Map<String, Painter>,
         background: Color? = null,
         includeAnnotation: Boolean = false,
-        frame: Rect? = null,
         measurer: TextMeasurer? = null,
         fonts: Map<String, FontFamily> = emptyMap(),
         density: Float = 1f,
@@ -455,7 +442,6 @@ class CanvasExportTest {
         scope = scope,
         includeAnnotation = includeAnnotation,
         background = background,
-        frame = frame,
         frames = frames,
         fonts = fonts,
         measurer = measurer,
@@ -464,8 +450,8 @@ class CanvasExportTest {
 
     /**
      * The screen's own pass: the same [renderLayers] the canvas calls, at the
-     * display density, into a bitmap of the viewport. The reference the export
-     * is compared against.
+     * display density, into a bitmap of the viewport, with the pan and zoom the
+     * user was looking through. The reference the export is compared against.
      */
     private fun renderScreen(
         layers: List<CanvasLayer>,
@@ -473,6 +459,8 @@ class CanvasExportTest {
         density: Float,
         width: Int,
         height: Int,
+        pan: Offset = Offset.Zero,
+        zoom: Float = 1f,
     ): ImageBitmap {
         val bitmap = ImageBitmap(width, height)
         CanvasDrawScope().draw(
@@ -481,7 +469,9 @@ class CanvasExportTest {
             canvas = Canvas(bitmap),
             size = Size(width.toFloat(), height.toFloat()),
         ) {
-            renderLayers(layers = layers, scale = density, frames = frames, zoom = 1f)
+            withTransform({ translate(pan.x, pan.y) }) {
+                renderLayers(layers = layers, scale = density, frames = frames, zoom = zoom)
+            }
         }
         return bitmap
     }
@@ -512,33 +502,6 @@ class CanvasExportTest {
     }
 
     private fun ImageBitmap.colorAt(x: Int, y: Int): Color = toPixelMap()[x, y]
-
-    /** True when the pixel is the amber the frame is drawn in (antialiasing aside). */
-    private fun isFrameColor(pixel: Color): Boolean {
-        val frame = CANVAS_PROMPT_FRAME_COLOR
-        return abs(pixel.red - frame.red) <= 0.03f &&
-            abs(pixel.green - frame.green) <= 0.03f &&
-            abs(pixel.blue - frame.blue) <= 0.03f
-    }
-
-    /** The box of the frame's amber pixels, or null when the picture has none. */
-    private fun ImageBitmap.frameBounds(): InkBounds? {
-        val pixels = toPixelMap()
-        var left = width
-        var top = height
-        var right = -1
-        var bottom = -1
-        for (y in 0 until height) {
-            for (x in 0 until width) {
-                if (!isFrameColor(pixels[x, y])) continue
-                if (x < left) left = x
-                if (x > right) right = x
-                if (y < top) top = y
-                if (y > bottom) bottom = y
-            }
-        }
-        return if (right < 0) null else InkBounds(left, top, right, bottom)
-    }
 
     private fun solid(width: Int, height: Int, color: Color): ImageBitmap {
         val bitmap = ImageBitmap(width, height)

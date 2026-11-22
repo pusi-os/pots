@@ -45,7 +45,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.pusios.pots.media.MediaModel
@@ -56,17 +55,21 @@ import kotlinx.coroutines.withContext
 /**
  * «Спросить модель по канвасу»: the request screen.
  *
- * What it shows is what it sends. Both previews are the very bitmaps
+ * What it shows is what it sends. The preview is the very bitmap
  * [renderCanvas] produced at the size the model will receive, with the
- * annotation included (the arrows and strokes the user drew, plus the dragged
- * frame baked in amber) and an opaque background — models read transparency
- * badly. The line under them spells out the arity: «Уйдёт: канвас 1280×720 +
- * зона 300×200», or the honest version of it when the selected model takes one
- * picture per request and the zone can only be framed on the canvas and named
- * in the text.
+ * annotation included (the arrows and strokes the user drew) and an opaque
+ * background — models read transparency badly. Nothing is drawn around the
+ * dragged zone: at any zoom but 1 a baked frame lands in the wrong place (cards
+ * grow around their centre, ink from the origin), so the zone travels as its
+ * own crop, which carries the pan and zoom it was dragged at.
  *
- * Rendering runs off the main thread inside [renderCanvas]; the dialog holds at
- * most two bitmaps and drops them when it closes.
+ * The line under the preview spells out the arity: «Уйдёт: канвас 1280×720 +
+ * зона 300×200», «Уйдёт: канвас 1280×720», or «Уйдёт: фрагмент 300×200» when
+ * the model takes one picture and the zone is therefore what it gets.
+ *
+ * Rendering runs off the main thread inside [renderCanvas], and only the
+ * pictures that will actually travel are encoded; the dialog holds at most two
+ * bitmaps and drops them when it closes.
  */
 @Composable
 internal fun MediaCanvasPromptDialog(
@@ -97,52 +100,57 @@ internal fun MediaCanvasPromptDialog(
         framesReady = true
     }
 
-    LaunchedEffect(frames, framesReady, region, layers, density) {
+    val support = canvasPromptSupport(model)
+    val limit = (support as? CanvasPromptSupport.Ready)?.limit ?: 0
+    // Decided before anything is rendered: only the pictures that travel are
+    // encoded. On a one-picture model the whole canvas is seconds of work for a
+    // file that would never leave the device.
+    val images = canvasPromptImages(limit, hasZone = region != null)
+
+    LaunchedEffect(frames, framesReady, region, layers, density, images) {
         if (!framesReady) return@LaunchedEffect
         rendering = true
         canvas = null
         zone = null
         // The model path, not the gallery one: annotation in, transparency out.
-        // The dragged frame rides along as amber ink, so «зона обведена» is
-        // something the model can actually see.
-        canvas = renderCanvas(
-            layers = layers,
-            scope = ExportScope.Whole,
-            includeAnnotation = true,
-            background = EXPORT_DARK_BACKGROUND,
-            frame = region?.toRect(),
-            frames = frames,
-            fonts = fonts,
-            measurer = measurer,
-            density = density,
-        )
-        zone = region?.let { framed ->
-            renderCanvas(
+        if (images.canvas) {
+            canvas = renderCanvas(
                 layers = layers,
-                scope = framed,
+                scope = ExportScope.Whole,
                 includeAnnotation = true,
                 background = EXPORT_DARK_BACKGROUND,
-                // No frame here: this bitmap *is* the frame's inside, and a
-                // line drawn on its edge would be litter in the crop.
-                frame = null,
                 frames = frames,
                 fonts = fonts,
                 measurer = measurer,
                 density = density,
             )
         }
+        // The crop carries the pan and the zoom it was dragged at, so it is the
+        // zone the finger saw at any zoom — no frame, no coordinate math.
+        if (images.zone) {
+            zone = region?.let { dragged ->
+                renderCanvas(
+                    layers = layers,
+                    scope = dragged,
+                    includeAnnotation = true,
+                    background = EXPORT_DARK_BACKGROUND,
+                    frames = frames,
+                    fonts = fonts,
+                    measurer = measurer,
+                    density = density,
+                )
+            }
+        }
         rendering = false
     }
 
-    val zoneSize = zone?.let { IntSize(it.width, it.height) }
-    val support = canvasPromptSupport(model)
-    val limit = (support as? CanvasPromptSupport.Ready)?.limit ?: 0
-    val images = canvasPromptImages(limit, hasZone = zoneSize != null)
     val refusal = canvasPromptRefusal(support, model)
+    val attachedCanvas = canvas.takeIf { images.canvas }
+    val attachedZone = zone.takeIf { images.zone }
     val send = canvasPromptSend(
         refusal = refusal,
         instruction = instruction,
-        canvasReady = canvas != null && !rendering,
+        canvasReady = !rendering && (attachedCanvas != null || attachedZone != null),
         preparing = preparing,
     )
 
@@ -173,7 +181,9 @@ internal fun MediaCanvasPromptDialog(
                 )
                 Spacer(Modifier.height(12.dp))
 
-                // The preview *is* the picture that will be sent.
+                // The preview *is* the picture that will be sent: the annotated
+                // canvas when it travels, the zone's crop when the model takes
+                // one picture and the zone is what it gets.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -182,11 +192,11 @@ internal fun MediaCanvasPromptDialog(
                         .background(EXPORT_DARK_BACKGROUND, RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    val preview = canvas
+                    val preview = attachedCanvas ?: attachedZone
                     when {
                         preview != null -> Image(
                             bitmap = preview,
-                            contentDescription = "Канвас с разметкой, как он уйдёт в модель",
+                            contentDescription = "Картинка, как она уйдёт в модель",
                             contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize().padding(6.dp),
                         )
@@ -202,12 +212,12 @@ internal fun MediaCanvasPromptDialog(
                     }
                 }
 
-                val framed = zone
-                if (framed != null) {
+                // The zone beside the canvas, when both travel.
+                if (attachedCanvas != null && attachedZone != null) {
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
-                            bitmap = framed,
+                            bitmap = attachedZone,
                             contentDescription = "Зона правки",
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
@@ -216,7 +226,7 @@ internal fun MediaCanvasPromptDialog(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Зона правки " + framed.width + "×" + framed.height,
+                            "Зона правки " + attachedZone.width + "×" + attachedZone.height,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -240,27 +250,21 @@ internal fun MediaCanvasPromptDialog(
                 )
                 Spacer(Modifier.height(10.dp))
 
-                // «Уйдёт: …» — the promise the request keeps. Numbers are the
-                // attached bitmaps' own sizes, not the frame's.
-                val attached = canvas
-                val attachedZone = zone
+                // «Уйдёт: …» — the promise the request keeps: exactly the
+                // attached bitmaps, by their own sizes.
                 Text(
                     text = when {
                         refusal != null -> refusal
 
-                        attached == null -> "Ничего не уйдёт: нечего рендерить"
+                        attachedCanvas != null && attachedZone != null ->
+                            "Уйдёт: канвас ${attachedCanvas.width}×${attachedCanvas.height} + зона ${attachedZone.width}×${attachedZone.height}"
 
-                        else -> buildString {
-                            append("Уйдёт: канвас ")
-                            append(attached.width).append("×").append(attached.height)
-                            when {
-                                images.zone && attachedZone != null ->
-                                    append(" + зона ").append(attachedZone.width).append("×").append(attachedZone.height)
+                        attachedCanvas != null -> "Уйдёт: канвас ${attachedCanvas.width}×${attachedCanvas.height}"
 
-                                images.zoneDescribedOnly ->
-                                    append(" — модель принимает одну картинку, зона обведена рамкой на канвасе")
-                            }
-                        }
+                        attachedZone != null ->
+                            "Уйдёт: фрагмент ${attachedZone.width}×${attachedZone.height} — модель принимает одну картинку, поэтому едет сама зона"
+
+                        else -> "Ничего не уйдёт: нечего рендерить"
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = if (refusal != null) {
@@ -285,13 +289,12 @@ internal fun MediaCanvasPromptDialog(
                         .height(48.dp)
                         .handCursor()
                         .clickable(enabled = send.enabled) {
-                            val picture = canvas ?: return@clickable
+                            if (attachedCanvas == null && attachedZone == null) return@clickable
                             onSend(
                                 CanvasPromptRequest(
                                     instruction = instruction,
-                                    canvas = picture,
-                                    zone = zone.takeIf { images.zone },
-                                    zoneSize = zoneSize,
+                                    canvas = attachedCanvas,
+                                    zone = attachedZone,
                                 ),
                             )
                         },

@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.media.MAX_INLINE_REFERENCE_BYTES
@@ -223,7 +222,6 @@ class MediaCanvasPromptWiringTest {
                     instruction = "убери подпись",
                     canvas = canvas,
                     zone = zone,
-                    zoneSize = IntSize(zone.width, zone.height),
                 ),
             ),
         )
@@ -244,25 +242,59 @@ class MediaCanvasPromptWiringTest {
     }
 
     @Test
-    fun aOnePictureModelGetsTheCanvasOnlyAndTheZoneIsDescribedInText() = runTest(testDispatcher) {
+    fun aOnePictureModelGetsTheZoneAloneWhenOneIsDragged() = runTest(testDispatcher) {
         val viewModel = newViewModel()
         runCurrent()
         viewModel.selectImageModel(ONE_PICTURE_MODEL)
         val canvas = canvasBitmap()
-        val zone = canvas
+        // A smaller zone, so the single reference can be told apart from the
+        // canvas by its size alone.
+        val zone = assertNotNull(
+            renderCanvas(
+                layers = listOf(ImageLayer(id = "card", transform = LayerTransform(), aspectRatio = 1f)),
+                scope = ExportScope.Region(left = 24f, top = 24f, right = 124f, bottom = 84f),
+                includeAnnotation = true,
+                background = EXPORT_DARK_BACKGROUND,
+                frames = mapOf("card" to BitmapPainter(solid(232, 232, Color.Red))),
+                density = 1f,
+            ),
+        )
 
         assertTrue(
             viewModel.askModelAboutCanvas(
-                CanvasPromptRequest("перекрась зону", canvas, zone = zone, zoneSize = IntSize(300, 200)),
+                CanvasPromptRequest("перекрась зону", canvas = canvas, zone = zone),
             ),
         )
         runCurrent()
 
-        assertEquals(1, viewModel.references.value.size, "a second picture would overwrite the canvas")
+        // One picture, and it is the zone: a second one would overwrite the
+        // first on a single-key model, and the canvas is not what was asked to
+        // change.
+        val reference = viewModel.references.value.single()
+        val grid = decodeImageToGrid(assertNotNull(readAppStorageBytes(assertNotNull(reference.localPath))))
+        assertEquals(zone.width, grid.width, "the zone's width, not the canvas's")
+        assertEquals(zone.height, grid.height)
+
         val request = assertNotNull(provider.submitted.single())
         assertEquals(1, request.references.size)
-        assertTrue(request.prompt.contains("обведена на канвасе"), request.prompt)
-        assertTrue(request.prompt.contains("300×200"), "the zone size survives in the text: ${request.prompt}")
+        assertTrue(request.prompt.contains("фрагмент канваса ${zone.width}×${zone.height}"), request.prompt)
+        assertTrue(!request.prompt.contains(canvas.width.toString() + "×" + canvas.height), "the canvas is not promised: ${request.prompt}")
+    }
+
+    @Test
+    fun aOnePictureModelWithoutAZoneGetsTheCanvas() = runTest(testDispatcher) {
+        val viewModel = newViewModel()
+        runCurrent()
+        viewModel.selectImageModel(ONE_PICTURE_MODEL)
+        val canvas = canvasBitmap()
+
+        assertTrue(viewModel.askModelAboutCanvas(CanvasPromptRequest("убери подпись", canvas = canvas)))
+        runCurrent()
+
+        val grid = decodeImageToGrid(assertNotNull(readAppStorageBytes(assertNotNull(viewModel.references.value.single().localPath))))
+        assertEquals(canvas.width, grid.width)
+        val request = assertNotNull(provider.submitted.single())
+        assertTrue(request.prompt.contains("Канвас приложен целиком"), request.prompt)
     }
 
     @Test

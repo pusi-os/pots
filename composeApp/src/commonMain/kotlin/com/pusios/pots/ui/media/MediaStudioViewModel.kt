@@ -1381,16 +1381,26 @@ class MediaStudioViewModel(
             return false
         }
         val limit = (support as CanvasPromptSupport.Ready).limit
-        val hasZone = request.zoneSize != null
-        val images = canvasPromptImages(limit, hasZone)
-        // Never hand a one-picture model a second picture: it would overwrite the
-        // canvas instead of adding to it. The zone stays drawn on the canvas.
+        val images = canvasPromptImages(limit, hasZone = request.zone != null)
+        // The screen sends only what travels; the same rule is applied once
+        // more here, so a caller that hands over both pictures on a one-picture
+        // model cannot slip a second one in — the provider would overwrite the
+        // first.
+        val canvas = request.canvas.takeIf { images.canvas }
         val zone = request.zone.takeIf { images.zone }
+        if (canvas == null && zone == null) {
+            _error.value = MediaStudioError(
+                "Нечего отправлять",
+                "В запросе нет картинки: отрисуйте канвас или выделите зону правки.",
+                MediaErrorCategory.Other,
+            )
+            return false
+        }
         val text = canvasPromptText(
             instruction = request.instruction,
-            canvas = IntSize(request.canvas.width, request.canvas.height),
+            canvas = canvas?.let { IntSize(it.width, it.height) },
             images = images,
-            zone = request.zoneSize,
+            zone = zone?.let { IntSize(it.width, it.height) },
         )
         _isPreparingCanvasPrompt.value = true
         // The chips belong to the *mode's* model, so in Video they still hold
@@ -1402,7 +1412,7 @@ class MediaStudioViewModel(
             try {
                 val references = withContext(pixelDispatcher) {
                     buildList {
-                        canvasPromptReference(request.canvas)?.let { add(it) }
+                        canvas?.let { canvasPromptReference(it) }?.let { add(it) }
                         zone?.let { canvasPromptReference(it) }?.let { add(it) }
                     }
                 }
@@ -1413,8 +1423,8 @@ class MediaStudioViewModel(
                 _references.value = references
                 setDraft(MediaMode.Image, _audioFlow.value, text)
                 MediaLog.i(
-                    "Canvas prompt: ${references.size} picture(s), canvas=${request.canvas.width}x${request.canvas.height}, " +
-                        "zone=${zone != null}, model=${model?.id}",
+                    "Canvas prompt: ${references.size} picture(s), canvas=${canvas?.width}x${canvas?.height}, " +
+                        "zone=${zone?.width}x${zone?.height}, model=${model?.id}",
                 )
                 generateImage(text, opts)
             } finally {
