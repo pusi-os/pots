@@ -1,6 +1,7 @@
 package com.pusios.pots.media
 
 import com.pusios.pots.httpClient
+import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
@@ -42,9 +43,11 @@ import kotlin.uuid.Uuid
  */
 class AitunnelMediaProvider(
     private val baseUrl: String = "https://api.aitunnel.ru",
+    /** Test seam: a pre-built client (MockEngine) replaces the real one. */
+    clientOverride: HttpClient? = null,
 ) : MediaProvider {
 
-    private val client = httpClient {
+    private val client = clientOverride ?: httpClient {
         install(HttpTimeout) {
             // Sync images block up to 9 minutes provider-side; 504 after that
             // means no charge, so cutting the client earlier would waste a
@@ -60,8 +63,16 @@ class AitunnelMediaProvider(
     /** Catalog cache: kind and reference-capability decisions on submit. */
     private val modelsById = mutableMapOf<String, MediaModel>()
 
-    /** Results of sync image submissions wrapped into a pending job. */
+    /** Results of sync image submissions wrapped into a pending job; bounded like Polza's. */
     internal val localResults = mutableMapOf<String, MediaJobState>()
+
+    /** Keeps one sync-wrapped result; evicts the oldest past [LOCAL_RESULT_LIMIT]. */
+    private fun rememberLocalResult(jobId: String, state: MediaJobState) {
+        localResults[jobId] = state
+        while (localResults.size > LOCAL_RESULT_LIMIT) {
+            localResults.remove(localResults.keys.first())
+        }
+    }
 
     override suspend fun listModels(apiKey: String): List<MediaModel> {
         val models = buildList {
@@ -84,12 +95,15 @@ class AitunnelMediaProvider(
     }
 
     /**
-     * Parses `{images: {id: card}}` / `{videos: {id: card}}`. One drifted card
-     * drops itself, never the group.
+     * Parses a grouped catalog. The real `/public/aitunnel/models/images|videos`
+     * answers a **flat** `{id: card}` map — the `{images: …}` wrapper exists
+     * only on the combined `/public/aitunnel/models`, which this provider never
+     * calls. The wrapped form is still accepted first, so a shape drift cannot
+     * silently empty the picker. One drifted card drops itself, never the group.
      */
     internal fun parseCatalogGroup(body: String, group: String): List<MediaModel> {
         val root = json.parseToJsonElement(body).jsonObject
-        val cards = root[group] as? JsonObject ?: return emptyList()
+        val cards = (root[group] as? JsonObject) ?: root
         val kind = if (group == "videos") MediaKind.Video else MediaKind.Image
         return cards
             .mapNotNull { (id, value) ->
@@ -318,7 +332,7 @@ class AitunnelMediaProvider(
             priceRub = price,
             definitive = true,
         )
-        localResults[done.jobId] = done
+        rememberLocalResult(done.jobId, done)
         return MediaJobState(
             jobId = done.jobId,
             status = MediaJobStatus.Processing,
@@ -413,6 +427,15 @@ class AitunnelMediaProvider(
         val map = mutableMapOf<String, JsonElement>()
         map["model"] = JsonPrimitive(request.model)
         map["prompt"] = JsonPrimitive(request.prompt)
+        // Exact-pixel `size` is an alternative to resolution/aspect_ratio —
+        // combining them is documented as invalid.
+        val size = request.opts["size"]
+        if (size != null) {
+            map["size"] = JsonPrimitive(size)
+        } else {
+            request.opts["resolution"]?.let { map["resolution"] = JsonPrimitive(it) }
+            request.opts["aspect_ratio"]?.let { map["aspect_ratio"] = JsonPrimitive(it) }
+        }
         for ((key, value) in request.opts) {
             when (key) {
                 "n" -> value.toIntOrNull()?.let { map["n"] = JsonPrimitive(it) }
@@ -431,8 +454,15 @@ class AitunnelMediaProvider(
         map["model"] = JsonPrimitive(request.model)
         map["prompt"] = JsonPrimitive(request.prompt)
         request.opts["duration"]?.toIntOrNull()?.let { map["duration"] = JsonPrimitive(it) }
-        for (key in listOf("resolution", "aspect_ratio", "size")) {
-            request.opts[key]?.let { map[key] = JsonPrimitive(it) }
+        // `size` (exact WIDTHxHEIGHT) is the documented alternative to the
+        // resolution+aspect_ratio pair — sending both risks a 400.
+        val size = request.opts["size"]
+        if (size != null) {
+            map["size"] = JsonPrimitive(size)
+        } else {
+            for (key in listOf("resolution", "aspect_ratio")) {
+                request.opts[key]?.let { map[key] = JsonPrimitive(it) }
+            }
         }
         request.opts["seed"]?.toIntOrNull()?.let { map["seed"] = JsonPrimitive(it) }
         when (request.opts["generate_audio"]?.lowercase()) {
@@ -469,7 +499,10 @@ class AitunnelMediaProvider(
     private fun localJobId(): String = "aitunnel-local-" + Uuid.random().toString()
 
     companion object {
-        /** String image-body fields the docs list; numeric ones are handled separately. */
-        private val IMAGE_BODY_KEYS = setOf("resolution", "aspect_ratio", "size", "quality", "output_format", "background")
+        /** String image-body fields handled by the generic loop; `size`, `resolution` and `aspect_ratio` are mutually exclusive and set explicitly. */
+        private val IMAGE_BODY_KEYS = setOf("quality", "output_format", "background")
+
+        /** Sync-wrapped results kept for polling before the oldest is evicted. */
+        private const val LOCAL_RESULT_LIMIT = 64
     }
 }

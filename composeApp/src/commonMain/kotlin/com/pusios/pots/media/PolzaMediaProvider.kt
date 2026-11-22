@@ -1,6 +1,7 @@
 package com.pusios.pots.media
 
 import com.pusios.pots.httpClient
+import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
@@ -42,9 +43,11 @@ import kotlin.uuid.Uuid
  */
 class PolzaMediaProvider(
     private val baseUrl: String = "https://polza.ai/api",
+    /** Test seam: a pre-built client (MockEngine) replaces the real one. */
+    clientOverride: HttpClient? = null,
 ) : MediaProvider {
 
-    private val client = httpClient {
+    private val client = clientOverride ?: httpClient {
         install(HttpTimeout) {
             // The sync image path blocks up to 120 s provider-side; 180 s matches
             // PlusVibeMediaProvider and leaves room for slow CDNs.
@@ -62,9 +65,18 @@ class PolzaMediaProvider(
     /**
      * Results of sync submissions wrapped into a pending job (the contract
      * requires submitJob to return a non-terminal state with a jobId even when
-     * the provider answered with the finished result).
+     * the provider answered with the finished result). Bounded — jobs the app
+     * stopped polling for must not accumulate forever.
      */
     internal val localResults = mutableMapOf<String, MediaJobState>()
+
+    /** Keeps one sync-wrapped result; evicts the oldest past [LOCAL_RESULT_LIMIT]. */
+    private fun rememberLocalResult(jobId: String, state: MediaJobState) {
+        localResults[jobId] = state
+        while (localResults.size > LOCAL_RESULT_LIMIT) {
+            localResults.remove(localResults.keys.first())
+        }
+    }
 
     override suspend fun listModels(apiKey: String): List<MediaModel> {
         val models = buildList {
@@ -100,7 +112,9 @@ class PolzaMediaProvider(
                     .onFailure { MediaLog.w("Polza model ${obj["id"]} skipped: ${it.message}") }
                     .getOrNull()
             }
-            .filter { it.id.isNotBlank() && !it.priceUnavailable }
+            // The contract: all models in type=image|video are usable — a
+            // missing price never excludes a model from the picker.
+            .filter { it.id.isNotBlank() }
             .also { usable -> usable.forEach { modelsById[it.id] = it } }
     }
 
@@ -109,11 +123,18 @@ class PolzaMediaProvider(
         val kindRaw = obj["type"]?.jsonPrimitive?.contentOrNull ?: "image"
         val kind = MediaKind.Image.fromProviderId(kindRaw)
         if (kind != MediaKind.Image && kind != MediaKind.Video) return null
-        val parameters = obj["parameters"] as? JsonObject ?: JsonObject(emptyMap())
+        // The schema object lives in `top_provider.parameters`; the top-level
+        // `parameters` is sometimes just a list of key names (z-image et al).
+        val topProvider = obj["top_provider"] as? JsonObject
+        val parameters = (topProvider?.get("parameters") as? JsonObject)
+            ?: (obj["parameters"] as? JsonObject)
+            ?: JsonObject(emptyMap())
         val params = parseParams(parameters)
-        val pricing = (obj["top_provider"] as? JsonObject)?.get("pricing") as? JsonObject
+        val pricing = (topProvider?.get("pricing")) as? JsonObject
         val tiers = parseTiers(pricing)
         val unitParam = pricing?.get("unitParam")?.jsonPrimitive?.contentOrNull
+        val perRequest = pricing?.get("per_request")?.jsonPrimitive?.doubleOrNull
+        val perSecond = pricing?.get("video_per_second")?.jsonPrimitive?.doubleOrNull
         val inputModalities = ((obj["architecture"] as? JsonObject)?.get("input_modalities") as? JsonArray)
             .orEmpty()
             .mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
@@ -122,31 +143,41 @@ class PolzaMediaProvider(
         val tokenPriced = pricing != null && tiers.isEmpty() &&
             (pricing["prompt_per_million"] != null || pricing["image_output_per_million"] != null)
         val fromRub = tiers.mapNotNull { it.priceRub }.minOrNull()
+            ?: perRequest
+            ?: perSecond
         val promptLimit = ((parameters["prompt"] as? JsonObject)?.get("max_length") as? JsonPrimitive)?.intOrNull
         return MediaModel(
             id = id,
             kind = kind,
-            unit = when (unitParam) {
-                "duration" -> "за секунду"
-                "max_images" -> "за картинку"
+            unit = when {
+                unitParam == "duration" || perSecond != null -> "за секунду"
+                unitParam == "max_images" -> "за картинку"
                 else -> null
             },
             note = obj["short_description"]?.jsonPrimitive?.contentOrNull
                 ?: obj["name"]?.jsonPrimitive?.contentOrNull,
             fromRub = fromRub,
             priceStatus = when {
-                tiers.isNotEmpty() -> "exact"
+                tiers.isNotEmpty() || perRequest != null || perSecond != null -> "exact"
                 tokenPriced -> "estimate"
                 else -> null
             },
-            priceUnavailable = tiers.isEmpty() && !tokenPriced,
+            // The contract: every model in type=image|video is live; a missing
+            // price only hides the number, never the model.
+            priceUnavailable = false,
             tiers = tiers,
             params = params,
             promptLimit = promptLimit,
-            acceptsImageReference = "image" in inputModalities || parameters.containsKey("images"),
-            acceptsVideoReference = "video" in inputModalities || parameters.containsKey("videos"),
+            // `parameters.images/videos.max == 0` means the input is not
+            // accepted even though the key exists (kling-4.0, z-image).
+            acceptsImageReference = "image" in inputModalities || paramMax(parameters, "images") > 0,
+            acceptsVideoReference = "video" in inputModalities || paramMax(parameters, "videos") > 0,
         )
     }
+
+    /** `parameters.<key>.max` — 0 or absent means the input is not accepted. */
+    private fun paramMax(parameters: JsonObject, key: String): Int =
+        ((parameters[key] as? JsonObject)?.get("max") as? JsonPrimitive)?.intOrNull ?: 0
 
     /** `parameters: { "<key>": {type, required, values, default, max_length} }` → defs; `prompt` becomes [MediaModel.promptLimit]. */
     private fun parseParams(parameters: JsonObject): List<MediaParamDef> = parameters
@@ -231,8 +262,13 @@ class PolzaMediaProvider(
         val tier = if (tiers.isEmpty()) {
             null
         } else {
-            tiers.firstOrNull { t -> t.whenConditions.all { (key, values) -> request.opts[key].orEmpty() in values } }
-                ?: tiers.firstOrNull { it.whenConditions.isEmpty() }
+            val matching = tiers.filter { t ->
+                t.whenConditions.all { (key, values) -> request.opts[key].orEmpty() in values }
+            }
+            // The most specific match wins. The conditions-less tier matches
+            // everything and in the live catalog often comes FIRST — it is the
+            // fallback, never the default answer when a specific tier exists.
+            matching.maxByOrNull { it.whenConditions.size }
         }
         var price = tier?.priceRub
         if (price != null && model?.unit != null) {
@@ -310,14 +346,7 @@ class PolzaMediaProvider(
         val status = root["status"]?.jsonPrimitive?.contentOrNull
         val data = root["data"] as? JsonArray
         if (status == null && !data.isNullOrEmpty()) {
-            val urls = data.mapNotNull { el ->
-                val o = el as? JsonObject ?: return@mapNotNull null
-                o["url"]?.jsonPrimitive?.contentOrNull
-                    ?: o["b64_json"]?.jsonPrimitive?.contentOrNull?.let { b64 ->
-                        val mime = o["media_type"]?.jsonPrimitive?.contentOrNull ?: "image/png"
-                        "data:$mime;base64,$b64"
-                    }
-            }
+            val urls = data.mapNotNull { el -> (el as? JsonObject)?.let { o -> dataItemUrl(o) } }
             val price = (root["usage"] as? JsonObject)?.get("cost_rub")?.jsonPrimitive?.doubleOrNull ?: 0.0
             val done = MediaJobState(
                 jobId = localJobId(),
@@ -328,7 +357,7 @@ class PolzaMediaProvider(
                 priceRub = price,
                 definitive = true,
             )
-            localResults[done.jobId] = done
+            rememberLocalResult(done.jobId, done)
             return MediaJobState(
                 jobId = done.jobId,
                 status = MediaJobStatus.Processing,
@@ -345,7 +374,6 @@ class PolzaMediaProvider(
             kind = MediaKind.Image,
         )
     }
-
     /** `POST /v1/media` answer: `{id, status}` (we always send `async: true`). */
     internal fun parseMediaSubmit(request: MediaJobRequest, body: String): MediaJobState {
         val root = json.parseToJsonElement(body).jsonObject
@@ -376,11 +404,26 @@ class PolzaMediaProvider(
         return parseMediaStatus(jobId, body)
     }
 
+    /** `data.url` or inline `b64_json` → a URL / data URI; null when neither. */
+    private fun dataItemUrl(o: JsonObject): String? =
+        o["url"]?.jsonPrimitive?.contentOrNull
+            ?: o["b64_json"]?.jsonPrimitive?.contentOrNull?.let { b64 ->
+                val mime = o["media_type"]?.jsonPrimitive?.contentOrNull ?: "image/png"
+                "data:$mime;base64,$b64"
+            }
+
     /** `GET /v1/media/{id}` → [MediaJobState]; `cancelled` maps to `Fail` (`MediaJobStatus` has no Cancelled). */
     internal fun parseMediaStatus(jobId: String, body: String): MediaJobState {
         val root = json.parseToJsonElement(body).jsonObject
         val statusRaw = root["status"]?.jsonPrimitive?.contentOrNull.orEmpty().lowercase()
-        val data = root["data"] as? JsonObject
+        // `data` is one object for a single output and an array when
+        // `max_images > 1` (contract §poll) — a bare array must not produce
+        // a "success without results".
+        val items = when (val data = root["data"]) {
+            is JsonObject -> listOf(data)
+            is JsonArray -> data.mapNotNull { it as? JsonObject }
+            else -> emptyList()
+        }
         val usage = root["usage"] as? JsonObject
         val error = root["error"] as? JsonObject
         val state = when (statusRaw) {
@@ -388,13 +431,7 @@ class PolzaMediaProvider(
                 jobId = jobId,
                 status = MediaJobStatus.Success,
                 model = root["model"]?.jsonPrimitive?.contentOrNull,
-                resultUrls = listOfNotNull(
-                    data?.get("url")?.jsonPrimitive?.contentOrNull
-                        ?: data?.get("b64_json")?.jsonPrimitive?.contentOrNull?.let { b64 ->
-                            val mime = data?.get("media_type")?.jsonPrimitive?.contentOrNull ?: "image/png"
-                            "data:$mime;base64,$b64"
-                        },
-                ),
+                resultUrls = items.mapNotNull { o -> dataItemUrl(o) },
                 priceRub = usage?.get("cost_rub")?.jsonPrimitive?.doubleOrNull ?: 0.0,
                 definitive = true,
             )
@@ -500,6 +537,9 @@ class PolzaMediaProvider(
     companion object {
         /** Polza `/v1/media` input keys that must be numbers (the rest stay strings). */
         private val NUMERIC_INPUT_KEYS = setOf("max_images", "seed", "n")
+
+        /** Sync-wrapped results kept for polling before the oldest is evicted. */
+        private const val LOCAL_RESULT_LIMIT = 64
 
         /**
          * Opts that the documented `/v2/images/generations` body accepts.

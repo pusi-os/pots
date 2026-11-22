@@ -48,7 +48,8 @@ internal fun resolveMediaReferenceDataUri(ref: MediaReference): String? {
  * HTTP error mapping shared by the providers (the contract tables in
  * `docs/knowledge/media-providers/polza.md` and `aitunnel.md` agree on the
  * status semantics: 402 → insufficient balance, 429 → retry later,
- * 401/403 → key). `detail` comes from the provider's `error.message`.
+ * 401 → key problem, 403 → access/moderation, not a key problem).
+ * `detail` comes from the provider's `error.message`.
  */
 internal fun mapMediaHttpError(code: Int, body: String): MediaException {
     val detail = runCatching {
@@ -58,8 +59,9 @@ internal fun mapMediaHttpError(code: Int, body: String): MediaException {
     }.getOrNull()
     return when (code) {
         400 -> MediaException.BadRequest(detail)
-        401, 403 -> MediaException.InvalidKey(detail)
+        401 -> MediaException.InvalidKey(detail)
         402 -> MediaException.InsufficientBalance(detail)
+        403 -> MediaException.Unavailable(detail)
         404 -> MediaException.ModelNotFound(detail)
         408, 502, 504 -> MediaException.UpstreamFailed(detail)
         429 -> MediaException.RateLimited(detail = detail)
