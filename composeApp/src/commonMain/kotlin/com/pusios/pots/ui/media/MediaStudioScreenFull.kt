@@ -473,6 +473,11 @@ fun MediaStudioScreenFull(
                 onTransform = { zoomChange, panChange ->
                     canvasScale = (canvasScale * zoomChange).coerceIn(0.5f, 3f)
                     canvasOffset += panChange
+                    // The frame is stored in screen px of the view it was
+                    // dragged in: after a pan it would hang over other content,
+                    // and the export would crop the old view. Drop it and ask
+                    // for a new one.
+                    exportRegion = null
                 },
                 onTapBackground = {
                     viewModel.select(null)
@@ -483,6 +488,7 @@ fun MediaStudioScreenFull(
                 onRecenter = {
                     canvasScale = 1f
                     canvasOffset = Offset.Zero
+                    exportRegion = null
                 },
                 onSelect = { id ->
                     viewModel.select(id)

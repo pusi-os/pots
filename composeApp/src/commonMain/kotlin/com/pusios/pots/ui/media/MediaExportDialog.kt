@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
@@ -81,6 +82,9 @@ internal fun MediaExportDialog(
 ) {
     val measurer = rememberTextMeasurer()
     val fonts = rememberCanvasFonts()
+    // The screen's density, not 1: the renderer takes positions in px and boxes
+    // in units, so the export must ask for the same boxes the canvas shows.
+    val density = LocalDensity.current.density
     var regionMode by remember(region) { mutableStateOf(region != null) }
     var backgroundIndex by remember { mutableIntStateOf(0) }
     var frames by remember(layers) { mutableStateOf<Map<String, Painter>>(emptyMap()) }
@@ -105,7 +109,7 @@ internal fun MediaExportDialog(
     }
     val scope: ExportScope? = if (regionMode) region else ExportScope.Whole
 
-    LaunchedEffect(frames, framesReady, scope, background, layers) {
+    LaunchedEffect(frames, framesReady, scope, background, layers, density) {
         if (!framesReady) return@LaunchedEffect
         val exportScope = scope ?: return@LaunchedEffect
         rendering = true
@@ -118,6 +122,7 @@ internal fun MediaExportDialog(
             frames = frames,
             fonts = fonts,
             measurer = measurer,
+            density = density,
         )
         rendering = false
     }
@@ -213,7 +218,7 @@ internal fun MediaExportDialog(
                         rendering -> CircularProgressIndicator(Modifier.size(28.dp))
 
                         else -> Text(
-                            "Нечего сохранять: на канвасе нет видимых слоёв",
+                            "Нечего сохранять: в кадре нет видимого содержимого",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp),

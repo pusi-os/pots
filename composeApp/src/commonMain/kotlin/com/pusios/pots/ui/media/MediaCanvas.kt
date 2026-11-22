@@ -167,9 +167,9 @@ internal fun MediaCanvas(
      * end up in the file.
      */
     regionTool: Boolean = false,
-    /** The frame to keep showing after the gesture, canvas units. */
+    /** The frame to keep showing after the gesture, screen px. */
     region: ExportScope.Region? = null,
-    /** A finished drag, canvas units. */
+    /** A finished drag, screen px, with the pan and zoom it was drawn at. */
     onRegion: (ExportScope.Region) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -202,6 +202,7 @@ internal fun MediaCanvas(
     val drawNow = rememberUpdatedState(draw)
     val offsetNow = rememberUpdatedState(canvasOffset)
     val unitNow = rememberUpdatedState(pxPerUnit)
+    val zoomNow = rememberUpdatedState(canvasScale)
     val transformNow = rememberUpdatedState(onTransform)
     val onRegionNow = rememberUpdatedState(onRegion)
     // The frame being dragged, in screen px. UI only: it is drawn above the
@@ -235,7 +236,7 @@ internal fun MediaCanvas(
                     regionTool -> Modifier.pointerInput(Unit) {
                         regionPointerInput(
                             pan = offsetNow,
-                            pxPerUnit = unitNow,
+                            zoom = zoomNow,
                             onRubber = { rubber = it },
                             onRegion = { onRegionNow.value(it) },
                         )
@@ -371,13 +372,7 @@ internal fun MediaCanvas(
         // must not be dimmed itself. It is UI only — the export renders from
         // the layers, so it cannot reach the file.
         if (regionTool || region != null) {
-            ExportRegionOverlay(
-                region = region,
-                rubber = rubber,
-                canvasScale = canvasScale,
-                canvasOffset = canvasOffset,
-                density = density,
-            )
+            ExportRegionOverlay(region = region, rubber = rubber)
         }
 
         if (regionTool && rubber == null) {
@@ -486,14 +481,16 @@ private suspend fun PointerInputScope.drawPointerInput(
  * Region-tool gestures: one finger drags the export frame.
  *
  * The drag is reported live in screen px ([onRubber]) so the frame follows the
- * finger, and once, in canvas units, on release ([onRegion]) — the space the
- * layers and the export live in: the canvas is panned by [pan] and one unit is
- * [pxPerUnit] px on screen. A drag shorter than [MIN_EXPORT_REGION] units is a
- * tap and changes nothing, so a stray touch does not replace a good frame.
+ * finger, and once, still in screen px, on release ([onRegion]). The export
+ * renders in the screen's own space — pan and zoom included — so the frame is
+ * handed over as the rectangle it is, without converting anything: whatever the
+ * finger framed is exactly what the file will contain. A drag shorter than
+ * [MIN_EXPORT_REGION] px is a tap and changes nothing, so a stray touch does
+ * not replace a good frame.
  */
 private suspend fun PointerInputScope.regionPointerInput(
     pan: State<Offset>,
-    pxPerUnit: State<Float>,
+    zoom: State<Float>,
     onRubber: (Rect?) -> Unit,
     onRegion: (ExportScope.Region) -> Unit,
 ) {
@@ -512,14 +509,22 @@ private suspend fun PointerInputScope.regionPointerInput(
             if (!change.pressed) break
         }
         onRubber(null)
-        val unit = pxPerUnit.value
-        if (unit <= 0f) return@awaitEachGesture
-        val left = (min(start.x, end.x) - pan.value.x) / unit
-        val top = (min(start.y, end.y) - pan.value.y) / unit
-        val right = (max(start.x, end.x) - pan.value.x) / unit
-        val bottom = (max(start.y, end.y) - pan.value.y) / unit
+        val left = min(start.x, end.x)
+        val top = min(start.y, end.y)
+        val right = max(start.x, end.x)
+        val bottom = max(start.y, end.y)
         if (right - left < MIN_EXPORT_REGION || bottom - top < MIN_EXPORT_REGION) return@awaitEachGesture
-        onRegion(ExportScope.Region(left, top, right, bottom))
+        onRegion(
+            ExportScope.Region(
+                left = left,
+                top = top,
+                right = right,
+                bottom = bottom,
+                panX = pan.value.x,
+                panY = pan.value.y,
+                zoom = zoom.value,
+            ),
+        )
     }
 }
 
@@ -532,23 +537,16 @@ private suspend fun PointerInputScope.regionPointerInput(
 private fun ExportRegionOverlay(
     region: ExportScope.Region?,
     rubber: Rect?,
-    canvasScale: Float,
-    canvasOffset: Offset,
-    density: Float,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val scrim = Color.Black.copy(alpha = 0.66f)
     Canvas(Modifier.fillMaxSize()) {
-        val unit = density * canvasScale
+        // Both are screen px already: the rubber band comes from the finger,
+        // the kept frame was stored the same way.
         val frame = when {
             rubber != null -> rubber
 
-            region != null -> Rect(
-                region.left * unit + canvasOffset.x,
-                region.top * unit + canvasOffset.y,
-                region.right * unit + canvasOffset.x,
-                region.bottom * unit + canvasOffset.y,
-            )
+            region != null -> Rect(region.left, region.top, region.right, region.bottom)
 
             else -> return@Canvas
         }

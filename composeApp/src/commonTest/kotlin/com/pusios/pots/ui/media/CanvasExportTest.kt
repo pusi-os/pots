@@ -135,6 +135,95 @@ class CanvasExportTest {
     }
 
     @Test
+    fun theExportIsTheScreenItselfAtADenseScreen() = runTest {
+        // The screen passes the display density as the renderer's factor:
+        // positions stay canvas px, boxes become 232 × density px. An export
+        // that passed 1 instead would draw the same positions with three times
+        // smaller cards — a different composition, which is what a phone
+        // (density 2.75) used to get in the file.
+        val density = 2.75f
+        val first = ImageLayer(id = "first", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
+        val second = ImageLayer(id = "second", transform = LayerTransform(x = 300f, y = 60f), aspectRatio = 1f)
+        val frames = mapOf("first" to BitmapPainter(red), "second" to BitmapPainter(green))
+
+        val screen = renderScreen(listOf(first, second), frames, density, width = 1000, height = 720)
+        val exported = render(listOf(first, second), ExportScope.Whole, frames, density = density)
+        assertNotNull(exported)
+
+        val screenInk = screen.inkBounds()
+        val exportInk = exported.inkBounds()
+        // Same picture: the ink is the size the screen shows, sitting at the
+        // padding — not a layout of its own.
+        assertEquals(screenInk.width.toInt(), exportInk.width.toInt(), "ink width")
+        assertEquals(screenInk.height.toInt(), exportInk.height.toInt(), "ink height")
+        val padding = (EXPORT_PADDING * density).toInt()
+        assertEquals(padding, exportInk.left, "left padding")
+        assertEquals(padding, exportInk.top, "top padding")
+        // 938 px of content plus the padding on both sides; a density-1 render
+        // would have produced 532 px of content instead.
+        assertEquals(938 + 2 * padding, exported.width)
+    }
+
+    @Test
+    fun aRegionIsExactlyTheRectangleTheUserDragged() = runTest {
+        val density = 2.75f
+        val card = ImageLayer(id = "one", transform = LayerTransform(x = 100f, y = 50f), aspectRatio = 1f)
+        val frames = mapOf("one" to BitmapPainter(red))
+        // The canvas is panned by (-40, 20) and zoomed 2×: the card's top-left
+        // lands at (60, 70) on screen and its box is 232 × 2.75 × 2 = 1276 px.
+        val region = ExportScope.Region(
+            left = 60f,
+            top = 70f,
+            right = 460f,
+            bottom = 270f,
+            panX = -40f,
+            panY = 20f,
+            zoom = 2f,
+        )
+        val bitmap = render(listOf(card), region, frames, density = density)
+        assertNotNull(bitmap)
+        // Exactly the dragged rectangle, at the screen's own resolution.
+        assertEquals(400, bitmap.width)
+        assertEquals(200, bitmap.height)
+        // And it covers the card, because that is what the frame covered.
+        assertEquals(Color.Red, bitmap.colorAt(100, 100))
+        assertEquals(Color.Red, bitmap.colorAt(0, 0))
+
+        // A frame that hangs past the card's right edge keeps the empty part
+        // empty: the file is the frame, not the content. At zoom 2 the card
+        // ends at screen x = 419 + 638 - 40 = 1017 (the box grows around its
+        // centre), so the frame 900…1100 catches its last 117 px.
+        val past = render(
+            listOf(card),
+            ExportScope.Region(
+                left = 900f,
+                top = 70f,
+                right = 1100f,
+                bottom = 270f,
+                panX = -40f,
+                panY = 20f,
+                zoom = 2f,
+            ),
+            frames,
+            density = density,
+        )
+        assertNotNull(past)
+        assertEquals(Color.Red, past.colorAt(50, 100))
+        assertEquals(0f, past.colorAt(150, 100).alpha)
+    }
+
+    @Test
+    fun aVideoWithoutAFrameIsNotSavedAsAnEmptyFile() = runTest {
+        val video = VideoLayer(id = "clip", transform = LayerTransform(), aspectRatio = 16f / 9f)
+        // The platform could not capture a still frame (Android): the card has
+        // nothing inside it. A fully transparent PNG would be a silent loss, so
+        // the export refuses and the dialog says there is nothing to save.
+        assertNull(render(listOf(video), ExportScope.Whole, emptyMap()))
+        // «В модель» fills the background, so the same scene is a picture.
+        assertNotNull(render(listOf(video), ExportScope.Whole, emptyMap(), background = EXPORT_DARK_BACKGROUND))
+    }
+
+    @Test
     fun oneFactorAndTwoAreTheSamePicture() = runTest {
         val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
         // The factor follows the source width: a 232 px frame exports 1:1, a
@@ -291,6 +380,7 @@ class CanvasExportTest {
         includeAnnotation: Boolean = false,
         measurer: TextMeasurer? = null,
         fonts: Map<String, FontFamily> = emptyMap(),
+        density: Float = 1f,
     ): ImageBitmap? = renderCanvas(
         layers = layers,
         scope = scope,
@@ -299,7 +389,32 @@ class CanvasExportTest {
         frames = frames,
         fonts = fonts,
         measurer = measurer,
+        density = density,
     )
+
+    /**
+     * The screen's own pass: the same [renderLayers] the canvas calls, at the
+     * display density, into a bitmap of the viewport. The reference the export
+     * is compared against.
+     */
+    private fun renderScreen(
+        layers: List<CanvasLayer>,
+        frames: Map<String, Painter>,
+        density: Float,
+        width: Int,
+        height: Int,
+    ): ImageBitmap {
+        val bitmap = ImageBitmap(width, height)
+        CanvasDrawScope().draw(
+            density = Density(1f, 1f),
+            layoutDirection = LayoutDirection.Ltr,
+            canvas = Canvas(bitmap),
+            size = Size(width.toFloat(), height.toFloat()),
+        ) {
+            renderLayers(layers = layers, scale = density, frames = frames, zoom = 1f)
+        }
+        return bitmap
+    }
 
     private data class InkBounds(val left: Int, val top: Int, val right: Int, val bottom: Int) {
         val width: Float get() = (right - left + 1).toFloat()
