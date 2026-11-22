@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POTS · Выпадающий список моделей</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-close" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+  <symbol id="i-search-off" viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM2.1 3.51 3.51 2.1 21.9 20.49 20.49 21.9z"/></symbol>
+  <symbol id="i-drop-down" viewBox="0 0 24 24"><path fill="currentColor" d="M7 10l5 5 5-5z"/></symbol>
+  <symbol id="i-in" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4v12.17L6.41 10.59 5 12l7 7 7-7-1.41-1.41L12 16.17V4z"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path fill="currentColor" d="M12 20V7.83L17.59 13.41 19 12l-7-7-7 7 1.41 1.41L12 7.83V20z"/></symbol>
+</svg>
+
+<div class="doc">
+
+<header class="doc-head">
+  <p class="kicker">POTS · Дизайн-макеты · t_b31b2265</p>
+  <h1>Выпадающий список моделей</h1>
+  <p class="lede">Компактная замена модальному листу там, где модель выбирают внутри формы: поле 48 dp, панель с поиском, строки по 52 dp с ценой входа и выхода, галочка у выбранной, отдельное состояние «ничего не найдено» и обрезка длинных названий по многоточию.</p>
+  <div class="chips">
+    <span class="chip chip--accent">360 dp · 1 px = 1 dp</span>
+    <span class="chip">поле 48 dp · строка 52 dp</span>
+    <span class="chip">↓ вход · ↑ выход · M за миллион</span>
+    <span class="chip">поиск с первого символа</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">01</span>
+    <h2>Поле: закрытое и открытое</h2>
+  </div>
+  <p class="block-note">В закрытом виде поле показывает выбор целиком: название слева, цены справа, шеврон. Если модель ещё не выбрана — приглашение вместо названия, а цены скрыты, чтобы не выглядело как «бесплатно».</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>A. Закрытое поле</b><span>выбрана модель</span></div>
+      <div class="frame" style="height:210px">
+        <div class="frame-body">
+          <div class="dd">
+            <div class="dd-trigger">
+              <span class="dd-name">Claude Sonnet 4.5</span>
+              <span class="px" style="display:flex;gap:8px;font:500 11px/16px var(--font);color:var(--on-surface-variant)">
+                <span style="display:inline-flex;align-items:center;gap:2px"><svg width="10" height="10"><use href="#i-in"/></svg>3</span>
+                <span style="display:inline-flex;align-items:center;gap:2px"><svg width="10" height="10"><use href="#i-out"/></svg>15</span>
+              </span>
+              <svg class="dd-chev"><use href="#i-drop-down"/></svg>
+            </div>
+            <p class="block-note" style="margin:10px 0 0;font-size:11.5px;color:var(--muted)">подпись поля «Модель» — labelSmall над полем, 4 dp</p>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:0;max-width:360px">Высота 48 dp, радиус 12 dp, контур <code>rgba(255,255,255,.12)</code>.</p>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>B. Поле без выбора</b><span>пустое состояние</span></div>
+      <div class="frame" style="height:210px">
+        <div class="frame-body">
+          <div class="dd">
+            <div class="dd-trigger">
+              <span class="dd-name" style="color:var(--faint);font-weight:400">Выберите модель</span>
+              <svg class="dd-chev"><use href="#i-drop-down"/></svg>
+            </div>
+            <p class="block-note" style="margin:10px 0 0;font-size:11.5px;color:var(--muted)">цен нет: показывать «0» было бы ложью</p>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:0;max-width:360px">Тот же размер поля. Плейсхолдер — <code>onSurfaceVariant</code> с прозрачностью 0.55, не чисто серый.</p>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>C. Открыто</b><span>фокус-рамка</span></div>
+      <div class="frame" style="height:210px">
+        <div class="frame-body">
+          <div class="dd">
+            <div class="dd-trigger is-open">
+              <span class="dd-name">Claude Sonnet 4.5</span>
+              <span class="px" style="display:flex;gap:8px;font:500 11px/16px var(--font);color:var(--on-surface-variant)">
+                <span style="display:inline-flex;align-items:center;gap:2px"><svg width="10" height="10"><use href="#i-in"/></svg>3</span>
+                <span style="display:inline-flex;align-items:center;gap:2px"><svg width="10" height="10"><use href="#i-out"/></svg>15</span>
+              </span>
+              <svg class="dd-chev" style="color:var(--primary-text);transform:rotate(180deg)"><use href="#i-drop-down"/></svg>
+            </div>
+            <p class="block-note" style="margin:10px 0 0;font-size:11.5px;color:var(--muted)">контур <code>primary</code> 50 % + внешнее свечение 2 dp</p>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:0;max-width:360px">Шеврон разворачивается на 180°, рамка подсвечивается — поле связано с панелью визуально.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">02</span>
+    <h2>Открытый список</h2>
+  </div>
+  <p class="block-note">Шесть строк — столько влезает без прокрутки при 360 dp. Цены выровнены по правому краю и не «пляшут»: колонка фиксированной ширины 62 dp. Длинный идентификатор обрезается по многоточию, полный текст — по долгому нажатию.</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>D. Список с поиском</b><span>360 dp</span></div>
+      <div class="frame">
+        <div class="frame-body">
+          <div class="dd">
+            <div class="dd-trigger is-open">
+              <span class="dd-name">Gemini 3.8 Flash</span>
+              <span class="px" style="display:flex;gap:8px;font:500 11px/16px var(--font);color:var(--on-surface-variant)">
+                <span style="display:inline-flex;align-items:center;gap:2px"><svg width="10" height="10"><use href="#i-in"/></svg>0.3</span>
+                <span style="display:inline-flex;align-items:center;gap:2px"><svg width="10" height="10"><use href="#i-out"/></svg>2.5</span>
+              </span>
+              <svg class="dd-chev" style="color:var(--primary-text);transform:rotate(180deg)"><use href="#i-drop-down"/></svg>
+            </div>
+
+            <div class="dd-panel">
+              <div class="dd-search">
+                <svg><use href="#i-search"/></svg>
+                <span class="q ph">Поиск по названию или ID</span>
+              </div>
+
+              <div class="dd-row">
+                <div class="txt">
+                  <div class="nm">Claude Sonnet 4.5</div>
+                  <div class="sub">Sep 2025 · 200K</div>
+                </div>
+                <div class="px"><span><svg><use href="#i-in"/></svg>3</span><span><svg><use href="#i-out"/></svg>15</span></div>
+                <span class="chk--void"></span>
+              </div>
+
+              <div class="dd-row is-selected">
+                <div class="txt">
+                  <div class="nm">Gemini 3.8 Flash</div>
+                  <div class="sub">Sep 2026 · 1M</div>
+                </div>
+                <div class="px"><span><svg><use href="#i-in"/></svg>0.3</span><span><svg><use href="#i-out"/></svg>2.5</span></div>
+                <span class="chk"><svg><use href="#i-check"/></svg></span>
+              </div>
+
+              <div class="dd-row is-pressed">
+                <div class="txt">
+                  <div class="nm">DeepSeek V3.2</div>
+                  <div class="sub">Sep 2025 · 671B · 163K</div>
+                </div>
+                <div class="px"><span><svg><use href="#i-in"/></svg>0.28</span><span><svg><use href="#i-out"/></svg>0.42</span></div>
+                <span class="chk--void"></span>
+              </div>
+
+              <div class="dd-row">
+                <div class="txt">
+                  <div class="nm">deepseek-v3.2-speciale-thinking-preview-2025-10</div>
+                  <div class="sub">Oct 2025 · 671B · 128K</div>
+                </div>
+                <div class="px"><span><svg><use href="#i-in"/></svg>0.5</span><span><svg><use href="#i-out"/></svg>1.6</span></div>
+                <span class="chk--void"></span>
+              </div>
+
+              <div class="dd-row">
+                <div class="txt">
+                  <div class="nm">GPT-5.4</div>
+                  <div class="sub">Feb 2026 · 1M</div>
+                </div>
+                <div class="px"><span><svg><use href="#i-in"/></svg>1.25</span><span><svg><use href="#i-out"/></svg>10</span></div>
+                <span class="chk--void"></span>
+              </div>
+
+              <div class="dd-row">
+                <div class="txt">
+                  <div class="nm">Qwen3 32B</div>
+                  <div class="sub">Apr 2025 · 32B · 128K · локальная</div>
+                </div>
+                <div class="px" style="color:var(--faint)"><span><svg><use href="#i-in"/></svg>—</span><span><svg><use href="#i-out"/></svg>—</span></div>
+                <span class="chk--void"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="num">1</span><span><b>Поиск</b> 44 dp, фильтрует по названию и ID с первого символа; крестик очищает.</span></li>
+        <li><span class="num">2</span><span><b>Выбранная строка</b> — фон 10 % <code>primary</code>, галочка 18 dp, название <code>onPrimaryContainer</code>.</span></li>
+        <li><span class="num">3</span><span><b>Нажатая строка</b> — фон 5 % белого, 120 мс, без ripple-волны: список плотный.</span></li>
+        <li><span class="num">4</span><span><b>Длинное имя</b> — ellipsis; полный текст по долгому нажатию.</span></li>
+        <li><span class="num">5</span><span><b>Цены</b> — <code>↓</code> вход, <code>↑</code> выход, число — USD за 1 млн токенов (та же нотация, что в плитках карточки).</span></li>
+      </ul>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>E. Ничего не найдено</b><span>пустой результат</span></div>
+      <div class="frame">
+        <div class="frame-body">
+          <div class="dd">
+            <div class="dd-trigger is-open">
+              <span class="dd-name" style="color:var(--faint);font-weight:400">Выберите модель</span>
+              <svg class="dd-chev" style="color:var(--primary-text);transform:rotate(180deg)"><use href="#i-drop-down"/></svg>
+            </div>
+
+            <div class="dd-panel">
+              <div class="dd-search">
+                <svg><use href="#i-search"/></svg>
+                <span class="q">gemini 5</span>
+                <svg class="clr"><use href="#i-close"/></svg>
+              </div>
+              <div class="dd-empty">
+                <svg class="ic"><use href="#i-search-off"/></svg>
+                <div class="t">Ничего не найдено</div>
+                <div class="s">По запросу «gemini 5» моделей нет. Попробуйте название короче — например, «gemini».</div>
+                <span class="btn">Сбросить поиск</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:10px 0 0;max-width:360px">Запрос подставляется в текст, поэтому подсказка конкретна. Кнопка «Сбросить поиск» — единственный путь назад, если клавиатура закрыта.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">03</span>
+    <h2>Длинное название</h2>
+  </div>
+  <p class="block-note">Ширина строки 360 − 16 (поля панели) − 24 (padding) = 320 dp. Цены занимают 62 dp, галочка 18 dp, два зазора по 10 dp — под текст остаётся 220 dp. Всё, что длиннее, обрезается по многоточию; переносов нет, высота строки не меняется.</p>
+
+  <div class="frames" style="align-items:center">
+    <div class="zoom-wrap" style="padding:18px 22px">
+      <div style="zoom:2;width:320px;background:#17171E;border-radius:8px">
+        <div class="dd-row" style="border-bottom:0">
+          <div class="txt">
+            <div class="nm">deepseek-v3.2-speciale-thinking-preview-2025-10</div>
+            <div class="sub">Oct 2025 · 671B · 128K</div>
+          </div>
+          <div class="px"><span><svg><use href="#i-in"/></svg>0.5</span><span><svg><use href="#i-out"/></svg>1.6</span></div>
+          <span class="chk--void"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="zoom-wrap" style="padding:16px 18px;max-width:300px">
+      <div class="state-card" style="border:0;background:none;padding:0">
+        <p class="st-name">полное имя по долгому нажатию</p>
+        <div style="background:#2C2836;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:400 12px/17px var(--font);color:#fff;word-break:break-all">deepseek-v3.2-speciale-thinking-preview-2025-10</div>
+        <p class="st-desc">Подсказка не перекрывает список: появляется снизу строки, гаснет через 2 с. Альтернатива для TalkBack — <code>contentDescription</code> с полным ID.</p>
+      </div>
+    </div>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>G. То же имя в поле</b><span>360 dp</span></div>
+      <div class="frame" style="height:170px">
+        <div class="frame-body">
+          <div class="dd">
+            <div class="dd-trigger">
+              <span class="dd-name">deepseek-v3.2-speciale-thinking-preview-2025-10</span>
+              <span class="px" style="display:flex;gap:8px;font:500 11px/16px var(--font);color:var(--on-surface-variant)">
+                <span style="display:inline-flex;align-items:center;gap:2px"><svg width="10" height="10"><use href="#i-in"/></svg>0.5</span>
+                <span style="display:inline-flex;align-items:center;gap:2px"><svg width="10" height="10"><use href="#i-out"/></svg>1.6</span>
+              </span>
+              <svg class="dd-chev"><use href="#i-drop-down"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:0;max-width:360px">Поле обрезает имя тем же многоточием: цены и шеврон не сдвигаются, потому что они <code>flex: none</code>, а имя — <code>weight(1f)</code> с <code>maxLines = 1</code>.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">04</span>
+    <h2>Анатомия строки и панели</h2>
+  </div>
+
+  <div class="zoom-wrap" style="display:inline-flex;gap:36px;align-items:flex-start;padding:22px 26px">
+    <div style="position:relative;width:412px;padding-top:24px">
+      <div class="dim-h" style="left:0;width:400px;top:8px"><span>200 dp (фрагмент строки, увеличение 2×)</span></div>
+      <div style="zoom:2;width:200px;background:#17171E;border-radius:8px">
+        <div class="dd-row" style="border-bottom:0;min-height:52px">
+          <div class="txt">
+            <div class="nm">GPT-5.4</div>
+            <div class="sub">Feb 2026 · 1M</div>
+          </div>
+          <div class="px"><span><svg><use href="#i-in"/></svg>1.25</span><span><svg><use href="#i-out"/></svg>10</span></div>
+          <span class="chk"><svg><use href="#i-check"/></svg></span>
+        </div>
+      </div>
+      <div class="dim-v" style="left:-26px;top:24px;height:104px"><span>52</span></div>
+    </div>
+
+    <table class="spec-table" style="max-width:430px;font-size:12px">
+      <tbody>
+        <tr><td>Строка</td><td>min-height 52 dp, padding 6 / 12, зазор между блоками 10 dp</td></tr>
+        <tr><td>Название</td><td>14 / 20, вес 500, 1 строка, ellipsis</td></tr>
+        <tr><td>Подпись</td><td>11 / 16, <code>onSurfaceVariant</code>: дата · параметры · контекст</td></tr>
+        <tr><td>Цены</td><td>11 / 16, колонка 62 dp, выравнивание вправо, tabular-nums</td></tr>
+        <tr><td>Галочка</td><td>18 dp, <code>primary</code>; у невыбранных — пустой слот 18 dp</td></tr>
+        <tr><td>Панель</td><td>радиус 14 dp, фон #17171E, контур 9 % белого, тень 0 20 48</td></tr>
+        <tr><td>Прокрутка</td><td>max-height 6 строк (312 dp) + поиск; дальше — вертикальный скролл</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">05</span>
+    <h2>Планшет и поведение</h2>
+  </div>
+
+  <div class="frames">
+    <figure class="fig">
+      <div class="fig-cap"><b>F. Планшет</b><span>600 dp</span></div>
+      <div class="frame frame--wide" style="height:300px">
+        <div class="frame-body">
+          <div class="dd" style="padding:12px">
+            <div class="dd-panel" style="margin:0;max-width:480px">
+              <div class="dd-search">
+                <svg><use href="#i-search"/></svg>
+                <span class="q ph">Поиск по названию или ID</span>
+              </div>
+              <div class="dd-row is-selected">
+                <div class="txt">
+                  <div class="nm">Gemini 3.8 Flash</div>
+                  <div class="sub">Sep 2026 · 1M · tools 14</div>
+                </div>
+                <div class="px"><span><svg><use href="#i-in"/></svg>0.3</span><span><svg><use href="#i-out"/></svg>2.5</span></div>
+                <span class="chk"><svg><use href="#i-check"/></svg></span>
+              </div>
+              <div class="dd-row">
+                <div class="txt">
+                  <div class="nm">Claude Sonnet 4.5</div>
+                  <div class="sub">Sep 2025 · 200K · tools 9</div>
+                </div>
+                <div class="px"><span><svg><use href="#i-in"/></svg>3</span><span><svg><use href="#i-out"/></svg>15</span></div>
+                <span class="chk--void"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="block-note" style="margin:0;max-width:600px">Панель растягивается по ширине поля, но не шире 480 dp: длинные строки легче читать, когда строка не в метр. Высота строки та же — 52 dp, лишнее место уходит в подпись, где появляется «tools 14».</p>
+    </figure>
+
+    <figure class="fig" style="max-width:520px">
+      <table class="spec-table">
+        <thead><tr><th>Ситуация</th><th>Поведение</th></tr></thead>
+        <tbody>
+          <tr><td>Тап вне панели</td><td>закрыть без изменения выбора</td></tr>
+          <tr><td>Выбор строки</td><td>закрыть панель, показать выбор в поле, очистить поиск</td></tr>
+          <tr><td>Esc / «назад»</td><td>сначала закрывает панель, второе нажатие — лист/экран</td></tr>
+          <tr><td>Клавиатура</td><td>поле поиска поднято над клавиатурой, панель сжимается до 3 строк</td></tr>
+          <tr><td>Нет цен</td><td>вместо двух цен — «локальная» <code>onSurfaceVariant</code></td></tr>
+          <tr><td>Каталог грузится</td><td>панель не открывается: в поле — «Загрузка моделей…», скелетон строк</td></tr>
+          <tr><td>Ошибка загрузки</td><td>в панели одна строка: «Не удалось загрузить список» + «Повторить»</td></tr>
+        </tbody>
+      </table>
+    </figure>
+  </div>
+
+  <div class="note" style="margin-top:20px">
+    <b>Те же токены, что в карточке.</b> Цены в списке — те же стрелки <code>↓</code> / <code>↑</code> и то же «M за миллион», что в плитках карточки модели: пользователь не переучивается между списком и листом.
+  </div>
+  <div class="note note--warn">
+    <b>Не дублировать поиск.</b> Если лист уже содержит <code>PotsSearchField</code> (он появляется при &gt; 6 моделях), выпадающий список поиск не добавляет — иначе на экране два поля ввода с одинаковым поведением.
+  </div>
+</section>
+
+</div>
+</body>
+</html>
