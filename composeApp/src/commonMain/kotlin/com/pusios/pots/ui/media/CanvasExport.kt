@@ -89,8 +89,7 @@ internal sealed interface ExportScope {
  * it. Zoom does not move positions (it grows a card around its centre), so only
  * the pan is subtracted.
  */
-internal fun ExportScope.Region.toCanvasRect(): Rect =
-    Rect(left - panX, top - panY, right - panX, bottom - panY)
+internal fun ExportScope.Region.toCanvasRect(): Rect = Rect(left - panX, top - panY, right - panX, bottom - panY)
 
 /** Breathing room around the content of a whole-canvas export, density-independent. */
 internal const val EXPORT_PADDING = 24f
