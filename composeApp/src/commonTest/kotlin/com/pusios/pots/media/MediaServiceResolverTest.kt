@@ -28,18 +28,19 @@ class MediaServiceResolverTest {
     @Test
     fun noConfiguredServiceMeansNoChoice() {
         assertNull(activeMediaService(AppSettings(MapSettings())))
-        assertNull(activeMediaService(settings(Service.Polza, Service.LlmRouter)))
+        assertNull(activeMediaService(settings(Service.Gptunnel, Service.LlmRouter)))
     }
 
     @Test
     fun onlyServicesWithMediaEndpointsAreOffered() {
-        val choices = mediaServiceChoices(settings(Service.Polza, Service.PlusVibe, Service.AiTunnel))
-        assertEquals(listOf(Service.PlusVibe), choices.map { it.service })
+        // Polza and AITUNNEL have implemented contracts; GPTunnel does not.
+        val choices = mediaServiceChoices(settings(Service.Polza, Service.Gptunnel, Service.AiTunnel))
+        assertEquals(listOf(Service.Polza, Service.AiTunnel), choices.map { it.service })
     }
 
     @Test
     fun twoInstancesOfOneServiceAreTwoCandidates() {
-        // PlusVibe + its reserve: the only pair the factory can drive today, and the
+        // PlusVibe + its reserve: two instances of one service, and the
         // case the «Сервис для медиатеки» section exists for.
         val appSettings = AppSettings(MapSettings())
         appSettings.setConfiguredServiceInstances(
@@ -68,8 +69,8 @@ class MediaServiceResolverTest {
 
     @Test
     fun savedChoiceOnAServiceWithoutMediaFallsBackToPlusVibe() {
-        val appSettings = settings(Service.Polza, Service.PlusVibe)
-        appSettings.setMediaServiceInstanceId(Service.Polza.id)
+        val appSettings = settings(Service.Gptunnel, Service.PlusVibe)
+        appSettings.setMediaServiceInstanceId(Service.Gptunnel.id)
         assertEquals(Service.PlusVibe, activeMediaService(appSettings)?.service)
     }
 

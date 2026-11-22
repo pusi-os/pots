@@ -7,7 +7,8 @@ import com.pusios.pots.data.Service
  * One provider per service, created on first use and kept. [PlusVibeMediaProvider]
  * remembers the catalog it parsed (`modelsById`) and that map decides which
  * `opts` key a reference image goes into on submit — a fresh instance per call
- * would lose it and silently drop reference mapping.
+ * would lose it and silently drop reference mapping. Polza and AITUNNEL keep
+ * the same catalog cache (kind/reference decisions, local price tables).
  */
 private val providers = mutableMapOf<Service, MediaProvider>()
 
@@ -15,16 +16,20 @@ private val providers = mutableMapOf<Service, MediaProvider>()
  * The provider that serves [service], or null when the service has no media
  * endpoints (catalog + submit + poll).
  *
- * Only PlusVibe documents a full media contract today
- * (`docs/knowledge/media-providers/plusvibe.md`; the reserve service is the same
- * API on `gw`). Polza, AITUNNEL, GPTunnel and LLM Router expose media endpoints
- * in their docs, but their contracts are not implemented yet — they stay null
- * until their providers land, so no screen offers a service the app cannot drive.
+ * Implemented contracts (`docs/knowledge/media-providers/plusvibe.md`,
+ * `polza.md`, `aitunnel.md`): PlusVibe (the reserve is the same API on
+ * `gw`), Polza and AITUNNEL. GPTunnel and LLM Router expose media endpoints
+ * in their docs, but their contracts are not implemented yet — they stay
+ * null, so no screen offers a service the app cannot drive.
  */
 fun mediaProviderFor(service: Service): MediaProvider? = when (service) {
     Service.PlusVibe, Service.PlusVibeReserve -> providers.getOrPut(service) {
         PlusVibeMediaProvider(service.mediaBaseUrl())
     }
+
+    Service.Polza -> providers.getOrPut(service) { PolzaMediaProvider() }
+
+    Service.AiTunnel -> providers.getOrPut(service) { AitunnelMediaProvider() }
 
     else -> null
 }
