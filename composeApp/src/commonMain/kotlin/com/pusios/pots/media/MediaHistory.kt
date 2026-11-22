@@ -60,6 +60,8 @@ data class MediaHistoryEntry(
     /** Local copy in app storage, set once the result is downloaded. */
     val localPath: String? = null,
     val failMsg: String? = null,
+    /** The provider returned the money for the failed generation (GPTunnel `refunded`). */
+    val refunded: Boolean = false,
     val progress: Float? = null,
     /** Audio/music generation; the journal treats it like video (no image preview). */
     val isAudio: Boolean = false,
@@ -197,6 +199,7 @@ class MediaHistoryStore(
         resultUrl = state.resultUrls.firstOrNull() ?: resultUrl,
         localPath = state.localPath ?: localPath,
         failMsg = if (state.status == MediaJobStatus.Fail) state.failMsg ?: failMsg else null,
+        refunded = state.refunded,
         progress = state.progress,
     )
 }

@@ -268,6 +268,16 @@ private fun HistoryCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                if (entry.status == MediaHistoryStatus.Failed && entry.refunded) {
+                    // GPTunnel returned the money for the failed job; the «списано»
+                    // meta line alone would read as if the charge stayed.
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Возврат ${formatRub(entry.priceRub ?: 0.0)} — деньги вернулись на баланс",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (entry.status == MediaHistoryStatus.Success) {

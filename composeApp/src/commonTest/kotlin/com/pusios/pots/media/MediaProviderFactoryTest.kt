@@ -11,9 +11,9 @@ import kotlin.test.assertTrue
 
 /**
  * The factory is the single gate for "can the app drive this service's media
- * endpoints". PlusVibe, Polza and AITUNNEL have implemented contracts; the rest
- * must stay null — otherwise the picker would offer a service whose submit
- * would fail at the first paid call.
+ * endpoints". PlusVibe, Polza, AITUNNEL, GPTunnel and LLM Router have
+ * implemented contracts; the rest must stay null — otherwise the picker would
+ * offer a service whose submit would fail at the first paid call.
  */
 class MediaProviderFactoryTest {
 
@@ -30,11 +30,15 @@ class MediaProviderFactoryTest {
     }
 
     @Test
+    fun gptunnelAndLlmRouterHaveProviders() {
+        assertTrue(mediaProviderFor(Service.Gptunnel) is GptunnelMediaProvider)
+        assertTrue(mediaProviderFor(Service.LlmRouter) is LlmRouterMediaProvider)
+    }
+
+    @Test
     fun servicesWithoutAnImplementedContractStayNull() {
         val withoutMedia = listOf(
-            Service.Gptunnel,
-            Service.LlmRouter,
-            Service.OpenAICompatible,
+            Service.[OI]Compatible,
             Service.LiteRT,
         )
         withoutMedia.forEach { service ->
