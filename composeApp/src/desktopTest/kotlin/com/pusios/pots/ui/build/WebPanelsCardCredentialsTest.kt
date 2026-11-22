@@ -166,6 +166,32 @@ class WebPanelsCardCredentialsTest {
     }
 
     @Test
+    fun `the login comes from the panel, not from Hermes being Hermes`() = runComposeUiTest {
+        val header = header()
+
+        setContent {
+            MaterialTheme {
+                WebPanelsCard(
+                    panels = persistentMapOf("opencode" to WebPanelState("opencode", WebPanelStatus.NotRunning)),
+                    onStart = {},
+                    onStop = {},
+                    onOpen = {},
+                    onSetAutostart = { _, _ -> },
+                    onPassword = { password },
+                    onLog = { "" },
+                )
+            }
+        }
+
+        onNodeWithText(header).performClick()
+
+        waitForIdle()
+        // OpenCode's account is its own field; a section that special-cased Hermes
+        // would show nothing here, and nothing would say so.
+        onNodeWithText(login(WebPanels.OPENCODE_USER)).assertExists()
+    }
+
+    @Test
     fun `pi-web gets no login line, because its form asks for the password alone`() = runComposeUiTest {
         val header = header()
 
