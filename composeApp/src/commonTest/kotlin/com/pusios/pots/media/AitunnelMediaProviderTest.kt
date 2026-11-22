@@ -161,7 +161,7 @@ class AitunnelMediaProviderTest {
             paths,
         )
         // The catalogs are public: the key must not be sent at all.
-        assertEquals(listOf(null, null), authHeaders)
+        assertEquals(listOf<String?>(null, null), authHeaders)
         assertEquals(
             listOf("flux.2-klein-4b", "grok-imagine-image-quality", "gen-4.5", "wan-3.0"),
             models.map { it.id },

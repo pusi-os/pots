@@ -208,9 +208,9 @@ class PolzaMediaProviderTest {
                 )
         }
         val models = PolzaMediaProvider(clientOverride = HttpClient(engine)).listModels("sk-test")
-        assertEquals(listOf("image", "video"), types)
+        assertEquals(listOf<String?>("image", "video"), types)
         // The catalog is public: the key must not be sent at all.
-        assertEquals(listOf(null, null), authHeaders)
+        assertEquals(listOf<String?>(null, null), authHeaders)
         assertEquals(
             listOf("qwen/image", "tongyi-mai/z-image", "alibaba/wan-3.0", "kling-4.0/video"),
             models.map { it.id },
