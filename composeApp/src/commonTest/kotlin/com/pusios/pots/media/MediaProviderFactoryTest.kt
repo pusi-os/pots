@@ -49,6 +49,14 @@ class MediaProviderFactoryTest {
     fun activeProviderWithoutAMediaServiceFailsWithAReason() = runTest {
         val provider = ActiveMediaProvider(AppSettings(MapSettings()))
         val error = runCatching { provider.listModels("") }.exceptionOrNull()
-        assertTrue(error is MediaException.Unavailable, "expected Unavailable, got $error")
+        assertTrue(error is MediaException.NoMediaService, "expected NoMediaService, got $error")
+    }
+
+    @Test
+    fun noMediaServiceExplainsWhereToFixIt() {
+        // The studio's snackbar comes from this mapping: it has to name the section.
+        val info = mediaErrorInfo(MediaException.NoMediaService())
+        assertTrue(info.title.contains("медиатеки"), "title was ${info.title}")
+        assertTrue(info.detail.contains("Сервисы"), "detail was ${info.detail}")
     }
 }

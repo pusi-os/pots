@@ -135,6 +135,13 @@ private fun providerErrorInfo(error: MediaException): MediaErrorInfo = when (err
         MediaErrorCategory.File,
     )
 
+    is MediaException.NoMediaService -> MediaErrorInfo(
+        "Сервис для медиатеки не выбран",
+        "Добавьте сервис с медиа-моделями в Настройки → Сервисы и выберите его в разделе «Сервис для медиатеки».",
+        MediaErrorCategory.Key,
+        keyProblem = true,
+    )
+
     is MediaException.Unknown -> MediaErrorInfo(
         "Ошибка генерации",
         error.detail?.takeIf { it.isNotBlank() } ?: "Неизвестная ошибка. Попробуйте ещё раз.",

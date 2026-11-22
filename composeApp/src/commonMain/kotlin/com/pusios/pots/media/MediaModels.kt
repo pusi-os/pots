@@ -179,5 +179,8 @@ sealed class MediaException(message: String, cause: Throwable? = null) : Excepti
     data class UpstreamFailed(val detail: String? = null) : MediaException(detail ?: "Media upstream failed")
     data class Unavailable(val detail: String? = null) : MediaException(detail ?: "Media model unavailable")
     data class Expired(val detail: String? = null) : MediaException(detail ?: "Media result expired")
+
+    /** No configured service can drive media — the app-side answer, never an HTTP one. */
+    data class NoMediaService(val detail: String? = null) : MediaException(detail ?: "No media service configured")
     data class Unknown(val detail: String? = null) : MediaException(detail ?: "Unknown media error")
 }

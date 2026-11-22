@@ -46,7 +46,7 @@ class ActiveMediaProvider(private val appSettings: AppSettings) : MediaProvider 
      */
     private val jobServices = mutableMapOf<String, Service>()
 
-    private fun noService(): MediaException = MediaException.Unavailable(
+    private fun noService(): MediaException = MediaException.NoMediaService(
         "No media service is configured. Add a service with media models in Settings → Services.",
     )
 
