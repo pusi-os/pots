@@ -214,6 +214,56 @@ class CanvasExportTest {
     }
 
     @Test
+    fun aRegionKeepsTheScreensResolutionWhateverTheSourceIs() = runTest {
+        // The cards hold 2048 px pictures, but the frame is 400 × 300 of the
+        // *screen*: the honest file is the screen's own pixels, not an
+        // interpolation of them. Taking the factor from the widest source (the
+        // whole-canvas rule) would have produced 400 × (2048 / 638) ≈ 1284 px
+        // wide — a bigger file with the same detail, which is exactly what the
+        // comment above `aRegionIsExactlyTheRectangleTheUserDragged` promises
+        // not to do.
+        val density = 2.75f
+        val redCard = ImageLayer(id = "red", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
+        // Drawn last, so the boundary between the two cards falls inside the
+        // frame and a wrong transform cannot pass as a uniform fill.
+        val greenCard = ImageLayer(id = "green", transform = LayerTransform(x = 200f, y = 0f), aspectRatio = 1f)
+        val layers = listOf(redCard, greenCard)
+        val frames = mapOf(
+            "red" to BitmapPainter(solid(2048, 2048, Color.Red)),
+            "green" to BitmapPainter(solid(2048, 2048, Color.Green)),
+        )
+        val pan = Offset(37f, -18f)
+        val region = ExportScope.Region(
+            left = 100f,
+            top = 40f,
+            right = 500f,
+            bottom = 340f,
+            panX = pan.x,
+            panY = pan.y,
+            zoom = 1f,
+        )
+
+        val crop = render(layers, region, frames, density = density)
+        assertNotNull(crop)
+        // The drag, pixel for pixel: 400 × 300 at the screen's resolution.
+        assertEquals(400, crop.width)
+        assertEquals(300, crop.height)
+
+        val screen = renderScreen(layers, frames, density = density, width = 700, height = 500, pan = pan)
+        val cropPixels = crop.toPixelMap()
+        val screenPixels = screen.toPixelMap()
+        var mismatches = 0
+        for (y in 0 until crop.height) {
+            for (x in 0 until crop.width) {
+                if (cropPixels[x, y] != screenPixels[100 + x, 40 + y]) mismatches++
+            }
+        }
+        assertEquals(0, mismatches, "the crop must be the screen pixels under the drag, not an upscale of them")
+        assertEquals(Color.Red, cropPixels[10, 10])
+        assertEquals(Color.Green, cropPixels[390, 10])
+    }
+
+    @Test
     fun aVideoWithoutAFrameIsNotSavedAsAnEmptyFile() = runTest {
         val video = VideoLayer(id = "clip", transform = LayerTransform(), aspectRatio = 16f / 9f)
         // The platform could not capture a still frame (Android): the card has

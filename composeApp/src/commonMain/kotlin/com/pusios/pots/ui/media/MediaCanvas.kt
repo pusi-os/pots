@@ -172,7 +172,7 @@ internal fun MediaCanvas(
     region: ExportScope.Region? = null,
     /** A finished drag, screen px, with the pan and zoom it was drawn at. */
     onRegion: (ExportScope.Region) -> Unit = {},
-    /** «Отмена» while the frame tool is armed: back to a plain canvas. */
+    /** «Отмена» while the frame tool is armed: the screen disarms it and reopens the export dialog. */
     onCancelRegion: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -221,8 +221,8 @@ internal fun MediaCanvas(
             .background(MaterialTheme.colorScheme.surface)
             .semantics { contentDescription = "Медиа-канвас" }
             .then(
-                when {
-                    draw != null -> Modifier.pointerInput(Unit) {
+                when (canvasGesture(draw != null, regionTool)) {
+                    CanvasGesture.Draw -> Modifier.pointerInput(Unit) {
                         drawPointerInput(
                             draw = drawNow,
                             pan = offsetNow,
@@ -235,8 +235,11 @@ internal fun MediaCanvas(
 
                     // The region tool owns the gesture: one finger draws the
                     // export frame. Panning and zooming are off while it is
-                    // armed — a drag would otherwise do both.
-                    regionTool -> Modifier.pointerInput(Unit) {
+                    // armed — a drag would otherwise do both. A tap is a no-op
+                    // here (a drag shorter than MIN_EXPORT_REGION is dropped),
+                    // not an «отмена»: the finger is aiming, and the way out of
+                    // the mode is the «Отмена» on the hint band.
+                    CanvasGesture.RegionFrame -> Modifier.pointerInput(Unit) {
                         regionPointerInput(
                             pan = offsetNow,
                             zoom = zoomNow,
@@ -245,7 +248,7 @@ internal fun MediaCanvas(
                         )
                     }
 
-                    else ->
+                    CanvasGesture.MoveAndZoom ->
                         Modifier
                             .transformable(
                                 state = rememberTransformableState { zoomChange, panChange, _ ->
@@ -393,7 +396,8 @@ internal fun MediaCanvas(
                         modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp),
                     )
                     // The armed tool must be escapable: without this the only way
-                    // out was to drag a frame nobody wanted.
+                    // out was to drag a frame nobody wanted. The screen disarms
+                    // the tool and brings the export dialog back with no frame.
                     TextButton(onClick = onCancelRegion, modifier = Modifier.handCursor()) {
                         Text("Отмена", style = MaterialTheme.typography.bodySmall)
                     }

@@ -137,7 +137,7 @@ internal suspend fun renderCanvas(
 ): ImageBitmap? {
     val content = canvasContentBounds(layers, frames, measurer, fonts, includeAnnotation, density) ?: return null
     val view = exportView(scope, content, density) ?: return null
-    val scale = canvasExportScale(view, layers, frames, density, maxSidePx)
+    val scale = canvasExportScale(view, scope, layers, frames, density, maxSidePx)
     val width = (view.rect.width * scale).roundToInt().coerceAtLeast(1)
     val height = (view.rect.height * scale).roundToInt().coerceAtLeast(1)
     val strokePaths = layers.filterIsInstance<StrokeLayer>().associate { it.id to strokePath(it.points) }
@@ -201,26 +201,45 @@ internal fun exportView(scope: ExportScope, content: Rect?, density: Float): Exp
 /**
  * The factor from the renderer's space to exported pixels.
  *
- * «Полное разрешение, по исходнику»: a card is [CANVAS_ELEMENT_SIZE_DP] units
- * wide — [CANVAS_ELEMENT_SIZE_DP] × density × zoom px in the renderer's space —
- * and shows an image of a known pixel width, so the factor that maps the widest
- * image 1:1 is the honest one. It is clamped to 1…[EXPORT_MAX_SCALE] and then
- * capped so the bitmap never exceeds [maxSidePx].
+ * Two different questions, one function, because the callers must not each pick
+ * their own answer:
+ *
+ * - «Весь канвас» is a picture of the canvas, so its honest resolution follows
+ *   the source: a card is [CANVAS_ELEMENT_SIZE_DP] units wide — [CANVAS_ELEMENT_SIZE_DP]
+ *   × density × zoom px in the renderer's space — and shows an image of a known
+ *   pixel width, so the factor that maps the widest image 1:1 is the honest one.
+ *   It is clamped to 1…[EXPORT_MAX_SCALE].
+ * - A region is a crop of the *screen*: what the finger framed has exactly the
+ *   pixels the screen showed, so the factor is 1 — pixel for pixel. Taking it
+ *   from the widest image behind the frame would upsample the crop (a 2048 px
+ *   picture behind a 400 px frame gives a 1284 px file): a bigger file with the
+ *   same detail, an interpolation nobody asked for. The model path crops the
+ *   same way, so it sends the screen's pixels too.
+ *
+ * Either way the factor is capped so the bitmap never exceeds [maxSidePx] —
+ * that cap only ever downscales.
  */
 internal fun canvasExportScale(
     view: ExportView,
+    scope: ExportScope,
     layers: List<CanvasLayer>,
     frames: Map<String, Painter>,
     density: Float,
     maxSidePx: Int = EXPORT_MAX_SIDE_PX,
 ): Float {
-    val sourceWidth = layers.asSequence()
-        .filter { it.transform.visible && (it is ImageLayer || it is VideoLayer) }
-        .mapNotNull { layer -> frames[layer.id]?.intrinsicSize?.takeIf { it.isSpecified && it.width > 0f }?.width }
-        .maxOrNull()
-        ?: 0f
-    val cardPx = CANVAS_ELEMENT_SIZE_DP * density * view.zoom
-    val wanted = (sourceWidth / cardPx).coerceIn(1f, EXPORT_MAX_SCALE)
+    val wanted = when (scope) {
+        is ExportScope.Region -> 1f
+
+        ExportScope.Whole -> {
+            val sourceWidth = layers.asSequence()
+                .filter { it.transform.visible && (it is ImageLayer || it is VideoLayer) }
+                .mapNotNull { layer -> frames[layer.id]?.intrinsicSize?.takeIf { it.isSpecified && it.width > 0f }?.width }
+                .maxOrNull()
+                ?: 0f
+            val cardPx = CANVAS_ELEMENT_SIZE_DP * density * view.zoom
+            (sourceWidth / cardPx).coerceIn(1f, EXPORT_MAX_SCALE)
+        }
+    }
     val fits = maxSidePx / max(view.rect.width, view.rect.height)
     return min(wanted, fits).coerceAtLeast(0.01f)
 }
