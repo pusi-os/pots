@@ -397,6 +397,48 @@ class CanvasExportTest {
     }
 
     @Test
+    fun theFrameOfAPannedCanvasLandsOnTheContentItWasDraggedOver() = runTest {
+        val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
+        val frames = mapOf("one" to BitmapPainter(red))
+        // The canvas is panned by (100, 50), so the card at canvas (0, 0) sits at
+        // screen (100, 50). The user dragged screen (100, 50)…(216, 166): the
+        // left half of the card, canvas (0, 0)…(116, 116).
+        val region = ExportScope.Region(
+            left = 100f,
+            top = 50f,
+            right = 216f,
+            bottom = 166f,
+            panX = 100f,
+            panY = 50f,
+        )
+
+        val bitmap = render(
+            listOf(layer),
+            ExportScope.Whole,
+            frames,
+            includeAnnotation = true,
+            frame = region.toCanvasRect(),
+        )
+        assertNotNull(bitmap)
+
+        // Content 0…232 plus 24 px of padding: the frame is inside the content,
+        // so the file is the content's size — not content ∪ a panned-away frame.
+        assertEquals(280, bitmap.width, "the panned frame must not stretch the picture")
+        assertEquals(280, bitmap.height)
+
+        // And the amber sits where the user dragged, at content + padding:
+        // 24…140, not shifted by the pan to 124…240.
+        val ink = assertNotNull(bitmap.frameBounds(), "the frame is in the picture")
+        assertTrue(abs(ink.left - 24) <= 2, "frame left ${ink.left}")
+        assertTrue(abs(ink.top - 24) <= 2, "frame top ${ink.top}")
+        assertTrue(abs(ink.right - 140) <= 2, "frame right ${ink.right}")
+        assertTrue(abs(ink.bottom - 140) <= 2, "frame bottom ${ink.bottom}")
+        // The inside stays the photo: the frame is drawn over the content it
+        // encloses, not over some other part of the canvas.
+        assertEquals(Color.Red, bitmap.colorAt(80, 80))
+    }
+
+    @Test
     fun theZoneCropCarriesNoFrameOfItsOwn() = runTest {
         val layer = ImageLayer(id = "one", transform = LayerTransform(x = 0f, y = 0f), aspectRatio = 1f)
         val frames = mapOf("one" to BitmapPainter(red))
@@ -404,7 +446,13 @@ class CanvasExportTest {
 
         // The canvas fragment carries the frame, so the model can see where the
         // zone is…
-        val canvas = render(listOf(layer), ExportScope.Whole, frames, includeAnnotation = true, frame = region.toRect())
+        val canvas = render(
+            listOf(layer),
+            ExportScope.Whole,
+            frames,
+            includeAnnotation = true,
+            frame = region.toCanvasRect(),
+        )
         assertNotNull(canvas)
         assertNotNull(canvas.frameBounds(), "the whole-canvas picture marks the zone")
 

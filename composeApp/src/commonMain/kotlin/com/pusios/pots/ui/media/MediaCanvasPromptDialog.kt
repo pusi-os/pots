@@ -110,7 +110,7 @@ internal fun MediaCanvasPromptDialog(
             scope = ExportScope.Whole,
             includeAnnotation = true,
             background = EXPORT_DARK_BACKGROUND,
-            frame = region?.toRect(),
+            frame = region?.toCanvasRect(),
             frames = frames,
             fonts = fonts,
             measurer = measurer,

@@ -81,8 +81,16 @@ internal sealed interface ExportScope {
     }
 }
 
-/** The frame as a rectangle, for [renderCanvas]'s `frame` parameter. */
-internal fun ExportScope.Region.toRect(): Rect = Rect(left, top, right, bottom)
+/**
+ * The frame in the renderer's own space. [ExportScope.Region] carries the pan it
+ * was dragged at, because the crop must reproduce that view; a whole-canvas
+ * render builds its view with pan = 0, so the frame has to lose the pan first —
+ * otherwise it lands shifted by exactly that pan and drags the content box with
+ * it. Zoom does not move positions (it grows a card around its centre), so only
+ * the pan is subtracted.
+ */
+internal fun ExportScope.Region.toCanvasRect(): Rect =
+    Rect(left - panX, top - panY, right - panX, bottom - panY)
 
 /** Breathing room around the content of a whole-canvas export, density-independent. */
 internal const val EXPORT_PADDING = 24f
@@ -135,10 +143,11 @@ internal data class ExportView(val rect: Rect, val pan: Offset, val zoom: Float)
  *   leak into the file.
  * @param background null = transparent PNG; a colour fills the whole bitmap
  *   first (the model path needs an opaque image).
- * @param frame the zone the user dragged, in screen px (the same rectangle as
- *   [ExportScope.Region]); when [includeAnnotation] is on it is drawn over the
- *   layers so the model can see *where* the edit goes. Null = no frame. The
- *   zone's own crop passes null: a frame inside the crop would be litter.
+ * @param frame the zone the user dragged, in the renderer's own space — canvas
+ *   px, no pan; use [toCanvasRect] to get it from a dragged [ExportScope.Region].
+ *   When [includeAnnotation] is on it is drawn over the layers so the model can
+ *   see *where* the edit goes. Null = no frame. The zone's own crop passes null:
+ *   a frame inside the crop would be litter.
  * @param frames decoded frames by layer id, exactly as the screen has them: an
  *   image's bytes or a video's still frame. A layer without a frame draws only
  *   its card.
