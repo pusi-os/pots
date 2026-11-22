@@ -792,6 +792,9 @@ internal fun ServicesContent(
  */
 @Composable
 private fun MediaServiceSection(entries: List<ConfiguredServiceEntry>) {
+    // No Koin container under Paparazzi/LocalInspectionMode; the section needs
+    // AppSettings, so screenshots render the list without it (as AgentSettings does).
+    if (LocalInspectionMode.current) return
     val appSettings: AppSettings = koinInject()
     val instances = remember(entries) { entries.map { ServiceInstance(it.instanceId, it.service.id) } }
     val choices = remember(entries) { mediaServiceChoices(appSettings, instances) }
