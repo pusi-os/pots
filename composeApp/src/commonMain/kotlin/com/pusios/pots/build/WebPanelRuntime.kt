@@ -223,12 +223,15 @@ class WebPanelRuntime(
      * Both are minted **here**, on the tap, and never cached:
      * [WebPanelStatus.Running] carries the address and the kind of open it needs
      * ([WebPanelOpen]), not the ticket — a link fetched at start-up would be dead by
-     * the time it is tapped. When the gate is on — the config Pots writes — Hermes
-     * answers with the address the row already shows, which is the LAN one other
-     * devices dial, so there is no ticket to mint. pi-web answers with the address
-     * it is already listening on, whose login form takes the password (see
-     * [WebPanels.url]). Secrets are read here and never stored in the state, so
-     * every screen that renders the state stays credential-free.
+     * the time it is tapped. When the gate is on — the config Pots writes — there is
+     * no ticket to mint: the address alone gets in, and the browser is handed the
+     * panel's loopback, not the LAN address the row shows. `getUserMedia` needs a
+     * secure context, which loopback is and `http://` on a LAN address is not, and
+     * the Hermes panel is opened to use its microphone (see [browserAddress]).
+     * pi-web answers with the address it is already listening on, whose login form
+     * takes the password (see [WebPanels.url]). Secrets are read here and never
+     * stored in the state, so every screen that renders the state stays
+     * credential-free.
      */
     suspend fun link(panelId: String): String? = mutex.withLock {
         val panel = WebPanels.get(panelId) ?: return@withLock null
@@ -247,8 +250,9 @@ class WebPanelRuntime(
             // and the port comes from the address the row is showing.
             WebPanelOpen.PAIRING_CODE ->
                 mintOpenCodeLink(panel, WebPanels.portOf(running.url) ?: panel.preferredPort)
-            // A permanent address with no ticket in it — nothing to mint, nothing to cache.
-            WebPanelOpen.DASHBOARD_SIGN_IN -> running.url
+            // A permanent address with no ticket in it — nothing to mint, nothing
+            // to cache — and the browser gets the loopback one (see [browserAddress]).
+            WebPanelOpen.DASHBOARD_SIGN_IN -> browserAddress(running.url)
         }
     }
 
@@ -568,10 +572,11 @@ class WebPanelRuntime(
         }
         if (link.oneTime) return link.url
         // The gateway came up behind the dashboard's sign-in since the panel
-        // started: from here the address is constant, and the row has to say so.
+        // started: from here the address is constant, and the row has to say so —
+        // while the browser still gets loopback (see [browserAddress]).
         val address = hermesRowAddress(WebPanels.portOf(link.url) ?: port, link.url)
         setState(panel, WebPanelStatus.Running(address, WebPanelOpen.DASHBOARD_SIGN_IN))
-        return address
+        return browserAddress(address)
     }
 
     /**
@@ -597,6 +602,23 @@ class WebPanelRuntime(
     /** [WebPanels.hermesAddress], with the address this phone has right now. */
     private fun hermesRowAddress(port: Int, printed: String?): String =
         WebPanels.hermesAddress(printed, port, lanAddress())
+
+    /**
+     * The address a browser is handed for a panel that needs nothing minted.
+     *
+     * The row's LAN address is the one shape that is not a secure context:
+     * `getUserMedia` refuses it outright, so the panel's microphone stays dead.
+     * Loopback is a potentially trustworthy origin, so the browser gets this
+     * panel's own loopback at the port the row carries. Anything else the row can
+     * show — loopback itself, or a published address Hermes printed — is handed
+     * over as it is.
+     */
+    private fun browserAddress(rowUrl: String): String {
+        val port = WebPanels.portOf(rowUrl) ?: return rowUrl
+        val lan = lanAddress()
+        if (lan.isNullOrBlank() || rowUrl != WebPanels.lanAddress(port, lan)) return rowUrl
+        return WebPanels.address(port)
+    }
 
     /** The first line the guest said, for a failure the owner has to read. */
     private fun reasonLine(output: String): String =

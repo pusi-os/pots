@@ -132,6 +132,12 @@ object WebPanels {
      * as printed. The loopback one is not: Pots binds the panel to the LAN, so the
      * row gets the phone's LAN address, or loopback (and the row says the panel is
      * reachable only here) when the phone is on no network at all.
+     *
+     * The row is for reading and for dialling from another device, not for the
+     * open button: [WebPanelRuntime.link] hands the browser this panel's loopback at
+     * the same port. `getUserMedia` wants a secure context, which loopback is and
+     * `http://` on the LAN address the row carries is not — the panel's microphone
+     * only works over the loopback one.
      */
     fun hermesAddress(printed: String?, port: Int, lanIp: String?): String = when {
         printed != null && !isLoopback(printed) -> printed
@@ -153,7 +159,9 @@ object WebPanels {
         OPENCODE -> address(port)
         PI -> "${address(port)}/login"
         // The gate asks for the account, not for anything in the URL: the address
-        // alone is what the row hands over, and [hermesAddress] picks the LAN one.
+        // alone gets a browser in. [hermesAddress] shapes the row (the LAN one);
+        // the open button hands the browser this loopback address instead — see
+        // [WebPanelRuntime.link] for why.
         HERMES -> address(port)
         else -> error("no URL for panel ${panel.id}")
     }

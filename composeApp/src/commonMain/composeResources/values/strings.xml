@@ -850,7 +850,7 @@
     <string name="pots_build_system_disk_free">Free space</string>
     <string name="pots_build_uninstall">Uninstall Linux</string>
     <string name="pots_build_uninstall_title">Uninstall Linux?</string>
-    <string name="pots_build_uninstall_message">This deletes the Debian system and everything installed in it. If the Linux sandbox also runs Debian this is the same system, so it goes too. Your project folders are kept.</string>
+    <string name="pots_build_uninstall_message">This deletes the Debian system and everything installed in it, including the data of the agents that live there: their settings, sign-in credentials, skills and plugins. Reinstalling Debian does not bring that back. If the Linux sandbox also runs Debian this is the same system, so it goes too. Your project folders are kept.</string>
     <string name="pots_build_terminal_placeholder">Shell command</string>
     <string name="pots_build_terminal_running">Running…</string>
     <string name="pots_build_terminal_run_content_description">Run</string>

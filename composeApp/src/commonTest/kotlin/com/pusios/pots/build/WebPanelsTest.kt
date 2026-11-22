@@ -1304,9 +1304,48 @@ class WebPanelsTest {
         val running = assertIs<WebPanelStatus.Running>(status("hermes"))
         assertEquals("http://$LAN_IP:9120", running.url)
         assertEquals(WebPanelOpen.DASHBOARD_SIGN_IN, running.open)
-        // Opening the row hands the browser the same address — the one another
-        // device dials, not the loopback one Hermes printed.
-        assertEquals("http://$LAN_IP:9120", runtime.link("hermes"))
+        // Opening the row hands the browser the loopback address, not the one the
+        // row shows: the microphone needs a secure context, and http on the LAN
+        // address is not one.
+        assertEquals("http://127.0.0.1:9120", runtime.link("hermes"))
+    }
+
+    @Test
+    fun `opening Hermes hands the browser loopback at the port the row carries`() = runTest {
+        // The preferred port is taken, so the panel is on 9121 — the loopback the
+        // browser gets has to be the port it is really serving on, not 9120.
+        val guest = FakeGuest().apply {
+            busy += 9120
+            hermesLinks += listOf("Open the Webapp and sign in with your dashboard account: http://127.0.0.1:9121/")
+        }
+        val runtime = runtime(this, guest, lanIp = LAN_IP)
+        runtime.startPanel("hermes")
+
+        val link = runtime.link("hermes").orEmpty()
+
+        assertEquals("http://127.0.0.1:9121", link)
+        assertTrue(WebPanels.isLoopback(link), "a secure context, or the microphone is refused")
+        assertEquals("http://$LAN_IP:9121", assertIs<WebPanelStatus.Running>(status("hermes")).url)
+    }
+
+    @Test
+    fun `a tap that lands behind the sign-in gate hands the browser loopback, not the LAN address`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesLinks += listOf(
+                ONE_USE_LINK.replace("TICKET", "start"),
+                "Open the Webapp and sign in with your dashboard account: http://127.0.0.1:9120/",
+            )
+        }
+        val runtime = runtime(this, guest, lanIp = LAN_IP)
+        runtime.startPanel("hermes")
+
+        // The gate came on since the start, so the tap mints nothing and the row
+        // switches to the LAN address — while the browser still gets loopback.
+        assertEquals("http://127.0.0.1:9120", runtime.link("hermes"))
+
+        val running = assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertEquals("http://$LAN_IP:9120", running.url)
+        assertEquals(WebPanelOpen.DASHBOARD_SIGN_IN, running.open)
     }
 
     @Test
