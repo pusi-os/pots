@@ -111,8 +111,12 @@ interface PotsBuildController {
     /**
      * The panel's password, for the reveal toggle. Deliberately not part of
      * [PotsBuildState]: nothing that renders a screen has to hold it.
+     *
+     * Suspending because the value may have to be generated and stored first —
+     * the row shows it before the panel has ever started — and that write belongs
+     * on a background thread, not on the one drawing the row.
      */
-    fun webPanelPassword(panelId: String): String?
+    suspend fun webPanelPassword(panelId: String): String?
 
     /**
      * The panel's log, tail-first and with its password already cut out, for the
@@ -149,7 +153,7 @@ class NoOpPotsBuildController : PotsBuildController {
     override fun stopWebPanel(panelId: String) {}
     override fun openWebPanel(panelId: String) {}
     override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
-    override fun webPanelPassword(panelId: String): String? = null
+    override suspend fun webPanelPassword(panelId: String): String? = null
     override fun webPanelLog(panelId: String): String = WebPanelLog.NO_FILE
 }
 
