@@ -218,9 +218,8 @@ class LlmRouterMediaProviderTest {
         assertIs<MediaException.InsufficientBalance>(error)
     }
 
-    private fun respondJson(content: String, status: HttpStatusCode = HttpStatusCode.OK) = respond(
-        content = content,
-        status = status,
-        headers = jsonHeaders,
-    )
+    private fun io.ktor.client.engine.mock.MockRequestHandleScope.respondJson(
+        content: String,
+        status: HttpStatusCode = HttpStatusCode.OK,
+    ) = respond(content = content, status = status, headers = jsonHeaders)
 }

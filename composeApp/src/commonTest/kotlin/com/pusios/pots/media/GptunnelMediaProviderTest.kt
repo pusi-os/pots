@@ -55,17 +55,21 @@ class GptunnelMediaProviderTest {
     /** Records every request; the lambda picks the answer by path and method. */
     private fun engine(
         requests: MutableList<io.ktor.client.request.HttpRequestData> = mutableListOf(),
-        handler: (io.ktor.client.request.HttpRequestData) -> io.ktor.client.engine.mock.MockResponse,
+        handler: io.ktor.client.engine.mock.MockRequestHandleScope.(
+            io.ktor.client.request.HttpRequestData,
+        ) -> io.ktor.client.request.HttpResponseData,
     ): MockEngine = MockEngine { request ->
         requests += request
         handler(request)
     }
 
-    private fun respondJson(content: String, status: HttpStatusCode = HttpStatusCode.OK) = respond(
-        content = content,
-        status = status,
-        headers = jsonHeaders,
-    )
+    // `respond` is an extension on the MockEngine responder scope
+    // (MockRequestHandleScope, ktor-client-mock 3.6) — the helper rides that
+    // scope so the call sites stay terse.
+    private fun io.ktor.client.engine.mock.MockRequestHandleScope.respondJson(
+        content: String,
+        status: HttpStatusCode = HttpStatusCode.OK,
+    ) = respond(content = content, status = status, headers = jsonHeaders)
 
     private fun bodyText(request: io.ktor.client.request.HttpRequestData): String =
         (request.body as? TextContent)?.text.orEmpty()
@@ -139,7 +143,7 @@ class GptunnelMediaProviderTest {
         val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
         val engine = engine(requests) { request ->
             when {
-                request.method.rawValue == "GET" -> respondJson(catalog)
+                request.method.value == "GET" -> respondJson(catalog)
                 request.url.encodedPath == "/api/v2/media/price" -> respondJson(
                     """{"code":0,"model":"kling-v3","price":210,"currency":"RUB",
                         "params":{"resolution":"1080p","duration":5,"aspect_ratio":"16:9"}}""",
@@ -166,7 +170,7 @@ class GptunnelMediaProviderTest {
         val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
         val engine = engine(requests) { request ->
             when {
-                request.method.rawValue == "GET" -> respondJson(catalog)
+                request.method.value == "GET" -> respondJson(catalog)
                 request.url.encodedPath == "/api/v2/media/tasks" -> respondJson(taskSubmitted)
                 else -> respondJson("""{"code":99,"message":"unexpected"}""", HttpStatusCode.NotFound)
             }
@@ -257,7 +261,7 @@ class GptunnelMediaProviderTest {
     fun submitWith402ThrowsInsufficientBalance() = runTest {
         val engine = MockEngine { request ->
             when {
-                request.method.rawValue == "GET" -> respondJson(catalog)
+                request.method.value == "GET" -> respondJson(catalog)
                 else -> respondJson(
                     """{"code":5,"message":"Insufficient balance, check account balance."}""",
                     HttpStatusCode.PaymentRequired,
