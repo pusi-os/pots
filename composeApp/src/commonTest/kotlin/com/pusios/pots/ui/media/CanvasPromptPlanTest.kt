@@ -1,6 +1,7 @@
 package com.pusios.pots.ui.media
 
 import androidx.compose.ui.unit.IntSize
+import com.pusios.pots.media.MAX_MULTI_IMAGE_REFERENCES
 import com.pusios.pots.media.MediaCapValue
 import com.pusios.pots.media.MediaKind
 import com.pusios.pots.media.MediaModel
@@ -70,7 +71,11 @@ class CanvasPromptPlanTest {
 
     @Test
     fun theArityIsTheModelOwnImageFieldNotAGuess() {
-        assertEquals(2, multiPictureModel().imageReferenceLimit(), "input_urls carries several pictures")
+        assertEquals(
+            MAX_MULTI_IMAGE_REFERENCES,
+            multiPictureModel().imageReferenceLimit(),
+            "input_urls carries several pictures — the provider's multi-file cap",
+        )
         assertEquals(1, onePictureModel().imageReferenceLimit(), "image_url carries one")
         assertEquals(0, textOnlyModel().imageReferenceLimit(), "no picture field at all")
     }
@@ -79,7 +84,7 @@ class CanvasPromptPlanTest {
     fun aMultiPictureModelGetsTheCanvasAndTheFramedZone() {
         val support = canvasPromptSupport(multiPictureModel())
         assertIs<CanvasPromptSupport.Ready>(support)
-        assertEquals(2, support.limit)
+        assertTrue(support.limit >= 2, "two pictures need room for two: ${support.limit}")
 
         val images = canvasPromptImages(support.limit, hasZone = true)
         assertTrue(images.canvas)

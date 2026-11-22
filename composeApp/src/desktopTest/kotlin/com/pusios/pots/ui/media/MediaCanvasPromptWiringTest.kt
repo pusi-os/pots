@@ -339,7 +339,11 @@ class MediaCanvasPromptWiringTest {
         }
 
         override suspend fun pollJob(apiKey: String, jobId: String): MediaJobState =
-            MediaJobState(jobId = jobId, status = MediaJobStatus.Processing, kind = MediaKind.Image)
+            // The studio's poller loops for as long as a job is not terminal, and the
+            // test scheduler runs that loop in virtual time — a fake that keeps saying
+            // «processing» spins `runTest` forever. These tests assert the submitted
+            // request, not the job lifecycle, so the recorder ends the job at once.
+            MediaJobState(jobId = jobId, status = MediaJobStatus.Fail, kind = MediaKind.Image)
 
         override suspend fun downloadResult(apiKey: String, url: String): ByteArray = ByteArray(0)
     }

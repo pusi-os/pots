@@ -695,8 +695,8 @@ class MediaStudioViewModel(
     fun compressReference(index: Int) {
         val path = _references.value.getOrNull(index)?.localPath ?: return
         viewModelScope.launch {
-            val source = withContext(Dispatchers.Default) { readAppStorageBytes(path) }
-            val compressed = source?.let { withContext(Dispatchers.Default) { compressReferenceToLimit(it) } }
+            val source = withContext(pixelDispatcher) { readAppStorageBytes(path) }
+            val compressed = source?.let { withContext(pixelDispatcher) { compressReferenceToLimit(it) } }
             if (source == null || compressed == null) {
                 MediaLog.w("Reference ${index + 1} compression failed")
                 _error.value = MediaStudioError(
@@ -1355,7 +1355,7 @@ class MediaStudioViewModel(
      * Returns false when nothing was sent (busy, no model, a model that takes no
      * picture, a blank instruction); [error] carries the reason.
      */
-    fun askModelAboutCanvas(request: CanvasPromptRequest): Boolean {
+    internal fun askModelAboutCanvas(request: CanvasPromptRequest): Boolean {
         if (isGenerationBusy() || _isPreparingCanvasPrompt.value) return false
         if (request.instruction.isBlank()) {
             _error.value = MediaStudioError(

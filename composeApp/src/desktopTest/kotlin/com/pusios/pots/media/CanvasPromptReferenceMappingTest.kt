@@ -1,10 +1,13 @@
 package com.pusios.pots.media
 
+import com.pusios.pots.writeAppStorageBytes
 import java.io.File
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -25,6 +28,33 @@ import kotlin.test.assertTrue
 class CanvasPromptReferenceMappingTest {
 
     private val provider = PlusVibeMediaProvider()
+
+    private lateinit var fakeHome: File
+    private lateinit var originalHome: String
+
+    /**
+     * The provider reads a local reference's bytes from app storage, so the
+     * fixture has to be a real file: a path alone maps to nothing and the mapper
+     * rightly refuses it.
+     */
+    @BeforeTest
+    fun setUp() {
+        fakeHome = kotlin.io.path.createTempDirectory("pots-canvas-mapping").toFile()
+        originalHome = System.getProperty("user.home")
+        System.setProperty("user.home", fakeHome.absolutePath)
+        for (name in listOf("canvas", "zone")) {
+            assertTrue(
+                writeAppStorageBytes("media/refs/$name.png", encodeGridToPng(PixelGrid(4, 4, IntArray(16) { 0xFF3366CC.toInt() }))),
+                "the $name fixture must land in app storage",
+            )
+        }
+    }
+
+    @AfterTest
+    fun tearDown() {
+        System.setProperty("user.home", originalHome)
+        fakeHome.deleteRecursively()
+    }
 
     private val catalog: List<MediaModel> by lazy { provider.parseCatalog(loadFixture()) }
 
