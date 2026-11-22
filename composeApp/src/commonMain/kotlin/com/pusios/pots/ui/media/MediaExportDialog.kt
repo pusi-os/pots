@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,6 +77,8 @@ internal fun MediaExportDialog(
     /** Reads a layer's bytes: the cached copy first, the URL as a fallback. */
     loadImageBytes: suspend (ImageLayer) -> ByteArray?,
     onSave: (ImageBitmap) -> Unit,
+    /** «Спросить модель»: closes the dialog and opens the canvas-prompt screen. */
+    onAskModel: () -> Unit,
     /** «Выделить на канвасе»: closes the dialog and arms the frame gesture. */
     onPickRegion: () -> Unit,
     onDismiss: () -> Unit,
@@ -270,6 +273,37 @@ internal fun MediaExportDialog(
                                 "Сохранить в галерею",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
+                    }
+                    // The same picture, one step further: the model path renders
+                    // the annotation in and an opaque background under it, and the
+                    // prompt screen shows exactly what will be sent.
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .handCursor()
+                            .clickable(enabled = bitmap != null) { onAskModel() },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        Row(
+                            Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Спросить модель по канвасу",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                         }
                     }

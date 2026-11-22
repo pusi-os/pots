@@ -272,49 +272,55 @@ class PlusVibeMediaProvider(
     private fun appendReferences(opts: MutableMap<String, JsonElement>, request: MediaJobRequest) {
         if (request.references.isEmpty()) return
         val modelInfo = modelsById[request.model]
+        // Several pictures in one request must not share a single-key field: the
+        // mapper switches to the plural one (see ImageReferenceFields.kt). With
+        // one picture nothing changes — the single key still wins.
+        val several = request.references.count { !it.isVideo } > 1
         request.references.forEach { ref ->
             if (ref.isVideo) {
                 appendVideoReference(opts, ref, modelInfo)
             } else {
-                appendImageReference(opts, ref, modelInfo)
+                appendImageReference(opts, ref, modelInfo, several)
             }
         }
     }
 
-    private fun appendImageReference(opts: MutableMap<String, JsonElement>, ref: MediaReference, modelInfo: MediaModel?) {
+    private fun appendImageReference(
+        opts: MutableMap<String, JsonElement>,
+        ref: MediaReference,
+        modelInfo: MediaModel?,
+        several: Boolean,
+    ) {
         if (modelInfo != null && !modelInfo.acceptsImageReference) {
             throw MediaException.BadRequest("Модель ${modelInfo.id} не принимает референс-изображение")
         }
-        val paramKeys = modelInfo?.params?.map { it.key }?.toSet().orEmpty()
         val url = normalizeReferenceUrl(ref)
         if (url != null) {
-            val singleKey = listOf("image_url", "reference_image", "first_frame_url").firstOrNull { it in paramKeys }
-            val pluralKey = listOf("image_urls", "reference_image_urls", "input_urls").firstOrNull { it in paramKeys }
+            val field = modelInfo?.imageReferenceField(several)
             when {
-                singleKey != null -> opts[singleKey] = JsonPrimitive(url)
-
-                pluralKey != null -> opts.appendToArray(pluralKey, url)
-
-                else -> {
+                field == null -> {
                     MediaLog.w("Model ${modelInfo?.id ?: "?"}: no image-url key in params, falling back to image_url")
                     opts["image_url"] = JsonPrimitive(url)
                 }
+
+                field.plural -> opts.appendToArray(field.key, url)
+
+                else -> opts[field.key] = JsonPrimitive(url)
             }
             return
         }
         val dataUri = resolveDataUri(ref)
             ?: throw MediaException.BadRequest("Референс недоступен: файл не найден или не читается")
-        val singleKey = listOf("image_base64", "reference_image_base64", "first_frame_base64").firstOrNull { it in paramKeys }
-        val pluralKey = listOf("input_base64").firstOrNull { it in paramKeys }
+        val field = modelInfo?.imageReferenceBase64Field(several)
         when {
-            singleKey != null -> opts[singleKey] = JsonPrimitive(dataUri)
-
-            pluralKey != null -> opts.appendToArray(pluralKey, dataUri)
-
-            else -> {
+            field == null -> {
                 MediaLog.w("Model ${modelInfo?.id ?: "?"}: no image-base64 key in params, falling back to image_base64")
                 opts["image_base64"] = JsonPrimitive(dataUri)
             }
+
+            field.plural -> opts.appendToArray(field.key, dataUri)
+
+            else -> opts[field.key] = JsonPrimitive(dataUri)
         }
     }
 
