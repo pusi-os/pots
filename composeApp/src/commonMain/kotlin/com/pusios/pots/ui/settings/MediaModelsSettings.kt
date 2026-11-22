@@ -96,7 +96,7 @@ fun MediaModelsSettings(service: Service, instanceId: String, apiKey: String) {
                 models = it
                 loadedAt = clockLabel()
             }
-            .onFailure { error = it.message ?: it::class.simpleName.orEmpty() }
+            .onFailure { error = it.message ?: it.toString() }
         loading = false
     }
 
