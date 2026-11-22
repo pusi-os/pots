@@ -545,9 +545,7 @@ private fun ExportRegionOverlay(
         // the kept frame was stored the same way.
         val frame = when {
             rubber != null -> rubber
-
             region != null -> Rect(region.left, region.top, region.right, region.bottom)
-
             else -> return@Canvas
         }
         if (frame.width <= 0f || frame.height <= 0f) return@Canvas
