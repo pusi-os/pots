@@ -327,19 +327,16 @@ class MediaCanvasPromptWiringTest {
     private class RecordingProvider : MediaProvider {
         val submitted = mutableListOf<MediaJobRequest>()
 
-        override suspend fun listModels(apiKey: String): List<MediaModel> =
-            listOf(canvasPromptMultiPictureModel(), canvasPromptOnePictureModel(), canvasPromptTextOnlyModel())
+        override suspend fun listModels(apiKey: String): List<MediaModel> = listOf(canvasPromptMultiPictureModel(), canvasPromptOnePictureModel(), canvasPromptTextOnlyModel())
 
-        override suspend fun quotePrice(apiKey: String, request: MediaJobRequest): MediaPriceQuote =
-            MediaPriceQuote(priceRub = 0.0, quoteId = "quote-test")
+        override suspend fun quotePrice(apiKey: String, request: MediaJobRequest): MediaPriceQuote = MediaPriceQuote(priceRub = 0.0, quoteId = "quote-test")
 
         override suspend fun submitJob(apiKey: String, request: MediaJobRequest): MediaJobState {
             submitted += request
             return MediaJobState(jobId = "job-" + submitted.size, status = MediaJobStatus.Processing, kind = MediaKind.Image)
         }
 
-        override suspend fun pollJob(apiKey: String, jobId: String): MediaJobState =
-            // The studio's poller loops for as long as a job is not terminal, and the
+        override suspend fun pollJob(apiKey: String, jobId: String): MediaJobState = // The studio's poller loops for as long as a job is not terminal, and the
             // test scheduler runs that loop in virtual time — a fake that keeps saying
             // «processing» spins `runTest` forever. These tests assert the submitted
             // request, not the job lifecycle, so the recorder ends the job at once.

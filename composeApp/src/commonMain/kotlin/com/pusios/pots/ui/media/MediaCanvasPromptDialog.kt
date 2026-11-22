@@ -233,7 +233,9 @@ internal fun MediaCanvasPromptDialog(
                 Text(
                     text = when {
                         refusal != null -> refusal
+
                         attached == null -> "Ничего не уйдёт: нечего рендерить"
+
                         else -> buildString {
                             append("Уйдёт: канвас ")
                             append(attached.width).append("×").append(attached.height)

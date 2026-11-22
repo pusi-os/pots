@@ -86,6 +86,7 @@ internal fun canvasPromptText(
 /** The reason the send button is off, in the user's language; null when it is on. */
 internal fun canvasPromptRefusal(support: CanvasPromptSupport, model: MediaModel?): String? = when (support) {
     CanvasPromptSupport.NoModel -> "Модель не выбрана — выберите модель изображения"
+
     CanvasPromptSupport.NoImageInput ->
         "«${model?.id ?: "Модель"}» не принимает картинку — правку по канвасу отправить некуда. Выберите модель, которая умеет редактировать изображение."
 

@@ -1,11 +1,11 @@
 package com.pusios.pots.media
 
 import com.pusios.pots.writeAppStorageBytes
-import java.io.File
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.File
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -72,15 +72,14 @@ class CanvasPromptReferenceMappingTest {
 
     private fun model(id: String): MediaModel = catalog.first { it.id == id }
 
-    private fun body(modelId: String, vararg references: MediaReference): kotlinx.serialization.json.JsonObject =
-        provider.buildGenerateBody(
-            MediaJobRequest(
-                model = modelId,
-                prompt = "убери подпись",
-                opts = emptyMap(),
-                references = references.toList(),
-            ),
-        )
+    private fun body(modelId: String, vararg references: MediaReference): kotlinx.serialization.json.JsonObject = provider.buildGenerateBody(
+        MediaJobRequest(
+            model = modelId,
+            prompt = "убери подпись",
+            opts = emptyMap(),
+            references = references.toList(),
+        ),
+    )
 
     private fun local(name: String) = MediaReference(localPath = "media/refs/$name.png")
 
