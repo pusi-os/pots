@@ -110,7 +110,7 @@ class MediaLayersPanelTest {
     @Test
     fun consecutiveEventsMoveTheRowTheFingerHolds() {
         val row = 131f
-        var layers = listOf(image("a"), image("b"), image("c"), image("d"))
+        var layers: List<CanvasLayer> = listOf(image("a"), image("b"), image("c"), image("d"))
         var fromIndex = 1
         var carried = 0f
 
