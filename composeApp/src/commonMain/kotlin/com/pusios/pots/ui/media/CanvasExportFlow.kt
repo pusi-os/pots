@@ -30,8 +30,7 @@ internal data class ExportUiState(
     fun armRegion(): ExportUiState = copy(dialogOpen = false, regionTool = true)
 
     /** The drag finished: the dialog comes back on the frame. */
-    fun takeRegion(frame: ExportScope.Region): ExportUiState =
-        copy(dialogOpen = true, regionTool = false, region = frame)
+    fun takeRegion(frame: ExportScope.Region): ExportUiState = copy(dialogOpen = true, regionTool = false, region = frame)
 
     /**
      * «Отмена» on the armed tool: the mode is off and the dialog is back with no
