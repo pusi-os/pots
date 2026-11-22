@@ -76,6 +76,13 @@ fun AppSettings.resolveMediaInstance(): ServiceInstance? {
         ?: instances.firstOrNull()
 }
 
+/** Layers panel open/collapsed, like the other studio UI preferences: survives a restart. */
+fun AppSettings.getMediaLayersPanelOpen(): Boolean = settings.getBoolean("media_layers_panel_open", false)
+
+fun AppSettings.setMediaLayersPanelOpen(open: Boolean) {
+    settings.putBoolean("media_layers_panel_open", open)
+}
+
 fun AppSettings.removeInstanceMediaSettings(instanceId: String) {
     settings.remove("instance_${instanceId}_media_image_model_id")
     settings.remove("instance_${instanceId}_media_video_model_id")
