@@ -26,10 +26,15 @@ import kotlinx.serialization.json.jsonObject
  * keys, so a *schema-1* build opening a v2 file would silently drop strokes
  * and text and then rewrite the whole file on autosave — the drawing would be
  * gone for good. Bumping the version turns that silent loss into the honest
- * «Формат не поддерживается» card instead. Readers accept 1..2: a v1 file
+ * «Формат не поддерживается» card instead. Readers accept 1..3: an older file
  * needs no migration on disk, its missing fields decode to the defaults below.
+ *
+ * Schema 3 adds the text layer's formatting — `fontId`, `textWidthPx`,
+ * `textAlign` — for the same reason: a schema-2 build would read the text,
+ * drop the formatting and rewrite it away. A text layer written by schema 3
+ * therefore needs a build that knows it.
  */
-const val MEDIA_PROJECT_SCHEMA_VERSION = 2
+const val MEDIA_PROJECT_SCHEMA_VERSION = 3
 const val MEDIA_PROJECT_MARK = "pots-media-studio"
 const val MEDIA_PROJECT_EXTENSION = "potsproj"
 
@@ -87,6 +92,12 @@ data class MediaProjectElement(
     /** TextLayer payload. */
     val text: String? = null,
     val fontSizePx: Float? = null,
+    /** Text font key (`sans` / `serif`); null in a file written before schema 3. */
+    val fontId: String? = null,
+    /** Text wrapping box width in canvas units; null before schema 3. */
+    val textWidthPx: Float? = null,
+    /** Text alignment name (`Left` / `Center` / `Right`); null before schema 3. */
+    val textAlign: String? = null,
     /** Text/stroke/arrow ink colour, ARGB. */
     val colorArgb: Int? = null,
     /** Stroke/arrow line width in canvas px. */

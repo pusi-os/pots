@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeOff
@@ -57,8 +59,8 @@ internal val MediaStudioPotsikSize = MediaStudioToolbarButtonSize * 2
 
 /**
  * The studio's top overlay: a glass capsule with compact icon buttons
- * (import a file, draw, pick a model, generation journal, projects, and —
- * where local video processing exists — the sequence assembly sheet),
+ * (import a file, draw, add text, pick a model, generation journal, projects,
+ * and — where local video processing exists — the sequence assembly sheet),
  * and a second row beneath it with the image/video switch, the current model,
  * the aspect ratio (images) and the generation parameters such as resolution.
  * Recentering the canvas is a double-tap/double-click on its empty space.
@@ -74,6 +76,8 @@ internal fun MediaStudioTopBar(
     onOpenHistory: () -> Unit,
     onOpenProjects: () -> Unit,
     onDraw: () -> Unit,
+    /** Adds a text layer in the middle of the visible canvas and opens the editor. */
+    onAddText: () -> Unit = {},
     historyBadge: Int,
     /** The «Сохранено» mark (spec §12): appears after a save and fades away. */
     projectSaved: Boolean = false,
@@ -90,36 +94,43 @@ internal fun MediaStudioTopBar(
     onOpenSequence: () -> Unit = {},
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Surface(
-            shape = RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-            tonalElevation = 6.dp,
-            shadowElevation = 4.dp,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            // Потсик stands in the left margin (his anchor is at TopStart, twice
+            // a button wide). The capsule is centred in the space to his right,
+            // so the seventh button — «Текст» — cannot land on him.
+            Spacer(Modifier.width(MediaStudioPotsikSize))
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                tonalElevation = 6.dp,
+                shadowElevation = 4.dp,
             ) {
-                TopBarIconButton(Icons.Filled.AddPhotoAlternate, "Импортировать файл", onImport)
-                TopBarIconButton(Icons.Filled.Brush, "Рисовать на канвасе", onDraw)
-                TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)
-                TopBarIconButton(Icons.Filled.History, "Журнал генераций", onOpenHistory, badge = historyBadge)
-                TopBarIconButton(Icons.Filled.FolderOpen, "Проекты медиа-студии", onOpenProjects)
-                // The §12 save mark: an unobtrusive note that appears and fades.
-                AnimatedVisibility(
-                    visible = projectSaved,
-                    enter = fadeIn(tween(150)),
-                    exit = fadeOut(tween(600)),
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        "Сохранено",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 4.dp, end = 8.dp),
-                    )
-                }
-                if (showSequence) {
-                    TopBarIconButton(Icons.Filled.Theaters, "Собрать видео из последовательности", onOpenSequence)
+                    TopBarIconButton(Icons.Filled.AddPhotoAlternate, "Импортировать файл", onImport)
+                    TopBarIconButton(Icons.Filled.Brush, "Рисовать на канвасе", onDraw)
+                    TopBarIconButton(Icons.Filled.TextFields, "Добавить текст", onAddText)
+                    TopBarIconButton(Icons.Filled.Tune, "Выбрать модель", onOpenModels)
+                    TopBarIconButton(Icons.Filled.History, "Журнал генераций", onOpenHistory, badge = historyBadge)
+                    TopBarIconButton(Icons.Filled.FolderOpen, "Проекты медиа-студии", onOpenProjects)
+                    // The §12 save mark: an unobtrusive note that appears and fades.
+                    AnimatedVisibility(
+                        visible = projectSaved,
+                        enter = fadeIn(tween(150)),
+                        exit = fadeOut(tween(600)),
+                    ) {
+                        Text(
+                            "Сохранено",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, end = 8.dp),
+                        )
+                    }
+                    if (showSequence) {
+                        TopBarIconButton(Icons.Filled.Theaters, "Собрать видео из последовательности", onOpenSequence)
+                    }
                 }
             }
         }

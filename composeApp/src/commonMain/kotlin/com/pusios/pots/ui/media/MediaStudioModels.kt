@@ -31,8 +31,28 @@ internal fun mediaDraftKey(mode: MediaMode, flow: AudioFlow): String = when (mod
 /** Ink of a new text/stroke/arrow layer, ARGB (0xFF000000). */
 internal const val DEFAULT_LAYER_COLOR_ARGB = -16777216
 
+/** Ink of a new text layer: white, so a caption reads on the dark canvas (0xFFFFFFFF). */
+internal const val DEFAULT_TEXT_COLOR_ARGB = -1
+
 /** Text size in canvas px; the renderer measures with `Density(1f, 1f)`. */
 internal const val DEFAULT_TEXT_SIZE_PX = 48f
+
+/** Wrapping box width of a new text layer, canvas units (the width of a card). */
+internal const val DEFAULT_TEXT_WIDTH = 232f
+
+/** The box a text layer may be narrowed/widened to, canvas units. */
+internal const val MIN_TEXT_WIDTH = 64f
+internal const val MAX_TEXT_WIDTH = 960f
+
+/** Font keys of the studio's two families; the serif file ships in composeResources/font. */
+internal const val TEXT_FONT_SANS = "sans"
+internal const val TEXT_FONT_SERIF = "serif"
+
+/** The fonts the panel offers, in display order. */
+internal val TEXT_FONT_KEYS = listOf(TEXT_FONT_SANS, TEXT_FONT_SERIF)
+
+/** Line height used when a text layer has to be boxed without a measurement. */
+internal const val TEXT_FALLBACK_LINE_HEIGHT = 1.2f
 
 /** Stroke/arrow line width in canvas px. */
 internal const val DEFAULT_STROKE_WIDTH_PX = 6f
@@ -136,17 +156,47 @@ data class AudioLayer(
     override val kind: MediaElementKind get() = MediaElementKind.Audio
 }
 
-/** A text layer; [fontSizePx] and the box are in canvas px, not screen dp. */
+/**
+ * Text alignment of a text layer, stored by name in the project file.
+ *
+ * An own enum instead of Compose's `TextAlign`: the DTO and the model stay
+ * free of Compose types, and the renderer maps it once.
+ */
+enum class TextAlignKind {
+    Left,
+    Center,
+    Right,
+}
+
+/**
+ * A text layer; [fontSizePx] and [widthPx] are canvas units, not screen dp.
+ *
+ * The box is [widthPx] wide and as tall as the measured text, so the same
+ * measurement drives the render, the selection frame and the hit target.
+ * [fontId] names one of the studio's two families (see [TEXT_FONT_KEYS]); the
+ * family itself is resolved in the composition and reaches the renderer as a
+ * map, because `Font()` is @Composable.
+ */
 @Immutable
 data class TextLayer(
     override val id: String,
     override val transform: LayerTransform = LayerTransform(),
     val text: String,
     val fontSizePx: Float = DEFAULT_TEXT_SIZE_PX,
-    val colorArgb: Int = DEFAULT_LAYER_COLOR_ARGB,
+    val colorArgb: Int = DEFAULT_TEXT_COLOR_ARGB,
+    val fontId: String = TEXT_FONT_SANS,
+    val widthPx: Float = DEFAULT_TEXT_WIDTH,
+    val align: TextAlignKind = TextAlignKind.Left,
 ) : CanvasLayer {
     override val kind: MediaElementKind get() = MediaElementKind.Text
 }
+
+/** An empty text layer whose box's top-left corner is ([x], [y]) canvas px. */
+fun newTextLayer(id: String, x: Float, y: Float): TextLayer = TextLayer(
+    id = id,
+    transform = LayerTransform(x = x, y = y),
+    text = "",
+)
 
 /** A free-hand vector stroke; [points] are canvas px, the first one is the anchor. */
 @Immutable
@@ -280,6 +330,9 @@ fun CanvasLayer.toProjectElement(zIndex: Int): MediaProjectElement {
         },
         text = (this as? TextLayer)?.text,
         fontSizePx = (this as? TextLayer)?.fontSizePx,
+        fontId = (this as? TextLayer)?.fontId,
+        textWidthPx = (this as? TextLayer)?.widthPx,
+        textAlign = (this as? TextLayer)?.align?.name,
         colorArgb = when (this) {
             is TextLayer -> colorArgb
             is StrokeLayer -> colorArgb
@@ -326,7 +379,10 @@ fun MediaProjectElement.toCanvasLayer(): CanvasLayer {
             transform = transform,
             text = text.orEmpty(),
             fontSizePx = fontSizePx ?: DEFAULT_TEXT_SIZE_PX,
-            colorArgb = colorArgb ?: DEFAULT_LAYER_COLOR_ARGB,
+            colorArgb = colorArgb ?: DEFAULT_TEXT_COLOR_ARGB,
+            fontId = fontId ?: TEXT_FONT_SANS,
+            widthPx = textWidthPx ?: DEFAULT_TEXT_WIDTH,
+            align = TextAlignKind.entries.firstOrNull { it.name == textAlign } ?: TextAlignKind.Left,
         )
 
         MediaElementKind.Stroke -> StrokeLayer(

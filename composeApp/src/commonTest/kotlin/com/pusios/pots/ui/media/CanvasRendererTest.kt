@@ -8,6 +8,9 @@ import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import kotlin.math.abs
@@ -28,6 +31,10 @@ class CanvasRendererTest {
 
     private val red = solid(50, 50, Color.Red)
     private val green = solid(50, 50, Color.Green)
+
+    /** The real measurement, as on the screen: text layers are drawn from it. */
+    private val textMeasurer = TextMeasurer(createFontFamilyResolver(), Density(1f, 1f), LayoutDirection.Ltr)
+    private val textFonts = mapOf(TEXT_FONT_SANS to FontFamily.Default)
 
     @Test
     fun emptyLayerListDrawsNothing() {
@@ -149,13 +156,55 @@ class CanvasRendererTest {
     }
 
     @Test
-    fun audioAndTextLayersAreSkipped() {
+    fun audioLayersAreSkipped() {
         val audio = AudioLayer(id = "audio", transform = LayerTransform(x = 0f, y = 0f))
-        val text = TextLayer(id = "text", transform = LayerTransform(x = 0f, y = 0f), text = "hi")
-        // Frames are offered for these ids on purpose: only image/video draw them.
-        val frames = mapOf("audio" to BitmapPainter(red), "text" to BitmapPainter(green))
-        val pixels = render(listOf(audio, text), frames)
+        // A frame is offered for this id on purpose: only image/video draw them.
+        val pixels = render(listOf(audio), mapOf("audio" to BitmapPainter(red)))
         assertEquals(0f, pixels.colorAt(116, 116).alpha)
+    }
+
+    @Test
+    fun textLayerDrawsItsGlyphsInsideTheMeasuredBox() {
+        val layer = TextLayer(id = "text", transform = LayerTransform(x = 0f, y = 0f), text = "Потсик", fontSizePx = 48f)
+        val pixels = render(listOf(layer), measurer = textMeasurer, fonts = textFonts)
+
+        var ink = 0
+        for (y in 0 until 120) for (x in 0 until 240) if (pixels.colorAt(x, y).alpha > 0.1f) ink++
+        assertTrue(ink > 100, "expected glyph pixels inside the box, got $ink")
+        // The layout is 232 wide and one line tall: nothing below it.
+        assertEquals(0f, pixels.colorAt(20, 200).alpha)
+    }
+
+    @Test
+    fun textLayerScalesWithTheRenderScale() {
+        val layer = TextLayer(id = "text", transform = LayerTransform(x = 0f, y = 0f), text = "Потсик", fontSizePx = 48f)
+        fun inkRight(scale: Float): Int {
+            val pixels = render(listOf(layer), scale = scale, measurer = textMeasurer, fonts = textFonts)
+            var right = 0
+            for (y in 0 until 480) for (x in 0 until 480) if (pixels.colorAt(x, y).alpha > 0.1f) right = maxOf(right, x)
+            return right
+        }
+        // Same layout, twice the size: the line breaks do not change, only the
+        // factor — this is what keeps an export identical to the screen.
+        assertTrue(inkRight(2f) > inkRight(1f) * 1.5f)
+    }
+
+    @Test
+    fun textLayerWithoutAMeasurerDrawsNothing() {
+        val layer = TextLayer(id = "text", transform = LayerTransform(), text = "Потсик")
+        assertEquals(0f, render(listOf(layer)).colorAt(20, 20).alpha)
+    }
+
+    @Test
+    fun hiddenTextLayerIsNotDrawn() {
+        val layer = TextLayer(
+            id = "text",
+            transform = LayerTransform(x = 0f, y = 0f, visible = false),
+            text = "Потсик",
+            fontSizePx = 48f,
+        )
+        val pixels = render(listOf(layer), measurer = textMeasurer, fonts = textFonts)
+        assertEquals(0f, pixels.colorAt(20, 20).alpha)
     }
 
     @Test
@@ -184,6 +233,8 @@ class CanvasRendererTest {
         cardBackground: Color? = null,
         width: Int = 480,
         height: Int = 480,
+        measurer: TextMeasurer? = null,
+        fonts: Map<String, FontFamily> = emptyMap(),
     ): ImageBitmap {
         val bitmap = ImageBitmap(width, height)
         val canvas = Canvas(bitmap)
@@ -196,8 +247,8 @@ class CanvasRendererTest {
             renderLayers(
                 layers = layers,
                 scale = scale,
-                fonts = emptyMap(),
-                measurer = null,
+                fonts = fonts,
+                measurer = measurer,
                 frames = frames,
                 cardBackground = cardBackground,
                 zoom = zoom,

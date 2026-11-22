@@ -1,6 +1,6 @@
 # Media Studio
 
-**Last verified:** 2026-11-17
+**Last verified:** 2026-11-22
 
 Media Studio is the in-app creative surface for generating and editing images, video and audio with the currently active cloud media provider (PlusVibeAPI first). The main chat top bar switches to it: the media icon opens the studio, and while the studio is open the same slot shows a chat icon that returns to chat. The studio takes over the chat area. While it is open, the chat input is hidden: the studio has its own single prompt field in the dock. Speech output, if on, announces “генерация готова” in Russian when a job finishes.
 
@@ -187,6 +187,18 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 * Every catalog load, quote, submit, poll, download and reference mapping is logged under the `PotsMedia` tag (logcat on Android, stdout on desktop).
 * Chat history and canvas stay independent: generating in the studio does not write into the conversation.
 
+### Text layers
+
+The «Текст» button in the top toolbar adds a text layer whose box lands in the middle of the visible canvas and opens the editor: the formatting panel sits in the bottom bar (part of the layout, riding above the keyboard with `imePadding`), so the text being typed can never end up under it. The caret lives in the panel's input field only; the canvas shows the result. A tap on an existing text layer opens the editor again, «✓» keeps the text (an empty layer is dropped), «×» restores the state from before the edit.
+
+The panel offers two families — **Sans** (the platform default, no file) and **Serif** (`composeResources/font/pots_text_serif.ttf`, DejaVu Serif with Cyrillic; the Bitstream Vera notice is under Settings › Licenses) — a size stepper (16–160 canvas units), three inks (white, black, red) and left/centre/right alignment. The box width is the wrapping width: long text wraps inside it, and the «Уже»/«Шире» chips in the selection toolbar change it (64–960 units).
+
+The text is measured once, in canvas units (`Density(1f, 1f)`, fixed width), and drawn by the one `DrawScope` renderer: the screen and an export differ only by the factor they scale the layer with, so line breaks never depend on the device density, the system font scale or the export size. A layer's own scale grows the whole box (frame and glyphs together) instead of re-wrapping the text; the font size stays what the panel shows. The selection frame and the hit target are the measured box.
+
+### Project file schema 3
+
+The text formatting (`fontId`, `textWidthPx`, `textAlign`) is written into the flat element DTO; `schemaVersion` is 3 and older files (1 and 2) read through the defaults. The bump is the same guard as schema 2: a schema-2 build would read the text, drop the formatting on autosave and lose it silently, so it now refuses a v3 file with «Формат не поддерживается» instead.
+
 ## Key Files
 
 | File | Purpose |
@@ -233,6 +245,10 @@ When the user attaches a photo in chat and asks the agent to improve it or place
 | `composeApp/src/commonMain/.../ui/media/MediaVoiceSheet.kt` | «Мой голос» picker: built-in voices, cloned voices with status and mic mark, delete confirmation |
 | `composeApp/src/commonMain/.../ui/media/MediaVoiceCloneSheet.kt` | Voice creation sheet: file picker, pre-upload validation, preview player, levels, consent |
 | `composeApp/src/commonMain/.../media/MediaProject.kt` | Project format (versioned `.potsproj` JSON, schema mark, codec, sequence/mode restore) and `MediaProjectStore` (`media/projects/`, autosave target) |
+| `composeApp/src/commonMain/.../ui/media/CanvasRenderer.kt` | The one `DrawScope` renderer for the screen and the export: cards, frames, text |
+| `composeApp/src/commonMain/.../ui/media/MediaText.kt` | Text measurement (`Density(1f, 1f)`, fixed box width) and the font map resolved in the composition |
+| `composeApp/src/commonMain/.../ui/media/MediaTextPanel.kt` | The text formatting panel (font, size, ink, alignment) in the studio's bottom bar |
+| `composeApp/src/commonMain/composeResources/font/pots_text_serif.ttf` | Bundled DejaVu Serif for the «Serif» text option |
 | `composeApp/src/commonMain/.../media/MediaErrors.kt` | Unified §8 error pattern: categories, `MediaErrorInfo`, exception→card mapping, missing-key and storage helpers |
 | `composeApp/src/commonMain/.../ui/media/MediaProjectSheet.kt` | Projects sheet: manual save, open, export/import `.potsproj`, delete |
 | `composeApp/src/commonMain/.../ui/media/MediaStudioViewModel.kt` | Studio state: jobs, elements, references, model selection, generation lock, mode and parameter chips (part of the snapshot), project autosave/restore, «Сохранено» mark, typed errors |

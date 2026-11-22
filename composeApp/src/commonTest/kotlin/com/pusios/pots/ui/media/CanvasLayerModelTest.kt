@@ -108,6 +108,9 @@ class CanvasLayerModelTest {
                 text = "Подпись «по-русски»",
                 fontSizePx = 64f,
                 colorArgb = -65536,
+                fontId = TEXT_FONT_SERIF,
+                widthPx = 320f,
+                align = TextAlignKind.Center,
             ),
             StrokeLayer(
                 id = "stroke",
