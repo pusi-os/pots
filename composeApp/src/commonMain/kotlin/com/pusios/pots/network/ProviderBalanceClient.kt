@@ -46,15 +46,19 @@ class ProviderBalanceClient {
         val currency: String,
     )
 
+    /**
+     * Balance endpoints, one per provider that documents one; `null` means the card shows nothing.
+     *
+     * LLM Router sends `balance_usd` — that field name is a guess: the path exists (401 without a
+     * key, 404 on an invented one) but the provider documents no response shape, so a missing
+     * field yields null rather than a zero. Polza sends `available` (spendable money) and `amount`
+     * (includes what is reserved for running jobs); `available` wins. GPTunnel may report a
+     * negative balance when the account runs on credit — that is real data, passed through as is.
+     */
     private fun balanceSpec(service: Service): BalanceSpec? = when (service) {
         Service.PlusVibe -> BalanceSpec("https://plusvibeapi.ru/v1/balance", listOf("balance_rub"), "RUB")
         Service.PlusVibeReserve -> BalanceSpec("https://gw.plusvibeapi.ru/v1/balance", listOf("balance_rub"), "RUB")
-        /**
-         * `balance_usd` is a guess: the path exists (401 without a key, 404 on an invented one)
-         * but the provider documents no response shape. A missing field yields null, not zero.
-         */
         Service.LlmRouter -> BalanceSpec("https://llm-router.org/v1/balance", listOf("balance_usd"), "USD")
-        /** `available` is spendable money; `amount` includes what is reserved for running jobs. */
         Service.Polza -> BalanceSpec("https://polza.ai/api/v2/balance", listOf("available", "amount"), "RUB")
         Service.Gptunnel -> BalanceSpec("https://gptunnel.ru/v1/balance", listOf("balance"), "RUB")
         Service.AiTunnel -> BalanceSpec("https://api.aitunnel.ru/v1/aitunnel/balance", listOf("balance"), "RUB")
