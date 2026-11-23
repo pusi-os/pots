@@ -110,6 +110,28 @@ class RecommendedModelsTest {
     @Test
     fun `service without a table entry keeps the full catalog`() {
         val catalog = listOf(model("a"), model("b"))
-        assertEquals(catalog.map { it.id }, RecommendedModels.selectRecommended(catalog, Service.OpenAICompatible, null).map { it.id })
+        assertEquals(catalog.map { it.id }, RecommendedModels.selectRecommended(catalog, Service.[OI]Compatible, null).map { it.id })
+    }
+
+    // --- default model on key entry (updateModelsForInstance chain, no network) ---
+
+    @Test
+    fun `fresh key entry lands on the everyday model before the kimi heuristic`() {
+        // Catalog order as the provider returned it: heuristic-first model up top.
+        val catalog = listOf(model("kimi-k2.5-instruct"), model("gpt-6.2-astra"), model("z-ai/glm-5.3-flash"))
+        val withSelected = ensureSelectedModelPresent(catalog, selectedModelId = "")
+        assertTrue(withSelected.none { it.isSelected }, "nothing stored yet — nothing may be selected")
+        val default = pickDefaultModel(withSelected, Service.PlusVibe)
+        assertEquals("z-ai/glm-5.3-flash", default?.id)
+    }
+
+    @Test
+    fun `saved selection is not replaced by the everyday default`() {
+        val catalog = listOf(model("z-ai/glm-5.3-flash"), model("gpt-6.2-astra"), model("kimi-k2.5-instruct"))
+        val withSelected = ensureSelectedModelPresent(catalog, selectedModelId = "kimi-k2.5-instruct")
+        // The auto-pick only runs when nothing is selected — a saved choice must survive.
+        val autoPick = if (withSelected.none { it.isSelected }) pickDefaultModel(withSelected, Service.PlusVibe) else null
+        assertNull(autoPick)
+        assertEquals("kimi-k2.5-instruct", withSelected.first { it.isSelected }.id)
     }
 }
