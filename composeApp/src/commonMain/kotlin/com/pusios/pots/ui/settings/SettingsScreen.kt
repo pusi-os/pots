@@ -80,6 +80,7 @@ import com.pusios.pots.ui.components.VerticalScrollbarForScroll
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.potsAdaptiveCardBorder
 import com.pusios.pots.ui.potsAdaptiveCardColors
+import com.pusios.pots.ui.vault.VaultManagerScreen
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import org.jetbrains.compose.resources.painterResource
@@ -160,6 +161,7 @@ fun SettingsScreen(
             mediaServiceSection = { entries ->
                 MediaServiceSection(entries, koinInject<AppSettings>())
             },
+            vaultContent = { VaultManagerScreen() },
         )
     }
 }
@@ -181,6 +183,7 @@ fun SettingsScreenContent(
     onOpenPotsBuild: (() -> Unit)? = null,
     onRestartOnboarding: () -> Unit = {},
     mediaServiceSection: (@Composable (List<ConfiguredServiceEntry>) -> Unit)? = null,
+    vaultContent: (@Composable () -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val undoLabel = stringResource(Res.string.snackbar_undo)
@@ -269,6 +272,17 @@ fun SettingsScreenContent(
 
             val settingsScrollState = rememberScrollState()
             Box(Modifier.weight(1f).fillMaxWidth()) {
+                if (filteredUiState.currentTab == SettingsTab.Vault) {
+                    // The password manager is a full-height screen with its own
+                    // internal scrolling; inside the settings scroll column its
+                    // weighted child would collapse to zero height. Pure slot,
+                    // so paparazzi composes this branch without a Koin container.
+                    Column(
+                        Modifier.widthIn(max = 900.dp).fillMaxWidth().padding(horizontal = 16.dp),
+                    ) {
+                        vaultContent?.invoke() ?: VaultPlaceholderContent()
+                    }
+                } else {
                 Column(
                     Modifier.fillMaxWidth().verticalScroll(settingsScrollState),
                     horizontalAlignment = CenterHorizontally,
@@ -349,7 +363,9 @@ fun SettingsScreenContent(
                             }
 
                             SettingsTab.Vault -> {
-                                VaultPlaceholderContent()
+                                // Handled by the full-height branch above;
+                                // this case only keeps the when exhaustive.
+                                Unit
                             }
 
                             SettingsTab.Sandbox -> {
@@ -386,6 +402,7 @@ fun SettingsScreenContent(
                     scrollState = settingsScrollState,
                     modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
                 )
+                }
             }
         }
         SnackbarHost(
