@@ -6,7 +6,7 @@ import com.pusios.pots.data.Service
 import com.pusios.pots.data.TaskScheduler
 import com.pusios.pots.network.NoConfiguredServiceException
 import com.pusios.pots.network.OpenAICompatibleInvalidApiKeyException
-import com.pusios.pots.network.[OI]CompatibleQuotaExhaustedException
+import com.pusios.pots.network.OpenAICompatibleQuotaExhaustedException
 import com.pusios.pots.network.UiError
 import com.pusios.pots.testutil.FakeDataRepository
 import kotlinx.coroutines.Dispatchers
