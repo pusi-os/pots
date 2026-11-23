@@ -23,10 +23,10 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
-import kotlin.coroutines.coroutineContext
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
+import kotlin.time.Duration.Companion.seconds
 
 /** Everything the vault tools need. Platforms build it from Koin; tests inject fakes. */
 data class VaultToolDependencies(
@@ -121,8 +121,7 @@ object VaultTools {
 
     private fun boolArg(args: Map<String, Any>, key: String): Boolean = args[key] is Boolean && args[key] as Boolean
 
-    private fun tagList(args: Map<String, Any>): List<String> =
-        (args["tags"] as? List<*>)?.map { it.toString() }.orEmpty()
+    private fun tagList(args: Map<String, Any>): List<String> = (args["tags"] as? List<*>)?.map { it.toString() }.orEmpty()
 
     // --- vault_list -------------------------------------------------------------
 
@@ -395,7 +394,9 @@ object VaultTools {
                 )
 
                 VaultRevealOutcome.Denied -> error("denied by user")
+
                 VaultRevealOutcome.Locked -> lockedError()
+
                 is VaultRevealOutcome.Failed -> error(outcome.reason)
             }
         }
@@ -559,7 +560,9 @@ object VaultTools {
                 )
 
                 VaultFormOutcome.Cancelled -> mapOf("saved" to false, "cancelled" to true)
+
                 VaultFormOutcome.Locked -> lockedError()
+
                 is VaultFormOutcome.Failed -> error(outcome.reason)
             }
         }

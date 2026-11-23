@@ -7,13 +7,13 @@
 package com.pusios.pots.data.vault
 
 import com.pusios.pots.data.currentConversationIdOrNull
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /** How the request sheet presents a field to the user. */
 enum class VaultFieldInput { TEXT, SECRET, MULTILINE, SECRET_MULTILINE, URL }
