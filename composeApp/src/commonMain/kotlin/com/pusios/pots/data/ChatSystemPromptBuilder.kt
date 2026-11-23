@@ -145,13 +145,6 @@ internal const val DEFAULT_STRUCTURED_LEARNING_SECTION =
         "Use memory_reinforce when a stored learning produced a good outcome."
 
 /**
- * Media generation guidance. Rendered whenever the request actually carries
- * `generate_image` or `generate_video`. Teaches the agent that attached photos
- * reach the generation tools via `reference_image="attachment"` — the historical
- * failure mode was the agent refusing photo edits because it saw no way to pass
- * the attachment along.
- */
-/**
  * Rules for the password vault tools. Only card metadata is ever described here: the
  * prompt itself must not teach the model to expect — or echo — secret values.
  */
@@ -167,6 +160,13 @@ internal const val DEFAULT_VAULT_SECTION =
         "repeat it and do not store it through tool arguments; suggest `vault_request_form` " +
         "instead. `vault_reveal` shows a value to the owner only after explicit confirmation.\n"
 
+/**
+ * Media generation guidance. Rendered whenever the request actually carries
+ * `generate_image` or `generate_video`. Teaches the agent that attached photos
+ * reach the generation tools via `reference_image="attachment"` — the historical
+ * failure mode was the agent refusing photo edits because it saw no way to pass
+ * the attachment along.
+ */
 internal const val DEFAULT_MEDIA_SECTION =
     "## Media Generation\n" +
         "You can generate and edit images and videos with the `generate_image` and `generate_video` tools; " +

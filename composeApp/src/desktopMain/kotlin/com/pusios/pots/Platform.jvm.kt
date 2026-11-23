@@ -162,11 +162,11 @@ actual fun getAvailableTools(): List<Tool> {
     val miniAppRepository: MiniAppRepository by inject(MiniAppRepository::class.java)
     val dataRepository: com.pusios.pots.data.DataRepository by inject(com.pusios.pots.data.DataRepository::class.java)
     val vault = VaultToolDependencies(
-        session = inject(VaultSession::class.java).value,
-        store = inject(VaultStore::class.java).value,
-        formBridge = inject(VaultFormBridge::class.java).value,
-        revealBridge = inject(VaultRevealBridge::class.java).value,
-        gate = inject(VaultGate::class.java).value,
+        session = inject<VaultSession>().value,
+        store = inject<VaultStore>().value,
+        formBridge = inject<VaultFormBridge>().value,
+        revealBridge = inject<VaultRevealBridge>().value,
+        gate = inject<VaultGate>().value,
     )
 
     return buildAgentToolSet(
