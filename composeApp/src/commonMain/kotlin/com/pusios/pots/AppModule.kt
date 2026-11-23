@@ -13,10 +13,6 @@ import com.pusios.pots.data.SmsStore
 import com.pusios.pots.data.TaskScheduler
 import com.pusios.pots.data.TaskStore
 import com.pusios.pots.data.ToolExecutor
-import com.pusios.pots.data.vault.VaultSession
-import com.pusios.pots.data.vault.VaultStore
-import com.pusios.pots.data.vault.createVaultCryptoEngine
-import com.pusios.pots.data.vault.createVaultFileAccess
 import com.pusios.pots.data.createConversationPersistence
 import com.pusios.pots.data.getConfiguredServiceInstances
 import com.pusios.pots.data.miniapp.MiniAppRepository
@@ -26,6 +22,10 @@ import com.pusios.pots.data.miniapp.createMiniAppPersistence
 import com.pusios.pots.data.miniapp.createMiniAppServer
 import com.pusios.pots.data.miniapp.createMiniAppServerController
 import com.pusios.pots.data.runMigrations
+import com.pusios.pots.data.vault.VaultSession
+import com.pusios.pots.data.vault.VaultStore
+import com.pusios.pots.data.vault.createVaultCryptoEngine
+import com.pusios.pots.data.vault.createVaultFileAccess
 import com.pusios.pots.email.EmailPoller
 import com.pusios.pots.inference.createLocalInferenceEngine
 import com.pusios.pots.inference.createVectorizationManager

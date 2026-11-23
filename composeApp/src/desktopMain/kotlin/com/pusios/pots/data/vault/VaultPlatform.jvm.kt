@@ -8,5 +8,4 @@ import java.io.File
 
 actual fun createVaultCryptoEngine(): VaultCryptoEngine? = JvmVaultCryptoEngine()
 
-actual fun createVaultFileAccess(): VaultFileAccess? =
-    JvmVaultFileAccess(File(getAppFilesDirectory(), "vault"))
+actual fun createVaultFileAccess(): VaultFileAccess? = JvmVaultFileAccess(File(getAppFilesDirectory(), "vault"))

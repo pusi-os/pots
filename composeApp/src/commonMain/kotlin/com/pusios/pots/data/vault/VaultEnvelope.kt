@@ -78,8 +78,7 @@ class VaultAlreadyExistsException : VaultException("A vault file already exists"
 class VaultCorruptedException(detail: String) : VaultException("Vault file is corrupted: $detail")
 
 /** The file was written by a newer app version. */
-class VaultUnsupportedVersionException(val version: Int) :
-    VaultException("Vault format version $version is not supported")
+class VaultUnsupportedVersionException(val version: Int) : VaultException("Vault format version $version is not supported")
 
 /** The master password is wrong (tag check failed at key unwrap). */
 class VaultWrongPasswordException : VaultException("Wrong master password")
@@ -205,5 +204,4 @@ fun reWrapEnvelope(
     )
 }
 
-fun envelopeBytes(envelope: VaultEnvelope): ByteArray =
-    envelopeJson.encodeToString(VaultEnvelope.serializer(), envelope).encodeToByteArray()
+fun envelopeBytes(envelope: VaultEnvelope): ByteArray = envelopeJson.encodeToString(VaultEnvelope.serializer(), envelope).encodeToByteArray()

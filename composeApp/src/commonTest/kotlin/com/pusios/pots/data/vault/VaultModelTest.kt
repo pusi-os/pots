@@ -7,8 +7,8 @@ package com.pusios.pots.data.vault
 import com.pusios.pots.data.SharedJson
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 

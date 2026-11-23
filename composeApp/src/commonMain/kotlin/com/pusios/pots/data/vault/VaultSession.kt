@@ -115,14 +115,12 @@ class VaultSession(
     }
 
     /** Plaintext document, or null while locked. Refreshes the auto-lock timer. */
-    fun document(): VaultDocument? {
-        return try {
-            checkUnlocked()
-            touch()
-            document
-        } catch (_: VaultLockedException) {
-            null
-        }
+    fun document(): VaultDocument? = try {
+        checkUnlocked()
+        touch()
+        document
+    } catch (_: VaultLockedException) {
+        null
     }
 
     /**
@@ -229,8 +227,7 @@ class VaultSession(
         }
     }
 
-    private fun currentDocument(): VaultDocument =
-        document ?: throw VaultLockedException()
+    private fun currentDocument(): VaultDocument = document ?: throw VaultLockedException()
 
     private fun updateDocument(edit: (List<VaultItem>) -> List<VaultItem>) {
         document = currentDocument().copy(items = edit(currentDocument().items))

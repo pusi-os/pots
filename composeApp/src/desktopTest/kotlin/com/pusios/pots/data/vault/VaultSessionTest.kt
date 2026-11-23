@@ -6,6 +6,7 @@
 
 package com.pusios.pots.data.vault
 
+import kotlinx.coroutines.test.runTest
 import java.io.File
 import java.nio.file.Files
 import java.util.Base64
@@ -23,7 +24,6 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
-import kotlinx.coroutines.test.runTest
 
 @OptIn(ExperimentalTime::class)
 class VaultSessionTest {
