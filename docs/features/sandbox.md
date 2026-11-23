@@ -1,6 +1,6 @@
 # Linux Sandbox
 
-**Last verified:** 2026-11-22
+**Last verified:** 2026-11-23
 
 Pots ships a self-contained Linux environment on Android so the assistant — and the user, via the in-app Terminal — can run real shell commands. The agent can install packages, write and run scripts, hit the network, and reach external servers over SSH/SFTP/FTP. The sandbox runs the user-space `proot` runtime against a rootfs extracted into the app's private storage; no root or system access is required.
 
@@ -235,6 +235,26 @@ the fallback's address: the checkout is moved to it (`git fetch --depth 1 origin
 that commit is unpacked and served, so the panel comes up on a version its
 renderer matches. A developer build ships no bundle, and then the row falls back
 to the checkout's own renderer and says it is missing when it was never built.
+
+**The panel's own proot calls run without the hardlink emulation.** Every panel
+command — the gateway session, the status probe, the port probe — goes through
+the same executor switch the renderer build does (`WebPanels.PANEL_HARDLINK_EMULATION`,
+always `false`): `-L` alone, no `--link2symlink`. The emulation exists for dpkg,
+and no panel command runs dpkg; what a panel does run is Hermes' own installer —
+and a plugin installed from the webapp is a `git clone`, whose object
+finalization goes through `link()`+`unlink()`. Under `--link2symlink` those
+links become `.l2s.*` artifacts the guest can neither read nor delete, so every
+install failed with `PermissionError … .l2s.…` and left an undeletable
+`.install-<rand>` directory in `~/.hermes/plugins` (or `~/.hermes/skills`) — one
+more with every retry. Before each Hermes panel start the app sweeps those
+directories host side (`StaleInstallCleanup`, tested off-device): only
+directories named `.install-` plus exactly 8 tempfile characters (`[a-z0-9_]`),
+never the `.install-metadata.json` / `.install-metadata.json.lock` pin files, and
+the panel log gets one line naming what went. The price of the removal is
+stated, not hidden: `apt-get install` typed inside the webapp's shell assistant
+no longer works on Android — dpkg is what needs the emulation, and the panel no
+longer carries it. Package installs from the sandbox's own Packages tab go
+through `LinuxSandboxManager`, which keeps the emulation.
 
 ### Loopback, except Hermes on the LAN
 
@@ -489,7 +509,8 @@ ready, and a live pid with a listening port means nothing is started twice.
 | `composeApp/src/jvmShared/kotlin/com/pusios/pots/linux/GuestPath.kt` | Guest path → host file, following the binds, for both file browsers. Rejects traversal and anything resolving outside its root. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanels.kt` | The three agent web panels as declarations: preferred ports, the login each one asks for (`username`, none for pi-web), the one command line each is started with, port choice, the password generator, the two URLs each panel has (`address` for the row, `url` for the browser — credentials for OpenCode only, `percentEncode` for the userinfo), and the parser for `hermes webapp`'s output (one-use link vs sign-in address). |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanelRuntime.kt` | Panel state machine, free of Android: start/stop/refresh/autostart over a `WebPanelGuest`, with the "start at most once", "report the port it got" and "stopped means the port is free" rules unit-tested against a fake guest. `password()` resolves the panel's password on the first ask — generated in one place under its own lock and stored on the background dispatcher, so the row can show it before the panel has ever started — while `panelLog()` masks only the stored value. |
-| `composeApp/src/androidMain/kotlin/com/pusios/pots/build/runtime/AndroidWebPanelGuest.kt` | The guest side of the above: shell calls and pid/port/log files under the bind-mounted `/tmp`, the `/dev/tcp` port probe, the Hermes `webapp.port` rewrite, and staging the Hermes panel bundle the APK carries. |
+| `composeApp/src/androidMain/kotlin/com/pusios/pots/build/runtime/AndroidWebPanelGuest.kt` | The guest side of the above: shell calls and pid/port/log files under the bind-mounted `/tmp`, the `/dev/tcp` port probe, the Hermes `webapp.port` rewrite, staging the Hermes panel bundle the APK carries, and the host-side sweep of stale `.install-*` debris before each Hermes start. |
+| `composeApp/src/jvmShared/kotlin/com/pusios/pots/build/StaleInstallCleanup.kt` | The debris sweep itself, host side and off-device testable: deletes only directories named `.install-` plus exactly 8 tempfile characters, never the `.install-metadata.json*` pin files, and returns how many went. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/HermesWebapp.kt` | The renderer: the three on-device build attempts and what each may carry, the bundle CI built as the fallback, the stamp each source is checked against (the device build's `.pots-built-from`, the shipped bundle's pin), and where `HERMES_WEBAPP_DIST` is set. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/build/runtime/HermesWebappAssets.kt` | The APK side of the same bundle: the pinned hermes-agent commit CI bakes into `assets/hermes-webapp/pin`, the `tar.xz` beside it, and the copy into the guest (once per pin). |
 | `.github/actions/hermes-webapp-bundle/action.yml`, `hermes-webapp.pin` | Where the fallback bundle is built: CI checks out hermes-agent at the pinned commit, builds `apps/desktop/dist-webapp`, and packs it into the Android assets, so a device whose own build fails still has a panel. |

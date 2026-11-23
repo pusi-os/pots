@@ -283,7 +283,9 @@ class BuildEnvironmentManager(
      */
     private val webPanels: WebPanelRuntime by lazy {
         WebPanelRuntime(
-            guest = AndroidWebPanelGuest(paths, assets) { extraEnv -> executor(extraEnv = extraEnv) },
+            guest = AndroidWebPanelGuest(paths, assets) { extraEnv ->
+                executor(extraEnv = extraEnv, hardlinkEmulation = WebPanels.PANEL_HARDLINK_EMULATION)
+            },
             prefs = { webPanelPreferences(it) },
             savePrefs = { id, prefs -> saveWebPanelPreferences(id, prefs) },
             installed = { _state.value.installedAgents },
