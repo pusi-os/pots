@@ -89,7 +89,7 @@ class RecommendedModelsTest {
         )
         val result = RecommendedModels.selectRecommended(catalog, Service.PlusVibe, selectedId = "my-fine-tuned-model")
         assertEquals("my-fine-tuned-model", result.first().id)
-        assertEquals(5, result.size)
+        assertEquals(4, result.size)
     }
 
     @Test
