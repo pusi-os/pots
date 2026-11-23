@@ -107,7 +107,13 @@ class VaultFormBridge(private val session: VaultSession) {
             return VaultFormOutcome.Cancelled
         }
         if (values.any { it.value.length > VAULT_VALUE_LIMIT }) {
-            return VaultFormOutcome.Failed("each value must be at most $VAULT_VALUE_LIMIT characters")
+            // The refusal must also answer the waiting tool call — otherwise the
+            // vault_request_form coroutine hangs until its 300 s timeout.
+            val outcome = VaultFormOutcome.Failed("each value must be at most $VAULT_VALUE_LIMIT characters")
+            deferred?.complete(outcome)
+            if (_pending.value?.id == formId) _pending.value = null
+            deferred = null
+            return outcome
         }
         val outcome = try {
             write(form, values)

@@ -415,8 +415,8 @@ class VaultToolsTest {
         // be raced away by the tool coroutine's cleanup.
         assertEquals(MARKER, deps.revealBridge.confirm())
         assertNull(deps.revealBridge.confirm(), "the value is handed over exactly once")
-        assertNull(deps.revealBridge.pending.value)
         val response = result.await() as Map<*, *>
+        assertNull(deps.revealBridge.pending.value, "the tool's cleanup cleared the pending request")
         assertEquals(true, response["shown"])
         assertFalse(MARKER in resultJson(response), "the revealed value is not in the tool response")
     }
