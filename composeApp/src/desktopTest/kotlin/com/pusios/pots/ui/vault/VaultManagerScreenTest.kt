@@ -17,7 +17,9 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -69,6 +71,7 @@ private class VaultStep00StateException : IllegalStateException("state not unloc
 private class VaultStep01FrameException : IllegalStateException("no frame")
 private class VaultStep01ProbeException : IllegalStateException("state flipped")
 private class VaultStep01FabException : IllegalStateException("fab missing")
+private class VaultStep01FabUnmergedException : IllegalStateException("fab unmerged only")
 private class VaultStep02EditorException : IllegalStateException("editor")
 private class VaultStep03NameException : IllegalStateException("name")
 private class VaultStep04FieldException : IllegalStateException("custom field")
@@ -240,12 +243,17 @@ class VaultManagerScreenTest {
         if (onAllNodesWithText("VAULT-PROBE-NOT-UNLOCKED").fetchSemanticsNodes().isNotEmpty()) {
             throw VaultStep01ProbeException()
         }
-        if (onAllNodesWithText(add).fetchSemanticsNodes().isEmpty()) {
-            throw VaultStep01FabException()
+        val fabMerged = onAllNodesWithText(add).fetchSemanticsNodes().isNotEmpty()
+        val fabUnmerged = onAllNodesWithText(add, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        val fabTagged = onAllNodesWithTag(ADD_FAB_TAG).fetchSemanticsNodes().isNotEmpty()
+        when {
+            fabTagged && fabMerged -> {}
+            fabTagged && !fabMerged && fabUnmerged -> throw VaultStep01FabUnmergedException()
+            else -> throw VaultStep01FabException()
         }
         try {
             // 02: the FAB opens the editor.
-            onNodeWithText(add).performClick()
+            onNodeWithTag(ADD_FAB_TAG).performClick()
             waitUntilAtLeastOneExists(hasText(newTitle))
         } catch (t: Throwable) {
             throw VaultStep02EditorException()

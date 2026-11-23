@@ -47,6 +47,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -187,6 +188,9 @@ private fun newDraft(): VaultItem = VaultItem(
     },
 )
 
+/** Shared with the desktop UI tests, which click the FAB by tag. */
+internal const val ADD_FAB_TAG = "vault-add-fab"
+
 @Composable
 private fun VaultListContent(
     model: VaultViewModel,
@@ -268,7 +272,8 @@ private fun VaultListContent(
             onClick = onNew,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(16.dp),
+                .padding(16.dp)
+                .testTag(ADD_FAB_TAG),
             icon = { Icon(imageVector = Icons.Outlined.Add, contentDescription = null) },
             text = { Text(stringResource(Res.string.vault_add_item)) },
         )
