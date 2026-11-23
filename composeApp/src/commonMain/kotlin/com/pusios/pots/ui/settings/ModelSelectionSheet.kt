@@ -180,8 +180,10 @@ internal fun ModelSelection(
                 val visibleModels = remember(filteredModels, sortOption, currentSelectedModel, service) {
                     when (sortOption) {
                         ModelSortOption.Price -> filteredModels.filter { it.id == currentSelectedModel?.id || withinMonths(it.releaseDate, 6) }
+
                         ModelSortOption.Recommended ->
                             RecommendedModels.selectRecommended(filteredModels, service, currentSelectedModel?.id)
+
                         else -> filteredModels
                     }
                 }
