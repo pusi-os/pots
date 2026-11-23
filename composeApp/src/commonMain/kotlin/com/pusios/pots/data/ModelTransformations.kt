@@ -1,9 +1,11 @@
 package com.pusios.pots.data
 
 import com.pusios.pots.network.dtos.anthropic.AnthropicModelsResponseDto
+import com.pusios.pots.network.dtos.aitunnel.AiTunnelCatalogEntryDto
 import com.pusios.pots.network.dtos.gemini.GeminiModelsResponseDto
 import com.pusios.pots.network.dtos.llmrouter.LlmRouterPricingResponseDto
 import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleModelResponseDto
+import com.pusios.pots.network.dtos.plusvibe.PlusVibeCatalogEntryDto
 import com.pusios.pots.toIsoDate
 import com.pusios.pots.ui.settings.SettingsModel
 
@@ -133,6 +135,7 @@ internal fun mapOpenAICompatibleModels(
     service: Service,
     selectedModelId: String,
     pricing: List<LlmRouterPricingResponseDto.Entry>? = null,
+    catalog: Map<String, ApiCatalogEnrichment>? = null,
 ): List<SettingsModel> {
     val pricesById = pricing?.associateBy { it.id }.orEmpty()
     val activeFiltered = if (service.filterActiveStrictly) {
@@ -148,18 +151,22 @@ internal fun mapOpenAICompatibleModels(
     val chatOnly = typeFiltered.filter { isChatModel(it.id) }
     val unique = chatOnly.distinctBy { it.id }
     val mapped = unique.map {
+        val enrichment = catalog?.get(it.id)
         buildSettingsModel(
             service = service,
             id = it.id,
             selectedModelId = selectedModelId,
             apiDisplayName = it.name,
-            apiContextWindow = it.context_window ?: it.context_length,
+            apiContextWindow = it.context_window ?: it.context_length ?: enrichment?.contextWindow,
             apiReleaseDate = it.created?.toIsoDate(),
-            apiPricePerMillion = it.pricePerMillion() ?: pricesById[it.id]?.perMillion("input"),
-            apiOutputPricePerMillion = pricesById[it.id]?.perMillion("output"),
-            apiCachePricePerMillion = pricesById[it.id]?.perMillion("cache_read"),
-            apiSupportsTools = it.supportsTools(),
-            apiSupportsVision = it.supportsVision(),
+            apiPricePerMillion = it.pricePerMillion() ?: enrichment?.inputPricePerMillion
+                ?: pricesById[it.id]?.perMillion("input"),
+            apiOutputPricePerMillion = it.outputPricePerMillion() ?: enrichment?.outputPricePerMillion
+                ?: pricesById[it.id]?.perMillion("output"),
+            apiCachePricePerMillion = pricesById[it.id]?.perMillion("cache_read")
+                ?: enrichment?.cachePricePerMillion,
+            apiSupportsTools = it.supportsTools() || (enrichment?.supportsTools == true),
+            apiSupportsVision = it.supportsVision() || (enrichment?.supportsVision == true),
         )
     }
     return if (service.sortModelsById) {
@@ -211,6 +218,47 @@ internal fun OpenAICompatibleModelResponseDto.Model.pricePerMillion(): Double? {
     val value = raw.toDoubleOrNull() ?: return null
     return if (pricing.prompt_per_million != null) value else value * 1_000_000.0
 }
+
+internal fun OpenAICompatibleModelResponseDto.Model.outputPricePerMillion(): Double? {
+    val pricing = top_provider?.pricing ?: pricing ?: return null
+    val raw = pricing.completion_per_million ?: pricing.completion ?: return null
+    val value = raw.toDoubleOrNull() ?: return null
+    return if (pricing.completion_per_million != null) value else value * 1_000_000.0
+}
+
+/**
+ * Fields merged from a provider's public catalog when its `/v1/models` endpoint does not carry
+ * them (PlusVibe `/api/catalog`, AITUNNEL `/public/aitunnel/models/chat`). A null field means
+ * "unknown" and never overwrites a value parsed from `/v1/models`; boolean caps are OR-ed with
+ * what the endpoint itself declared.
+ */
+internal data class ApiCatalogEnrichment(
+    val inputPricePerMillion: Double? = null,
+    val outputPricePerMillion: Double? = null,
+    val cachePricePerMillion: Double? = null,
+    val contextWindow: Long? = null,
+    val supportsTools: Boolean? = null,
+    val supportsVision: Boolean? = null,
+)
+
+internal fun PlusVibeCatalogEntryDto.toEnrichment(): ApiCatalogEnrichment {
+    val variant = variants.firstOrNull { it.isDefault == true } ?: variants.firstOrNull()
+    return ApiCatalogEnrichment(
+        inputPricePerMillion = variant?.inputRub,
+        outputPricePerMillion = variant?.outputRub,
+        cachePricePerMillion = variant?.cachedInputRub,
+        contextWindow = caps?.contextWindow ?: variant?.maxContext,
+        supportsTools = caps?.toolCalling,
+        supportsVision = caps?.vision ?: variant?.vision,
+    )
+}
+
+internal fun AiTunnelCatalogEntryDto.toEnrichment(): ApiCatalogEnrichment = ApiCatalogEnrichment(
+    inputPricePerMillion = prompt_cost,
+    outputPricePerMillion = completion_cost,
+    contextWindow = context_size,
+    supportsVision = modalities?.input.orEmpty().any { it == "image" },
+)
 
 /** True when the model advertises function calling in its supported parameter list. */
 internal fun OpenAICompatibleModelResponseDto.Model.supportsTools(): Boolean = (supported_parameters ?: top_provider?.supported_parameters).orEmpty()
