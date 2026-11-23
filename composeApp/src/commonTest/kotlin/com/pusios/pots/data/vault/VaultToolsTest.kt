@@ -235,7 +235,7 @@ class VaultToolsTest {
         delay(100)
         val formId = assertNotNull(deps.formBridge.pending.value).id
         // The "user typing": the value enters through the sheet, never through arguments.
-        val outcome = deps.formBridge.submit(formId, mapOf("password" to MARKER, "username" to "bob"))
+        val outcome = deps.formBridge.submit(formId, null, mapOf("password" to MARKER, "username" to "bob"))
         assertTrue(outcome is VaultFormOutcome.Saved)
         val savedJson = resultJson(formResult.await())
         val itemId = assertNotNull((formResult.await() as Map<*, *>)["item_id"]).toString()
@@ -507,6 +507,7 @@ class VaultToolsTest {
         delay(100)
         val createOutcome = deps.formBridge.submit(
             deps.formBridge.pending.value!!.id,
+            null,
             mapOf("private_key" to MARKER),
         ) as VaultFormOutcome.Saved
         assertTrue(createOutcome.created)
@@ -529,6 +530,7 @@ class VaultToolsTest {
         delay(100)
         val updateOutcome = deps.formBridge.submit(
             deps.formBridge.pending.value!!.id,
+            null,
             mapOf("private_key" to "$MARKER-rotated"),
         ) as VaultFormOutcome.Saved
         assertFalse(updateOutcome.created, "update must not create a card")
@@ -560,7 +562,7 @@ class VaultToolsTest {
         }
         delay(100)
         val oversized = "x".repeat(VAULT_VALUE_LIMIT + 1)
-        val outcome = deps.formBridge.submit(deps.formBridge.pending.value!!.id, mapOf("private_key" to oversized))
+        val outcome = deps.formBridge.submit(deps.formBridge.pending.value!!.id, null, mapOf("private_key" to oversized))
         assertTrue(outcome is VaultFormOutcome.Failed, "an over-limit value must be refused")
         assertEquals(before, session.document()!!.items.size, "a refused submit writes nothing")
     }
@@ -705,7 +707,7 @@ class VaultToolsTest {
             )
         }
         delay(100)
-        deps.formBridge.submit(deps.formBridge.pending.value!!.id, mapOf("password" to MARKER))
+        deps.formBridge.submit(deps.formBridge.pending.value!!.id, null, mapOf("password" to MARKER))
         val refs = (formResult.await() as Map<*, *>)["refs"] as Map<*, *>
         val routerRef = refs["password"].toString()
 
@@ -736,6 +738,100 @@ class VaultToolsTest {
     // --- conversation scope -----------------------------------------------------------
 
     @Test
+    fun `form submit matches the conversation id the sheet passes`() = runTest {
+        val session = VaultTestHarness.session()
+        val deps = VaultTestHarness.deps(session)
+        val form = VaultTestHarness.tool(deps, "vault_request_form")
+        val before = session.document()!!.items.size
+        val formArgs = mapOf(
+            "mode" to "create",
+            "reason" to "Store a password",
+            "fields" to listOf(mapOf("key" to "password", "label" to "Password")),
+        )
+
+        // The prod path: ToolExecutor wraps every tool call in the conversation's id.
+        val result = CompletableDeferred<Any>()
+        launch {
+            result.complete(withContext(ConversationIdElement("A")) { form.execute(formArgs) })
+        }
+        delay(100)
+        val pending = assertNotNull(deps.formBridge.pending.value)
+        assertEquals("A", pending.conversationId, "the form inherits the tool's conversation scope")
+        // The sheet (a Compose scope, no ConversationIdElement around) passes the
+        // conversation it belongs to explicitly.
+        val saved = deps.formBridge.submit(pending.id, "A", mapOf("password" to MARKER))
+        assertTrue(saved is VaultFormOutcome.Saved, "submit(\"A\") must save in the prod configuration")
+        assertEquals(before + 1, session.document()!!.items.size)
+
+        // A mismatched id is a refusal: nothing is written and the tool is answered.
+        val second = CompletableDeferred<Any>()
+        launch {
+            second.complete(withContext(ConversationIdElement("A")) { form.execute(formArgs) })
+        }
+        delay(100)
+        val pending2 = assertNotNull(deps.formBridge.pending.value)
+        val refused = deps.formBridge.submit(pending2.id, "B", mapOf("password" to MARKER))
+        assertTrue(refused is VaultFormOutcome.Cancelled, "submit(\"B\") must be cancelled")
+        assertEquals(before + 1, session.document()!!.items.size, "a mismatched submit writes nothing")
+        assertEquals(true, (second.await() as Map<*, *>)["cancelled"])
+    }
+
+    @Test
+    fun `a double submit answers once and saves one card`() = runTest {
+        val session = VaultTestHarness.session()
+        val deps = VaultTestHarness.deps(session)
+        val form = VaultTestHarness.tool(deps, "vault_request_form")
+        val before = session.document()!!.items.size
+        val result = CompletableDeferred<Any>()
+        launch {
+            result.complete(
+                form.execute(
+                    mapOf(
+                        "mode" to "create",
+                        "reason" to "Store a password",
+                        "fields" to listOf(mapOf("key" to "password", "label" to "Password")),
+                    ),
+                ),
+            )
+        }
+        delay(100)
+        val formId = assertNotNull(deps.formBridge.pending.value).id
+        // Two racing Save taps: the first claims the form, the second finds it taken.
+        val first = CompletableDeferred<VaultFormOutcome>()
+        val second = CompletableDeferred<VaultFormOutcome>()
+        launch { first.complete(deps.formBridge.submit(formId, null, mapOf("password" to MARKER))) }
+        launch { second.complete(deps.formBridge.submit(formId, null, mapOf("password" to MARKER))) }
+        val outcomes = listOf(first.await(), second.await())
+        assertEquals(1, outcomes.count { it is VaultFormOutcome.Saved }, "exactly one submit saves")
+        assertEquals(1, outcomes.count { it is VaultFormOutcome.Cancelled }, "the other submit is refused")
+        assertEquals(before + 1, session.document()!!.items.size, "a double-tap must not create two cards")
+        assertEquals(true, (result.await() as Map<*, *>)["saved"])
+    }
+
+    @Test
+    fun `field specs accept required as a string`() = runTest {
+        val deps = VaultTestHarness.deps(VaultTestHarness.session())
+        val result = CompletableDeferred<Any>()
+        launch {
+            result.complete(
+                VaultTestHarness.tool(deps, "vault_request_form").execute(
+                    mapOf(
+                        "mode" to "create",
+                        "reason" to "Store a password",
+                        // A provider pipeline may hand "required": "true" over as a string.
+                        "fields" to listOf(mapOf("key" to "password", "label" to "Password", "required" to "true")),
+                    ),
+                ),
+            )
+        }
+        delay(100)
+        val pending = assertNotNull(deps.formBridge.pending.value, "the string must not fail the whole spec parse")
+        assertTrue(pending.fields.single().required, "the string \"true\" must parse as required")
+        deps.formBridge.cancel(pending.id)
+        result.await()
+    }
+
+    @Test
     fun `submit from another conversation is cancelled`() = runTest {
         val session = VaultTestHarness.session()
         val deps = VaultTestHarness.deps(session)
@@ -757,9 +853,10 @@ class VaultToolsTest {
         }
         delay(100)
         val formId = deps.formBridge.pending.value!!.id
-        // A sheet answering from a different conversation must be refused.
+        // A sheet answering from a different conversation must be refused — the id the
+        // sheet passes governs, whatever the surrounding coroutine context is.
         val outcome = withContext(ConversationIdElement("other-conversation")) {
-            deps.formBridge.submit(formId, mapOf("password" to MARKER))
+            deps.formBridge.submit(formId, "other-conversation", mapOf("password" to MARKER))
         }
         assertTrue(outcome is VaultFormOutcome.Cancelled)
         assertEquals(before, session.document()!!.items.size, "a foreign-conversation submit writes nothing")

@@ -618,7 +618,13 @@ object VaultTools {
                     key = key,
                     label = label,
                     input = input,
-                    required = map["required"] is Boolean && map["required"] as Boolean,
+                    // Same tolerant parsing as boolArg: a provider pipeline may hand
+                    // "required" over as the string "true".
+                    required = when (val req = map["required"]) {
+                        is Boolean -> req
+                        is String -> req.toBooleanStrictOrNull() ?: false
+                        else -> false
+                    },
                     placeholder = (map["placeholder"] as? String)?.takeIf { it.isNotBlank() },
                 )
             }

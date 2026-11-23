@@ -6,11 +6,11 @@
 
 package com.pusios.pots.data.vault
 
-import com.pusios.pots.data.currentConversationIdOrNull
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.Serializable
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -80,6 +80,9 @@ class VaultFormBridge(private val session: VaultSession) {
 
     private var deferred: CompletableDeferred<VaultFormOutcome>? = null
 
+    // Serializes submits: only one call at a time may claim the form and write.
+    private val submitLock = Mutex()
+
     /** Called by the `vault_request_form` tool; suspends until submit/cancel/cancel-scope. */
     suspend fun request(form: VaultFormRequest): VaultFormOutcome {
         _pending.value = form
@@ -94,36 +97,51 @@ class VaultFormBridge(private val session: VaultSession) {
         }
     }
 
-    /** Called from the sheet: writes the entered values directly into the vault. */
-    suspend fun submit(formId: String, values: Map<String, String>): VaultFormOutcome {
-        val form = _pending.value ?: return VaultFormOutcome.Cancelled
-        if (form.id != formId) return VaultFormOutcome.Cancelled
-        // Conversation scope: a sheet left open from another chat must not answer
-        // this conversation's tool call.
-        if (form.conversationId != currentConversationIdOrNull()) {
+    /**
+     * Called from the sheet: writes the entered values directly into the vault.
+     * The sheet passes the conversation the form belongs to explicitly — it runs
+     * in a Compose scope outside any ConversationIdElement context, so the
+     * coroutine context cannot carry the scope.
+     */
+    suspend fun submit(formId: String, conversationId: String?, values: Map<String, String>): VaultFormOutcome {
+        // One submit at a time: a double-tap on Save (or two racing calls) must not
+        // create two cards — the first caller claims the form, the rest are refused.
+        if (!submitLock.tryLock()) return VaultFormOutcome.Cancelled
+        try {
+            val form = _pending.value ?: return VaultFormOutcome.Cancelled
+            if (form.id != formId) return VaultFormOutcome.Cancelled
+            // Conversation scope: a sheet left open from another chat must not answer
+            // this conversation's tool call.
+            if (form.conversationId != conversationId) {
+                _pending.value = null
+                deferred?.complete(VaultFormOutcome.Cancelled)
+                deferred = null
+                return VaultFormOutcome.Cancelled
+            }
+            // Claim the form before the (suspending) write: once claimed, any other
+            // submit finds neither a pending form nor a waiting deferred.
+            val waiting = deferred ?: return VaultFormOutcome.Cancelled
+            deferred = null
             _pending.value = null
-            deferred?.complete(VaultFormOutcome.Cancelled)
-            deferred = null
-            return VaultFormOutcome.Cancelled
-        }
-        if (values.any { it.value.length > VAULT_VALUE_LIMIT }) {
-            // The refusal must also answer the waiting tool call — otherwise the
-            // vault_request_form coroutine hangs until its 300 s timeout.
-            val outcome = VaultFormOutcome.Failed("each value must be at most $VAULT_VALUE_LIMIT characters")
-            deferred?.complete(outcome)
-            if (_pending.value?.id == formId) _pending.value = null
-            deferred = null
+            if (values.any { it.value.length > VAULT_VALUE_LIMIT }) {
+                // The refusal must also answer the waiting tool call — otherwise the
+                // vault_request_form coroutine hangs until its 300 s timeout.
+                val outcome = VaultFormOutcome.Failed("each value must be at most $VAULT_VALUE_LIMIT characters")
+                waiting.complete(outcome)
+                return outcome
+            }
+            val outcome = try {
+                write(form, values)
+            } catch (_: VaultLockedException) {
+                VaultFormOutcome.Locked
+            } catch (e: IllegalArgumentException) {
+                VaultFormOutcome.Failed(e.message ?: "could not save the form")
+            }
+            waiting.complete(outcome)
             return outcome
+        } finally {
+            submitLock.unlock()
         }
-        val outcome = try {
-            write(form, values)
-        } catch (_: VaultLockedException) {
-            VaultFormOutcome.Locked
-        } catch (e: IllegalArgumentException) {
-            VaultFormOutcome.Failed(e.message ?: "could not save the form")
-        }
-        deferred?.complete(outcome)
-        return outcome
     }
 
     /** Called from the sheet's Cancel button or when the conversation switches. */
