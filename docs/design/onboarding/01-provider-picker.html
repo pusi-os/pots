@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POTS · Онбординг · выбор провайдера</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- иконки провайдеров: stroke currentColor, 24×24 -->
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M2 12h4l3-7 5 14 3-7h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3 21 8l-9 5-9-5 9-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="m3 12.5 9 5 9-5M3 17l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-tunnel" viewBox="0 0 24 24"><path d="M3 21v-8a9 9 0 0 1 18 0v8M7 21v-8a5 5 0 0 1 10 0v8M2 21h20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="10" y="10" width="4" height="4" rx="1" fill="currentColor"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="5" cy="19" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="19" cy="5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 19H14a4 4 0 0 0 4-4V7.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m16 9.5 2 2 2-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <!-- интерфейсные -->
+  <symbol id="i-close" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10.5 13 9-9m0 0 2 2m-2-2-2 2m2-2 2 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="doc">
+
+<header class="doc-head">
+  <p class="kicker">POTS · Дизайн-макеты · t_fa2dbbb3</p>
+  <h1>Онбординг: выбор провайдера</h1>
+  <p class="lede">Первый шаг онбординга: список полнофункциональных медиа-провайдеров. <b>PlusVibe выбран по умолчанию</b> (бесплатный ключ приложения встроен, пользователь может ввести свой); остальные — контурные карточки-кнопки. Под списком — свёрнутая секция «Как зарегистрироваться и получить ключ» (раскрытое состояние — в <code>02-key-guide.html</code>).</p>
+  <div class="chips">
+    <span class="chip chip--accent">360 dp · 1 px = 1 dp</span>
+    <span class="chip">PlusVibe по умолчанию</span>
+    <span class="chip">выбор — радиогруппа</span>
+    <span class="chip">inline SVG · currentColor</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">01</span>
+    <h2>Список провайдеров, секция закрыта</h2>
+  </div>
+  <p class="block-note">Состояние по умолчанию: провайдер предвыбран, инструкция свёрнута. Подпись «по умолчанию» объясняет, почему PlusVibe уже активен. Секция «Как получить ключ» видна всегда — она и есть следующий шаг онбординга.</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>A. Выбор провайдера</b><span>360 dp · PlusVibe выбран</span></div>
+      <div class="frame">
+        <div class="frame-bar">
+          <span class="bar-title">Онбординг</span>
+          <span class="bar-icon"><svg width="20" height="20"><use href="#i-close"/></svg></span>
+        </div>
+        <div class="frame-body" style="padding-bottom:16px">
+
+          <div class="sec">
+            <svg><use href="#i-chip"/></svg>
+            <h4>Провайдер</h4>
+            <span class="cnt">5</span>
+          </div>
+
+          <div class="pcard is-selected">
+            <span class="plogo"><svg><use href="#i-pulse"/></svg></span>
+            <span class="ptxt">
+              <span class="prow"><span class="pname">PlusVibe</span><span class="ptag">по умолчанию</span></span>
+              <span class="psub">Медиа-генерация · баланс в рублях</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+
+          <div class="pcard">
+            <span class="plogo"><svg><use href="#i-layers"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">Polza</span>
+              <span class="psub">Медиа-генерация · баланс в рублях</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+
+          <div class="pcard">
+            <span class="plogo"><svg><use href="#i-tunnel"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">AITUNNEL</span>
+              <span class="psub">Картинки и видео · баланс в рублях</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+
+          <div class="pcard">
+            <span class="plogo"><svg><use href="#i-chip"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">GPTunnel</span>
+              <span class="psub">Медиа-задачи · баланс в рублях</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+
+          <div class="pcard">
+            <span class="plogo"><svg><use href="#i-route"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">LLM Router</span>
+              <span class="psub">Картинки · баланс в долларах</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+
+          <div class="acc">
+            <div class="acc-trigger">
+              <svg class="kic" width="16" height="16" style="color:var(--primary)"><use href="#i-key"/></svg>
+              <span class="t">Как зарегистрироваться и получить ключ</span>
+              <svg class="chev"><use href="#i-chev"/></svg>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="num">1</span><span><b>Выбранный</b> — заливка <code>primaryContainer</code>, рамка <code>primary</code> 50 %, иконка и точка-радио <code>#D9B8FF</code>.</span></li>
+        <li><span class="num">2</span><span><b>Метка «по умолчанию»</b> — зелёная, как бейдж «Free» на карточке модели: это состояние данных, не декор.</span></li>
+        <li><span class="num">3</span><span><b>Невыбранные</b> — контур 8 % белого, лого-плита и подпись приглушённые; карточка остаётся полноценной кнопкой.</span></li>
+        <li><span class="num">4</span><span><b>Секция-аккордеон</b> — шеврон вниз; высота триггера 48 dp (тап-зона ≥ 44 dp).</span></li>
+      </ul>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>Тексты-описания провайдеров</b><span>по docs/knowledge/providers</span></div>
+      <table class="spec-table" style="max-width:460px">
+        <thead><tr><th>Провайдер</th><th>Что умеет</th><th>Баланс</th></tr></thead>
+        <tbody>
+          <tr><td>PlusVibe</td><td>медиа-генерация, 106 моделей в каталоге</td><td>₽ · <code>/v1/balance</code></td></tr>
+          <tr><td>Polza</td><td>медиа-генерация (sync + async)</td><td>₽ · <code>/api/v2/balance</code></td></tr>
+          <tr><td>AITUNNEL</td><td>картинки sync, видео async</td><td>₽ · <code>/v1/aitunnel/balance</code></td></tr>
+          <tr><td>GPTunnel</td><td>медиа-задачи с котировкой цены</td><td>₽ · <code>/v1/balance</code></td></tr>
+          <tr><td>LLM Router</td><td>картинки (sync)</td><td>$ · формат не документирован</td></tr>
+        </tbody>
+      </table>
+      <p class="block-note" style="margin:10px 0 0;max-width:460px">Одна строка на карточку: <b>что умеет · в чём баланс</b>. Формат баланса («₽ / $») взят из документов провайдеров — он отличается, и это видно сразу, без открытия инструкции.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">02</span>
+    <h2>Анатомия карточки провайдера</h2>
+  </div>
+  <p class="block-note">Увеличение 2×. Карточка — одна строка лого + текст, радиический слот справа всегда 20 dp: список не «пляшет» при переключении выбора.</p>
+
+  <div class="zoom-wrap" style="display:inline-flex;gap:44px;align-items:flex-start;padding:22px 26px">
+    <div style="position:relative;width:680px;padding:34px 44px 40px 24px">
+      <div class="dim-v" style="left:24px;top:26px;bottom:40px"><span>66</span></div>
+      <div class="dim-h" style="left:128px;width:420px;top:14px"><span>12 · 14 · 12</span></div>
+      <div class="dim-h" style="left:24px;width:80px;top:calc(34px + 132px + 10px)"><span>40</span></div>
+      <div class="dim-h" style="left:572px;width:40px;top:calc(34px + 132px + 10px)"><span>20</span></div>
+      <div style="zoom:2;width:294px">
+        <div class="pcard is-selected" style="width:294px">
+          <span class="plogo"><svg><use href="#i-pulse"/></svg></span>
+          <span class="ptxt">
+            <span class="pname">PlusVibe</span>
+            <span class="psub">Медиа-генерация · баланс в рублях</span>
+          </span>
+          <span class="pradio" aria-hidden="true"></span>
+        </div>
+      </div>
+    </div>
+
+    <table class="spec-table" style="max-width:430px;font-size:12px">
+      <tbody>
+        <tr><td>Высота карточки</td><td>66 dp (контент 64: padding 12 / 12 + лого 40, + рамка 2 × 1)</td></tr>
+        <tr><td>Лого-плита</td><td>40 × 40 dp, радиус 10, иконка 22 dp <code>currentColor</code></td></tr>
+        <tr><td>Зазор лого → текст</td><td>12 dp</td></tr>
+        <tr><td>Название</td><td>titleSmall 14 / 20, 600, одна строка</td></tr>
+        <tr><td>Подпись</td><td>labelSmall 11 / 16, <code>#9C96A8</code>, одна строка, ellipsis</td></tr>
+        <tr><td>Радио-слот</td><td>20 dp, всегда справа; у выбранного точка inset 3 dp</td></tr>
+        <tr><td>Отступы</td><td>12 сверху/снизу, 14 слева/справа</td></tr>
+        <tr><td>Зазор между карточками</td><td>8 dp</td></tr>
+        <tr><td>Тап-зона</td><td>вся карточка, 64 dp — требование ≥ 44 dp перекрыто</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">03</span>
+    <h2>320 и 300 dp</h2>
+  </div>
+  <p class="block-note">Сужается только подпись: она обрезается ellipsis. Лого-плита, название и радио-слот — фиксированные, перечень провайдеров не превращается в бегущую строку.</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>B. 320 dp</b><span>подпись влезает</span></div>
+      <div class="frame frame--narrow">
+        <div class="frame-body" style="padding-top:12px;padding-bottom:16px">
+          <div class="pcard is-selected">
+            <span class="plogo"><svg><use href="#i-pulse"/></svg></span>
+            <span class="ptxt">
+              <span class="prow"><span class="pname">PlusVibe</span><span class="ptag">по умолчанию</span></span>
+              <span class="psub">Медиа-генерация · баланс в рублях</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+          <div class="pcard">
+            <span class="plogo"><svg><use href="#i-layers"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">Polza</span>
+              <span class="psub">Медиа-генерация · баланс в рублях</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+          <div class="pcard">
+            <span class="plogo"><svg><use href="#i-route"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">LLM Router</span>
+              <span class="psub">Картинки · баланс в долларах</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>C. 300 dp</b><span>метка «по умолчанию» уходит в ellipsis-пару с подписью</span></div>
+      <div class="frame" style="width:300px">
+        <div class="frame-body" style="padding-top:12px;padding-bottom:16px">
+          <div class="pcard is-selected">
+            <span class="plogo"><svg><use href="#i-pulse"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">PlusVibe</span>
+              <span class="psub">Медиа-генерация · баланс в рублях · 106 моделей</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+          <div class="pcard">
+            <span class="plogo"><svg><use href="#i-tunnel"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">AITUNNEL</span>
+              <span class="psub">Картинки и видео · баланс в рублях</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+        </div>
+      </div>
+      <p class="flag" style="display:flex">на 300 dp метка «по умолчанию» не помещается в строку с подписью — она скрыта, выбор показывает точка-радио и заливка</p>
+    </figure>
+
+  </div>
+</section>
+
+</div>
+</body>
+</html>
