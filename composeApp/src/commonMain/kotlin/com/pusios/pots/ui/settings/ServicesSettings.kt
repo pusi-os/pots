@@ -1189,7 +1189,13 @@ private fun ServiceSettings(
     Spacer(Modifier.height(16.dp))
 
     if (connectionStatus == ConnectionStatus.Connected || models.isNotEmpty()) {
-        ModelSelection(selectedModel, models, onSelectModel, showExtendedSorts = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter))
+        ModelSelection(
+            selectedModel,
+            models,
+            onSelectModel,
+            showExtendedSorts = service in listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel, Service.PlusVibe, Service.PlusVibeReserve, Service.LlmRouter),
+            service = service,
+        )
     }
 }
 

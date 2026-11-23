@@ -499,7 +499,7 @@ class RemoteDataRepository(
     ) {
         val creds = instanceCredentials(instanceId, service)
         val selectedModelId = appSettings.getInstanceModelId(instanceId)
-        updateModelsForInstance(instanceId, fetchAndMap(creds, selectedModelId))
+        updateModelsForInstance(instanceId, fetchAndMap(creds, selectedModelId), service)
     }
 
     /**
@@ -518,7 +518,7 @@ class RemoteDataRepository(
         else -> null
     }
 
-    private fun updateModelsForInstance(instanceId: String, models: List<SettingsModel>, service: Service? = null) {
+    private fun updateModelsForInstance(instanceId: String, models: List<SettingsModel>, service: Service) {
         val selectedModelId = appSettings.getInstanceModelId(instanceId)
         val withSelected = ensureSelectedModelPresent(models, selectedModelId)
         val flow = modelsByInstance.getOrPut(instanceId) { MutableStateFlow(emptyList()) }
@@ -531,15 +531,6 @@ class RemoteDataRepository(
                 flow.update { m -> m.map { it.copy(isSelected = it.id == default.id) } }
             }
         }
-    }
-
-    private fun pickDefaultModel(models: List<SettingsModel>, service: Service? = null): SettingsModel? {
-        val defaultModel = service?.defaultModel
-        if (defaultModel != null) {
-            models.firstOrNull { it.id == defaultModel }?.let { return it }
-        }
-        return models.firstOrNull { it.id.contains("kimi-k2.5", ignoreCase = true) }
-            ?: models.firstOrNull()
     }
 
     private suspend fun askWithLocalEngine(
@@ -2656,4 +2647,22 @@ internal fun resolveAskInstance(instances: List<ServiceInstance>, instanceId: St
         return instances.firstOrNull { Service.fromId(it.serviceId)?.isOnDevice == false } ?: instances.first()
     }
     return instances.find { it.instanceId == instanceId } ?: throw ConfiguredInstanceNotFoundException(instanceId)
+}
+
+/**
+ * Picks the model a service lands on when nothing is stored yet: the service's curated
+ * default first, then the everyday model from the [RecommendedModels] table, then the
+ * kimi-k2.5 heuristic, then the first entry. Never overwrites a saved pick — callers
+ * only invoke this when no model is selected yet.
+ */
+internal fun pickDefaultModel(models: List<SettingsModel>, service: Service): SettingsModel? {
+    val defaultModel = service.defaultModel
+    if (defaultModel != null) {
+        models.firstOrNull { it.id == defaultModel }?.let { return it }
+    }
+    RecommendedModels.everydayModelId(service)?.let { everyday ->
+        models.firstOrNull { it.id == everyday }?.let { return it }
+    }
+    return models.firstOrNull { it.id.contains("kimi-k2.5", ignoreCase = true) }
+        ?: models.firstOrNull()
 }
