@@ -1076,4 +1076,11 @@
     <string name="vault_field_type_multiline">Текст (многострочный)</string>
     <string name="vault_field_type_secret_multiline">Секрет (многострочный)</string>
     <string name="vault_field_type_url">URL</string>
+    <string name="vault_form_reason">Агент просит: %1$s</string>
+    <string name="vault_form_generate">Сгенерировать</string>
+    <string name="vault_form_required">Обязательное поле</string>
+    <string name="vault_form_saved">Сохранено: %1$s</string>
+    <string name="vault_form_close">Закрыть</string>
+    <string name="vault_form_locked_hint">Хранилище закрыто. Введите мастер-пароль, чтобы продолжить.</string>
+    <string name="vault_form_no_vault">Хранилище ещё не создано — настройте его в Настройках → Менеджер паролей.</string>
 </resources>

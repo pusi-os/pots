@@ -1075,4 +1075,11 @@
     <string name="vault_field_type_multiline">Text (multiline)</string>
     <string name="vault_field_type_secret_multiline">Secret (multiline)</string>
     <string name="vault_field_type_url">URL</string>
+    <string name="vault_form_reason">Agent requests: %1$s</string>
+    <string name="vault_form_generate">Generate</string>
+    <string name="vault_form_required">Required</string>
+    <string name="vault_form_saved">Saved: %1$s</string>
+    <string name="vault_form_close">Close</string>
+    <string name="vault_form_locked_hint">The vault is locked. Enter the master password to continue.</string>
+    <string name="vault_form_no_vault">The vault has not been created yet — set it up in Settings → Password manager.</string>
 </resources>
