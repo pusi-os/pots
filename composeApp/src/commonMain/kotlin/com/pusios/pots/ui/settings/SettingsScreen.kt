@@ -99,6 +99,8 @@ import pots.composeapp.generated.resources.settings_tab_potsiki
 import pots.composeapp.generated.resources.settings_tab_sandbox
 import pots.composeapp.generated.resources.settings_tab_services
 import pots.composeapp.generated.resources.settings_tab_tools
+import pots.composeapp.generated.resources.settings_tab_vault
+import pots.composeapp.generated.resources.settings_vault_placeholder
 import pots.composeapp.generated.resources.settings_version
 import pots.composeapp.generated.resources.snackbar_email_removed
 import pots.composeapp.generated.resources.snackbar_mcp_server_removed
@@ -346,6 +348,10 @@ fun SettingsScreenContent(
                                 )
                             }
 
+                            SettingsTab.Vault -> {
+                                VaultPlaceholderContent()
+                            }
+
                             SettingsTab.Sandbox -> {
                                 SandboxSettingsCard(
                                     sandboxState = sandboxState,
@@ -466,6 +472,7 @@ private fun SettingsTabSelector(
                             SettingsTab.Agent -> stringResource(Res.string.settings_tab_agent)
                             SettingsTab.Services -> stringResource(Res.string.settings_tab_services)
                             SettingsTab.Tools -> stringResource(Res.string.settings_tab_tools)
+                            SettingsTab.Vault -> stringResource(Res.string.settings_tab_vault)
                             SettingsTab.Sandbox -> stringResource(Res.string.settings_tab_sandbox)
                             SettingsTab.Integrations -> stringResource(Res.string.settings_tab_integrations)
                             SettingsTab.Potsiki -> stringResource(Res.string.settings_tab_potsiki)
@@ -686,4 +693,18 @@ internal fun ToggleableHeadline(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+@Composable
+private fun VaultPlaceholderContent() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+        horizontalAlignment = CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(Res.string.settings_vault_placeholder),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
