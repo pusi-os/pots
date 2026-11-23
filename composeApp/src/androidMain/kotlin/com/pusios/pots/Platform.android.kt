@@ -18,6 +18,13 @@ import com.pusios.pots.data.SmsDraftStore
 import com.pusios.pots.data.SmsStore
 import com.pusios.pots.data.TaskStore
 import com.pusios.pots.data.miniapp.MiniAppRepository
+import com.pusios.pots.data.vault.VaultFormBridge
+import com.pusios.pots.data.vault.VaultGate
+import com.pusios.pots.data.vault.VaultRevealBridge
+import com.pusios.pots.data.vault.VaultSession
+import com.pusios.pots.data.vault.VaultStore
+import com.pusios.pots.data.vault.VaultToolDependencies
+import com.pusios.pots.data.vault.VaultTools
 import com.pusios.pots.mcp.McpServerManager
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
@@ -212,7 +219,7 @@ actual fun getPlatformToolDefinitions(): List<ToolInfo> = CommonTools.commonTool
         AskSandboxAgentTool.toolInfo,
         ProcessManagerTool.toolInfo,
         SshConfigureHostTool.toolInfo,
-    )
+    ) + VaultTools.toolDefinitions
 
 actual fun getAvailableTools(): List<Tool> {
     val context: Context by inject(Context::class.java)
@@ -224,6 +231,13 @@ actual fun getAvailableTools(): List<Tool> {
     val potsikStage: PotsikStage by inject(PotsikStage::class.java)
     val miniAppRepository: MiniAppRepository by inject(MiniAppRepository::class.java)
     val dataRepository: com.pusios.pots.data.DataRepository by inject(com.pusios.pots.data.DataRepository::class.java)
+    // The same delegate style as the lines above: the property type carries T.
+    val vaultSession: VaultSession by inject(VaultSession::class.java)
+    val vaultStore: VaultStore by inject(VaultStore::class.java)
+    val vaultFormBridge: VaultFormBridge by inject(VaultFormBridge::class.java)
+    val vaultRevealBridge: VaultRevealBridge by inject(VaultRevealBridge::class.java)
+    val vaultGate: VaultGate by inject(VaultGate::class.java)
+    val vault = VaultToolDependencies(vaultSession, vaultStore, vaultFormBridge, vaultRevealBridge, vaultGate)
 
     return buildAgentToolSet(
         appSettings = appSettings,
@@ -233,6 +247,7 @@ actual fun getAvailableTools(): List<Tool> {
         potsikStage = potsikStage,
         emailStore = emailStore,
         miniAppRepository = miniAppRepository,
+        vault = vault,
         attachmentProvider = {
             // The last user message's attachments in the active chat.
             dataRepository.chatHistory.value

@@ -149,6 +149,16 @@ class ScreenshotTest {
     }
 
     @Test
+    fun settingsVault_dark() {
+        paparazzi.snap(DarkColorScheme) {
+            SettingsScreenContent(
+                uiState = ScreenshotTestData.settingsVault,
+                sandboxState = ScreenshotTestData.sandboxState,
+            )
+        }
+    }
+
+    @Test
     fun settingsSandbox_dark() {
         paparazzi.snap(DarkColorScheme) {
             ChatScreenContent(
