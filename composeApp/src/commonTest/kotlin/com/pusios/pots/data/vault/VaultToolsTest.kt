@@ -11,7 +11,7 @@ import com.pusios.pots.data.HeadlessRunElement
 import com.pusios.pots.data.providers.buildAnthropicMessages
 import com.pusios.pots.data.providers.sanitizeToolMessages
 import com.pusios.pots.network.dtos.anthropic.AnthropicChatRequestDto
-import com.pusios.pots.network.dtos.openaicompatible.`[OI]CompatibleChatRequestDto`
+import com.pusios.pots.network.dtos.openaicompatible.[OI]CompatibleChatRequestDto
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.ui.chat.History
 import com.pusios.pots.ui.chat.ToolCallInfo
@@ -22,9 +22,11 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.encodeURLParameter
 import io.ktor.http.content.OutgoingContent
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -325,7 +327,7 @@ class VaultToolsTest {
                 History(
                     role = History.Role.ASSISTANT,
                     content = "",
-                    toolCalls = listOf(
+                    toolCalls = persistentListOf(
                         ToolCallInfo(
                             id = callId,
                             name = "vault_request_form",
@@ -343,7 +345,7 @@ class VaultToolsTest {
         assertTrue(dtoMessages.any { it.role == "tool" }, "the payload must actually carry the tool results")
         assertTrue(dtoMessages.any { it.tool_calls != null }, "the payload must carry the assistant tool-call turn")
         val providerPayload = Json.encodeToString(
-            ListSerializer(`[OI]CompatibleChatRequestDto`.Message.serializer()),
+            ListSerializer([OI]CompatibleChatRequestDto.Message.serializer()),
             dtoMessages,
         )
         assertFalse(MARKER in providerPayload, "marker leaked into the [OI]-compatible provider payload")
