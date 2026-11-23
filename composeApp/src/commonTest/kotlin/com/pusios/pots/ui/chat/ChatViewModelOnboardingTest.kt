@@ -38,6 +38,7 @@ import kotlin.test.assertTrue
 class ChatViewModelOnboardingTest {
 
     private val testDispatcher = StandardTestDispatcher()
+
     // Shares the scheduler with runTest, so virtual time (timeouts) advances in tests.
     private val unconfinedDispatcher = UnconfinedTestDispatcher(testDispatcher.scheduler)
     private lateinit var fakeRepository: FakeDataRepository
