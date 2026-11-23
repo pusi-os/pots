@@ -12,6 +12,13 @@ import com.pusios.pots.data.EmailStore
 import com.pusios.pots.data.MemoryStore
 import com.pusios.pots.data.TaskStore
 import com.pusios.pots.data.miniapp.MiniAppRepository
+import com.pusios.pots.data.vault.VaultFormBridge
+import com.pusios.pots.data.vault.VaultGate
+import com.pusios.pots.data.vault.VaultRevealBridge
+import com.pusios.pots.data.vault.VaultSession
+import com.pusios.pots.data.vault.VaultStore
+import com.pusios.pots.data.vault.VaultToolDependencies
+import com.pusios.pots.data.vault.VaultTools
 import com.pusios.pots.mcp.McpServerManager
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
@@ -131,7 +138,7 @@ actual fun createSecureSettings(): Settings = KeychainSettings(service = "com.pu
 
 actual fun createLegacySettings(): Settings? = NSUserDefaultsSettings(platform.Foundation.NSUserDefaults.standardUserDefaults)
 
-actual fun getPlatformToolDefinitions(): List<ToolInfo> = CommonTools.commonToolDefinitions
+actual fun getPlatformToolDefinitions(): List<ToolInfo> = CommonTools.commonToolDefinitions + VaultTools.toolDefinitions
 
 private object IosKoinHelper : KoinComponent {
     val appSettings: AppSettings by inject()
@@ -141,6 +148,13 @@ private object IosKoinHelper : KoinComponent {
     val mcpServerManager: McpServerManager by inject()
     val potsikStage: PotsikStage by inject()
     val miniAppRepository: MiniAppRepository by inject()
+    val vault = VaultToolDependencies(
+        session = inject<VaultSession>().value,
+        store = inject<VaultStore>().value,
+        formBridge = inject<VaultFormBridge>().value,
+        revealBridge = inject<VaultRevealBridge>().value,
+        gate = inject<VaultGate>().value,
+    )
 }
 
 actual fun getAvailableTools(): List<Tool> = buildAgentToolSet(
@@ -151,6 +165,7 @@ actual fun getAvailableTools(): List<Tool> = buildAgentToolSet(
     potsikStage = IosKoinHelper.potsikStage,
     emailStore = IosKoinHelper.emailStore,
     miniAppRepository = IosKoinHelper.miniAppRepository,
+    vault = IosKoinHelper.vault,
 )
 
 @Suppress("CAST_NEVER_SUCCEEDS")

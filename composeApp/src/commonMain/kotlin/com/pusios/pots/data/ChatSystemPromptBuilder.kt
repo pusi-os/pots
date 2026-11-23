@@ -8,6 +8,7 @@
 
 package com.pusios.pots.data
 
+import com.pusios.pots.data.vault.VaultTools
 import com.pusios.pots.skills.SkillManifest
 import kotlin.time.Instant
 
@@ -142,6 +143,22 @@ internal const val DEFAULT_STRUCTURED_LEARNING_SECTION =
         "- Record things that worked well as LEARNING entries\n" +
         "- Record error resolutions as ERROR entries\n" +
         "Use memory_reinforce when a stored learning produced a good outcome."
+
+/**
+ * Rules for the password vault tools. Only card metadata is ever described here: the
+ * prompt itself must not teach the model to expect — or echo — secret values.
+ */
+internal const val DEFAULT_VAULT_SECTION =
+    "## Password Vault\n" +
+        "You have access to the encrypted password vault (vault_* tools). `vault_list` shows only " +
+        "names, URLs, usernames and tags; `vault_get` returns `vault://<item>/<field>` references, " +
+        "never values. A `vault://` reference is a placeholder: pass it to `vault_http_request` or " +
+        "`vault_form_fill` and the app substitutes the secret at transport level — the value never " +
+        "enters this conversation.\n" +
+        "Ask for new credentials only through `vault_request_form`, never by asking the user to " +
+        "paste a password into the chat. If the user sends a secret as plain text anyway, do not " +
+        "repeat it and do not store it through tool arguments; suggest `vault_request_form` " +
+        "instead. `vault_reveal` shows a value to the owner only after explicit confirmation.\n"
 
 /**
  * Media generation guidance. Rendered whenever the request actually carries
@@ -284,6 +301,13 @@ internal fun buildChatSystemPrompt(
     }
     if (heartbeatAdditions.isNotEmpty() && seesSchedulingTools) {
         appendHeartbeatAdditionsSection(heartbeatAdditions)
+    }
+
+    // The vault section teaches placeholder-only handling of secrets; it renders when the
+    // model is actually handed any vault tool (the master toggle gates the whole set).
+    if (VaultTools.TOOL_NAMES.any { it in toolNames }) {
+        if (isNotEmpty()) append("\n\n")
+        append(DEFAULT_VAULT_SECTION)
     }
 
     if (activeSkill != null) {
