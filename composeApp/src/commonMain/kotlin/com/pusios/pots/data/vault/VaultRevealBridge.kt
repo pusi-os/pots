@@ -1,7 +1,6 @@
 // Encrypted vault: bridge for `vault_reveal`. The tool asks for a value, the owner
-// confirms, and the value is handed to the UI overlay / clipboard through
-// [VaultRevealBridge.takeValue] — never through the tool result, the chat history or a
-// provider payload.
+// confirms, and [confirm] hands the value to the UI overlay / clipboard atomically —
+// exactly once, never through the tool result, the chat history or a provider payload.
 
 package com.pusios.pots.data.vault
 
@@ -69,17 +68,21 @@ class VaultRevealBridge(private val session: VaultSession) {
         }
     }
 
-    /** The overlay or the clipboard takes the value here; the tool path never does. */
-    fun takeValue(): String? = revealedValue
-
-    /** Owner confirmed — the overlay shows / copies the value. */
-    fun confirm() = finish(VaultRevealOutcome.Shown)
+    /**
+     * Owner confirmed: atomically returns the value and clears it. The overlay/clipboard
+     * takes the value here, in the same call — the tool coroutine's cleanup cannot race
+     * it (a later call returns null). The value never reaches the tool path.
+     */
+    fun confirm(): String? {
+        val value = revealedValue
+        revealedValue = null
+        deferred?.complete(VaultRevealOutcome.Shown)
+        return value
+    }
 
     /** Owner declined or dismissed the overlay. */
-    fun deny() = finish(VaultRevealOutcome.Denied)
-
-    private fun finish(outcome: VaultRevealOutcome) {
-        deferred?.complete(outcome)
+    fun deny() {
+        deferred?.complete(VaultRevealOutcome.Denied)
     }
 
     private suspend fun readValue(itemId: String, field: String): String = session.withKey {

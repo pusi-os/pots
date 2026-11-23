@@ -62,7 +62,6 @@ object VaultTools {
     private const val FIELD_KEY_LIMIT = 12
     private const val NOTES_LIMIT = 4_000
     private const val REASON_LIMIT = 200
-    private const val VALUE_LIMIT = 8_000
     private const val RESPONSE_BODY_LIMIT = 20_000
     private val ALLOWED_HTTP_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD")
     private const val REVEAL_TTL_SEC = 30
@@ -119,7 +118,27 @@ object VaultTools {
 
     private fun str(args: Map<String, Any>, key: String): String? = args[key]?.toString()?.trim()?.ifEmpty { null }
 
-    private fun boolArg(args: Map<String, Any>, key: String): Boolean = args[key] is Boolean && args[key] as Boolean
+    // The model sends booleans both as JSON booleans and as "true"/"false" strings
+    // depending on the provider's argument pipeline; accept both.
+    private fun boolArg(args: Map<String, Any>, key: String): Boolean = when (val raw = args[key]) {
+        is Boolean -> raw
+        is String -> raw.toBooleanStrictOrNull() ?: false
+        else -> false
+    }
+
+    // The response body is scrubbed of every encoding a substitution can produce: the
+    // raw value, its URL-encoded form (form bodies) and its JSON-escaped form (JSON
+    // bodies), so an echoing server cannot leak the secret in an encoded shape.
+    private fun scrub(text: String, secret: String): String {
+        var result = text.replace(secret, "[redacted]")
+        val urlEncoded = secret.encodeURLParameter()
+        if (urlEncoded != secret) result = result.replace(urlEncoded, "[redacted]")
+        val jsonEscaped = jsonEscape(secret)
+        if (jsonEscaped != secret) result = result.replace(jsonEscaped, "[redacted]")
+        val jsonThenUrl = jsonEscaped.encodeURLParameter()
+        if (jsonThenUrl != jsonEscaped && jsonThenUrl != urlEncoded) result = result.replace(jsonThenUrl, "[redacted]")
+        return result
+    }
 
     private fun tagList(args: Map<String, Any>): List<String> = (args["tags"] as? List<*>)?.map { it.toString() }.orEmpty()
 
@@ -275,7 +294,7 @@ object VaultTools {
             // Scrub any occurrence of a used secret out of the response before it can
             // reach the result, the history and the provider.
             val rawBody = response.bodyAsText().take(RESPONSE_BODY_LIMIT)
-            val scrubbed = values.values.fold(rawBody) { acc, secret -> acc.replace(secret, "[redacted]") }
+            val scrubbed = values.values.fold(rawBody) { acc, secret -> scrub(acc, secret) }
             return mapOf(
                 "success" to true,
                 "status" to response.status.value,
@@ -357,7 +376,7 @@ object VaultTools {
                 }
             }
             val rawBody = response.bodyAsText().take(RESPONSE_BODY_LIMIT)
-            val scrubbed = values.values.fold(rawBody) { acc, secret -> acc.replace(secret, "[redacted]") }
+            val scrubbed = values.values.fold(rawBody) { acc, secret -> scrub(acc, secret) }
             return mapOf(
                 "success" to true,
                 "status" to response.status.value,
@@ -378,11 +397,20 @@ object VaultTools {
             parameters = mapOf(
                 "item_id" to ParameterSchema("string", "The card id from vault_list", required = true),
                 "field" to ParameterSchema("string", "Field key to reveal", required = true),
-                "copy" to ParameterSchema("string", "true to copy the value to the clipboard instead of showing it", required = false),
+                "copy" to ParameterSchema("boolean", "true to copy the value to the clipboard instead of showing it", required = false),
             ),
         )
 
         override suspend fun execute(args: Map<String, Any>): Any {
+            // Heartbeat / scheduled runs have no overlay to confirm in: refuse now
+            // instead of hanging for the full tool timeout.
+            if (coroutineContext[HeadlessRunElement] != null) {
+                return mapOf(
+                    "success" to false,
+                    "error" to "vault_reveal_unavailable",
+                    "hint" to "No chat UI is in the foreground; ask the user to open Pots",
+                )
+            }
             if (deps.session.locked.value) return lockedError()
             val itemId = str(args, "item_id") ?: return error("item_id is required")
             val field = str(args, "field") ?: return error("field is required")
@@ -419,23 +447,25 @@ object VaultTools {
                 "username" to ParameterSchema("string", "Login name", required = false),
                 "tags" to ParameterSchema("array", "Tags", required = false),
                 "notes" to ParameterSchema("string", "Non-secret notes only, max 4000 chars", required = false),
-                "generate_password" to ParameterSchema("string", "true to generate a random password into the card (never returned)", required = false),
+                "generate_password" to ParameterSchema("boolean", "true to generate a random password into the card (never returned)", required = false),
             ),
         )
 
         override suspend fun execute(args: Map<String, Any>): Any {
             if (deps.session.locked.value) return lockedError()
             val name = str(args, "name") ?: return error("name is required")
-            val typeArg = str(args, "type") ?: VaultItemKind.LOGIN.id
+            val existing = str(args, "item_id")?.let { id ->
+                deps.session.document()?.items?.firstOrNull { it.id == id }
+                    ?: return error("no vault item with id $id")
+            }
+            // An update without an explicit type keeps the card's type: silently
+            // resetting an ssh_key or host card to login corrupts the card's template.
+            val typeArg = str(args, "type") ?: existing?.type ?: VaultItemKind.LOGIN.id
             VaultItemKind.fromId(typeArg) ?: return error("unknown type: $typeArg")
             val notes = str(args, "notes").orEmpty()
             if (notes.length > NOTES_LIMIT) return error("notes must be at most $NOTES_LIMIT characters")
             val generatePassword = boolArg(args, "generate_password")
 
-            val existing = str(args, "item_id")?.let { id ->
-                deps.session.document()?.items?.firstOrNull { it.id == id }
-                    ?: return error("no vault item with id $id")
-            }
             var item = (existing ?: VaultItem(id = "", type = typeArg, name = name)).copy(
                 name = name,
                 type = typeArg,
@@ -507,7 +537,7 @@ object VaultTools {
                     "Max 12 field descriptors: {key, label, input: text|secret|multiline|secret_multiline|url, required, placeholder}",
                     required = true,
                 ),
-                "allow_generate" to ParameterSchema("string", "true to show the user a generate-password button", required = false),
+                "allow_generate" to ParameterSchema("boolean", "true to show the user a generate-password button", required = false),
             ),
         )
 
@@ -525,8 +555,11 @@ object VaultTools {
             if (mode != "create" && mode != VaultFormBridge.MODE_UPDATE) {
                 return error("mode must be create or update")
             }
-            val itemId = str(args, "item_id")?.also {
-                if (mode == VaultFormBridge.MODE_UPDATE && it.isBlank()) return error("item_id is required when mode=update")
+            // str() already yields null on blank values, so the check is on null: without
+            // it an update request would fall through and silently create a duplicate.
+            val itemId = str(args, "item_id")
+            if (mode == VaultFormBridge.MODE_UPDATE && itemId == null) {
+                return error("item_id is required when mode=update")
             }
             val reason = str(args, "reason") ?: return error("reason is required")
             if (reason.length > REASON_LIMIT) return error("reason must be at most $REASON_LIMIT characters")
@@ -539,7 +572,9 @@ object VaultTools {
                 id = newVaultFormId(),
                 mode = mode,
                 itemId = itemId,
-                itemType = str(args, "type") ?: VaultItemKind.LOGIN.id,
+                // Null when the agent did not pick a template: an update keeps the
+                // existing card's type instead of resetting it to login.
+                itemType = str(args, "type"),
                 name = str(args, "name").orEmpty(),
                 url = str(args, "url").orEmpty(),
                 username = str(args, "username").orEmpty(),
@@ -554,6 +589,7 @@ object VaultTools {
                 is VaultFormOutcome.Saved -> mapOf(
                     "saved" to true,
                     "item_id" to outcome.itemId,
+                    "item" to outcome.itemName,
                     "created" to outcome.created,
                     "fields" to outcome.savedKeys,
                     "refs" to outcome.savedKeys.associate { key -> key to ref(outcome.itemId, key) },
@@ -602,7 +638,7 @@ object VaultTools {
         for ((itemId, field) in refs) {
             val item = doc.items.firstOrNull { it.id == itemId } ?: return null
             val value = item.fields.firstOrNull { it.key == field }?.value ?: return null
-            if (value.length > VALUE_LIMIT) return null
+            if (value.length > VAULT_VALUE_LIMIT) return null
             values[ref(itemId, field)] = value
         }
         return values

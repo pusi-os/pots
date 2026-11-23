@@ -34,7 +34,8 @@ data class VaultFormRequest(
     val id: String,
     val mode: String,
     val itemId: String? = null,
-    val itemType: String = VaultItemKind.LOGIN.id,
+    // Null = no template requested: an update keeps the existing card's type.
+    val itemType: String? = null,
     val name: String = "",
     val url: String = "",
     val username: String = "",
@@ -51,11 +52,19 @@ data class VaultFormRequest(
 
 /** What the user did with the sheet. */
 sealed interface VaultFormOutcome {
-    data class Saved(val itemId: String, val savedKeys: List<String>, val created: Boolean) : VaultFormOutcome
+    data class Saved(
+        val itemId: String,
+        val itemName: String,
+        val savedKeys: List<String>,
+        val created: Boolean,
+    ) : VaultFormOutcome
     data object Cancelled : VaultFormOutcome
     data object Locked : VaultFormOutcome
     data class Failed(val reason: String) : VaultFormOutcome
 }
+
+/** §3.4.9: one field value is at most 8 KB (an RSA-8192 key is ~6.5 KB); larger entries are refused. */
+internal const val VAULT_VALUE_LIMIT = 8_000
 
 /**
  * Suspend bridge modeled on [com.pusios.pots.tools.PermissionController]: the tool side
@@ -97,6 +106,9 @@ class VaultFormBridge(private val session: VaultSession) {
             deferred = null
             return VaultFormOutcome.Cancelled
         }
+        if (values.any { it.value.length > VAULT_VALUE_LIMIT }) {
+            return VaultFormOutcome.Failed("each value must be at most $VAULT_VALUE_LIMIT characters")
+        }
         val outcome = try {
             write(form, values)
         } catch (_: VaultLockedException) {
@@ -127,7 +139,7 @@ class VaultFormBridge(private val session: VaultSession) {
                 ?: return VaultFormOutcome.Failed("no vault item with id ${form.itemId}")
             created = false
             item = existing.copy(
-                type = form.itemType.takeIf { it.isNotBlank() } ?: existing.type,
+                type = form.itemType ?: existing.type,
                 name = form.name.takeIf { it.isNotBlank() } ?: existing.name,
                 url = form.url.ifBlank { existing.url },
                 username = form.username.ifBlank { existing.username },
@@ -138,7 +150,7 @@ class VaultFormBridge(private val session: VaultSession) {
             created = true
             item = VaultItem(
                 id = "",
-                type = form.itemType,
+                type = form.itemType ?: VaultItemKind.LOGIN.id,
                 name = form.name.ifBlank { "Untitled" },
                 url = form.url,
                 username = form.username,
@@ -150,7 +162,7 @@ class VaultFormBridge(private val session: VaultSession) {
         // a password to an existing card without touching its other fields).
         val merged = item.fields.filterNot { existing -> specs.any { it.key == existing.key } } + specs
         val saved = session.upsert(item.copy(fields = merged), values)
-        return VaultFormOutcome.Saved(saved.id, values.keys.toList(), created)
+        return VaultFormOutcome.Saved(saved.id, saved.name, values.keys.toList(), created)
     }
 
     private fun VaultFieldInput.toFieldKind(): VaultFieldKind = when (this) {

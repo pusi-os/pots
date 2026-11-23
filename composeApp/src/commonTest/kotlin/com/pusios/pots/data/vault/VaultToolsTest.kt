@@ -8,7 +8,14 @@ import com.pusios.pots.data.Conversation
 import com.pusios.pots.data.ConversationIdElement
 import com.pusios.pots.data.ConversationJson
 import com.pusios.pots.data.HeadlessRunElement
+import com.pusios.pots.data.providers.buildAnthropicMessages
+import com.pusios.pots.data.providers.sanitizeToolMessages
+import com.pusios.pots.network.dtos.anthropic.AnthropicChatRequestDto
+import com.pusios.pots.network.dtos.openaicompatible.`[OI]CompatibleChatRequestDto`
 import com.pusios.pots.network.tools.Tool
+import com.pusios.pots.ui.chat.History
+import com.pusios.pots.ui.chat.ToolCallInfo
+import com.pusios.pots.ui.chat.toGroqMessageDto
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -23,6 +30,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -186,6 +195,13 @@ class VaultToolsTest {
         }
         val save = schemas.first { it.name == "vault_save" }
         assertFalse("\"fields\"" in resultJson(save.parameters), "vault_save must not take fields[].value")
+        // Boolean flags are declared as booleans: a provider pipeline can hand "true"
+        // over as a string, and the schema must not lie about the type either way.
+        for (name in listOf("copy", "generate_password", "allow_generate")) {
+            val schema = schemas.firstOrNull { it.parameters.containsKey(name) }
+            assertNotNull(schema, "$name parameter must exist")
+            assertEquals("boolean", schema.parameters.getValue(name).type, "$name must be declared boolean")
+        }
     }
 
     @Test
@@ -234,7 +250,8 @@ class VaultToolsTest {
             VaultTestHarness.tool(deps, "vault_save").execute(mapOf("name" to "GitLab", "generate_password" to true)),
         )
 
-        // vault_reveal with the owner's explicit confirmation.
+        // vault_reveal with the owner's explicit confirmation; the value goes to the
+        // overlay via confirm()'s return — never into a tool response.
         val revealResult = CompletableDeferred<Any>()
         launch {
             revealResult.complete(
@@ -243,7 +260,8 @@ class VaultToolsTest {
             )
         }
         delay(100)
-        deps.revealBridge.confirm()
+        val revealed = deps.revealBridge.confirm()
+        assertEquals(MARKER, revealed, "the overlay receives the value from confirm()")
         responses["vault_reveal"] = resultJson(revealResult.await())
 
         // vault_http_request with the reference substitution, owner confirmed.
@@ -296,9 +314,47 @@ class VaultToolsTest {
         val persisted = ConversationJson.encodeToString(messages)
         assertFalse(MARKER in persisted, "marker leaked into the persisted history")
 
-        // (г) Outgoing requests to the provider carry only the tool JSON checked above;
-        // the marker IS on the wire to the *target* server — that is the transport
-        // substitution — and the target's echoed response is scrubbed.
+        // (г) The provider payload, built the way RemoteDataRepository builds it for
+        // both provider families: [OI]-compatible (toGroqMessageDto + sanitizeToolMessages)
+        // and Anthropic (toAnthropicContentBlocks). The assistant tool-call turn is
+        // included so the round-tripped arguments path is covered too.
+        val callId = "call_1"
+        val history = buildList {
+            add(History(role = History.Role.USER, content = "Store my credentials"))
+            add(
+                History(
+                    role = History.Role.ASSISTANT,
+                    content = "",
+                    toolCalls = listOf(
+                        ToolCallInfo(
+                            id = callId,
+                            name = "vault_request_form",
+                            arguments = resultJson(formArgs),
+                        ),
+                    ),
+                ),
+            )
+            responses.forEach { (name, json) ->
+                add(History(role = History.Role.TOOL, content = json, toolCallId = callId, toolName = name))
+            }
+            add(History(role = History.Role.ASSISTANT, content = "Saved as vault://$itemId/password."))
+        }
+        val dtoMessages = sanitizeToolMessages(history.map { it.toGroqMessageDto() })
+        assertTrue(dtoMessages.any { it.role == "tool" }, "the payload must actually carry the tool results")
+        assertTrue(dtoMessages.any { it.tool_calls != null }, "the payload must carry the assistant tool-call turn")
+        val providerPayload = Json.encodeToString(
+            ListSerializer(`[OI]CompatibleChatRequestDto`.Message.serializer()),
+            dtoMessages,
+        )
+        assertFalse(MARKER in providerPayload, "marker leaked into the [OI]-compatible provider payload")
+        val anthropicPayload = Json.encodeToString(
+            ListSerializer(AnthropicChatRequestDto.Message.serializer()),
+            buildAnthropicMessages(history),
+        )
+        assertFalse(MARKER in anthropicPayload, "marker leaked into the Anthropic provider payload")
+
+        // The target server legitimately sees the value (transport substitution) and
+        // the echoing response is scrubbed.
         val httpJson = responses.getValue("vault_http_request")
         assertTrue("[redacted]" in httpJson, "the echoed secret must be scrubbed from the response")
         assertTrue(mock.requests.isNotEmpty(), "the mock server should have seen the requests")
@@ -335,6 +391,32 @@ class VaultToolsTest {
         val denied = result.await() as Map<*, *>
         assertEquals("denied by user", denied["error"])
         assertNull(deps.revealBridge.pending.value)
+        assertNull(deps.revealBridge.confirm(), "a denied reveal hands over no value")
+    }
+
+    @Test
+    fun `reveal hands the value to the owner exactly once`() = runTest {
+        val session = VaultTestHarness.session()
+        val deps = VaultTestHarness.deps(session)
+        val itemId = session.document()!!.items.first { it.name == VaultTestHarness.ITEM_NAME }.id
+
+        val result = CompletableDeferred<Any>()
+        launch {
+            result.complete(
+                VaultTestHarness.tool(deps, "vault_reveal")
+                    .execute(mapOf("item_id" to itemId, "field" to "password")),
+            )
+        }
+        delay(100)
+        assertNotNull(deps.revealBridge.pending.value)
+        // confirm() is the atomic handoff: the value comes back exactly once and cannot
+        // be raced away by the tool coroutine's cleanup.
+        assertEquals(MARKER, deps.revealBridge.confirm())
+        assertNull(deps.revealBridge.confirm(), "the value is handed over exactly once")
+        assertNull(deps.revealBridge.pending.value)
+        val response = result.await() as Map<*, *>
+        assertEquals(true, response["shown"])
+        assertFalse(MARKER in resultJson(response), "the revealed value is not in the tool response")
     }
 
     @Test
@@ -364,6 +446,165 @@ class VaultToolsTest {
         val cancelled = result.await() as Map<*, *>
         assertEquals(true, cancelled["cancelled"])
         assertEquals(before, session.document()!!.items.size, "cancel writes nothing")
+        assertNull(deps.formBridge.pending.value, "cancel clears the pending form")
+    }
+
+    // --- update keeps the card shape ------------------------------------------------
+
+    @Test
+    fun `vault_save update keeps the card type and parses string booleans`() = runTest {
+        val session = VaultTestHarness.session()
+        val deps = VaultTestHarness.deps(session)
+        val save = VaultTestHarness.tool(deps, "vault_save")
+
+        // Providers may hand booleans over as strings ("true"); generation must work.
+        val created = save.execute(mapOf("name" to "Router", "type" to "ssh_key", "generate_password" to "true")) as Map<*, *>
+        assertEquals(true, created["generated"], "generate_password=\"true\" must generate a password")
+        assertEquals(true, created["saved"])
+        val id = created["id"].toString()
+
+        // An update without a type keeps ssh_key instead of silently resetting to login.
+        save.execute(mapOf("item_id" to id, "name" to "Router v2"))
+        val card = session.document()!!.items.first { it.id == id }
+        assertEquals("ssh_key", card.type, "update must not reset the card type")
+        assertEquals("Router v2", card.name)
+    }
+
+    @Test
+    fun `form update without item_id fails and a typed update keeps the card type`() = runTest {
+        val session = VaultTestHarness.session()
+        val deps = VaultTestHarness.deps(session)
+        val form = VaultTestHarness.tool(deps, "vault_request_form")
+
+        // mode=update without item_id is an error — not a silent Untitled duplicate.
+        val missing = form.execute(
+            mapOf(
+                "mode" to "update",
+                "reason" to "Rotate a key",
+                "fields" to listOf(mapOf("key" to "password", "label" to "Password")),
+            ),
+        ) as Map<*, *>
+        assertEquals("item_id is required when mode=update", missing["error"])
+        assertNull(deps.formBridge.pending.value, "the rejected form must not reach the UI")
+
+        // Create an ssh_key card through the form, then update it without a type.
+        val created = CompletableDeferred<Any>()
+        launch {
+            created.complete(
+                form.execute(
+                    mapOf(
+                        "mode" to "create",
+                        "name" to "Router",
+                        "type" to "ssh_key",
+                        "reason" to "Store the key",
+                        "fields" to listOf(mapOf("key" to "private_key", "label" to "Private key", "input" to "secret_multiline")),
+                    ),
+                ),
+            )
+        }
+        delay(100)
+        val createOutcome = deps.formBridge.submit(
+            deps.formBridge.pending.value!!.id,
+            mapOf("private_key" to MARKER),
+        ) as VaultFormOutcome.Saved
+        assertTrue(createOutcome.created)
+        assertEquals("Router", createOutcome.itemName, "the form response must carry the item name")
+        val itemId = (created.await() as Map<*, *>)["item_id"].toString()
+
+        val updated = CompletableDeferred<Any>()
+        launch {
+            updated.complete(
+                form.execute(
+                    mapOf(
+                        "mode" to "update",
+                        "item_id" to itemId,
+                        "reason" to "Rotate the key",
+                        "fields" to listOf(mapOf("key" to "private_key", "label" to "Private key", "input" to "secret_multiline")),
+                    ),
+                ),
+            )
+        }
+        delay(100)
+        val updateOutcome = deps.formBridge.submit(
+            deps.formBridge.pending.value!!.id,
+            mapOf("private_key" to "$MARKER-rotated"),
+        ) as VaultFormOutcome.Saved
+        assertFalse(updateOutcome.created, "update must not create a card")
+        val card = session.document()!!.items.first { it.id == itemId }
+        assertEquals("ssh_key", card.type, "form update must not reset the card type")
+        assertFalse(session.document()!!.items.any { it.name == "Untitled" }, "no duplicate Untitled card")
+        assertEquals(true, (updated.await() as Map<*, *>)["saved"])
+    }
+
+    @Test
+    fun `form submit refuses values over the 8 KB limit`() = runTest {
+        val session = VaultTestHarness.session()
+        val deps = VaultTestHarness.deps(session)
+        val form = VaultTestHarness.tool(deps, "vault_request_form")
+        val before = session.document()!!.items.size
+
+        val result = CompletableDeferred<Any>()
+        launch {
+            result.complete(
+                form.execute(
+                    mapOf(
+                        "mode" to "create",
+                        "name" to "Too big",
+                        "reason" to "Store a key",
+                        "fields" to listOf(mapOf("key" to "private_key", "label" to "Private key", "input" to "secret_multiline")),
+                    ),
+                ),
+            )
+        }
+        delay(100)
+        val oversized = "x".repeat(VAULT_VALUE_LIMIT + 1)
+        val outcome = deps.formBridge.submit(deps.formBridge.pending.value!!.id, mapOf("private_key" to oversized))
+        assertTrue(outcome is VaultFormOutcome.Failed, "an over-limit value must be refused")
+        assertEquals(before, session.document()!!.items.size, "a refused submit writes nothing")
+    }
+
+    // --- scrubbing covers encoded forms --------------------------------------------
+
+    @Test
+    fun `form fill scrubs raw and encoded forms of the secret`() = runTest {
+        val session = VaultTestHarness.session()
+        val deps = VaultTestHarness.deps(session, httpClient = RecordingMock().client())
+        // A password with special characters: its URL-encoded and JSON-escaped shapes
+        // differ from the raw value, so a raw-only scrub would leak them.
+        val secret = "p@ss w0rd&x"
+        session.upsert(
+            VaultItem(
+                id = "",
+                name = "Special",
+                fields = listOf(VaultField(key = "password", label = "Password", type = VaultFieldKind.SECRET.id)),
+            ),
+            mapOf("password" to secret),
+        )
+        val itemId = session.document()!!.items.first { it.name == "Special" }.id
+
+        for (contentType in listOf("application/x-www-form-urlencoded", "application/json")) {
+            val result = CompletableDeferred<Any>()
+            launch {
+                result.complete(
+                    VaultTestHarness.tool(deps, "vault_form_fill").execute(
+                        mapOf(
+                            "item_id" to itemId,
+                            "url" to "https://echo.test/login",
+                            "content_type" to contentType,
+                            "mapping" to mapOf("password" to "password"),
+                        ),
+                    ),
+                )
+            }
+            delay(100)
+            deps.gate.respond(deps.gate.pending.value!!.id, allowed = true)
+            val response = result.await() as Map<*, *>
+            assertEquals(true, response["ok"])
+            val body = response["body"].toString()
+            assertTrue("[redacted]" in body, "the echoed secret must be scrubbed ($contentType)")
+            assertFalse(secret in body, "raw secret must be scrubbed ($contentType)")
+            assertFalse(secret.encodeURLParameter() in body, "url-encoded secret must be scrubbed ($contentType)")
+        }
     }
 
     // --- criterion 3: a locked vault answers with an error, never crashes ----------
@@ -410,17 +651,34 @@ class VaultToolsTest {
     @Test
     fun `headless run refuses the request form immediately`() = runTest {
         val deps = VaultTestHarness.deps(VaultTestHarness.session())
-        val result = withContext(HeadlessRunElement()) {
-            VaultTestHarness.tool(deps, "vault_request_form").execute(
-                mapOf(
-                    "mode" to "create",
-                    "reason" to "Heartbeat wants credentials",
-                    "fields" to listOf(mapOf("key" to "password", "label" to "Password")),
-                ),
-            )
+        // §6.2: the refusal is immediate — well under a second, not a timeout wait.
+        val result = withTimeout(1.seconds) {
+            withContext(HeadlessRunElement()) {
+                VaultTestHarness.tool(deps, "vault_request_form").execute(
+                    mapOf(
+                        "mode" to "create",
+                        "reason" to "Heartbeat wants credentials",
+                        "fields" to listOf(mapOf("key" to "password", "label" to "Password")),
+                    ),
+                )
+            }
         } as Map<*, *>
         assertEquals("vault_form_unavailable", result["error"])
         assertNull(deps.formBridge.pending.value)
+    }
+
+    @Test
+    fun `headless run refuses vault_reveal immediately`() = runTest {
+        val deps = VaultTestHarness.deps(VaultTestHarness.session())
+        val result = withTimeout(1.seconds) {
+            withContext(HeadlessRunElement()) {
+                VaultTestHarness.tool(deps, "vault_reveal").execute(
+                    mapOf("item_id" to "x", "field" to "password"),
+                )
+            }
+        } as Map<*, *>
+        assertEquals("vault_reveal_unavailable", result["error"])
+        assertNull(deps.revealBridge.pending.value)
     }
 
     // --- references round-trip -------------------------------------------------------
