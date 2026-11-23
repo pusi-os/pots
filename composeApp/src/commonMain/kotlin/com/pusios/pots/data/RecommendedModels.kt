@@ -66,8 +66,7 @@ object RecommendedModels {
      * Id of the everyday pick — the automatic chat default a service lands on the first time it
      * gains a key and has no saved model choice. Media model selection is untouched.
      */
-    fun everydayModelId(service: Service): String? =
-        picksFor(service).firstOrNull { it.modelClass == ModelClass.EVERYDAY }?.id
+    fun everydayModelId(service: Service): String? = picksFor(service).firstOrNull { it.modelClass == ModelClass.EVERYDAY }?.id
 
     /**
      * The Recommended list for the sheet: only models the service's own catalog returned, ordered
@@ -89,6 +88,5 @@ object RecommendedModels {
     }
 
     /** The [Pick] backing a recommended row, or null for a model outside the table. */
-    fun pickFor(service: Service?, modelId: String): Pick? =
-        service?.let { picksFor(it).firstOrNull { pick -> pick.id == modelId } }
+    fun pickFor(service: Service?, modelId: String): Pick? = service?.let { picksFor(it).firstOrNull { pick -> pick.id == modelId } }
 }
