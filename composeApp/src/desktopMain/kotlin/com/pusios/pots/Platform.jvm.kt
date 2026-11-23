@@ -161,13 +161,13 @@ actual fun getAvailableTools(): List<Tool> {
     val potsikStage: PotsikStage by inject(PotsikStage::class.java)
     val miniAppRepository: MiniAppRepository by inject(MiniAppRepository::class.java)
     val dataRepository: com.pusios.pots.data.DataRepository by inject(com.pusios.pots.data.DataRepository::class.java)
-    val vault = VaultToolDependencies(
-        session = inject<VaultSession>().value,
-        store = inject<VaultStore>().value,
-        formBridge = inject<VaultFormBridge>().value,
-        revealBridge = inject<VaultRevealBridge>().value,
-        gate = inject<VaultGate>().value,
-    )
+    // The same delegate style as the lines above: the property type carries T.
+    val vaultSession: VaultSession by inject(VaultSession::class.java)
+    val vaultStore: VaultStore by inject(VaultStore::class.java)
+    val vaultFormBridge: VaultFormBridge by inject(VaultFormBridge::class.java)
+    val vaultRevealBridge: VaultRevealBridge by inject(VaultRevealBridge::class.java)
+    val vaultGate: VaultGate by inject(VaultGate::class.java)
+    val vault = VaultToolDependencies(vaultSession, vaultStore, vaultFormBridge, vaultRevealBridge, vaultGate)
 
     return buildAgentToolSet(
         appSettings = appSettings,
