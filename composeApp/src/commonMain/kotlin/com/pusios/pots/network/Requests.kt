@@ -6,6 +6,7 @@ import com.pusios.pots.data.ApiKeyAuthStyle
 import com.pusios.pots.data.Service
 import com.pusios.pots.httpClient
 import com.pusios.pots.isDebugBuild
+import com.pusios.pots.network.dtos.aitunnel.AiTunnelCatalogEntryDto
 import com.pusios.pots.network.dtos.anthropic.AnthropicChatRequestDto
 import com.pusios.pots.network.dtos.anthropic.AnthropicChatResponseDto
 import com.pusios.pots.network.dtos.anthropic.AnthropicModelsResponseDto
@@ -22,6 +23,7 @@ import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleChatRespons
 import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleModelResponseDto
 import com.pusios.pots.network.dtos.openairesponses.OpenAIResponsesRequestDto
 import com.pusios.pots.network.dtos.openairesponses.OpenAIResponsesResponseDto
+import com.pusios.pots.network.dtos.plusvibe.PlusVibeCatalogEntryDto
 import com.pusios.pots.network.tools.Tool
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
@@ -274,12 +276,42 @@ class Requests {
         }
     }
 
-    suspend fun getLlmRouterPricing(): Result<LlmRouterPricingResponseDto> = openAICompatibleResult {
-        val response: HttpResponse = defaultClient.get("https://llm-router.org/v1/pricing")
+    suspend fun getLlmRouterPricing(credentials: ServiceCredentials): Result<LlmRouterPricingResponseDto> = openAICompatibleResult {
+        // /v1/pricing answers 401 without a key — this call is only useful for an authorized instance.
+        val response: HttpResponse = defaultClient.get("https://llm-router.org/v1/pricing") {
+            credentials.apiKey.takeIf { it.isNotBlank() }?.let { bearerAuth(it) }
+        }
         if (response.status.isSuccess()) {
             Result.success(response.body())
         } else {
             Result.failure(OpenAICompatibleGenericException("LLM Router pricing unavailable: ${response.status}"))
+        }
+    }
+
+    /**
+     * PlusVibe's public price/caps catalog (no key). `/v1/models` only returns id+object, so the
+     * model cards take prices, context and tools/vision from here. The reserve gateway shares
+     * this same catalog with the main host.
+     */
+    suspend fun getPlusVibeCatalog(): Result<List<PlusVibeCatalogEntryDto>> = openAICompatibleResult {
+        val response: HttpResponse = defaultClient.get("https://plusvibeapi.ru/api/catalog")
+        if (response.status.isSuccess()) {
+            Result.success(response.body())
+        } else {
+            Result.failure(OpenAICompatibleGenericException("PlusVibe catalog unavailable: ${response.status}"))
+        }
+    }
+
+    /**
+     * AITUNNEL's public catalog (no key): a JSON object keyed by model id with ₽/1M prices,
+     * context size and input modalities. `/v1/models` only returns id/created/object/owned_by.
+     */
+    suspend fun getAiTunnelCatalog(): Result<Map<String, AiTunnelCatalogEntryDto>> = openAICompatibleResult {
+        val response: HttpResponse = defaultClient.get("https://api.aitunnel.ru/public/aitunnel/models/chat")
+        if (response.status.isSuccess()) {
+            Result.success(response.body())
+        } else {
+            Result.failure(OpenAICompatibleGenericException("AITUNNEL catalog unavailable: ${response.status}"))
         }
     }
 
