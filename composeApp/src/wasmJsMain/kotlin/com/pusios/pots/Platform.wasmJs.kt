@@ -10,6 +10,13 @@ import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.MemoryStore
 import com.pusios.pots.data.TaskStore
 import com.pusios.pots.data.miniapp.MiniAppRepository
+import com.pusios.pots.data.vault.VaultFormBridge
+import com.pusios.pots.data.vault.VaultGate
+import com.pusios.pots.data.vault.VaultRevealBridge
+import com.pusios.pots.data.vault.VaultSession
+import com.pusios.pots.data.vault.VaultStore
+import com.pusios.pots.data.vault.VaultToolDependencies
+import com.pusios.pots.data.vault.VaultTools
 import com.pusios.pots.mcp.McpServerManager
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
@@ -67,7 +74,7 @@ actual fun createSecureSettings(): Settings {
 
 actual fun createLegacySettings(): Settings? = null // Same storage location, no migration needed
 
-actual fun getPlatformToolDefinitions(): List<ToolInfo> = CommonTools.commonToolDefinitions
+actual fun getPlatformToolDefinitions(): List<ToolInfo> = CommonTools.commonToolDefinitions + VaultTools.toolDefinitions
 
 private object WebKoinHelper : KoinComponent {
     val appSettings: AppSettings by inject()
@@ -76,6 +83,13 @@ private object WebKoinHelper : KoinComponent {
     val mcpServerManager: McpServerManager by inject()
     val potsikStage: PotsikStage by inject()
     val miniAppRepository: MiniAppRepository by inject()
+    val vault = VaultToolDependencies(
+        session = inject<VaultSession>().value,
+        store = inject<VaultStore>().value,
+        formBridge = inject<VaultFormBridge>().value,
+        revealBridge = inject<VaultRevealBridge>().value,
+        gate = inject<VaultGate>().value,
+    )
 }
 
 actual fun getAvailableTools(): List<Tool> = buildAgentToolSet(
@@ -85,6 +99,7 @@ actual fun getAvailableTools(): List<Tool> = buildAgentToolSet(
     mcpServerManager = WebKoinHelper.mcpServerManager,
     potsikStage = WebKoinHelper.potsikStage,
     miniAppRepository = WebKoinHelper.miniAppRepository,
+    vault = WebKoinHelper.vault,
 )
 
 actual fun openUrl(url: String): Boolean = try {

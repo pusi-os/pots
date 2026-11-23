@@ -6,6 +6,7 @@ import com.pusios.pots.SandboxController
 import com.pusios.pots.build.WebPanelPreferences
 import com.pusios.pots.compressImageBytes
 import com.pusios.pots.currentPlatform
+import com.pusios.pots.data.HeadlessRunElement
 import com.pusios.pots.data.providers.buildAnthropicMessages
 import com.pusios.pots.data.providers.buildOpenAIMessages
 import com.pusios.pots.data.providers.toResponsesInput
@@ -2420,16 +2421,18 @@ class RemoteDataRepository(
         val systemPrompt = getActiveSystemPrompt()
         // Use a local history to avoid polluting the current conversation's chatHistory
         val localHistory = MutableStateFlow(messages)
-        // When a conversation override is set (heartbeat / scheduled tasks), bind any
-        // tool calls in this run to that conversation's sandbox session via the
-        // coroutine context — otherwise tool dispatch would inherit `_currentConversationId`
-        // (the chat the user is viewing), routing the heartbeat's shell commands into
-        // that chat's persistent bash session.
-        return if (conversationIdOverride != null) {
-            withContext(ConversationIdElement(conversationIdOverride)) {
-                askWithService(service, messages, systemPrompt, targetInstanceId, localHistory, modelIdOverride).content
-            }
+        // Every askWithTools run is headless (heartbeat / scheduled task): tools that need
+        // the user on screen — the vault request form — must refuse immediately.
+        val runContext = if (conversationIdOverride != null) {
+            // Bind tool calls to that conversation's sandbox session via the coroutine
+            // context — otherwise tool dispatch would inherit `_currentConversationId`
+            // (the chat the user is viewing), routing the run's shell commands into
+            // that chat's persistent bash session.
+            ConversationIdElement(conversationIdOverride) + HeadlessRunElement()
         } else {
+            HeadlessRunElement()
+        }
+        return withContext(runContext) {
             askWithService(service, messages, systemPrompt, targetInstanceId, localHistory, modelIdOverride).content
         }
     }

@@ -22,6 +22,9 @@ import com.pusios.pots.data.miniapp.createMiniAppPersistence
 import com.pusios.pots.data.miniapp.createMiniAppServer
 import com.pusios.pots.data.miniapp.createMiniAppServerController
 import com.pusios.pots.data.runMigrations
+import com.pusios.pots.data.vault.VaultFormBridge
+import com.pusios.pots.data.vault.VaultGate
+import com.pusios.pots.data.vault.VaultRevealBridge
 import com.pusios.pots.data.vault.VaultSession
 import com.pusios.pots.data.vault.VaultStore
 import com.pusios.pots.data.vault.createVaultCryptoEngine
@@ -98,6 +101,15 @@ val appModule = module {
     }
     single {
         VaultSession(get())
+    }
+    single {
+        VaultFormBridge(get())
+    }
+    single {
+        VaultRevealBridge(get())
+    }
+    single {
+        VaultGate()
     }
     single<PotsikStage> {
         PotsikStage()

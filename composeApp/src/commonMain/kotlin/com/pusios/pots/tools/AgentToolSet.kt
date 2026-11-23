@@ -6,6 +6,8 @@ import com.pusios.pots.data.EmailStore
 import com.pusios.pots.data.MemoryStore
 import com.pusios.pots.data.TaskStore
 import com.pusios.pots.data.miniapp.MiniAppRepository
+import com.pusios.pots.data.vault.VaultToolDependencies
+import com.pusios.pots.data.vault.VaultTools
 import com.pusios.pots.mcp.McpServerManager
 import com.pusios.pots.media.ActiveMediaProvider
 import com.pusios.pots.media.activeMediaService
@@ -35,6 +37,8 @@ fun buildAgentToolSet(
     // Image attachments of the current chat: media tools use the last photo
     // when the agent passes reference_image="attachment".
     attachmentProvider: () -> List<Attachment> = { emptyList() },
+    // The encrypted vault's session and bridges; null in tests without Koin.
+    vault: VaultToolDependencies? = null,
     platformExtras: MutableList<Tool>.() -> Unit = {},
 ): List<Tool> = buildList {
     addAll(CommonTools.getCommonTools(appSettings))
@@ -96,6 +100,12 @@ fun buildAgentToolSet(
                 provider = mediaProvider,
             ),
         )
+    }
+
+    // Password vault tools. One master toggle (off by default); the spend-tools
+    // additionally ask the owner on every use. Null where Koin has no vault session.
+    if (vault != null && appSettings.isToolEnabled(VaultTools.MASTER_ID, defaultEnabled = false)) {
+        addAll(VaultTools.create(vault))
     }
 
     platformExtras()
