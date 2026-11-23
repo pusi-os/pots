@@ -2,4 +2,7 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="pots_secure_prefs.xml" />
     <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
+    <!-- The encrypted password vault: user credentials must never leave the
+         device through Auto Backup, even though the file is ciphertext. -->
+    <exclude domain="file" path="vault/" />
 </full-backup-content>

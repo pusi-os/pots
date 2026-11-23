@@ -13,6 +13,10 @@ import com.pusios.pots.data.SmsStore
 import com.pusios.pots.data.TaskScheduler
 import com.pusios.pots.data.TaskStore
 import com.pusios.pots.data.ToolExecutor
+import com.pusios.pots.data.vault.VaultSession
+import com.pusios.pots.data.vault.VaultStore
+import com.pusios.pots.data.vault.createVaultCryptoEngine
+import com.pusios.pots.data.vault.createVaultFileAccess
 import com.pusios.pots.data.createConversationPersistence
 import com.pusios.pots.data.getConfiguredServiceInstances
 import com.pusios.pots.data.miniapp.MiniAppRepository
@@ -88,6 +92,12 @@ val appModule = module {
     }
     single<ToolExecutor> {
         ToolExecutor()
+    }
+    single {
+        VaultStore(createVaultFileAccess(), createVaultCryptoEngine())
+    }
+    single {
+        VaultSession(get())
     }
     single<PotsikStage> {
         PotsikStage()
