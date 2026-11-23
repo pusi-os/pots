@@ -65,7 +65,9 @@ import pots.composeapp.generated.resources.vault_unlock_button
 
 /** One exception class per flow step: Gradle logs exception types of failed tests. */
 private class VaultStep00StateException : IllegalStateException("state not unlocked")
-private class VaultStep01ListException : IllegalStateException("list")
+private class VaultStep01FrameException : IllegalStateException("no frame")
+private class VaultStep01ProbeException : IllegalStateException("state flipped")
+private class VaultStep01FabException : IllegalStateException("fab missing")
 private class VaultStep02EditorException : IllegalStateException("editor")
 private class VaultStep03NameException : IllegalStateException("name")
 private class VaultStep04FieldException : IllegalStateException("custom field")
@@ -220,15 +222,25 @@ class VaultManagerScreenTest {
                 val state by model.state.collectAsState()
                 if (state is VaultUiState.Unlocked) {
                     VaultUnlockedContent(model, state as VaultUiState.Unlocked)
+                } else {
+                    Text("VAULT-PROBE-NOT-UNLOCKED")
                 }
             }
         }
 
         try {
-            // 01: the list is rendered with the FAB.
-            waitUntilAtLeastOneExists(hasText(add))
+            // 01: the frame is rendered as one of the three possible screens.
+            waitUntilAtLeastOneExists(
+                hasText(add).or(hasText(emptyList)).or(hasText("VAULT-PROBE-NOT-UNLOCKED")),
+            )
         } catch (t: Throwable) {
-            throw VaultStep01ListException()
+            throw VaultStep01FrameException()
+        }
+        if (onAllNodesWithText("VAULT-PROBE-NOT-UNLOCKED").fetchSemanticsNodes().isNotEmpty()) {
+            throw VaultStep01ProbeException()
+        }
+        if (onAllNodesWithText(add).fetchSemanticsNodes().isEmpty()) {
+            throw VaultStep01FabException()
         }
         try {
             // 02: the FAB opens the editor.
