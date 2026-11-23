@@ -41,5 +41,11 @@ interface VaultFileAccess {
     fun quarantineUnreadable(): String?
 }
 
+/** Vault crypto for this platform, or null when the vault is unavailable (iOS / web in v1). */
+expect fun createVaultCryptoEngine(): VaultCryptoEngine?
+
+/** Vault file access for this platform, or null when the vault is unavailable (iOS / web in v1). */
+expect fun createVaultFileAccess(): VaultFileAccess?
+
 /** AES-256-GCM refused the ciphertext: wrong password at unwrap, or tampering. */
 class VaultCryptoInvalidTagException : Exception("AES-GCM tag check failed")
