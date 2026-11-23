@@ -256,6 +256,19 @@ object WebPanels {
     }
 
     /**
+     * Whether a web panel's proot calls run under proot's hardlink emulation:
+     * never. The emulation exists for dpkg, and no panel command runs dpkg —
+     * but a Hermes plugin install is a `git clone`, and git finalizes its
+     * objects through `link()`+`unlink()`. Under `--link2symlink` those become
+     * `.l2s.*` artifacts the guest can neither read nor delete, so every
+     * install fails and leaves an undeletable `.install-<rand>` directory
+     * behind. The `-L` lstat fix stays — this is the same emulation-free set
+     * the Hermes renderer build runs with. See docs/features/sandbox.md
+     * ("Where each panel comes from") and docs/features/pots-build.md.
+     */
+    const val PANEL_HARDLINK_EMULATION = false
+
+    /**
      * Answers whether this Hermes build has the panel at all. Hermes is the only
      * agent whose panel is a subcommand rather than a binary of its own, so it is
      * the only one that can be missing from an install.

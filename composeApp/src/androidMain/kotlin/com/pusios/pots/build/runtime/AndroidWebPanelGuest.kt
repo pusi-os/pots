@@ -7,6 +7,7 @@ import com.pusios.pots.build.WebPanel
 import com.pusios.pots.build.WebPanelGuest
 import com.pusios.pots.build.WebPanelLog
 import com.pusios.pots.build.WebPanels
+import com.pusios.pots.build.cleanStaleInstallDirs
 import com.pusios.pots.build.portIsFree
 import com.pusios.pots.build.portProbeCommand
 import com.pusios.pots.linux.LinuxPaths
@@ -50,6 +51,7 @@ class AndroidWebPanelGuest(
 
     override fun launch(panel: WebPanel, port: Int, command: String, env: Map<String, String>): Boolean = runCatching {
         paths.tmpDir.mkdirs()
+        cleanStaleInstallDebris(panel)
         executor(env).startBackground(
             command = command,
             pidFileName = panel.pidFile,
@@ -61,6 +63,27 @@ class AndroidWebPanelGuest(
         File(paths.tmpDir, panel.portFile).writeText(port.toString())
         true
     }.onFailure { Log.e(TAG, "could not start ${panel.id}", it) }.getOrDefault(false)
+
+    /**
+     * One sweep of the `.install-<rand>` debris failed plugin installs left
+     * behind while the panel still ran under the hardlink emulation (see
+     * [WebPanels.PANEL_HARDLINK_EMULATION]): under it the guest cannot even
+     * delete the debris itself. Host side, before the launch — these are
+     * ordinary files in the rootfs as far as this app is concerned, and the
+     * panel's log gets one line naming what went, so the sweep is never a
+     * silent delete.
+     */
+    private fun cleanStaleInstallDebris(panel: WebPanel) {
+        if (panel.id != WebPanels.HERMES) return
+        val marker = paths.readMarker() ?: return
+        val home = paths.homeDir(marker)
+        val removed = cleanStaleInstallDirs(File(home, ".hermes/plugins"), File(home, ".hermes/skills"))
+        if (removed > 0) {
+            val line = "pots: cleaned $removed stale .install-* dir(s)"
+            Log.i(TAG, line)
+            runCatching { logFile(panel).appendText(line + "\n") }
+        }
+    }
 
     /**
      * Hermes takes its panel port from `webapp.port`, so the port is written into
