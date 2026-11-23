@@ -126,7 +126,7 @@ private sealed interface VaultRoute {
 }
 
 @Composable
-private fun VaultUnlockedContent(
+internal fun VaultUnlockedContent(
     model: VaultViewModel,
     state: VaultUiState.Unlocked,
     modifier: Modifier = Modifier,

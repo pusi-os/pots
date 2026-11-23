@@ -3,14 +3,19 @@
 // iterations so unlock is fast; saves hop to Dispatchers.Default, so
 // assertions wait for the resulting UI instead of racing it. Editor fields
 // are typed into editable nodes in composition order, with the save button's
-// enabled state as a checkpoint after the name lands.
+// enabled state and node counts as checkpoints. Each flow step wraps its
+// failures in its own exception class so the CI console names the step that
+// hung (Gradle prints exception types of failed tests, not messages).
 
 package com.pusios.pots.ui.vault
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -20,14 +25,13 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
-import androidx.compose.ui.semantics.SemanticsProperties
+import com.pusios.pots.data.vault.JvmVaultCryptoEngine
+import com.pusios.pots.data.vault.JvmVaultFileAccess
 import com.pusios.pots.data.vault.VaultDocument
 import com.pusios.pots.data.vault.VaultField
 import com.pusios.pots.data.vault.VaultFieldKind
 import com.pusios.pots.data.vault.VaultItem
 import com.pusios.pots.data.vault.VaultItemKind
-import com.pusios.pots.data.vault.JvmVaultCryptoEngine
-import com.pusios.pots.data.vault.JvmVaultFileAccess
 import com.pusios.pots.data.vault.VaultSession
 import com.pusios.pots.data.vault.VaultStore
 import com.pusios.pots.data.vault.buildEnvelope
@@ -50,13 +54,23 @@ import pots.composeapp.generated.resources.vault_add_item
 import pots.composeapp.generated.resources.vault_common_save
 import pots.composeapp.generated.resources.vault_delete_confirm_yes
 import pots.composeapp.generated.resources.vault_detail_delete
-import pots.composeapp.generated.resources.vault_error_wrong_password
 import pots.composeapp.generated.resources.vault_editor_add_field
+import pots.composeapp.generated.resources.vault_editor_new_title
+import pots.composeapp.generated.resources.vault_error_wrong_password
 import pots.composeapp.generated.resources.vault_list_empty
 import pots.composeapp.generated.resources.vault_password_mismatch
 import pots.composeapp.generated.resources.vault_setup_create
 import pots.composeapp.generated.resources.vault_toggle_show
 import pots.composeapp.generated.resources.vault_unlock_button
+
+/** One exception class per flow step: Gradle logs exception types of failed tests. */
+private class VaultStep01ListException : IllegalStateException("list")
+private class VaultStep02EditorException : IllegalStateException("editor")
+private class VaultStep03NameException : IllegalStateException("name")
+private class VaultStep04FieldException : IllegalStateException("custom field")
+private class VaultStep05SaveException : IllegalStateException("save")
+private class VaultStep06DetailException : IllegalStateException("detail")
+private class VaultStep07DeleteException : IllegalStateException("delete")
 
 @OptIn(ExperimentalTestApi::class, ExperimentalTime::class)
 class VaultManagerScreenTest {
@@ -184,53 +198,90 @@ class VaultManagerScreenTest {
         seededVaultFile(dir, "master-1")
         val session = newSession(dir)
         runBlocking { session.unlock("master-1") }
+        val model = VaultViewModel(session, CoroutineScope(Dispatchers.Default))
+        runBlocking { model.refresh() }
         val add = runBlocking { getString(Res.string.vault_add_item) }
         val save = runBlocking { getString(Res.string.vault_common_save) }
         val delete = runBlocking { getString(Res.string.vault_detail_delete) }
         val deleteYes = runBlocking { getString(Res.string.vault_delete_confirm_yes) }
+        val addField = runBlocking { getString(Res.string.vault_editor_add_field) }
+        val newTitle = runBlocking { getString(Res.string.vault_editor_new_title) }
         val emptyList = runBlocking { getString(Res.string.vault_list_empty) }
+
+        fun unlockedItems(): List<VaultItem> =
+            (model.state.value as? VaultUiState.Unlocked)?.items ?: emptyList()
 
         setContent {
             MaterialTheme {
-                VaultManagerScreen(session)
+                val state by model.state.collectAsState()
+                if (state is VaultUiState.Unlocked) {
+                    VaultUnlockedContent(model, state as VaultUiState.Unlocked)
+                }
             }
         }
-        waitUntilAtLeastOneExists(hasText(add))
 
-        // New card: the first editable is the name; the save button's enabled
-        // state proves the text landed in the name field before anything else.
-        onNodeWithText(add).performClick()
-        waitUntilAtLeastOneExists(hasText(save))
-        onAllNodes(hasSetTextAction())[0].performTextInput("GitHub")
-        waitUntil {
-            val node = onAllNodesWithText(save).fetchSemanticsNodes().firstOrNull()
-            node != null && !node.config.contains(SemanticsProperties.Disabled)
+        try {
+            // 01: the list is rendered with the FAB.
+            waitUntilAtLeastOneExists(hasText(add))
+        } catch (t: Throwable) {
+            throw VaultStep01ListException()
         }
-        // Template trio: url and username of the login draft.
-        onAllNodes(hasSetTextAction())[1].performTextInput("https://github.com")
-        onAllNodes(hasSetTextAction())[2].performTextInput("alice")
-        // The template's password value is the last editable before notes.
-        onAllNodes(hasSetTextAction())[8].performTextInput("s3cret-42")
-        // A custom field: appended row, label then value.
-        onNodeWithText(runBlocking { getString(Res.string.vault_editor_add_field) }).performClick()
-        waitUntil { onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size >= 11 }
-        onAllNodes(hasSetTextAction())[9].performTextInput("API key")
-        onAllNodes(hasSetTextAction())[10].performTextInput("tok-123")
-        onNodeWithText(save).performClick()
-
-        // Back on the list with the new card; open the detail.
-        waitUntilAtLeastOneExists(hasText("GitHub"))
-        onNodeWithText("GitHub").performClick()
-
-        // Secrets stay masked in the detail view; the plain custom field shows.
-        waitUntilAtLeastOneExists(hasText("tok-123"))
-        onNodeWithText("s3cret-42").assertDoesNotExist()
-
-        // Delete via the confirmation dialog; its confirm button text is distinct.
-        onNodeWithText(delete).performClick()
-        onNodeWithText(deleteYes).performClick()
-        waitUntilAtLeastOneExists(hasText(emptyList))
-        waitUntilDoesNotExist(hasText("GitHub"))
+        try {
+            // 02: the FAB opens the editor.
+            onNodeWithText(add).performClick()
+            waitUntilAtLeastOneExists(hasText(newTitle))
+        } catch (t: Throwable) {
+            throw VaultStep02EditorException()
+        }
+        try {
+            // 03: the name lands in the first editable; the save button enables.
+            onAllNodes(hasSetTextAction())[0].performTextInput("GitHub")
+            waitUntil {
+                val node = onAllNodesWithText(save).fetchSemanticsNodes().firstOrNull()
+                node != null && !node.config.contains(SemanticsProperties.Disabled)
+            }
+            // The login template trio and its password value.
+            onAllNodes(hasSetTextAction())[1].performTextInput("https://github.com")
+            onAllNodes(hasSetTextAction())[2].performTextInput("alice")
+            onAllNodes(hasSetTextAction())[8].performTextInput("s3cret-42")
+        } catch (t: Throwable) {
+            throw VaultStep03NameException()
+        }
+        try {
+            // 04: the custom field row appears (11 editables before, 13 after).
+            onNodeWithText(addField).performClick()
+            waitUntil { onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size >= 13 }
+            onAllNodes(hasSetTextAction())[9].performTextInput("API key")
+            onAllNodes(hasSetTextAction())[10].performTextInput("tok-123")
+        } catch (t: Throwable) {
+            throw VaultStep04FieldException()
+        }
+        try {
+            // 05: save writes the card through the session.
+            onNodeWithText(save).performClick()
+            waitUntil { unlockedItems().any { it.name == "GitHub" } }
+            waitUntilAtLeastOneExists(hasText("GitHub"))
+        } catch (t: Throwable) {
+            throw VaultStep05SaveException()
+        }
+        try {
+            // 06: the detail shows the plain custom field but not the secret.
+            onNodeWithText("GitHub").performClick()
+            waitUntilAtLeastOneExists(hasText("tok-123"))
+            onNodeWithText("s3cret-42").assertDoesNotExist()
+        } catch (t: Throwable) {
+            throw VaultStep06DetailException()
+        }
+        try {
+            // 07: delete via the dialog; the list is empty again.
+            onNodeWithText(delete).performClick()
+            onNodeWithText(deleteYes).performClick()
+            waitUntil { unlockedItems().isEmpty() }
+            waitUntilAtLeastOneExists(hasText(emptyList))
+            waitUntilDoesNotExist(hasText("GitHub"))
+        } catch (t: Throwable) {
+            throw VaultStep07DeleteException()
+        }
     }
 
     @Test
