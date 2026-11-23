@@ -65,6 +65,24 @@ class WebPanelsTest {
         assertNull(WebPanels.pickPort(65535) { true })
     }
 
+    // --- the panel's proot calls ------------------------------------------
+
+    // A one-assertion test on purpose: the flag is the whole decision, and its
+    // single use is the executor switch (`DebianSpec.prootArgs` vs
+    // `DebianSpec.buildProotArgs`) in BuildEnvironmentManager. The flag living
+    // here is what makes the call site testable from a source set CI compiles
+    // without a device.
+
+    @Test
+    fun `web panel proot calls never run under hardlink emulation`() {
+        // A plugin install is a git clone; under --link2symlink git's link()+
+        // unlink() object finalization turns files into .l2s.* artifacts the
+        // guest can neither read nor delete, so the install fails and leaves an
+        // undeletable .install-<rand> directory behind. No panel command runs
+        // dpkg, the only consumer of the emulation.
+        assertFalse(WebPanels.PANEL_HARDLINK_EMULATION)
+    }
+
     // --- the probe itself -------------------------------------------------
 
     // These two are string tests on purpose: the probe lives in the command that
