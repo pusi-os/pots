@@ -283,7 +283,8 @@ class VaultManagerScreenTest {
         }
         try {
             // 05: save writes the card through the session.
-            onNode(hasScrollAction()).performScrollToNode(hasText(save))
+            // The save button lives in the fixed bottom row, not inside the
+            // scrollable column, so no scroll-to is possible here.
             onNodeWithText(save).performClick()
             waitUntil { unlockedItems().any { it.name == "GitHub" } }
             waitUntilAtLeastOneExists(hasText("GitHub"))
