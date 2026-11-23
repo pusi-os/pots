@@ -6,8 +6,10 @@ import com.pusios.pots.ui.settings.SettingsModel
  * Curated "Recommended" picks per chat service: one everyday model (fast and cheap), one middle,
  * one hard (powerful and expensive), plus a spare everyday where the provider's catalog offers a
  * real choice. Ids and the price notes in [Pick.description] were taken from the providers' public
- * catalogs as probed on 2026-11-23 (researcher table B, board task t_cd33ff78; see
- * `docs/knowledge/providers/onboarding-*.md`). The sheet filters every pick through the model list
+ * catalogs as probed on 2026-11-23 and re-verified live the same day while wording these
+ * descriptions (researcher table B, board task t_cd33ff78; see
+ * `docs/knowledge/providers/onboarding-*.md`). Polza's per-model prices drift intraday, so its
+ * numbers are written as approximate. The sheet filters every pick through the model list
  * the selected service actually returned, so a stale or foreign id simply drops out instead of
  * showing someone else's model.
  */
@@ -25,20 +27,20 @@ object RecommendedModels {
     // Display order: everyday first, then middle, hard, spare everyday. Kept grouped by class.
     private val table: Map<Service, List<Pick>> = mapOf(
         Service.PlusVibe to listOf(
-            Pick(ModelClass.EVERYDAY, "z-ai/glm-5.3-flash", "Самая дешёвая в каталоге: 2 / 6,67 ₽ за 1M, контекст 1M, tools+vision"),
+            Pick(ModelClass.EVERYDAY, "z-ai/glm-5.3-flash", "Дефолтный вариант каталога: 2 / 6,67 ₽ за 1M, контекст 1M, tools+vision"),
             Pick(ModelClass.EVERYDAY, "deepseek-v4.1-flash-1017", "Быстрый вариант «на каждый день»: 2 / 8 ₽ за 1M, контекст 1M"),
             Pick(ModelClass.MIDDLE, "google/gemini-3.8-flash", "Рабочая лошадка: 4,72 / 23,58 ₽ за 1M, контекст 1M, tools+vision"),
             Pick(ModelClass.HARD, "gpt-6.2-astra", "Для сложных задач: 47 / 237 ₽ за 1M, контекст 1M, tools+vision"),
         ),
         Service.PlusVibeReserve to listOf(
-            Pick(ModelClass.EVERYDAY, "z-ai/glm-5.3-flash", "Самая дешёвая в каталоге: 2 / 6,67 ₽ за 1M, контекст 1M, tools+vision"),
+            Pick(ModelClass.EVERYDAY, "z-ai/glm-5.3-flash", "Дефолтный вариант каталога: 2 / 6,67 ₽ за 1M, контекст 1M, tools+vision"),
             Pick(ModelClass.EVERYDAY, "deepseek-v4.1-flash-1017", "Быстрый вариант «на каждый день»: 2 / 8 ₽ за 1M, контекст 1M"),
             Pick(ModelClass.MIDDLE, "google/gemini-3.8-flash", "Рабочая лошадка: 4,72 / 23,58 ₽ за 1M, контекст 1M, tools+vision"),
             Pick(ModelClass.HARD, "gpt-6.2-astra", "Для сложных задач: 47 / 237 ₽ за 1M, контекст 1M, tools+vision"),
         ),
         Service.Polza to listOf(
-            Pick(ModelClass.EVERYDAY, "z-ai/glm-5.3-flash", "4,68 / 9,19 ₽ за 1M, контекст 1M, tools+vision"),
-            Pick(ModelClass.EVERYDAY, "deepseek/deepseek-v4-flash", "Самая дешёвая чат-модель каталога: 1,71 / 3,41 ₽ за 1M"),
+            Pick(ModelClass.EVERYDAY, "z-ai/glm-5.3-flash", "≈4,7 / 8,7 ₽ за 1M, контекст 1M, tools+vision"),
+            Pick(ModelClass.EVERYDAY, "deepseek/deepseek-v4-flash", "Одна из самых дешёвых чат-моделей каталога: 1,71 / 3,41 ₽ за 1M"),
             Pick(ModelClass.MIDDLE, "google/gemini-3.8-flash", "44,87 / 224,33 ₽ за 1M, контекст 1M, tools+vision"),
             Pick(ModelClass.HARD, "openai/gpt-6.2-astra", "Для сложных задач: 937 / 4 688 ₽ за 1M — дорогая ставка Polza"),
         ),
@@ -55,7 +57,7 @@ object RecommendedModels {
         Service.LlmRouter to listOf(
             Pick(ModelClass.EVERYDAY, "glm-5.3-flash", "Дешевле всех в прайсе: $0,02 / $0,039 за 1M"),
             Pick(ModelClass.MIDDLE, "gemini-3.8-flash", "Средний класс по цене и скорости: $0,375 / $1,875 за 1M"),
-            Pick(ModelClass.HARD, "gpt-6.2-astra", "Верхняя ступень прайса: $4 / $20 за 1M"),
+            Pick(ModelClass.HARD, "gpt-6.2-astra", "Для сложных задач: $4 / $20 за 1M"),
         ),
     )
 
