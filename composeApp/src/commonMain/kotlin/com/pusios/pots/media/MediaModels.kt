@@ -156,6 +156,8 @@ data class MediaJobState(
     val priceRub: Double = 0.0,
     val failMsg: String? = null,
     val errorCode: String? = null,
+    /** Money for the failed job came back (GPTunnel `refunded`). */
+    val refunded: Boolean = false,
     /** Provider advice (`retry_later`, `fix_input`, …). */
     val advice: String? = null,
     /** True when the job is finally decided and will not start later. */

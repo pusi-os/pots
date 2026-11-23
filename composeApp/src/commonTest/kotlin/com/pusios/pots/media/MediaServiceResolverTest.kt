@@ -28,14 +28,15 @@ class MediaServiceResolverTest {
     @Test
     fun noConfiguredServiceMeansNoChoice() {
         assertNull(activeMediaService(AppSettings(MapSettings())))
-        assertNull(activeMediaService(settings(Service.Gptunnel, Service.LlmRouter)))
+        assertNull(activeMediaService(settings(Service.LiteRT)))
     }
 
     @Test
     fun onlyServicesWithMediaEndpointsAreOffered() {
-        // Polza and AITUNNEL have implemented contracts; GPTunnel does not.
-        val choices = mediaServiceChoices(settings(Service.Polza, Service.Gptunnel, Service.AiTunnel))
-        assertEquals(listOf(Service.Polza, Service.AiTunnel), choices.map { it.service })
+        // PlusVibe, Polza, AITUNNEL, GPTunnel and LLM Router have implemented
+        // contracts; LiteRT does not.
+        val choices = mediaServiceChoices(settings(Service.Polza, Service.Gptunnel, Service.LiteRT, Service.AiTunnel))
+        assertEquals(listOf(Service.Polza, Service.Gptunnel, Service.AiTunnel), choices.map { it.service })
     }
 
     @Test
@@ -69,8 +70,8 @@ class MediaServiceResolverTest {
 
     @Test
     fun savedChoiceOnAServiceWithoutMediaFallsBackToPlusVibe() {
-        val appSettings = settings(Service.Gptunnel, Service.PlusVibe)
-        appSettings.setMediaServiceInstanceId(Service.Gptunnel.id)
+        val appSettings = settings(Service.LiteRT, Service.PlusVibe)
+        appSettings.setMediaServiceInstanceId(Service.LiteRT.id)
         assertEquals(Service.PlusVibe, activeMediaService(appSettings)?.service)
     }
 
