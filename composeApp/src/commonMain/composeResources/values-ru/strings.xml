@@ -176,7 +176,7 @@
     <string name="settings_mcp_no_servers">MCP-серверы не настроены.</string>
     <string name="settings_tab_services">Сервисы</string>
     <string name="settings_tab_tools">Инструменты</string>
-    <string name="settings_tab_local_model">Локальная модель</string>
+    <string name="settings_local_model_title">Локальная модель</string>
     <string name="settings_tab_integrations">Интеграции</string>
     <string name="tools_count">%1$d инструментов</string>
     <string name="privacy_agree_prefix">Используя сервис, вы соглашаетесь с </string>

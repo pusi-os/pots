@@ -95,7 +95,6 @@ import pots.composeapp.generated.resources.settings_licenses_close
 import pots.composeapp.generated.resources.settings_tab_agent
 import pots.composeapp.generated.resources.settings_tab_general
 import pots.composeapp.generated.resources.settings_tab_integrations
-import pots.composeapp.generated.resources.settings_tab_local_model
 import pots.composeapp.generated.resources.settings_tab_potsiki
 import pots.composeapp.generated.resources.settings_tab_sandbox
 import pots.composeapp.generated.resources.settings_tab_services
@@ -331,10 +330,12 @@ fun SettingsScreenContent(
                                     isSandboxInstalled = sandboxState.sandboxInstalled,
                                     onNavigateToSandbox = { actions.onSelectTab(SettingsTab.Sandbox) },
                                 )
-                            }
 
-                            SettingsTab.LocalModel -> {
-                                LocalModelToolsContent(
+                                // The «Локальная модель» block — collapsed by default, at the
+                                // very bottom of the Tools tab. Pure slot parameters, so it
+                                // composes without a Koin container (screenshot tests).
+                                Spacer(Modifier.height(24.dp))
+                                LocalModelCollapsibleSection(
                                     tools = filteredUiState.tools,
                                     mcpServers = filteredUiState.mcpServers,
                                     selection = filteredUiState.localToolSelection,
@@ -465,7 +466,6 @@ private fun SettingsTabSelector(
                             SettingsTab.Agent -> stringResource(Res.string.settings_tab_agent)
                             SettingsTab.Services -> stringResource(Res.string.settings_tab_services)
                             SettingsTab.Tools -> stringResource(Res.string.settings_tab_tools)
-                            SettingsTab.LocalModel -> stringResource(Res.string.settings_tab_local_model)
                             SettingsTab.Sandbox -> stringResource(Res.string.settings_tab_sandbox)
                             SettingsTab.Integrations -> stringResource(Res.string.settings_tab_integrations)
                             SettingsTab.Potsiki -> stringResource(Res.string.settings_tab_potsiki)

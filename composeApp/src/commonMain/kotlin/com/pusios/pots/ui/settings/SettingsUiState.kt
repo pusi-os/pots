@@ -64,7 +64,6 @@ enum class SettingsTab {
     Agent,
     Services,
     Tools,
-    LocalModel,
     Sandbox,
     Integrations,
     Potsiki,
