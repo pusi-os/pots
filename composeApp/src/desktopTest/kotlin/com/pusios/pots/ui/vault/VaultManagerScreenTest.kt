@@ -51,6 +51,7 @@ import pots.composeapp.generated.resources.vault_common_save
 import pots.composeapp.generated.resources.vault_delete_confirm_yes
 import pots.composeapp.generated.resources.vault_detail_delete
 import pots.composeapp.generated.resources.vault_error_wrong_password
+import pots.composeapp.generated.resources.vault_editor_add_field
 import pots.composeapp.generated.resources.vault_list_empty
 import pots.composeapp.generated.resources.vault_password_mismatch
 import pots.composeapp.generated.resources.vault_setup_create
