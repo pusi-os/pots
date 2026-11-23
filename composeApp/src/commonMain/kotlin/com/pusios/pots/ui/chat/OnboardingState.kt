@@ -51,4 +51,12 @@ data class OnboardingState(
     val isChecking: Boolean = false,
     val error: StringResource? = null,
     val showLocalLimits: Boolean = false,
+    /** The add-service call succeeded: the field shows the green «Добавлено» state until «Готово». */
+    val isKeyAdded: Boolean = false,
+    /**
+     * Seed for the guide section's open state. The open/close toggling itself lives in the
+     * composable; the field exists so a screenshot test can compose the expanded section
+     * through the public state, without a Koin container or an interaction.
+     */
+    val isGuideOpen: Boolean = false,
 )

@@ -5,6 +5,8 @@ import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 
@@ -233,6 +235,176 @@ val Icons.Filled.LocalModel: ImageVector by lazy {
         addPath(
             pathData = PathParser().parsePathString("M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z").toNodes(),
             fill = SolidColor(Color.Black),
+        )
+    }
+}
+
+// ---- Onboarding provider picker (docs/design/onboarding) ----
+//
+// Stroke glyphs redrawn from the mockup symbols (24x24, 1.8 stroke, round caps);
+// they are tinted through currentColor, so a selected card recolors the logo.
+
+val Icons.Filled.OnboardPulse: ImageVector by lazy {
+    materialIcon(name = "Filled.OnboardPulse") {
+        addPath(
+            pathData = PathParser().parsePathString("M2 12h4l3-7 5 14 3-7h5").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+    }
+}
+
+val Icons.Filled.OnboardLayers: ImageVector by lazy {
+    materialIcon(name = "Filled.OnboardLayers") {
+        addPath(
+            pathData = PathParser().parsePathString("M12 3L21 8l-9 5-9-5 9-5Z").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("m3 12.5l9 5 9-5M3 17l9 5 9-5").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+    }
+}
+
+val Icons.Filled.OnboardTunnel: ImageVector by lazy {
+    materialIcon(name = "Filled.OnboardTunnel") {
+        addPath(
+            pathData = PathParser().parsePathString("M3 21v-8a9 9 0 0 1 18 0v8M7 21v-8a5 5 0 0 1 10 0v8M2 21h20").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+    }
+}
+
+val Icons.Filled.OnboardChip: ImageVector by lazy {
+    materialIcon(name = "Filled.OnboardChip") {
+        addPath(
+            pathData = PathParser().parsePathString("M8 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("M10.5 10h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z").toNodes(),
+            fill = SolidColor(Color.Black),
+        )
+        addPath(
+            pathData = PathParser().parsePathString("M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        )
+    }
+}
+
+val Icons.Filled.OnboardRoute: ImageVector by lazy {
+    materialIcon(name = "Filled.OnboardRoute") {
+        addPath(
+            pathData = PathParser().parsePathString("M5 16.8a2.2 2.2 0 1 0 0 4.4a2.2 2.2 0 1 0 0-4.4Z").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("M19 2.8a2.2 2.2 0 1 0 0 4.4a2.2 2.2 0 1 0 0-4.4Z").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("M7.5 19H14a4 4 0 0 0 4-4V7.8").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("m16 9.5l2 2 2-2").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+    }
+}
+
+/** The video-guide button's play glyph — a solid triangle nudged right for optical centering. */
+val Icons.Filled.OnboardPlay: ImageVector by lazy {
+    materialIcon(name = "Filled.OnboardPlay") {
+        addPath(
+            pathData = PathParser().parsePathString("M8 5.5v13l11-6.5-11-6.5Z").toNodes(),
+            fill = SolidColor(Color.Black),
+        )
+    }
+}
+
+val Icons.Filled.OnboardAlert: ImageVector by lazy {
+    materialIcon(name = "Filled.OnboardAlert") {
+        addPath(
+            pathData = PathParser().parsePathString("M12 3L22 20H2L12 3Z").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("M12 9.5v4.5M12 16.8v.4").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        )
+    }
+}
+
+val Icons.Filled.OnboardWifiOff: ImageVector by lazy {
+    materialIcon(name = "Filled.OnboardWifiOff") {
+        addPath(
+            pathData = PathParser().parsePathString("m2 2l20 20").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("M8.5 16.5a5 5 0 0 1 7 0").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("M5 12.9a10 10 0 0 1 2.6-1.8M16.4 11.1a10 10 0 0 1 2.6 1.8M2 9a15 15 0 0 1 4.4-2.9M17.6 6.1A15 15 0 0 1 22 9").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("M12 19.5v.4").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 2.4f,
+            strokeLineCap = StrokeCap.Round,
+        )
+    }
+}
+
+val Icons.Filled.OnboardRoundCheck: ImageVector by lazy {
+    materialIcon(name = "Filled.OnboardRoundCheck") {
+        addPath(
+            pathData = PathParser().parsePathString("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18Z").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+        )
+        addPath(
+            pathData = PathParser().parsePathString("m8 12.5l2.5 2.5L16 9.5").toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
         )
     }
 }

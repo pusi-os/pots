@@ -39,6 +39,7 @@ import com.pusios.pots.ui.potsik.PotsikLook
 import com.pusios.pots.ui.settings.SettingsModel
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -204,7 +205,11 @@ class FakeDataRepository : DataRepository {
 
     var validateConnectionException: Exception? = null
 
+    /** When > 0, validateConnection suspends this many (virtual) milliseconds before returning. */
+    var validateConnectionDelayMs: Long = 0
+
     override suspend fun validateConnection(service: Service, instanceId: String) {
+        if (validateConnectionDelayMs > 0) delay(validateConnectionDelayMs)
         validateConnectionException?.let { throw it }
     }
 

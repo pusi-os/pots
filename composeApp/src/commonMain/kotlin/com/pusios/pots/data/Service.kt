@@ -222,6 +222,14 @@ sealed class Service(
             LiteRT,
         )
 
+        /**
+         * Providers offered on the onboarding picker (card t_6ecd4626), in display order:
+         * full-functionality services with a balance, PlusVibe first and preselected.
+         * A constant, not computed — a provider joins this list explicitly once its
+         * balance and full media support are real.
+         */
+        val onboardingServices: List<Service> get() = listOf(PlusVibe, Polza, AiTunnel, Gptunnel, LlmRouter)
+
         const val DEFAULT_OPENAI_COMPATIBLE_BASE_URL = "http://localhost:11434/v1"
 
         /**

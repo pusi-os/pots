@@ -3,18 +3,24 @@
 package com.pusios.pots.screenshots
 
 import android.graphics.BitmapFactory
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.pusios.pots.ui.DarkColorScheme
 import com.pusios.pots.ui.LightColorScheme
 import com.pusios.pots.ui.Theme
 import com.pusios.pots.ui.chat.ChatScreenContent
+import com.pusios.pots.ui.chat.OnboardingPhase
+import com.pusios.pots.ui.chat.OnboardingState
 import com.pusios.pots.ui.dynamicui.LocalPreviewImages
 import com.pusios.pots.ui.settings.SettingsScreenContent
 import nl.marc_apps.tts.experimental.ExperimentalVoiceApi
@@ -23,6 +29,8 @@ import org.jetbrains.compose.resources.setResourceReaderAndroidContext
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.onboarding_error_network
 
 @OptIn(ExperimentalResourceApi::class)
 class ScreenshotTest {
@@ -150,6 +158,67 @@ class ScreenshotTest {
                 previewSandboxState = ScreenshotTestData.sandboxState,
                 previewSandboxLines = ScreenshotTestData.sandboxTerminalLines,
             )
+        }
+    }
+
+    // ---- onboarding provider picker (docs/design/onboarding) ----
+
+    private fun onboardingState(
+        error: org.jetbrains.compose.resources.StringResource? = null,
+        isChecking: Boolean = false,
+        isKeyAdded: Boolean = false,
+        isGuideOpen: Boolean = false,
+    ) = OnboardingState(
+        phase = OnboardingPhase.Active,
+        error = error,
+        isChecking = isChecking,
+        isKeyAdded = isKeyAdded,
+        isGuideOpen = isGuideOpen,
+    )
+
+    @Test
+    fun onboardingProviderPicker_dark() {
+        paparazzi.snap(DarkColorScheme) {
+            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState()))
+        }
+    }
+
+    @Test
+    fun onboardingProviderGuide_dark() {
+        paparazzi.snap(DarkColorScheme) {
+            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(isGuideOpen = true)))
+        }
+    }
+
+    @Test
+    fun onboardingProviderGuide_narrow_dark() {
+        paparazzi.snap(DarkColorScheme) {
+            Box(Modifier.width(300.dp)) {
+                ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(isGuideOpen = true)))
+            }
+        }
+    }
+
+    @Test
+    fun onboardingKeyChecking_dark() {
+        paparazzi.snap(DarkColorScheme) {
+            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(isChecking = true, isGuideOpen = true)))
+        }
+    }
+
+    @Test
+    fun onboardingKeyNetworkError_light() {
+        paparazzi.snap(LightColorScheme) {
+            ChatScreenContent(
+                uiState = ScreenshotTestData.chatOnboarding(onboardingState(error = Res.string.onboarding_error_network, isGuideOpen = true)),
+            )
+        }
+    }
+
+    @Test
+    fun onboardingKeyAdded_dark() {
+        paparazzi.snap(DarkColorScheme) {
+            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(isKeyAdded = true, isGuideOpen = true)))
         }
     }
 }
