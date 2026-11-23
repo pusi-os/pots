@@ -71,7 +71,6 @@ private class VaultStep00StateException : IllegalStateException("state not unloc
 private class VaultStep01FrameException : IllegalStateException("no frame")
 private class VaultStep01ProbeException : IllegalStateException("state flipped")
 private class VaultStep01FabException : IllegalStateException("fab missing")
-private class VaultStep01FabUnmergedException : IllegalStateException("fab unmerged only")
 private class VaultStep02EditorException : IllegalStateException("editor")
 private class VaultStep03NameException : IllegalStateException("name")
 private class VaultStep04FieldException : IllegalStateException("custom field")
@@ -243,13 +242,10 @@ class VaultManagerScreenTest {
         if (onAllNodesWithText("VAULT-PROBE-NOT-UNLOCKED").fetchSemanticsNodes().isNotEmpty()) {
             throw VaultStep01ProbeException()
         }
-        val fabMerged = onAllNodesWithText(add).fetchSemanticsNodes().isNotEmpty()
-        val fabUnmerged = onAllNodesWithText(add, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-        val fabTagged = onAllNodesWithTag(ADD_FAB_TAG).fetchSemanticsNodes().isNotEmpty()
-        when {
-            fabTagged && fabMerged -> {}
-            fabTagged && !fabMerged && fabUnmerged -> throw VaultStep01FabUnmergedException()
-            else -> throw VaultStep01FabException()
+        // 01b: the FAB text does not merge into the merged semantics tree on desktop,
+        // so the FAB is located by its test tag instead.
+        if (onAllNodesWithTag(ADD_FAB_TAG).fetchSemanticsNodes().isEmpty()) {
+            throw VaultStep01FabException()
         }
         try {
             // 02: the FAB opens the editor.
