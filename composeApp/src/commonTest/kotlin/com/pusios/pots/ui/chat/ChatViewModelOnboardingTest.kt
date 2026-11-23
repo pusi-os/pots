@@ -27,6 +27,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -37,7 +38,8 @@ import kotlin.test.assertTrue
 class ChatViewModelOnboardingTest {
 
     private val testDispatcher = StandardTestDispatcher()
-    private val unconfinedDispatcher = UnconfinedTestDispatcher()
+    // Shares the scheduler with runTest, so virtual time (timeouts) advances in tests.
+    private val unconfinedDispatcher = UnconfinedTestDispatcher(testDispatcher.scheduler)
     private lateinit var fakeRepository: FakeDataRepository
 
     @BeforeTest
@@ -228,6 +230,64 @@ class ChatViewModelOnboardingTest {
         }
     }
 
+    @Test
+    fun `a validation slower than the 12 s ceiling maps the timeout to the network error`() = runTest {
+        // A hanging endpoint: validateConnection suspends past the mockup's 12 s ceiling.
+        fakeRepository.validateConnectionDelayMs = 30_000
+        val viewModel = createViewModel()
+        viewModel.state.test {
+            awaitItem()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "valid-key")
+            testDispatcher.scheduler.advanceUntilIdle()
+            var failed: ChatUiState
+            do {
+                failed = awaitItem()
+            } while (failed.onboarding.error == null)
+            assertEquals(Res.string.onboarding_error_network, failed.onboarding.error)
+            assertFalse(failed.onboarding.isChecking)
+            assertFalse(failed.onboarding.isKeyAdded)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // ---- reset rule (03-key-states §3): a verdict belongs to its provider ----
+
+    @Test
+    fun `clearing the key state after a failed check empties the field for the next provider`() = runTest {
+        fakeRepository.validateConnectionException = [OI]CompatibleInvalidApiKeyException()
+        val viewModel = createViewModel()
+        viewModel.state.test {
+            awaitItem()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "bad-key")
+            awaitItem()
+            // pick(Polza) — the composable forwards the switch to this action.
+            viewModel.state.value.actions.onboardingClearKeyState()
+            val cleared = awaitItem()
+            assertNull(cleared.onboarding.error)
+            assertFalse(cleared.onboarding.isKeyAdded)
+            assertFalse(cleared.onboarding.isChecking)
+            assertEquals(OnboardingPhase.Active, cleared.onboarding.phase)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `clearing the key state after a successful add makes the field editable again`() = runTest {
+        val viewModel = createViewModel()
+        viewModel.state.test {
+            awaitItem()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "valid-key")
+            awaitItem()
+            viewModel.state.value.actions.onboardingClearKeyState()
+            val cleared = awaitItem()
+            assertFalse(cleared.onboarding.isKeyAdded)
+            assertNull(cleared.onboarding.error)
+            // The added service stays configured; the wizard remains open for another one.
+            assertEquals(4, cleared.onboarding.step)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // ---- skip / abort / resume ----
 
     @Test
@@ -400,6 +460,26 @@ class ChatViewModelOnboardingTest {
         val relaunched = createViewModel()
         relaunched.state.test {
             assertEquals(OnboardingPhase.Active, awaitItem().onboarding.phase)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `restarting after a successful add reopens the field instead of a disabled added state`() = runTest {
+        val viewModel = createViewModel()
+        viewModel.state.test {
+            awaitItem()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "valid-key")
+            awaitItem()
+            viewModel.restartOnboarding()
+            testDispatcher.scheduler.advanceUntilIdle()
+            val restarted = viewModel.state.value
+            assertEquals(OnboardingPhase.Active, restarted.onboarding.phase)
+            // The green «Добавлено» verdict of the finished add must not leak into the
+            // reopened wizard — another service has to be addable.
+            assertFalse(restarted.onboarding.isKeyAdded)
+            assertNull(restarted.onboarding.error)
+            assertFalse(restarted.onboarding.isChecking)
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -82,7 +82,7 @@
     <string name="onboarding_desc_plusvibe_3">Карта РФ от 100 ₽ · предоплата, списание по факту.</string>
     <string name="onboarding_desc_polza_1">polza.ai/dashboard · создайте аккаунт и организацию.</string>
     <string name="onboarding_desc_polza_2">Кабинет → раздел API-ключей → «Создать ключ».</string>
-    <string name="onboarding_desc_polza_3">Карта / СБП от 100 ₽ · счёт — 1–2 дня.</string>
+    <string name="onboarding_desc_polza_3">Карта от 100 ₽ · СБП — минимум не заявлен · счёт — 1–2 дня.</string>
     <string name="onboarding_desc_aitunnel_1">aitunnel.ru/panel → «Регистрация» · подтвердите e-mail.</string>
     <string name="onboarding_desc_aitunnel_2">Панель → ключи → «Новый» · sk-aitunnel-…</string>
     <string name="onboarding_desc_aitunnel_3">От 500 ₽ · крипта — бонус +20 %.</string>
@@ -104,7 +104,6 @@
     <string name="onboarding_button_added">Добавлено</string>
     <string name="onboarding_button_done">Готово</string>
     <string name="onboarding_key_added">Ключ добавлен</string>
-    <string name="onboarding_field_api_key">API-ключ</string>
     <string name="onboarding_success">Готово! Подключение работает — теперь я буду отвечать в этом чате.</string>
     <string name="onboarding_skip_button">Пропустить</string>
     <string name="onboarding_skipped">Договорились, пока без настройки. Помните: пока модель не подключена, я молчу и не отвечаю на сообщения.</string>

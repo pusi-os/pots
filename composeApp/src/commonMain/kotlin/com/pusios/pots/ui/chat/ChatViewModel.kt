@@ -145,6 +145,7 @@ class ChatViewModel(
         runMiniAppAutomation = ::runMiniAppAutomation,
         runMiniAppPrompt = ::runMiniAppPrompt,
         onboardingAddKey = ::onboardingAddKey,
+        onboardingClearKeyState = ::onboardingClearKeyState,
         onboardingConfirmKey = ::onboardingConfirmKey,
         onboardingSkip = ::onboardingSkip,
         onboardingResume = ::onboardingResume,
@@ -840,6 +841,17 @@ class ChatViewModel(
         _state.update { it.copy(onboarding = it.onboarding.copy(phase = OnboardingPhase.Finished, error = null)) }
     }
 
+    /**
+     * A check verdict (error / added) belongs to the provider it was produced for
+     * (03-key-states §3: another card → empty state). Called on a provider switch and
+     * on a wizard restart, so a stale red/green never shows under an unchecked provider.
+     */
+    private fun onboardingClearKeyState() {
+        _state.update {
+            it.copy(onboarding = it.onboarding.copy(isChecking = false, error = null, isKeyAdded = false))
+        }
+    }
+
     private fun onboardingSkip() {
         dataRepository.setOnboardingDone(true)
         dataRepository.setOnboardingFinishedStep(true)
@@ -1068,8 +1080,10 @@ class ChatViewModel(
         dataRepository.setOnboardingStep(1)
         startNewChat()
         onboardingResume()
+        // A finished add must not leak into the reopened wizard: the field would open
+        // already-disabled («Добавлено») with no way to add another service.
         _state.update {
-            it.copy(onboarding = it.onboarding.copy(step = 1, showLocalLimits = false))
+            it.copy(onboarding = it.onboarding.copy(step = 1, showLocalLimits = false, isChecking = false, isKeyAdded = false))
         }
     }
 

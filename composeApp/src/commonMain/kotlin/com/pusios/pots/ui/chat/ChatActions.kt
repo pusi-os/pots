@@ -48,6 +48,8 @@ data class ChatActions(
     val runMiniAppPrompt: (appId: String, prompt: String) -> Unit,
     /** Validates the key at the picked provider and adds the service (Settings → Services add+key mechanism); a mapped error lands under the field. */
     val onboardingAddKey: (serviceId: String, apiKey: String) -> Unit,
+    /** Provider switched or wizard restarted: a check verdict (error/added) belongs to its provider (03-key-states §3). */
+    val onboardingClearKeyState: () -> Unit,
     /** «Готово» after a successful add: closes the wizard the same way the old check success did. */
     val onboardingConfirmKey: () -> Unit,
     /** «Пропустить» — parks the wizard behind the final card. */

@@ -140,13 +140,15 @@ internal fun OnboardingProviderPicker(
 
     fun pick(service: Service) {
         // Switching cards closes the guide and clears the draft — the key belongs to its
-        // provider and must not travel to another one (03-key-states §3). Reopening the
-        // same provider keeps the unsent draft.
+        // provider and must not travel to another one (03-key-states §3). The check
+        // verdict (error/added) belongs to the checked provider and is reset too.
+        // Reopening the same provider keeps the unsent draft.
         if (service.id != selectedId) {
             selectedId = service.id
             guideOpen = false
             keyDraft = ""
             keyVisible = false
+            actions.onboardingClearKeyState()
         }
     }
 
@@ -598,30 +600,33 @@ private fun GuideMessage(icon: ImageVector, color: Color, text: String) {
     }
 }
 
+// The icon/subtitle/hint/step tables enumerate every member of Service.onboardingServices
+// explicitly; a new onboarding service must add its row here (no silent LLM-Router fallback).
+
 private fun providerIcon(service: Service): ImageVector = when (service) {
     Service.PlusVibe -> Icons.Filled.OnboardPulse
     Service.Polza -> Icons.Filled.OnboardLayers
     Service.AiTunnel -> Icons.Filled.OnboardTunnel
     Service.Gptunnel -> Icons.Filled.OnboardChip
-    else -> Icons.Filled.OnboardRoute
+    Service.LlmRouter -> Icons.Filled.OnboardRoute
+    else -> error("not an onboarding provider: ${service.id}")
 }
-
-// The picker only renders Service.onboardingServices, so the `else` branches below
-// are unreachable in practice.
 
 private fun providerSubtitle(service: Service): StringResource = when (service) {
     Service.PlusVibe -> Res.string.onboarding_sub_plusvibe
     Service.Polza -> Res.string.onboarding_sub_polza
     Service.AiTunnel -> Res.string.onboarding_sub_aitunnel
     Service.Gptunnel -> Res.string.onboarding_sub_gptunnel
-    else -> Res.string.onboarding_sub_llmrouter
+    Service.LlmRouter -> Res.string.onboarding_sub_llmrouter
+    else -> error("not an onboarding provider: ${service.id}")
 }
 
 private fun keyHint(service: Service): StringResource = when (service) {
     Service.PlusVibe -> Res.string.onboarding_key_hint_plusvibe
+    Service.Polza, Service.Gptunnel -> Res.string.onboarding_key_hint_generic
     Service.AiTunnel -> Res.string.onboarding_key_hint_aitunnel
     Service.LlmRouter -> Res.string.onboarding_key_hint_llmrouter
-    else -> Res.string.onboarding_key_hint_generic
+    else -> error("not an onboarding provider: ${service.id}")
 }
 
 private fun guideSteps(service: Service): List<Pair<StringResource, StringResource>> = when (service) {
@@ -649,9 +654,11 @@ private fun guideSteps(service: Service): List<Pair<StringResource, StringResour
         Res.string.onboarding_guide_step_topup to Res.string.onboarding_desc_gptunnel_3,
     )
 
-    else -> listOf(
+    Service.LlmRouter -> listOf(
         Res.string.onboarding_guide_step_register to Res.string.onboarding_desc_llmrouter_1,
         Res.string.onboarding_guide_step_key to Res.string.onboarding_desc_llmrouter_2,
         Res.string.onboarding_guide_step_topup to Res.string.onboarding_desc_llmrouter_3,
     )
+
+    else -> error("not an onboarding provider: ${service.id}")
 }

@@ -74,6 +74,7 @@ object ScreenshotTestData {
         runMiniAppAutomation = { _, _ -> },
         runMiniAppPrompt = { _, _ -> },
         onboardingAddKey = { _, _ -> },
+        onboardingClearKeyState = {},
         onboardingConfirmKey = {},
         onboardingSkip = {},
         onboardingResume = {},

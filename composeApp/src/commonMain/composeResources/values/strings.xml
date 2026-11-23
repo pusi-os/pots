@@ -88,7 +88,7 @@
     <string name="onboarding_desc_plusvibe_3">RF card from 100 ₽ · prepaid, charged as used.</string>
     <string name="onboarding_desc_polza_1">polza.ai/dashboard · create an account and an organization.</string>
     <string name="onboarding_desc_polza_2">Dashboard → API keys → &quot;Create key&quot;.</string>
-    <string name="onboarding_desc_polza_3">Card / SBP from 100 ₽ · bank transfer takes 1–2 days.</string>
+    <string name="onboarding_desc_polza_3">Card from 100 ₽ · SBP — no stated minimum · bank transfer takes 1–2 days.</string>
     <string name="onboarding_desc_aitunnel_1">aitunnel.ru/panel → &quot;Sign up&quot; · confirm your email.</string>
     <string name="onboarding_desc_aitunnel_2">Panel → Keys → &quot;New&quot; · sk-aitunnel-…</string>
     <string name="onboarding_desc_aitunnel_3">From 500 ₽ · crypto adds a +20% bonus.</string>
@@ -110,7 +110,6 @@
     <string name="onboarding_button_added">Added</string>
     <string name="onboarding_button_done">Done</string>
     <string name="onboarding_key_added">Key added</string>
-    <string name="onboarding_field_api_key">API key</string>
     <string name="onboarding_success">All set! The connection works — I will answer you in this chat now.</string>
     <string name="onboarding_skip_button">Skip</string>
     <string name="onboarding_skipped">Agreed, no setup for now. Just remember: until a model is connected, I stay silent and do not answer messages.</string>
