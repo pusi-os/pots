@@ -36,6 +36,7 @@ import pots.composeapp.generated.resources.vault_error_corrupted
 import pots.composeapp.generated.resources.vault_error_tampered
 import pots.composeapp.generated.resources.vault_error_unsupported_version
 import pots.composeapp.generated.resources.vault_error_wrong_password
+import pots.composeapp.generated.resources.vault_password_mismatch
 import pots.composeapp.generated.resources.vault_setup_confirm
 import pots.composeapp.generated.resources.vault_setup_create
 import pots.composeapp.generated.resources.vault_setup_hint

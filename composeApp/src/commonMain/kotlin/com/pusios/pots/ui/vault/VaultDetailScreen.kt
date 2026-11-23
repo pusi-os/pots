@@ -48,10 +48,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.vault_back
 import pots.composeapp.generated.resources.vault_common_cancel
 import pots.composeapp.generated.resources.vault_delete_confirm_message
 import pots.composeapp.generated.resources.vault_delete_confirm_title
 import pots.composeapp.generated.resources.vault_delete_confirm_yes
+import pots.composeapp.generated.resources.vault_detail_delete
 import pots.composeapp.generated.resources.vault_detail_edit
 import pots.composeapp.generated.resources.vault_field_copy
 import pots.composeapp.generated.resources.vault_notes_label

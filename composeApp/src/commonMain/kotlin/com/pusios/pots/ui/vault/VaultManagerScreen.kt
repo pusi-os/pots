@@ -55,6 +55,7 @@ import com.pusios.pots.data.vault.VaultItem
 import com.pusios.pots.data.vault.VaultItemKind
 import com.pusios.pots.data.vault.VaultSession
 import com.pusios.pots.data.vault.VaultTemplates
+import com.pusios.pots.data.vault.kind
 import com.pusios.pots.ui.PotsClearableTextField
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -62,7 +63,14 @@ import org.koin.compose.koinInject
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.vault_add_item
 import pots.composeapp.generated.resources.vault_kind_all
+import pots.composeapp.generated.resources.vault_kind_card
+import pots.composeapp.generated.resources.vault_kind_host
+import pots.composeapp.generated.resources.vault_kind_identity
+import pots.composeapp.generated.resources.vault_kind_login
+import pots.composeapp.generated.resources.vault_kind_note
 import pots.composeapp.generated.resources.vault_kind_other
+import pots.composeapp.generated.resources.vault_kind_ssh_key
+import pots.composeapp.generated.resources.vault_kind_token
 import pots.composeapp.generated.resources.vault_list_empty
 import pots.composeapp.generated.resources.vault_list_empty_hint
 import pots.composeapp.generated.resources.vault_lock_action
@@ -235,7 +243,8 @@ private fun VaultListContent(
                     )
                 }
             }
-            val items = state.items.filter { kindFilter == null || it.type == kindFilter.id }
+            val activeFilter = kindFilter
+            val items = state.items.filter { activeFilter == null || it.type == activeFilter.id }
             if (items.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
