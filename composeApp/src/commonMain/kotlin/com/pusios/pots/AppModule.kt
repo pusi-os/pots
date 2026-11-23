@@ -22,6 +22,10 @@ import com.pusios.pots.data.miniapp.createMiniAppPersistence
 import com.pusios.pots.data.miniapp.createMiniAppServer
 import com.pusios.pots.data.miniapp.createMiniAppServerController
 import com.pusios.pots.data.runMigrations
+import com.pusios.pots.data.vault.VaultSession
+import com.pusios.pots.data.vault.VaultStore
+import com.pusios.pots.data.vault.createVaultCryptoEngine
+import com.pusios.pots.data.vault.createVaultFileAccess
 import com.pusios.pots.email.EmailPoller
 import com.pusios.pots.inference.createLocalInferenceEngine
 import com.pusios.pots.inference.createVectorizationManager
@@ -88,6 +92,12 @@ val appModule = module {
     }
     single<ToolExecutor> {
         ToolExecutor()
+    }
+    single {
+        VaultStore(createVaultFileAccess(), createVaultCryptoEngine())
+    }
+    single {
+        VaultSession(get())
     }
     single<PotsikStage> {
         PotsikStage()
