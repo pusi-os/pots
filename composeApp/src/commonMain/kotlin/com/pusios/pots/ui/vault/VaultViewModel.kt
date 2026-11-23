@@ -123,11 +123,12 @@ class VaultViewModel(
 
     /** The screen to show after a session action: still unlocked, or locked again. */
     private fun unlockedState(query: String): VaultUiState {
+        // search() runs the lazy auto-lock check, so read the flag after it:
+        // a timed-out session reports empty results but has not locked yet.
+        val items = session.search(query)
         if (session.locked.value) {
-            // The session locked between actions (auto-lock timeout); the
-            // locked-flow collector will also fire, but do not trust the race.
             return VaultUiState.Locked(null)
         }
-        return VaultUiState.Unlocked(query, session.search(query))
+        return VaultUiState.Unlocked(query, items)
     }
 }

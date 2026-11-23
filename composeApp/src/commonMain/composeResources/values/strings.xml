@@ -1047,7 +1047,7 @@
     <string name="vault_detail_delete">Delete</string>
     <string name="vault_delete_confirm_title">Delete card</string>
     <string name="vault_delete_confirm_message">Delete "%1$s"? This cannot be undone.</string>
-    <string name="vault_delete_confirm_yes">Delete</string>
+    <string name="vault_delete_confirm_yes">Yes, delete</string>
     <string name="vault_common_cancel">Cancel</string>
     <string name="vault_common_save">Save</string>
     <string name="vault_url_label">URL</string>

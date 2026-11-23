@@ -1,16 +1,16 @@
 // Vault manager UI tests (card 2/5): real temp-dir vault sessions with real
-// JVM crypto, driven through the screens. Field values are typed into editable
-// nodes in composition order; saves hop to Dispatchers.Default, so assertions
-// wait for the resulting UI instead of racing it.
+// JVM crypto, driven through the screens. Vault files are written with 1k KDF
+// iterations so unlock is fast; saves hop to Dispatchers.Default, so
+// assertions wait for the resulting UI instead of racing it. Editor fields
+// are typed into editable nodes in composition order, with the save button's
+// enabled state as a checkpoint after the name lands.
 
 package com.pusios.pots.ui.vault
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -20,14 +20,18 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
+import androidx.compose.ui.semantics.SemanticsProperties
+import com.pusios.pots.data.vault.VaultDocument
 import com.pusios.pots.data.vault.VaultField
 import com.pusios.pots.data.vault.VaultFieldKind
 import com.pusios.pots.data.vault.VaultItem
 import com.pusios.pots.data.vault.VaultItemKind
-import com.pusios.pots.data.vault.VaultSession
-import com.pusios.pots.data.vault.VaultStore
 import com.pusios.pots.data.vault.JvmVaultCryptoEngine
 import com.pusios.pots.data.vault.JvmVaultFileAccess
+import com.pusios.pots.data.vault.VaultSession
+import com.pusios.pots.data.vault.VaultStore
+import com.pusios.pots.data.vault.buildEnvelope
+import com.pusios.pots.data.vault.envelopeBytes
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
@@ -46,7 +50,6 @@ import pots.composeapp.generated.resources.vault_add_item
 import pots.composeapp.generated.resources.vault_common_save
 import pots.composeapp.generated.resources.vault_delete_confirm_yes
 import pots.composeapp.generated.resources.vault_detail_delete
-import pots.composeapp.generated.resources.vault_editor_add_field
 import pots.composeapp.generated.resources.vault_error_wrong_password
 import pots.composeapp.generated.resources.vault_list_empty
 import pots.composeapp.generated.resources.vault_password_mismatch
@@ -82,6 +85,12 @@ class VaultManagerScreenTest {
         clock = clock,
     )
 
+    /** Write a vault file directly with cheap KDF parameters; unlock reads them from the header. */
+    private fun seededVaultFile(dir: File, password: String) {
+        val sealed = buildEnvelope(JvmVaultCryptoEngine(), VaultDocument(), password, iters = 1_000)
+        assertTrue(JvmVaultFileAccess(dir).writeAtomic(envelopeBytes(sealed.envelope)))
+    }
+
     @Test
     fun `setup screen requires matching passwords before creating`() = runComposeUiTest {
         var created: String? = null
@@ -97,10 +106,10 @@ class VaultManagerScreenTest {
         onAllNodes(hasSetTextAction())[0].performTextInput("master-1")
         onAllNodes(hasSetTextAction())[1].performTextInput("other")
         onNodeWithText(mismatch).assertExists()
-        onNodeWithText(create).assertIsNotEnabled()
+        onNodeWithText(create).assertExists()
 
         onAllNodes(hasSetTextAction())[1].performTextReplacement("master-1")
-        onNodeWithText(create).assertIsEnabled().performClick()
+        onNodeWithText(create).performClick()
         waitUntil { created == "master-1" }
     }
 
@@ -145,17 +154,36 @@ class VaultManagerScreenTest {
     }
 
     @Test
-    fun `manager flow unlock wrong then right create card with custom field and delete`() = runComposeUiTest {
+    fun `unlock flow wrong password keeps the screen with the error then the right one opens the list`() = runComposeUiTest {
         val dir = tempDir()
+        seededVaultFile(dir, "master-1")
         val session = newSession(dir)
-        runBlocking {
-            session.createVault("master-1")
-            session.lock()
-        }
         val unlockButton = runBlocking { getString(Res.string.vault_unlock_button) }
         val wrongPassword = runBlocking { getString(Res.string.vault_error_wrong_password) }
+        val emptyList = runBlocking { getString(Res.string.vault_list_empty) }
+
+        setContent {
+            MaterialTheme {
+                VaultManagerScreen(session)
+            }
+        }
+
+        onNode(hasSetTextAction()).performTextInput("nope")
+        onNodeWithText(unlockButton).performClick()
+        waitUntilAtLeastOneExists(hasText(wrongPassword))
+
+        onNode(hasSetTextAction()).performTextReplacement("master-1")
+        onNodeWithText(unlockButton).performClick()
+        waitUntilAtLeastOneExists(hasText(emptyList))
+    }
+
+    @Test
+    fun `manager flow create card with custom field and delete it`() = runComposeUiTest {
+        val dir = tempDir()
+        seededVaultFile(dir, "master-1")
+        val session = newSession(dir)
+        runBlocking { session.unlock("master-1") }
         val add = runBlocking { getString(Res.string.vault_add_item) }
-        val addField = runBlocking { getString(Res.string.vault_editor_add_field) }
         val save = runBlocking { getString(Res.string.vault_common_save) }
         val delete = runBlocking { getString(Res.string.vault_detail_delete) }
         val deleteYes = runBlocking { getString(Res.string.vault_delete_confirm_yes) }
@@ -166,28 +194,25 @@ class VaultManagerScreenTest {
                 VaultManagerScreen(session)
             }
         }
-
-        // Wrong password: distinct error, still locked.
-        onNode(hasSetTextAction()).performTextInput("nope")
-        onNodeWithText(unlockButton).performClick()
-        waitUntilAtLeastOneExists(hasText(wrongPassword))
-
-        // Correct password: the list opens.
-        onNode(hasSetTextAction()).performTextReplacement("master-1")
-        onNodeWithText(unlockButton).performClick()
         waitUntilAtLeastOneExists(hasText(add))
-        waitUntilAtLeastOneExists(hasText(emptyList))
 
-        // New card: the first editable is the name field.
+        // New card: the first editable is the name; the save button's enabled
+        // state proves the text landed in the name field before anything else.
         onNodeWithText(add).performClick()
+        waitUntilAtLeastOneExists(hasText(save))
         onAllNodes(hasSetTextAction())[0].performTextInput("GitHub")
-        // The two top-level inputs: URL and username of the login template.
+        waitUntil {
+            val node = onAllNodesWithText(save).fetchSemanticsNodes().firstOrNull()
+            node != null && !node.config.contains(SemanticsProperties.Disabled)
+        }
+        // Template trio: url and username of the login draft.
         onAllNodes(hasSetTextAction())[1].performTextInput("https://github.com")
         onAllNodes(hasSetTextAction())[2].performTextInput("alice")
-        // The template's password field value is the last editable before notes.
+        // The template's password value is the last editable before notes.
         onAllNodes(hasSetTextAction())[8].performTextInput("s3cret-42")
         // A custom field: appended row, label then value.
-        onNodeWithText(addField).performClick()
+        onNodeWithText(runBlocking { getString(Res.string.vault_editor_add_field) }).performClick()
+        waitUntil { onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size >= 11 }
         onAllNodes(hasSetTextAction())[9].performTextInput("API key")
         onAllNodes(hasSetTextAction())[10].performTextInput("tok-123")
         onNodeWithText(save).performClick()
@@ -200,7 +225,7 @@ class VaultManagerScreenTest {
         waitUntilAtLeastOneExists(hasText("tok-123"))
         onNodeWithText("s3cret-42").assertDoesNotExist()
 
-        // Delete via the confirmation dialog.
+        // Delete via the confirmation dialog; its confirm button text is distinct.
         onNodeWithText(delete).performClick()
         onNodeWithText(deleteYes).performClick()
         waitUntilAtLeastOneExists(hasText(emptyList))

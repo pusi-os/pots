@@ -1048,7 +1048,7 @@
     <string name="vault_detail_delete">Удалить</string>
     <string name="vault_delete_confirm_title">Удалить карточку</string>
     <string name="vault_delete_confirm_message">Удалить «%1$s»? Действие необратимо.</string>
-    <string name="vault_delete_confirm_yes">Удалить</string>
+    <string name="vault_delete_confirm_yes">Да, удалить</string>
     <string name="vault_common_cancel">Отмена</string>
     <string name="vault_common_save">Сохранить</string>
     <string name="vault_url_label">URL</string>
