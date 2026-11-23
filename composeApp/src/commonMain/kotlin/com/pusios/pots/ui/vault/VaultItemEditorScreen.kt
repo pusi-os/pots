@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.vault.VaultField
 import com.pusios.pots.data.vault.VaultFieldKind
@@ -44,9 +45,6 @@ import com.pusios.pots.data.vault.VaultItemKind
 import com.pusios.pots.data.vault.VaultTemplate
 import com.pusios.pots.data.vault.VaultTemplates
 import com.pusios.pots.ui.PotsOutlinedTextField
-import androidx.compose.ui.text.input.VisualTransformation
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.vault_back
@@ -68,6 +66,8 @@ import pots.composeapp.generated.resources.vault_field_type_secret
 import pots.composeapp.generated.resources.vault_field_type_secret_multiline
 import pots.composeapp.generated.resources.vault_field_type_text
 import pots.composeapp.generated.resources.vault_field_type_url
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /** Editor for an existing card, or a new card when [initial].id is blank. */
 @Composable

@@ -20,8 +20,8 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -41,15 +41,6 @@ import com.pusios.pots.data.vault.VaultSession
 import com.pusios.pots.data.vault.VaultStore
 import com.pusios.pots.data.vault.buildEnvelope
 import com.pusios.pots.data.vault.envelopeBytes
-import java.io.File
-import java.nio.file.Files
-import kotlin.test.Test
-import kotlin.test.assertTrue
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.ExperimentalTime
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -67,6 +58,15 @@ import pots.composeapp.generated.resources.vault_password_mismatch
 import pots.composeapp.generated.resources.vault_setup_create
 import pots.composeapp.generated.resources.vault_toggle_show
 import pots.composeapp.generated.resources.vault_unlock_button
+import java.io.File
+import java.nio.file.Files
+import kotlin.test.Test
+import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.ExperimentalTime
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /** One exception class per flow step: Gradle logs exception types of failed tests. */
 private class VaultStep00StateException : IllegalStateException("state not unlocked")
@@ -219,8 +219,7 @@ class VaultManagerScreenTest {
         val newTitle = runBlocking { getString(Res.string.vault_editor_new_title) }
         val emptyList = runBlocking { getString(Res.string.vault_list_empty) }
 
-        fun unlockedItems(): List<VaultItem> =
-            (model.state.value as? VaultUiState.Unlocked)?.items ?: emptyList()
+        fun unlockedItems(): List<VaultItem> = (model.state.value as? VaultUiState.Unlocked)?.items ?: emptyList()
 
         setContent {
             MaterialTheme {

@@ -40,10 +40,9 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.vault.VaultField
 import com.pusios.pots.data.vault.VaultItem
-import com.pusios.pots.ui.clipEntryOfText
 import com.pusios.pots.data.vault.isSecret
 import com.pusios.pots.data.vault.kind
-import kotlin.time.Duration.Companion.seconds
+import com.pusios.pots.ui.clipEntryOfText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -62,6 +61,7 @@ import pots.composeapp.generated.resources.vault_toggle_hide
 import pots.composeapp.generated.resources.vault_toggle_show
 import pots.composeapp.generated.resources.vault_url_label
 import pots.composeapp.generated.resources.vault_username_label
+import kotlin.time.Duration.Companion.seconds
 
 /** The report's clipboard rule: wipe a copied value ~45 s after the copy. */
 private val CLIPBOARD_CLEAR_AFTER = 45.seconds
