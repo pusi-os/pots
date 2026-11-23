@@ -52,6 +52,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -143,10 +144,9 @@ class ChatViewModel(
         editMiniApp = ::editMiniApp,
         runMiniAppAutomation = ::runMiniAppAutomation,
         runMiniAppPrompt = ::runMiniAppPrompt,
-        onboardingOpenSite = ::onboardingOpenSite,
-        onboardingSaveKey = ::onboardingSaveKey,
-        onboardingTopUp = ::onboardingTopUp,
-        onboardingCheck = ::onboardingCheck,
+        onboardingAddKey = ::onboardingAddKey,
+        onboardingClearKeyState = ::onboardingClearKeyState,
+        onboardingConfirmKey = ::onboardingConfirmKey,
         onboardingSkip = ::onboardingSkip,
         onboardingResume = ::onboardingResume,
         onboardingChooseLocal = ::onboardingChooseLocal,
@@ -774,50 +774,38 @@ class ChatViewModel(
         _state.update { it.copy(availableServices = entries, warning = warning) }
     }
 
-    // ---- First-launch onboarding wizard (§2 spec: joni UX + stiv copy) ----
+    // ---- First-launch onboarding: provider picker + key guide (docs/design/onboarding) ----
     //
     // Persistence mirrors AppSettings KEY_ONBOARDING_*: DONE (success), STEP ("1".."4"),
-    // FINISHED_STEP (skipped or aborted without success).
+    // FINISHED_STEP (skipped or aborted without success). The wizard screen renders the
+    // provider list and the guide section; the ViewModel only runs the add-service flow.
 
-    private fun onboardingOpenSite() {
-        _state.update { state ->
-            val onboarding = state.onboarding
-            if (onboarding.phase != OnboardingPhase.Active || onboarding.step >= 4) return@update state
-            val nextStep = onboarding.step + 1
-            dataRepository.setOnboardingStep(nextStep)
-            state.copy(onboarding = onboarding.copy(step = nextStep, error = null))
-        }
-    }
-
-    private fun onboardingSaveKey(apiKey: String) {
+    /**
+     * «Проверить и добавить»: validates the pasted key at the picked provider and adds the
+     * service through the same add+key mechanism as Settings → Services. A mapped error
+     * lands under the field; success keeps the wizard open in the green «Добавлено» state
+     * until [onboardingConfirmKey].
+     */
+    private fun onboardingAddKey(serviceId: String, apiKey: String) {
+        val onboarding = _state.value.onboarding
+        if (onboarding.phase != OnboardingPhase.Active || onboarding.isChecking) return
+        val service = Service.fromId(serviceId) ?: return
         if (apiKey.isBlank()) {
             _state.update { it.copy(onboarding = it.onboarding.copy(error = Res.string.onboarding_error_empty_key)) }
             return
         }
-        // Reuse an existing PlusVibe instance so an interrupted-then-resumed wizard
-        // never stacks a duplicate — same add+key mechanism as Settings → Services.
-        val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.serviceId == Service.PlusVibe.id }
-            ?: dataRepository.addConfiguredService(Service.PlusVibe.id)
-        dataRepository.updateInstanceApiKey(instance.instanceId, apiKey.trim())
-        // Parity with Settings → Services' onChangeApiKey: a reused instance may
-        // still cache the previous key's models.
-        dataRepository.clearInstanceModels(instance.instanceId, Service.PlusVibe)
-        dataRepository.setOnboardingStep(4)
-        _state.update { it.copy(onboarding = it.onboarding.copy(step = 4, error = null)) }
-        updateAvailableServices()
-    }
-
-    /** The balance URL is opened by the UI layer (UriHandler lives in Compose); nothing to persist. */
-    private fun onboardingTopUp() = Unit
-
-    private fun onboardingCheck() {
-        val onboarding = _state.value.onboarding
-        if (onboarding.phase != OnboardingPhase.Active || onboarding.isChecking) return
-        val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.serviceId == Service.PlusVibe.id } ?: return
         _state.update { it.copy(onboarding = it.onboarding.copy(isChecking = true, error = null)) }
         viewModelScope.launch(backgroundDispatcher) {
             val errorRes = try {
-                dataRepository.validateConnection(Service.PlusVibe, instance.instanceId)
+                // Reuse an instance of the same service so a re-run of the wizard never
+                // stacks a duplicate, and clear the cached models — they belong to the
+                // previous key (parity with Settings → Services' onChangeApiKey).
+                val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.serviceId == service.id }
+                    ?: dataRepository.addConfiguredService(service.id)
+                dataRepository.updateInstanceApiKey(instance.instanceId, apiKey.trim())
+                dataRepository.clearInstanceModels(instance.instanceId, service)
+                // The mockup's 12 s ceiling: no eternal spinner, a slow answer is a network error.
+                withTimeout(12_000) { dataRepository.validateConnection(service, instance.instanceId) }
                 null
             } catch (e: Exception) {
                 when (e) {
@@ -831,13 +819,36 @@ class ChatViewModel(
                 }
             }
             if (errorRes == null) {
-                dataRepository.setOnboardingDone(true)
-                dataRepository.setOnboardingFinishedStep(false)
-                _state.update { it.copy(onboarding = it.onboarding.copy(phase = OnboardingPhase.Finished, isChecking = false, error = null)) }
+                dataRepository.setOnboardingStep(4)
+                _state.update {
+                    it.copy(
+                        onboarding = it.onboarding.copy(step = 4, isChecking = false, isKeyAdded = true, error = null),
+                    )
+                }
                 updateAvailableServices()
             } else {
                 _state.update { it.copy(onboarding = it.onboarding.copy(isChecking = false, error = errorRes)) }
             }
+        }
+    }
+
+    /** «Готово» after the green state: finishes onboarding like the old check success did. */
+    private fun onboardingConfirmKey() {
+        val onboarding = _state.value.onboarding
+        if (onboarding.phase != OnboardingPhase.Active || !onboarding.isKeyAdded) return
+        dataRepository.setOnboardingDone(true)
+        dataRepository.setOnboardingFinishedStep(false)
+        _state.update { it.copy(onboarding = it.onboarding.copy(phase = OnboardingPhase.Finished, error = null)) }
+    }
+
+    /**
+     * A check verdict (error / added) belongs to the provider it was produced for
+     * (03-key-states §3: another card → empty state). Called on a provider switch and
+     * on a wizard restart, so a stale red/green never shows under an unchecked provider.
+     */
+    private fun onboardingClearKeyState() {
+        _state.update {
+            it.copy(onboarding = it.onboarding.copy(isChecking = false, error = null, isKeyAdded = false))
         }
     }
 
@@ -1069,8 +1080,10 @@ class ChatViewModel(
         dataRepository.setOnboardingStep(1)
         startNewChat()
         onboardingResume()
+        // A finished add must not leak into the reopened wizard: the field would open
+        // already-disabled («Добавлено») with no way to add another service.
         _state.update {
-            it.copy(onboarding = it.onboarding.copy(step = 1, showLocalLimits = false))
+            it.copy(onboarding = it.onboarding.copy(step = 1, showLocalLimits = false, isChecking = false, isKeyAdded = false))
         }
     }
 

@@ -29,6 +29,12 @@ composeCompiler {
     stabilityConfigurationFiles.add(project.layout.projectDirectory.file("compose_stability.conf"))
 }
 
+// The generated Res accessors are public so sibling modules (screenshotTests) can
+// reference strings in Paparazzi fixtures — e.g. the onboarding error-state snapshot.
+compose.resources {
+    publicResClass = true
+}
+
 kotlin {
     android {
         namespace = "com.pusios.pots.shared"

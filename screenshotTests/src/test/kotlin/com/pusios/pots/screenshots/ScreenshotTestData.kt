@@ -9,6 +9,7 @@ import com.pusios.pots.linux.LinuxDistro
 import com.pusios.pots.ui.chat.ChatActions
 import com.pusios.pots.ui.chat.ChatUiState
 import com.pusios.pots.ui.chat.History
+import com.pusios.pots.ui.chat.OnboardingState
 import com.pusios.pots.ui.settings.ConfiguredServiceEntry
 import com.pusios.pots.ui.settings.ConnectionStatus
 import com.pusios.pots.ui.settings.McpConnectionStatus
@@ -25,6 +26,18 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 object ScreenshotTestData {
+
+    /**
+     * The first-launch wizard at [onboarding]: composed through the empty-chat slot, no
+     * Koin container — the wizard card takes state and actions only.
+     */
+    fun chatOnboarding(onboarding: OnboardingState): ChatUiState = ChatUiState(
+        actions = noOpChatActions,
+        history = persistentListOf(),
+        agentProfiles = persistentListOf(AgentProfile(id = "default", name = "Потсик")),
+        activeAgentProfileId = "default",
+        onboarding = onboarding,
+    )
 
     val noOpChatActions = ChatActions(
         ask = {},
@@ -60,10 +73,9 @@ object ScreenshotTestData {
         editMiniApp = { },
         runMiniAppAutomation = { _, _ -> },
         runMiniAppPrompt = { _, _ -> },
-        onboardingOpenSite = {},
-        onboardingSaveKey = { _ -> },
-        onboardingTopUp = {},
-        onboardingCheck = {},
+        onboardingAddKey = { _, _ -> },
+        onboardingClearKeyState = {},
+        onboardingConfirmKey = {},
         onboardingSkip = {},
         onboardingResume = {},
         onboardingChooseLocal = {},
