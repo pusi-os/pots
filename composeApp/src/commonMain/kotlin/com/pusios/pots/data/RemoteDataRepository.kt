@@ -467,8 +467,9 @@ class RemoteDataRepository(
                 if (service.modelsUrl != null) {
                     fetchModelsForInstance(service, instanceId) { creds, selectedModelId ->
                         val models = requests.getOpenAICompatibleModels(service, creds).getOrThrow().data
-                        val pricing = if (service == Service.LlmRouter) requests.getLlmRouterPricing().getOrNull()?.data else null
-                        mapOpenAICompatibleModels(models, service, selectedModelId, pricing)
+                        val pricing = if (service == Service.LlmRouter) requests.getLlmRouterPricing(creds).getOrNull()?.data else null
+                        val catalog = fetchCatalogEnrichment(service)
+                        mapOpenAICompatibleModels(models, service, selectedModelId, pricing, catalog)
                     }
                 } else if (service.defaultModels.isNotEmpty()) {
                     val selectedModelId = appSettings.getInstanceModelId(instanceId)
@@ -499,6 +500,22 @@ class RemoteDataRepository(
         val creds = instanceCredentials(instanceId, service)
         val selectedModelId = appSettings.getInstanceModelId(instanceId)
         updateModelsForInstance(instanceId, fetchAndMap(creds, selectedModelId))
+    }
+
+    /**
+     * Public per-provider catalogs that carry prices/caps the `/v1/models` endpoint lacks.
+     * Both are fetched without a key and degrade silently to null on failure — the model cards
+     * then keep their contour "—" tiles. PlusVibe's reserve gateway shares the main host's
+     * catalog (the gw host's own /api/catalog is slow and unverified).
+     */
+    private suspend fun fetchCatalogEnrichment(service: Service): Map<String, ApiCatalogEnrichment>? = when (service) {
+        Service.PlusVibe, Service.PlusVibeReserve ->
+            requests.getPlusVibeCatalog().getOrNull()?.associate { it.apiModel to it.toEnrichment() }
+
+        Service.AiTunnel ->
+            requests.getAiTunnelCatalog().getOrNull()?.mapValues { it.value.toEnrichment() }
+
+        else -> null
     }
 
     private fun updateModelsForInstance(instanceId: String, models: List<SettingsModel>, service: Service? = null) {
