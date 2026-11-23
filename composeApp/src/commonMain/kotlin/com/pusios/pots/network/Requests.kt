@@ -6,10 +6,10 @@ import com.pusios.pots.data.ApiKeyAuthStyle
 import com.pusios.pots.data.Service
 import com.pusios.pots.httpClient
 import com.pusios.pots.isDebugBuild
+import com.pusios.pots.network.dtos.aitunnel.AiTunnelCatalogEntryDto
 import com.pusios.pots.network.dtos.anthropic.AnthropicChatRequestDto
 import com.pusios.pots.network.dtos.anthropic.AnthropicChatResponseDto
 import com.pusios.pots.network.dtos.anthropic.AnthropicModelsResponseDto
-import com.pusios.pots.network.dtos.aitunnel.AiTunnelCatalogEntryDto
 import com.pusios.pots.network.dtos.gemini.FunctionDeclaration
 import com.pusios.pots.network.dtos.gemini.FunctionParameters
 import com.pusios.pots.network.dtos.gemini.GeminiChatRequestDto
