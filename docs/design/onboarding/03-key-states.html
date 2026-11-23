@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POTS · Онбординг · состояния поля ключа</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M2 12h4l3-7 5 14 3-7h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10.5 13 9-9m0 0 2 2m-2-2-2 2m2-2 2 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 22 20H2L12 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9.5v4.5M12 16.8v.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="m2 2 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8.5 16.5a5 5 0 0 1 7 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M5 12.9a10 10 0 0 1 2.6-1.8M16.4 11.1a10 10 0 0 1 2.6 1.8M2 9a15 15 0 0 1 4.4-2.9M17.6 6.1A15 15 0 0 1 22 9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 19.5v.4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m8 12.5 2.5 2.5L16 9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-spin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="42.4" stroke-dashoffset="30" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="doc">
+
+<header class="doc-head">
+  <p class="kicker">POTS · Дизайн-макеты · t_fa2dbbb3</p>
+  <h1>Онбординг: состояния поля API-ключа</h1>
+  <p class="lede">Одно и то же поле, пять состояний. Сообщение всегда появляется <b>под полем</b>, иконка в сообщении дублирует цвет рамки. Во время проверки кнопка уходит в состояние «занят» — повторное нажатие невозможно. Всё то же поле — ни одно состояние не меняет геометрию поля и кнопки.</p>
+  <div class="chips">
+    <span class="chip chip--accent">300 dp · самый узкий экран</span>
+    <span class="chip">ошибка ≠ краш: поле сохраняет ввод</span>
+    <span class="chip">проверяем — спиннер в кнопке</span>
+    <span class="chip">inline SVG · currentColor</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">01</span>
+    <h2>Пять состояний поля</h2>
+  </div>
+  <p class="block-note">Показаны на 300 dp — если состояние не ломается здесь, на 360/320 не сломается и подавно. Введённый ключ маскируется глазом; при ошибке ввод <b>не очищается</b> — пользователь правит, а не набирает заново.</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>A. Ключ введён</b><span>готов к проверке</span></div>
+      <div class="frame" style="width:300px">
+        <div class="frame-body" style="padding:12px">
+          <div class="kwrap" style="margin-top:0">
+            <div class="kfield">
+              <svg class="kic"><use href="#i-key"/></svg>
+              <span class="val">sk-pv-9f2e14c7a8d3b6…</span>
+              <span class="eye"><svg><use href="#i-eye"/></svg></span>
+            </div>
+            <div class="kbtn">Проверить и добавить</div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>B. Проверяем</b><span>кнопка занята</span></div>
+      <div class="frame" style="width:300px">
+        <div class="frame-body" style="padding:12px">
+          <div class="kwrap" style="margin-top:0">
+            <div class="kfield is-checking">
+              <svg class="kic"><use href="#i-key"/></svg>
+              <span class="val">sk-pv-9f2e14c7a8d3b6…</span>
+              <span class="eye"><svg><use href="#i-eye"/></svg></span>
+            </div>
+            <div class="kmsg kmsg--info"><svg class="spinner"><use href="#i-spin"/></svg><span>Проверяем ключ у провайдера…</span></div>
+            <div class="kbtn is-busy"><svg class="spinner"><use href="#i-spin"/></svg>Проверяем…</div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>C. Ключ неверный</b><span>401 от провайдера</span></div>
+      <div class="frame" style="width:300px">
+        <div class="frame-body" style="padding:12px">
+          <div class="kwrap" style="margin-top:0">
+            <div class="kfield is-error">
+              <svg class="kic" style="color:#FF8AA0"><use href="#i-key"/></svg>
+              <span class="val">sk-pv-9f2e14c7a8d3b6…</span>
+              <span class="eye"><svg><use href="#i-eye"/></svg></span>
+            </div>
+            <div class="kmsg kmsg--error"><svg><use href="#i-alert"/></svg><span>Ключ не принят. Проверьте его в кабинете провайдера — возможно, скопировался не полностью.</span></div>
+            <div class="kbtn">Проверить и добавить</div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>D. Ошибка сети</b><span>не responded — не «неверный»</span></div>
+      <div class="frame" style="width:300px">
+        <div class="frame-body" style="padding:12px">
+          <div class="kwrap" style="margin-top:0">
+            <div class="kfield is-warn">
+              <svg class="kic" style="color:#F9C74F"><use href="#i-key"/></svg>
+              <span class="val">sk-pv-9f2e14c7a8d3b6…</span>
+              <span class="eye"><svg><use href="#i-eye"/></svg></span>
+            </div>
+            <div class="kmsg kmsg--warn"><svg><use href="#i-wifi-off"/></svg><span>Нет соединения. Ключ сохранён — повторите проверку, когда появится сеть.</span></div>
+            <div class="kbtn">Проверить и добавить</div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>E. Ключ добавлен</b><span>конец онбординга</span></div>
+      <div class="frame" style="width:300px">
+        <div class="frame-body" style="padding:12px">
+          <div class="kwrap" style="margin-top:0">
+            <div class="kfield is-ok">
+              <svg class="kic" style="color:var(--free)"><use href="#i-key"/></svg>
+              <span class="val">sk-pv-…d3b6</span>
+              <span class="eye"><svg><use href="#i-eye"/></svg></span>
+            </div>
+            <div class="kmsg kmsg--ok"><svg><use href="#i-check"/></svg><span>Ключ добавлен · баланс 320,50 ₽</span></div>
+            <div class="kbtn is-disabled">Добавлено</div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">02</span>
+    <h2>Таблица состояний</h2>
+  </div>
+
+  <table class="spec-table">
+    <thead><tr><th>Состояние</th><th>Рамка поля</th><th>Иконка ключа</th><th>Сообщение</th><th>Кнопка</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>введён</td>
+        <td><code>line-strong</code>, базовая</td>
+        <td><code>--muted</code></td>
+        <td>нет</td>
+        <td><code>primary</code>, активна</td>
+      </tr>
+      <tr>
+        <td>проверяем</td>
+        <td><code>primary</code> 50 % + свечение</td>
+        <td><code>--muted</code></td>
+        <td>info: «Проверяем ключ у провайдера…»</td>
+        <td>busy: спиннер, «Проверяем…», неактивна</td>
+      </tr>
+      <tr>
+        <td>ключ неверный</td>
+        <td><code>#FF6B8A</code> 75 % + свечение</td>
+        <td><code>#FF8AA0</code></td>
+        <td>error: что именно не так и что делать</td>
+        <td><code>primary</code>, активна — можно повторить</td>
+      </tr>
+      <tr>
+        <td>ошибка сети</td>
+        <td><code>#F9C74F</code> 65 % + свечение</td>
+        <td><code>#F9C74F</code></td>
+        <td>warn: «Нет соединения…» — отличается от «неверный»</td>
+        <td><code>primary</code>, активна</td>
+      </tr>
+      <tr>
+        <td>добавлен</td>
+        <td><code>free-line</code> + свечение</td>
+        <td><code>--free</code></td>
+        <td>ok: «Ключ добавлен · баланс …» — сразу видно, что проверка прошла</td>
+        <td>disabled: «Добавлено»</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note" style="margin-top:16px">
+    <b>Ошибка сети ≠ неверный ключ.</b> Разные цвета (янтарный / розовый) и разные иконки: пользователь не должен думать, что его ключ плохой, когда просто упал Wi-Fi. Текст сети всегда сообщает, что ввод сохранён и повторная попытка бесплатна.
+  </div>
+  <div class="note">
+    <b>Во время проверки ввод заблокирован.</b> Поле и кнопка неактивны до ответа; таймаут (12 с) переводит в состояние «ошибка сети» с тем же сообщением — вечного спиннера нет.
+  </div>
+  <div class="note">
+    <b>Баланс в сообщении об успехе.</b> Проверка ключа идёт через <code>/v1/balance</code> — приложение уже получило баланс, показывать его в сообщении бесплатно и сразу отвечает на вопрос «работает ли ключ».
+  </div>
+  <div class="note note--warn">
+    <b>Маскирование — по умолчанию.</b> Ключ виден только после нажатия глаза; на скриншотах и в шаринге экрана значение не утечёт. Полное значение доступно TalkBack только в состоянии редактирования.
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">03</span>
+    <h2>Смена провайдера сбрасывает состояние</h2>
+  </div>
+  <p class="block-note">Ключ привязан к провайдеру: ключ PlusVibe не проверяется у Polza. Возврат к списку и выбор другой карточки закрывает аккордеон и очищает поле — иначе «введённый» ключ одного провайдера отправится другому.</p>
+
+  <div class="frames">
+    <figure class="fig">
+      <div class="fig-cap"><b>Правило сброса</b><span>для реализации</span></div>
+      <table class="spec-table" style="max-width:620px">
+        <thead><tr><th>Действие</th><th>Что происходит</th></tr></thead>
+        <tbody>
+          <tr><td>Выбор другой карточки провайдера</td><td>аккордеон закрывается, поле ключа очищается, состояние поля → «пусто»</td></tr>
+          <tr><td>Повторное открытие того же провайдера</td><td>поле восстанавливает несохранённый ввод (черновик держится до ухода с экрана)</td></tr>
+          <tr><td>Успешное добавление ключа</td><td>карточка провайдера получает галочку-статус, онбординг закрывается кнопкой «Готово» внизу</td></tr>
+          <tr><td>Проверка не завершилась, уход с экрана</td><td>запрос отменяется, ввод сохраняется как черновик</td></tr>
+        </tbody>
+      </table>
+    </figure>
+  </div>
+</section>
+
+</div>
+</body>
+</html>

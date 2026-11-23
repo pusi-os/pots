@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POTS · Онбординг · как получить ключ</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M2 12h4l3-7 5 14 3-7h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="10" y="10" width="4" height="4" rx="1" fill="currentColor"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10.5 13 9-9m0 0 2 2m-2-2-2 2m2-2 2 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13l11-6.5-11-6.5Z"/></symbol>
+  <symbol id="i-movie" viewBox="0 0 24 24"><path fill="currentColor" d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m8 12.5 2.5 2.5L16 9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div class="doc">
+
+<header class="doc-head">
+  <p class="kicker">POTS · Дизайн-макеты · t_fa2dbbb3</p>
+  <h1>Онбординг: как получить ключ</h1>
+  <p class="lede">Второй шаг: под выбранным провайдером раскрыта секция-аккордеон — шаги 1-2-3, плейсхолдер кнопки «Видео-инструкция» и поле API-ключа с кнопкой «Проверить и добавить». <b>Тексты шагов — из <code>docs/knowledge/providers/onboarding-plusvibe.md</code></b> (карта t_cd33ff78); для остальных провайдеров своя тройка шагов из соседних файлов, вёрстка одна.</p>
+  <div class="chips">
+    <span class="chip chip--accent">360 dp · 1 px = 1 dp</span>
+    <span class="chip">тексты — onboarding-*.md</span>
+    <span class="chip">видео — плейсхолдер, тач-таргет 44 dp</span>
+    <span class="chip">inline SVG · currentColor</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">01</span>
+    <h2>Секция раскрыта</h2>
+  </div>
+  <p class="block-note">Секция открывается под списком провайдеров и двигает контент вниз (итоговое состояние — цель, высота анимации не нормируется). Шаги читаются сверху вниз, кнопка видео отделяет «инструкцию» от «действия», поле ключа — финал экрана.</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>A. Раскрытая секция</b><span>360 dp · PlusVibe выбран</span></div>
+      <div class="frame">
+        <div class="frame-bar">
+          <span class="bar-title">Онбординг</span>
+          <span class="bar-icon"><svg width="20" height="20"><use href="#i-close"/></svg></span>
+        </div>
+        <div class="frame-body" style="padding-bottom:16px">
+
+          <div class="sec">
+            <svg><use href="#i-chip"/></svg>
+            <h4>Провайдер</h4>
+            <span class="cnt">5</span>
+          </div>
+
+          <div class="pcard is-selected">
+            <span class="plogo"><svg><use href="#i-pulse"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">PlusVibe</span>
+              <span class="psub">Медиа-генерация · баланс в рублях · 106 моделей</span>
+            </span>
+            <span class="ptag">по умолчанию</span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+
+          <div class="pcard">
+            <span class="plogo"><svg style="display:none"><use href="#i-pulse"/></svg></span>
+            <span class="ptxt">
+              <span class="pname">Polza</span>
+              <span class="psub">Медиа-генерация · баланс в рублях</span>
+            </span>
+            <span class="pradio" aria-hidden="true"></span>
+          </div>
+
+          <div class="acc is-open">
+            <div class="acc-trigger">
+              <svg width="16" height="16" style="color:var(--primary);flex:none"><use href="#i-key"/></svg>
+              <span class="t">Как зарегистрироваться и получить ключ</span>
+              <svg class="chev"><use href="#i-chev"/></svg>
+            </div>
+            <div class="acc-body">
+
+              <div class="step">
+                <span class="num">1</span>
+                <span class="txt">
+                  <span class="st-t">Регистрация</span>
+                  <span class="st-d"><span class="ph">plusvibeapi.ru/register · подтвердите e-mail — бонус 100 ₽.</span></span>
+                </span>
+              </div>
+              <div class="step">
+                <span class="num">2</span>
+                <span class="txt">
+                  <span class="st-t">Ключ</span>
+                  <span class="st-d"><span class="ph">Кабинет → «Создать ключ». sk-pv-… показывается один раз.</span></span>
+                </span>
+              </div>
+              <div class="step">
+                <span class="num">3</span>
+                <span class="txt">
+                  <span class="st-t">Пополнение</span>
+                  <span class="st-d"><span class="ph">Карта РФ от 100 ₽ · предоплата, списание по факту.</span></span>
+                </span>
+              </div>
+
+              <div class="vbtn is-disabled">
+                <span class="vbtn-play"><svg><use href="#i-play"/></svg></span>
+                <span class="ptxt" style="flex:1;min-width:0">
+                  <span class="vt">Видео-инструкция</span>
+                  <span class="vs">2 мин · видео появится позже</span>
+                </span>
+                <svg width="18" height="18" style="color:var(--faint);flex:none"><use href="#i-movie"/></svg>
+              </div>
+
+              <div class="kwrap">
+                <div class="kfield">
+                  <svg class="kic"><use href="#i-key"/></svg>
+                  <span class="val ph">Вставьте API-ключ — sk-pv-…</span>
+                  <span class="eye" aria-hidden="true"></span>
+                </div>
+                <div class="kbtn">
+                  <svg><use href="#i-key"/></svg>
+                  Проверить и добавить
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="num">1</span><span><b>Шаги 1-2-3</b> — номер в круге 26 dp <code>primary</code>; шаги — заглушки, место под реальный текст уже есть.</span></li>
+        <li><span class="num">2</span><span><b>Видео-кнопка</b> — dashed-контур = плейсхолдер; круглый тач-таргет play 44 × 44 dp. Пока неактивна, но место и размер зафиксированы.</span></li>
+        <li><span class="num">3</span><span><b>Поле ключа</b> — высота 48 dp, иконка ключа слева, слот глаза справа (показать/скрыть).</span></li>
+        <li><span class="num">4</span><span><b>«Проверить и добавить»</b> — filled-кнопка 44 dp, <code>primary</code>; состояния — в <code>03-key-states.html</code>.</span></li>
+      </ul>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>Видео-кнопка: анатомия</b><span>2× · плейсхолдер</span></div>
+      <div class="zoom-wrap" style="display:inline-flex;gap:44px;align-items:flex-start;padding:22px 26px">
+        <div style="position:relative;width:420px;padding:30px 90px 36px 20px">
+          <div class="dim-v" style="left:20px;top:22px;bottom:30px"><span>62</span></div>
+          <div class="dim-h" style="left:38px;width:88px;top:14px"><span>44</span></div>
+          <div style="zoom:2;width:210px">
+            <div class="vbtn is-disabled" style="width:210px;margin-top:0">
+              <span class="vbtn-play"><svg><use href="#i-play"/></svg></span>
+              <span class="ptxt" style="flex:1;min-width:0">
+                <span class="vt">Видео-инструкция</span>
+                <span class="vs">2 мин · появится позже</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <table class="spec-table" style="max-width:430px;font-size:12px">
+          <tbody>
+            <tr><td>Контейнер</td><td>высота 62 dp (контент 60: play 44 + padding 8 / 8, + рамка 2 × 1), радиус 12, <b>dashed</b> контур — маркер плейсхолдера</td></tr>
+            <tr><td>Тач-таргет play</td><td>круг 44 × 44 dp — минимум выполнен с запасом 16 dp</td></tr>
+            <tr><td>Иконка play</td><td>20 dp, залитая <code>currentColor</code>, сдвиг 2 dp вправо для оптического центра</td></tr>
+            <tr><td>Пока видео нет</td><td>неактивна (opacity .55); подпись «появится позже» вместо обещания, которое не сдержат</td></tr>
+            <tr><td>Когда видео готово</td><td>контур сплошной <code>line-strong</code>, opacity 1; нажатие открывает плеер</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">02</span>
+    <h2>320 и 300 dp: раскрытая секция</h2>
+  </div>
+  <p class="block-note">Шаги переносятся на две строки без потери сетки: номер-круг фиксирован слева, текст занимает остальное. Поле и кнопка растягиваются на всю ширину — им теснее всего на 300 dp, но и там сохраняются 44 dp высоты.</p>
+
+  <div class="frames">
+
+    <figure class="fig">
+      <div class="fig-cap"><b>B. 320 dp</b><span>шаг 2 в две строки</span></div>
+      <div class="frame frame--narrow">
+        <div class="frame-body" style="padding-top:12px;padding-bottom:16px">
+          <div class="acc is-open" style="margin-top:0">
+            <div class="acc-trigger">
+              <svg width="16" height="16" style="color:var(--primary);flex:none"><use href="#i-key"/></svg>
+              <span class="t">Как зарегистрироваться и получить ключ</span>
+              <svg class="chev"><use href="#i-chev"/></svg>
+            </div>
+            <div class="acc-body">
+              <div class="step">
+                <span class="num">1</span>
+                <span class="txt">
+                  <span class="st-t">Регистрация</span>
+                  <span class="st-d"><span class="ph">plusvibeapi.ru/register · подтвердите e-mail — бонус 100 ₽.</span></span>
+                </span>
+              </div>
+              <div class="step">
+                <span class="num">2</span>
+                <span class="txt">
+                  <span class="st-t">Ключ</span>
+                  <span class="st-d"><span class="ph">Кабинет → «Создать ключ». sk-pv-… показывается один раз.</span></span>
+                </span>
+              </div>
+              <div class="step">
+                <span class="num">3</span>
+                <span class="txt">
+                  <span class="st-t">Пополнение</span>
+                  <span class="st-d"><span class="ph">Карта РФ от 100 ₽ · предоплата, списание по факту.</span></span>
+                </span>
+              </div>
+              <div class="vbtn is-disabled">
+                <span class="vbtn-play"><svg><use href="#i-play"/></svg></span>
+                <span class="ptxt" style="flex:1;min-width:0">
+                  <span class="vt">Видео-инструкция</span>
+                  <span class="vs">2 мин · видео появится позже</span>
+                </span>
+              </div>
+              <div class="kwrap">
+                <div class="kfield">
+                  <svg class="kic"><use href="#i-key"/></svg>
+                  <span class="val ph">Вставьте API-ключ — sk-pv-…</span>
+                </div>
+                <div class="kbtn">Проверить и добавить</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-cap"><b>C. 300 dp</b><span>кнопка «Проверить и добавить» влезает одной строкой</span></div>
+      <div class="frame" style="width:300px">
+        <div class="frame-body" style="padding-top:12px;padding-bottom:16px">
+          <div class="acc is-open" style="margin-top:0">
+            <div class="acc-body" style="padding-top:12px">
+              <div class="step">
+                <span class="num">2</span>
+                <span class="txt">
+                  <span class="st-t">Ключ</span>
+                  <span class="st-d"><span class="ph">Создайте ключ в кабинете — показывается один раз.</span></span>
+                </span>
+              </div>
+              <div class="kwrap">
+                <div class="kfield">
+                  <svg class="kic"><use href="#i-key"/></svg>
+                  <span class="val ph">Вставьте API-ключ — sk-pv-…</span>
+                </div>
+                <div class="kbtn">Проверить и добавить</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="flag" style="display:flex">замер на 300 dp: кнопка 252 × 44 dp, подпись «Проверить и добавить» в одну строку — влезает с запасом</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="block">
+  <div class="block-head">
+    <span class="idx">03</span>
+    <h2>Откуда шаги у каждого провайдера</h2>
+  </div>
+  <p class="block-note">Тексты шагов — из <code>docs/knowledge/providers/onboarding-*.md</code> (карта t_cd33ff78). Вёрстка одна, меняется только содержимое трёх строк: при переключении провайдера шаги перечитываются из его файла.</p>
+
+  <table class="spec-table">
+    <thead><tr><th>Провайдер</th><th>Шаг 1 · Регистрация</th><th>Шаг 2 · Ключ</th><th>Шаг 3 · Пополнение</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>PlusVibe</td>
+        <td>plusvibeapi.ru/register · e-mail + бонус 100 ₽</td>
+        <td>кабинет → «Создать», <code>sk-pv-…</code>, один раз</td>
+        <td>карта РФ от 100 ₽, предоплата</td>
+      </tr>
+      <tr>
+        <td>Polza</td>
+        <td>polza.ai/dashboard + создать организацию</td>
+        <td>раздел API-ключей</td>
+        <td>карта / СБП от 100 ₽, счёт — 1-2 дня</td>
+      </tr>
+      <tr>
+        <td>AITUNNEL</td>
+        <td>aitunnel.ru/panel → «Регистрация»</td>
+        <td>панель → ключи</td>
+        <td>от 500 ₽ (крипта — бонус +20 %)</td>
+      </tr>
+      <tr>
+        <td>GPTunnel</td>
+        <td>gptunnel.ru/register</td>
+        <td>кабинет → профиль → API</td>
+        <td>СБП / карта, минимум 50 ₽</td>
+      </tr>
+      <tr>
+        <td>LLM Router</td>
+        <td>llm-router.org/signup · Telegram или e-mail</td>
+        <td>личный кабинет</td>
+        <td>карта / СБП, минимума нет</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note" style="margin-top:16px">
+    <b>Шаг — одна строка описания, не абзац.</b> В карточку шага попадает суть (адрес, путь в кабинете, минимум), а не таблица способов оплаты: детали остаются в <code>onboarding-*.md</code>. Длинные описания шага переносятся на вторую строку — сетка от этого не ломается (номер-круг фиксирован слева).
+  </div>
+  <div class="note">
+    <b>Один провайдер — один набор шагов.</b> Шаги зависят от выбранного провайдера и меняются при переключении карточки: аккордеон закрывается, поле ключа очищается (см. <code>03-key-states.html</code> — после смены провайдера состояние «введён» сбрасывается).
+  </div>
+</section>
+
+</div>
+</body>
+</html>

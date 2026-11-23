@@ -1,9 +1,11 @@
 package com.pusios.pots.data
 
+import com.pusios.pots.network.dtos.aitunnel.AiTunnelCatalogEntryDto
 import com.pusios.pots.network.dtos.anthropic.AnthropicModelsResponseDto
 import com.pusios.pots.network.dtos.gemini.GeminiModelsResponseDto
 import com.pusios.pots.network.dtos.llmrouter.LlmRouterPricingResponseDto
 import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleModelResponseDto
+import com.pusios.pots.network.dtos.plusvibe.PlusVibeCatalogEntryDto
 import com.pusios.pots.ui.settings.SettingsModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -208,6 +210,212 @@ class ModelTransformationsTest {
     fun `mapOpenAICompatibleModels empty list`() {
         val result = mapOpenAICompatibleModels(emptyList(), Service.Gptunnel, selectedModelId = "")
         assertTrue(result.isEmpty())
+    }
+
+    // --- output price + public catalog enrichment ---
+
+    @Test
+    fun `outputPricePerMillion reads polza completion_per_million`() {
+        val model = OpenAICompatibleModelResponseDto.Model(
+            id = "z-ai/glm-5.3-flash",
+            top_provider = OpenAICompatibleModelResponseDto.Model.TopProvider(
+                pricing = OpenAICompatibleModelResponseDto.Model.Pricing(
+                    prompt_per_million = "4.68",
+                    completion_per_million = "9.19",
+                ),
+            ),
+        )
+        assertEquals(9.19, model.outputPricePerMillion())
+        assertEquals(4.68, model.pricePerMillion())
+    }
+
+    @Test
+    fun `outputPricePerMillion scales openrouter per-token completion price`() {
+        val model = OpenAICompatibleModelResponseDto.Model(
+            id = "vendor/model",
+            pricing = OpenAICompatibleModelResponseDto.Model.Pricing(
+                prompt = "0.000002",
+                completion = "0.000008",
+            ),
+        )
+        assertEquals(8.0, model.outputPricePerMillion())
+        assertEquals(2.0, model.pricePerMillion())
+    }
+
+    @Test
+    fun `outputPricePerMillion is null without completion fields`() {
+        val model = OpenAICompatibleModelResponseDto.Model(
+            id = "vendor/model",
+            pricing = OpenAICompatibleModelResponseDto.Model.Pricing(prompt = "0.000002"),
+        )
+        assertNull(model.outputPricePerMillion())
+    }
+
+    @Test
+    fun `mapOpenAICompatibleModels merges plusvibe catalog prices caps and context`() {
+        val models = listOf(OpenAICompatibleModelResponseDto.Model(id = "catalog-merge-model"))
+        val catalog = mapOf(
+            "catalog-merge-model" to PlusVibeCatalogEntryDto(
+                apiModel = "catalog-merge-model",
+                variants = listOf(
+                    PlusVibeCatalogEntryDto.Variant(inputRub = 9.51, outputRub = 31.7, isDefault = false),
+                    PlusVibeCatalogEntryDto.Variant(
+                        inputRub = 2.0,
+                        outputRub = 6.67,
+                        cachedInputRub = 0.2,
+                        maxContext = 1_048_000,
+                        vision = true,
+                        isDefault = true,
+                    ),
+                ),
+                caps = PlusVibeCatalogEntryDto.Caps(toolCalling = true, vision = true, contextWindow = 1_048_000),
+            ).toEnrichment(),
+        )
+        val result = mapOpenAICompatibleModels(models, Service.PlusVibe, selectedModelId = "", catalog = catalog)
+        val model = result.single()
+        assertEquals(2.0, model.pricePerMillion)
+        assertEquals(6.67, model.outputPricePerMillion)
+        assertEquals(0.2, model.cachePricePerMillion)
+        assertEquals(1_048_000L, model.contextWindow)
+        assertTrue(model.supportsTools)
+        assertTrue(model.supportsVision)
+    }
+
+    @Test
+    fun `mapOpenAICompatibleModels merges aitunnel catalog prices and vision`() {
+        val models = listOf(OpenAICompatibleModelResponseDto.Model(id = "catalog-merge-model"))
+        val catalog = mapOf(
+            "catalog-merge-model" to AiTunnelCatalogEntryDto(
+                prompt_cost = 7.98,
+                completion_cost = 15.68,
+                context_size = 1_048_576,
+                modalities = AiTunnelCatalogEntryDto.Modalities(input = listOf("text", "image", "video")),
+            ).toEnrichment(),
+        )
+        val result = mapOpenAICompatibleModels(models, Service.AiTunnel, selectedModelId = "", catalog = catalog)
+        val model = result.single()
+        assertEquals(7.98, model.pricePerMillion)
+        assertEquals(15.68, model.outputPricePerMillion)
+        assertEquals(1_048_576L, model.contextWindow)
+        assertTrue(model.supportsVision)
+        // AITUNNEL's catalog has no function-calling flag — the tile stays contour.
+        assertFalse(model.supportsTools)
+    }
+
+    @Test
+    fun `mapOpenAICompatibleModels wire pricing wins over catalog enrichment`() {
+        val models = listOf(
+            OpenAICompatibleModelResponseDto.Model(
+                id = "catalog-merge-model",
+                top_provider = OpenAICompatibleModelResponseDto.Model.TopProvider(
+                    pricing = OpenAICompatibleModelResponseDto.Model.Pricing(
+                        prompt_per_million = "4.68",
+                        completion_per_million = "9.19",
+                    ),
+                    supported_parameters = listOf("tools"),
+                ),
+            ),
+        )
+        val catalog = mapOf(
+            "catalog-merge-model" to ApiCatalogEnrichment(
+                inputPricePerMillion = 2.0,
+                outputPricePerMillion = 6.67,
+                supportsVision = true,
+            ),
+        )
+        val result = mapOpenAICompatibleModels(models, Service.Polza, selectedModelId = "", catalog = catalog)
+        val model = result.single()
+        assertEquals(4.68, model.pricePerMillion)
+        assertEquals(9.19, model.outputPricePerMillion)
+        assertTrue(model.supportsTools)
+        assertTrue(model.supportsVision)
+    }
+
+    @Test
+    fun `mapOpenAICompatibleModels without catalog entry keeps contour tiles`() {
+        val models = listOf(
+            OpenAICompatibleModelResponseDto.Model(id = "unlisted-model"),
+            OpenAICompatibleModelResponseDto.Model(id = "catalog-merge-model"),
+        )
+        val catalog = mapOf(
+            "catalog-merge-model" to ApiCatalogEnrichment(inputPricePerMillion = 2.0),
+        )
+        val result = mapOpenAICompatibleModels(models, Service.PlusVibe, selectedModelId = "", catalog = catalog)
+        val unlisted = result.first { it.id == "unlisted-model" }
+        assertNull(unlisted.pricePerMillion)
+        assertNull(unlisted.outputPricePerMillion)
+        assertFalse(unlisted.supportsTools)
+        val enriched = result.first { it.id == "catalog-merge-model" }
+        assertEquals(2.0, enriched.pricePerMillion)
+    }
+
+    @Test
+    fun `plusvibe toEnrichment picks the default variant`() {
+        val entry = PlusVibeCatalogEntryDto(
+            apiModel = "z-ai/glm-5.3-flash",
+            variants = listOf(
+                PlusVibeCatalogEntryDto.Variant(inputRub = 9.51, outputRub = 31.7, isDefault = false),
+                PlusVibeCatalogEntryDto.Variant(
+                    inputRub = 2.0,
+                    outputRub = 6.67,
+                    cachedInputRub = 0.2,
+                    maxContext = 1_048_000,
+                    vision = true,
+                    isDefault = true,
+                ),
+            ),
+            caps = PlusVibeCatalogEntryDto.Caps(toolCalling = true, vision = true, contextWindow = 1_048_000),
+        )
+        val enrichment = entry.toEnrichment()
+        assertEquals(2.0, enrichment.inputPricePerMillion)
+        assertEquals(6.67, enrichment.outputPricePerMillion)
+        assertEquals(0.2, enrichment.cachePricePerMillion)
+        assertEquals(1_048_000L, enrichment.contextWindow)
+        assertTrue(enrichment.supportsTools == true)
+        assertTrue(enrichment.supportsVision == true)
+    }
+
+    @Test
+    fun `plusvibe toEnrichment falls back to caps-free variant fields`() {
+        val entry = PlusVibeCatalogEntryDto(
+            apiModel = "vendor/model",
+            variants = listOf(
+                PlusVibeCatalogEntryDto.Variant(inputRub = 1.0, outputRub = 2.0, vision = false, maxContext = 32_768),
+            ),
+        )
+        val enrichment = entry.toEnrichment()
+        assertEquals(1.0, enrichment.inputPricePerMillion)
+        assertEquals(2.0, enrichment.outputPricePerMillion)
+        assertEquals(32_768L, enrichment.contextWindow)
+        assertNull(enrichment.supportsTools)
+        assertTrue(enrichment.supportsVision == false)
+    }
+
+    @Test
+    fun `aitunnel toEnrichment maps image modalities to vision and leaves tools unknown`() {
+        val entry = AiTunnelCatalogEntryDto(
+            prompt_cost = 7.98,
+            completion_cost = 15.68,
+            context_size = 1_048_576,
+            modalities = AiTunnelCatalogEntryDto.Modalities(input = listOf("text", "image", "video")),
+        )
+        val enrichment = entry.toEnrichment()
+        assertEquals(7.98, enrichment.inputPricePerMillion)
+        assertEquals(15.68, enrichment.outputPricePerMillion)
+        assertEquals(1_048_576L, enrichment.contextWindow)
+        assertTrue(enrichment.supportsVision == true)
+        assertNull(enrichment.supportsTools)
+    }
+
+    @Test
+    fun `aitunnel toEnrichment keeps vision off for text-only models`() {
+        val entry = AiTunnelCatalogEntryDto(
+            prompt_cost = 1.0,
+            completion_cost = 2.0,
+            modalities = AiTunnelCatalogEntryDto.Modalities(input = listOf("text")),
+        )
+        val enrichment = entry.toEnrichment()
+        assertTrue(enrichment.supportsVision == false)
     }
 
     // --- ensureSelectedModelPresent ---
