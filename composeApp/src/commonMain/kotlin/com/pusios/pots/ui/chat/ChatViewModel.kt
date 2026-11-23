@@ -820,7 +820,9 @@ class ChatViewModel(
             if (errorRes == null) {
                 dataRepository.setOnboardingStep(4)
                 _state.update {
-                    it.copy(onboarding = it.onboarding.copy(isChecking = false, isKeyAdded = true, error = null))
+                    it.copy(
+                        onboarding = it.onboarding.copy(step = 4, isChecking = false, isKeyAdded = true, error = null),
+                    )
                 }
                 updateAvailableServices()
             } else {
