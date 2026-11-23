@@ -1,5 +1,6 @@
 package com.pusios.pots.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -11,14 +12,24 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,9 +45,76 @@ import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.settings_local_model_description
 import pots.composeapp.generated.resources.settings_local_model_mcp_title
 import pots.composeapp.generated.resources.settings_local_model_reset
+import pots.composeapp.generated.resources.settings_local_model_title
 import pots.composeapp.generated.resources.settings_local_model_tools_title
 import pots.composeapp.generated.resources.settings_mcp_no_servers
 import pots.composeapp.generated.resources.settings_tools_none_available
+
+/**
+ * The collapsible «Локальная модель» block at the bottom of the Tools settings tab.
+ *
+ * Collapsed by default: the tool-selection list is long and rarely changed. Like
+ * `LocalModelToolsContent`, it takes everything through slot parameters so it composes
+ * without a Koin container (the screen content under screenshot tests never gets one).
+ */
+@Composable
+internal fun LocalModelCollapsibleSection(
+    tools: ImmutableList<ToolInfo>,
+    mcpServers: ImmutableList<McpServerUiState>,
+    selection: LocalToolSelection,
+    isConfigured: Boolean,
+    onToggleTool: (String, Boolean) -> Unit,
+    onToggleMcpServer: (String, Boolean) -> Unit,
+    onReset: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
+            border = BorderStroke(
+                1.dp,
+                if (expanded) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                } else {
+                    MaterialTheme.colorScheme.outlineVariant
+                },
+            ),
+            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.handCursor(),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(Res.string.settings_local_model_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = if (expanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
+        if (expanded) {
+            Spacer(Modifier.height(16.dp))
+            LocalModelToolsContent(
+                tools = tools,
+                mcpServers = mcpServers,
+                selection = selection,
+                isConfigured = isConfigured,
+                onToggleTool = onToggleTool,
+                onToggleMcpServer = onToggleMcpServer,
+                onReset = onReset,
+            )
+        }
+    }
+}
 
 /**
  * Settings section for the tools the on-device (local) model may call.
