@@ -289,6 +289,10 @@ object ScreenshotTestData {
         TerminalLine.Output(fastfetchOutput),
     )
 
+    val settingsVault = SettingsUiState(
+        currentTab = SettingsTab.Vault,
+    )
+
     val settingsTools = SettingsUiState(
         currentTab = SettingsTab.Tools,
         tools = getPlatformToolDefinitions().toImmutableList(),
