@@ -46,14 +46,10 @@ data class ChatActions(
     val runMiniAppAutomation: (appId: String, automationId: String) -> Unit,
     /** Hands an arbitrary request about a saved app to the agent. */
     val runMiniAppPrompt: (appId: String, prompt: String) -> Unit,
-    /** Opens the provider account site and advances the wizard to the next step. */
-    val onboardingOpenSite: () -> Unit,
-    /** Saves the pasted API key (step 3): blank input is rejected inline. */
-    val onboardingSaveKey: (apiKey: String) -> Unit,
-    /** Opens the balance page (step 4); the URL itself is opened by the UI layer. */
-    val onboardingTopUp: () -> Unit,
-    /** Validates the saved key and either finishes the wizard or shows a mapped error. */
-    val onboardingCheck: () -> Unit,
+    /** Validates the key at the picked provider and adds the service (Settings → Services add+key mechanism); a mapped error lands under the field. */
+    val onboardingAddKey: (serviceId: String, apiKey: String) -> Unit,
+    /** «Готово» after a successful add: closes the wizard the same way the old check success did. */
+    val onboardingConfirmKey: () -> Unit,
     /** «Пропустить» — parks the wizard behind the final card. */
     val onboardingSkip: () -> Unit,
     /** Reopens the wizard from the final card at the persisted step. */

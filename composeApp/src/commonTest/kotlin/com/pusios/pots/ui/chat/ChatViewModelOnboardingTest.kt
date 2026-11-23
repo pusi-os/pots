@@ -6,7 +6,7 @@ import com.pusios.pots.data.Service
 import com.pusios.pots.data.TaskScheduler
 import com.pusios.pots.network.NoConfiguredServiceException
 import com.pusios.pots.network.OpenAICompatibleInvalidApiKeyException
-import com.pusios.pots.network.OpenAICompatibleQuotaExhaustedException
+import com.pusios.pots.network.[OI]CompatibleQuotaExhaustedException
 import com.pusios.pots.network.UiError
 import com.pusios.pots.testutil.FakeDataRepository
 import kotlinx.coroutines.Dispatchers
@@ -30,8 +30,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The first-launch wizard's state machine: trigger, steps, skip, interruption,
- * resume, and the add-provider result (spec §2, tests required by the task).
+ * The first-launch wizard's state machine: trigger, provider add, skip, interruption,
+ * resume, and the add-service result (docs/design/onboarding, tests required by the task).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelOnboardingTest {
@@ -92,34 +92,15 @@ class ChatViewModelOnboardingTest {
         }
     }
 
-    // ---- steps ----
+    // ---- add key (provider picker's «Проверить и добавить») ----
 
     @Test
-    fun `opening the site advances the step and persists it`() = runTest {
+    fun `a blank key rejects inline and adds nothing`() = runTest {
         val viewModel = createViewModel()
         viewModel.state.test {
             awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
-            assertEquals(2, awaitItem().onboarding.step)
-            viewModel.state.value.actions.onboardingOpenSite()
-            assertEquals(3, awaitItem().onboarding.step)
-            assertEquals(3, fakeRepository.getOnboardingStep())
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `saving a blank key rejects inline and adds nothing`() = runTest {
-        val viewModel = createViewModel()
-        viewModel.state.test {
-            awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
-            awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
-            awaitItem()
-            viewModel.state.value.actions.onboardingSaveKey("   ")
+            viewModel.state.value.actions.onboardingAddKey(Service.Polza.id, "   ")
             val state = awaitItem()
-            assertEquals(3, state.onboarding.step)
             assertEquals(Res.string.onboarding_error_empty_key, state.onboarding.error)
             assertTrue(fakeRepository.getConfiguredServiceInstances().isEmpty())
             cancelAndIgnoreRemainingEvents()
@@ -127,29 +108,31 @@ class ChatViewModelOnboardingTest {
     }
 
     @Test
-    fun `saving a key adds the PlusVibe instance and moves to step four`() = runTest {
+    fun `adding a key stores it on a new instance of the picked service and shows the added state`() = runTest {
         val viewModel = createViewModel()
         viewModel.state.test {
             awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
-            awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
-            awaitItem()
-            viewModel.state.value.actions.onboardingSaveKey("  test-key-123  ")
+            // The unconfined test dispatcher resolves the add synchronously, so the
+            // intermediate "checking" emission may be conflated away by the StateFlow.
+            viewModel.state.value.actions.onboardingAddKey(Service.Polza.id, "  polza-key  ")
             val state = awaitItem()
+            assertTrue(state.onboarding.isKeyAdded)
+            assertEquals(OnboardingPhase.Active, state.onboarding.phase)
             assertEquals(4, state.onboarding.step)
             val instance = fakeRepository.getConfiguredServiceInstances().single()
-            assertEquals(Service.PlusVibe.id, instance.serviceId)
-            assertEquals("test-key-123", fakeRepository.getInstanceApiKey(instance.instanceId))
+            assertEquals(Service.Polza.id, instance.serviceId)
+            assertEquals("polza-key", fakeRepository.getInstanceApiKey(instance.instanceId))
             assertEquals(4, fakeRepository.getOnboardingStep())
+            // The wizard stays open until «Готово»; persistence keeps the resume point.
+            assertFalse(fakeRepository.isOnboardingDone())
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun `saving a key reuses an existing PlusVibe instance`() = runTest {
-        // An interrupted-after-step-3 restart: the instance already exists on device.
-        val existing = fakeRepository.addConfiguredService(Service.PlusVibe.id)
+    fun `adding a key reuses an existing instance of the same service and clears its models`() = runTest {
+        // An interrupted-after-add restart: the instance already exists on device.
+        val existing = fakeRepository.addConfiguredService(Service.Polza.id)
         fakeRepository.setOnboardingFinishedStep(true)
         fakeRepository.setOnboardingStep(4)
         val viewModel = createViewModel()
@@ -158,33 +141,27 @@ class ChatViewModelOnboardingTest {
             assertEquals(OnboardingPhase.Aborted, initial.onboarding.phase)
             initial.actions.onboardingResume()
             awaitItem()
-            initial.actions.onboardingSaveKey("second-key")
+            initial.actions.onboardingAddKey(Service.Polza.id, "second-key")
+            val state = awaitItem()
+            assertTrue(state.onboarding.isKeyAdded)
             val instances = fakeRepository.getConfiguredServiceInstances()
             assertEquals(1, instances.size)
             assertEquals(existing.instanceId, instances.single().instanceId)
             assertEquals("second-key", fakeRepository.getInstanceApiKey(existing.instanceId))
+            assertEquals(1, fakeRepository.clearInstanceModelsCalls)
             cancelAndIgnoreRemainingEvents()
         }
     }
 
-    // ---- check / finish ----
-
     @Test
-    fun `successful check finishes onboarding and persists done`() = runTest {
+    fun `confirm after an add finishes onboarding and persists done`() = runTest {
         val viewModel = createViewModel()
         viewModel.state.test {
             awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "valid-key")
             awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
-            awaitItem()
-            viewModel.state.value.actions.onboardingSaveKey("valid-key")
-            awaitItem()
-            viewModel.state.value.actions.onboardingCheck()
-            // The unconfined test dispatcher resolves the check synchronously, so the
-            // intermediate "checking" emission may be conflated away by the StateFlow.
+            viewModel.state.value.actions.onboardingConfirmKey()
             val finished = awaitItem()
-            assertFalse(finished.onboarding.isChecking)
             assertEquals(OnboardingPhase.Finished, finished.onboarding.phase)
             assertTrue(fakeRepository.isOnboardingDone())
             assertFalse(fakeRepository.isOnboardingFinishedStep())
@@ -193,22 +170,30 @@ class ChatViewModelOnboardingTest {
     }
 
     @Test
-    fun `invalid key maps to the invalid-key error and keeps step four`() = runTest {
+    fun `confirm without a prior add is a no-op`() = runTest {
+        val viewModel = createViewModel()
+        viewModel.state.test {
+            val initial = awaitItem()
+            viewModel.state.value.actions.onboardingConfirmKey()
+            expectNoEvents()
+            assertEquals(OnboardingPhase.Active, initial.onboarding.phase)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // ---- mapped errors ----
+
+    @Test
+    fun `an invalid key maps to the invalid-key error and keeps the wizard open`() = runTest {
         fakeRepository.validateConnectionException = OpenAICompatibleInvalidApiKeyException()
         val viewModel = createViewModel()
         viewModel.state.test {
             awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
-            awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
-            awaitItem()
-            viewModel.state.value.actions.onboardingSaveKey("bad-key")
-            awaitItem()
-            viewModel.state.value.actions.onboardingCheck()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "bad-key")
             val failed = awaitItem()
             assertEquals(OnboardingPhase.Active, failed.onboarding.phase)
-            assertEquals(4, failed.onboarding.step)
             assertFalse(failed.onboarding.isChecking)
+            assertFalse(failed.onboarding.isKeyAdded)
             assertEquals(Res.string.onboarding_error_invalid_key, failed.onboarding.error)
             assertFalse(fakeRepository.isOnboardingDone())
             cancelAndIgnoreRemainingEvents()
@@ -221,11 +206,10 @@ class ChatViewModelOnboardingTest {
         val viewModel = createViewModel()
         viewModel.state.test {
             awaitItem()
-            viewModel.state.value.actions.onboardingSaveKey("valid-key")
-            awaitItem()
-            viewModel.state.value.actions.onboardingCheck()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "valid-key")
             val failed = awaitItem()
             assertEquals(Res.string.onboarding_error_no_balance, failed.onboarding.error)
+            assertFalse(failed.onboarding.isKeyAdded)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -236,23 +220,10 @@ class ChatViewModelOnboardingTest {
         val viewModel = createViewModel()
         viewModel.state.test {
             awaitItem()
-            viewModel.state.value.actions.onboardingSaveKey("valid-key")
-            awaitItem()
-            viewModel.state.value.actions.onboardingCheck()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "valid-key")
             val failed = awaitItem()
             assertEquals(Res.string.onboarding_error_network, failed.onboarding.error)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `check without a saved instance is a no-op`() = runTest {
-        val viewModel = createViewModel()
-        viewModel.state.test {
-            val initial = awaitItem()
-            viewModel.state.value.actions.onboardingCheck()
-            expectNoEvents()
-            assertEquals(OnboardingPhase.Active, initial.onboarding.phase)
+            assertFalse(failed.onboarding.isKeyAdded)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -278,14 +249,11 @@ class ChatViewModelOnboardingTest {
         val viewModel = createViewModel()
         viewModel.state.test {
             awaitItem()
-            viewModel.state.value.actions.onboardingOpenSite()
-            awaitItem()
             viewModel.state.value.actions.onboardingSkip()
             awaitItem()
             viewModel.state.value.actions.onboardingResume()
             val resumed = awaitItem()
             assertEquals(OnboardingPhase.Active, resumed.onboarding.phase)
-            assertEquals(2, resumed.onboarding.step)
             assertFalse(fakeRepository.isOnboardingDone())
             assertFalse(fakeRepository.isOnboardingFinishedStep())
             cancelAndIgnoreRemainingEvents()
@@ -361,7 +329,7 @@ class ChatViewModelOnboardingTest {
         }
     }
 
-    // ---- second chance after skip (spec §5.4; review round 1 blocker) ----
+    // ---- second chance after skip (spec §5.4) ----
 
     @Test
     fun `first failed ask after skip opens provider panel with honest error`() = runTest {
@@ -384,26 +352,6 @@ class ChatViewModelOnboardingTest {
             } while (errorState.error == null)
             assertTrue(errorState.showFreeProviderSuggestions)
             assertEquals(UiError.Resource(Res.string.onboarding_skipped), errorState.error)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `saving a key clears cached models like the manual settings path`() = runTest {
-        // Review round 1 (non-blocking): Settings → Services' onChangeApiKey calls
-        // clearInstanceModels; the wizard reuses an instance whose cached models
-        // belong to the previous key, so it must clear them too.
-        val existing = fakeRepository.addConfiguredService(Service.PlusVibe.id)
-        fakeRepository.setOnboardingFinishedStep(true)
-        fakeRepository.setOnboardingStep(4)
-        val viewModel = createViewModel()
-        viewModel.state.test {
-            val initial = awaitItem()
-            initial.actions.onboardingResume()
-            awaitItem()
-            initial.actions.onboardingSaveKey("fresh-key")
-            assertEquals(1, fakeRepository.clearInstanceModelsCalls)
-            assertEquals("fresh-key", fakeRepository.getInstanceApiKey(existing.instanceId))
             cancelAndIgnoreRemainingEvents()
         }
     }
