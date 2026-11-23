@@ -254,7 +254,7 @@ class ChatViewModelOnboardingTest {
 
     @Test
     fun `clearing the key state after a failed check empties the field for the next provider`() = runTest {
-        fakeRepository.validateConnectionException = [OI]CompatibleInvalidApiKeyException()
+        fakeRepository.validateConnectionException = OpenAICompatibleInvalidApiKeyException()
         val viewModel = createViewModel()
         viewModel.state.test {
             awaitItem()
