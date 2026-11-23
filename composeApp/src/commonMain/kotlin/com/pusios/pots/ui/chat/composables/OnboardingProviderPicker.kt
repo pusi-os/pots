@@ -65,8 +65,8 @@ import com.pusios.pots.ui.icons.OnboardKey
 import com.pusios.pots.ui.icons.OnboardLayers
 import com.pusios.pots.ui.icons.OnboardPlay
 import com.pusios.pots.ui.icons.OnboardPulse
-import com.pusios.pots.ui.icons.OnboardRoute
 import com.pusios.pots.ui.icons.OnboardRoundCheck
+import com.pusios.pots.ui.icons.OnboardRoute
 import com.pusios.pots.ui.icons.OnboardTunnel
 import com.pusios.pots.ui.icons.OnboardWifiOff
 import org.jetbrains.compose.resources.StringResource
@@ -474,11 +474,14 @@ private fun OnboardingKeyField(
     // never moves the field or the button.
     val accent: Color? = when {
         state.isKeyAdded -> GuideSuccessColor
+
         state.isChecking -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+
         state.error == Res.string.onboarding_error_invalid_key || state.error == Res.string.onboarding_error_no_balance ->
             MaterialTheme.colorScheme.error
 
         state.error == Res.string.onboarding_error_network -> GuideWarnColor
+
         else -> null
     }
 
