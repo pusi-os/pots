@@ -538,6 +538,14 @@ class RemoteDataRepository(
         if (defaultModel != null) {
             models.firstOrNull { it.id == defaultModel }?.let { return it }
         }
+        // No curated default and no stored choice: land on the service's everyday model
+        // (RecommendedModels table) before any other heuristic. Never overwrites a saved pick —
+        // this runs only when nothing is selected yet.
+        if (service != null) {
+            RecommendedModels.everydayModelId(service)?.let { everyday ->
+                models.firstOrNull { it.id == everyday }?.let { return it }
+            }
+        }
         return models.firstOrNull { it.id.contains("kimi-k2.5", ignoreCase = true) }
             ?: models.firstOrNull()
     }

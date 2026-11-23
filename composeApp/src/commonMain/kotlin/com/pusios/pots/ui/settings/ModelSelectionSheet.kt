@@ -1,5 +1,6 @@
 package com.pusios.pots.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -65,6 +66,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.data.RecommendedModels
+import com.pusios.pots.data.Service
 import com.pusios.pots.formatContextWindow
 import com.pusios.pots.formatReleaseDate
 import com.pusios.pots.ui.PotsOutlinedTextField
@@ -103,6 +106,8 @@ internal fun ModelSelection(
     models: ImmutableList<SettingsModel>,
     onClick: (String) -> Unit,
     showExtendedSorts: Boolean = false,
+    /** Only the services with a curated entry get the class-based Recommended list. */
+    service: Service? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     // Provider list only — synthetic manual entries stay out of the picker grid.
@@ -172,10 +177,11 @@ internal fun ModelSelection(
                 }
                 var sortOption by remember { mutableStateOf(ModelSortOption.Score) }
                 var sortAscending by remember { mutableStateOf(false) }
-                val visibleModels = remember(filteredModels, sortOption, currentSelectedModel) {
+                val visibleModels = remember(filteredModels, sortOption, currentSelectedModel, service) {
                     when (sortOption) {
                         ModelSortOption.Price -> filteredModels.filter { it.id == currentSelectedModel?.id || withinMonths(it.releaseDate, 6) }
-                        ModelSortOption.Recommended -> filteredModels.filter { it.id == currentSelectedModel?.id || withinMonths(it.releaseDate, 3) }
+                        ModelSortOption.Recommended ->
+                            RecommendedModels.selectRecommended(filteredModels, service, currentSelectedModel?.id)
                         else -> filteredModels
                     }
                 }
@@ -267,14 +273,29 @@ internal fun ModelSelection(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             items(sortedModels, key = { it.id }) { model ->
-                                ModelCard(
-                                    model = model,
-                                    isSelected = currentSelectedModel?.id == model.id,
-                                    onClick = {
-                                        onClick(model.id)
-                                        expanded = false
-                                    },
-                                )
+                                val select: () -> Unit = {
+                                    onClick(model.id)
+                                    expanded = false
+                                }
+                                val pick = if (sortOption == ModelSortOption.Recommended) {
+                                    RecommendedModels.pickFor(service, model.id)
+                                } else {
+                                    null
+                                }
+                                if (pick != null) {
+                                    RecommendedModelCard(
+                                        model = model,
+                                        pick = pick,
+                                        isSelected = currentSelectedModel?.id == model.id,
+                                        onClick = select,
+                                    )
+                                } else {
+                                    ModelCard(
+                                        model = model,
+                                        isSelected = currentSelectedModel?.id == model.id,
+                                        onClick = select,
+                                    )
+                                }
                             }
                         }
                         VerticalScrollbarForGrid(
@@ -443,6 +464,97 @@ private fun ModelCard(model: SettingsModel, isSelected: Boolean, onClick: () -> 
                     modifier = Modifier.weight(1f),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Recommended-mode card: class chip, model name and the curated one-line description. Distinct
+ * from the plain [ModelCard] list — no tile row, an accent border marks the model's class.
+ */
+@Composable
+private fun RecommendedModelCard(
+    model: SettingsModel,
+    pick: RecommendedModels.Pick,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val accent = when (pick.modelClass) {
+        RecommendedModels.ModelClass.EVERYDAY -> Color(0xFF2E7D32)
+        RecommendedModels.ModelClass.MIDDLE -> Color(0xFF1565C0)
+        RecommendedModels.ModelClass.HARD -> Color(0xFF6A1B9A)
+    }
+    val classLabel = when (pick.modelClass) {
+        RecommendedModels.ModelClass.EVERYDAY -> "Повседневная"
+        RecommendedModels.ModelClass.MIDDLE -> "Средняя"
+        RecommendedModels.ModelClass.HARD -> "Сложные задачи"
+    }
+    Card(
+        modifier = Modifier.handCursor().clip(CardDefaults.shape).clickable { onClick() },
+        shape = CardDefaults.shape,
+        border = BorderStroke(
+            width = 1.dp,
+            color = accent.copy(alpha = if (isSelected) 0.75f else 0.35f),
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(accent.copy(alpha = 0.15f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = classLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = accent,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = model.displayName?.takeIf { it.isNotBlank() && it != model.id } ?: model.id,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                if (isSelected) {
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = pick.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
