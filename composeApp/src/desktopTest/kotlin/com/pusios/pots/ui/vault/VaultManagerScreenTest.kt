@@ -64,6 +64,7 @@ import pots.composeapp.generated.resources.vault_toggle_show
 import pots.composeapp.generated.resources.vault_unlock_button
 
 /** One exception class per flow step: Gradle logs exception types of failed tests. */
+private class VaultStep00StateException : IllegalStateException("state not unlocked")
 private class VaultStep01ListException : IllegalStateException("list")
 private class VaultStep02EditorException : IllegalStateException("editor")
 private class VaultStep03NameException : IllegalStateException("name")
@@ -200,6 +201,9 @@ class VaultManagerScreenTest {
         runBlocking { session.unlock("master-1") }
         val model = VaultViewModel(session, CoroutineScope(Dispatchers.Default))
         runBlocking { model.refresh() }
+        if (model.state.value !is VaultUiState.Unlocked) {
+            throw VaultStep00StateException()
+        }
         val add = runBlocking { getString(Res.string.vault_add_item) }
         val save = runBlocking { getString(Res.string.vault_common_save) }
         val delete = runBlocking { getString(Res.string.vault_detail_delete) }
