@@ -15,6 +15,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -23,6 +24,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.runComposeUiTest
@@ -270,6 +272,8 @@ class VaultManagerScreenTest {
         }
         try {
             // 04: the custom field row appears (11 editables before, 13 after).
+            // The button sits below the visible window: scroll it into view first.
+            onNode(hasScrollAction()).performScrollToNode(hasText(addField))
             onNodeWithText(addField).performClick()
             waitUntil { onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size >= 13 }
             onAllNodes(hasSetTextAction())[9].performTextInput("API key")
@@ -279,6 +283,7 @@ class VaultManagerScreenTest {
         }
         try {
             // 05: save writes the card through the session.
+            onNode(hasScrollAction()).performScrollToNode(hasText(save))
             onNodeWithText(save).performClick()
             waitUntil { unlockedItems().any { it.name == "GitHub" } }
             waitUntilAtLeastOneExists(hasText("GitHub"))
