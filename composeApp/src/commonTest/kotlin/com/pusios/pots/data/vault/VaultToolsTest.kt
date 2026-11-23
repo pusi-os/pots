@@ -11,7 +11,7 @@ import com.pusios.pots.data.HeadlessRunElement
 import com.pusios.pots.data.providers.buildAnthropicMessages
 import com.pusios.pots.data.providers.sanitizeToolMessages
 import com.pusios.pots.network.dtos.anthropic.AnthropicChatRequestDto
-import com.pusios.pots.network.dtos.openaicompatible.[OI]CompatibleChatRequestDto
+import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleChatRequestDto
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.ui.chat.History
 import com.pusios.pots.ui.chat.ToolCallInfo
@@ -345,7 +345,7 @@ class VaultToolsTest {
         assertTrue(dtoMessages.any { it.role == "tool" }, "the payload must actually carry the tool results")
         assertTrue(dtoMessages.any { it.tool_calls != null }, "the payload must carry the assistant tool-call turn")
         val providerPayload = Json.encodeToString(
-            ListSerializer([OI]CompatibleChatRequestDto.Message.serializer()),
+            ListSerializer(OpenAICompatibleChatRequestDto.Message.serializer()),
             dtoMessages,
         )
         assertFalse(MARKER in providerPayload, "marker leaked into the [OI]-compatible provider payload")
