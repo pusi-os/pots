@@ -41,12 +41,16 @@ class OnboardingDefaultModelTest {
 
     @Test
     fun `when the snapshot is absent the nearest curated everyday pick wins`() {
-        // PlusVibe switched its /v1/models to unprefixed ids, so the curated pick
-        // "z-ai/glm-5.3-flash" would never match — the fallback itself must respect
-        // the live catalog and only return picks the provider actually returned.
+        // Picks are curated against the live catalogs (report t_b1dce70b): a pick id the
+        // provider never returned must drop out, and the next everyday pick present in
+        // the catalog wins. Bare glm-5.3-flash is a legit everyday pick for PlusVibe and
+        // AiTunnel, whose /v1/models carry unprefixed ids.
         val catalog = listOf(SettingsModel(id = "glm-5.3-flash", subtitle = ""))
-        assertNull(OnboardingDefaultModel.pick(catalog, Service.PlusVibe))
+        assertEquals("glm-5.3-flash", OnboardingDefaultModel.pick(catalog, Service.PlusVibe))
         assertEquals("glm-5.3-flash", OnboardingDefaultModel.pick(catalog, Service.AiTunnel))
+        // Polza prefixes every id (deepseek/, z-ai/), so the bare id the provider never
+        // returned drops out instead of selecting a model the provider would reject.
+        assertNull(OnboardingDefaultModel.pick(catalog, Service.Polza))
     }
 
     @Test

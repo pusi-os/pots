@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CropFree
@@ -68,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.RecommendedModels
 import com.pusios.pots.data.Service
+import com.pusios.pots.data.priceTileCaption
 import com.pusios.pots.formatContextWindow
 import com.pusios.pots.formatReleaseDate
 import com.pusios.pots.ui.PotsOutlinedTextField
@@ -94,7 +94,6 @@ import pots.composeapp.generated.resources.model_sort_date
 import pots.composeapp.generated.resources.model_sort_descending
 import pots.composeapp.generated.resources.model_sort_price
 import pots.composeapp.generated.resources.model_sort_recommended
-import pots.composeapp.generated.resources.model_sort_score
 import pots.composeapp.generated.resources.settings_model_label
 import pots.composeapp.generated.resources.settings_model_search
 import kotlin.time.Clock
@@ -175,7 +174,7 @@ internal fun ModelSelection(
                         placeholder = stringResource(Res.string.settings_model_search),
                     )
                 }
-                var sortOption by remember { mutableStateOf(ModelSortOption.Score) }
+                var sortOption by remember { mutableStateOf(initialModelSortOption()) }
                 var sortAscending by remember { mutableStateOf(false) }
                 val visibleModels = remember(filteredModels, sortOption, currentSelectedModel, service) {
                     when (sortOption) {
@@ -294,6 +293,7 @@ internal fun ModelSelection(
                                 } else {
                                     ModelCard(
                                         model = model,
+                                        priceUnit = priceTileCaption(service),
                                         isSelected = currentSelectedModel?.id == model.id,
                                         onClick = select,
                                     )
@@ -311,7 +311,7 @@ internal fun ModelSelection(
     }
 }
 
-private enum class ModelSortOption(
+internal enum class ModelSortOption(
     val labelRes: StringResource,
     val icon: ImageVector,
     val comparator: Comparator<SettingsModel>,
@@ -321,11 +321,13 @@ private enum class ModelSortOption(
     val supportsDirection: Boolean = true,
 ) {
     Date(Res.string.model_sort_date, Icons.Outlined.CalendarMonth, compareByDescending<SettingsModel> { it.releaseDate }.thenBy { it.id }),
-    Score(Res.string.model_sort_score, Icons.Filled.Star, compareByDescending<SettingsModel> { it.arenaScore }.thenBy { it.id }),
     Ctx(Res.string.model_sort_context, Icons.Outlined.CropFree, compareByDescending<SettingsModel> { it.contextWindow }.thenBy { it.id }),
     Price(Res.string.model_sort_price, Icons.Filled.AttachMoney, compareBy<SettingsModel> { it.pricePerMillion ?: Double.MAX_VALUE }.thenBy { it.id }, ascendingByDefault = true),
-    Recommended(Res.string.model_sort_recommended, Icons.Outlined.ThumbUp, compareByDescending<SettingsModel> { it.releaseDate }.thenByDescending { it.arenaScore }.thenBy { it.id }, supportsDirection = false),
+    Recommended(Res.string.model_sort_recommended, Icons.Outlined.ThumbUp, compareByDescending<SettingsModel> { it.releaseDate }.thenBy { it.id }, supportsDirection = false),
 }
+
+/** The model sheet always opens on the Recommended tab, for every service. */
+internal fun initialModelSortOption(): ModelSortOption = ModelSortOption.Recommended
 
 private fun withinMonths(releaseDate: String?, months: Int): Boolean {
     if (releaseDate.isNullOrBlank()) return true
@@ -338,7 +340,7 @@ private fun withinMonths(releaseDate: String?, months: Int): Boolean {
 }
 
 @Composable
-private fun ModelCard(model: SettingsModel, isSelected: Boolean, onClick: () -> Unit) {
+private fun ModelCard(model: SettingsModel, priceUnit: String?, isSelected: Boolean, onClick: () -> Unit) {
     val displayName = model.displayName?.takeIf { it.isNotBlank() && it != model.id }
     val title = displayName ?: model.id
     val secondary = if (displayName == null && model.subtitle.isNotBlank()) model.subtitle else null
@@ -429,14 +431,14 @@ private fun ModelCard(model: SettingsModel, isSelected: Boolean, onClick: () -> 
                 ModelTile(
                     icon = Icons.Filled.ArrowDownward,
                     value = model.pricePerMillion?.let(::formatPricePerMillion),
-                    unit = "M",
+                    unit = priceUnit,
                     isSelected = isSelected,
                     modifier = Modifier.weight(1f),
                 )
                 ModelTile(
                     icon = Icons.Filled.ArrowUpward,
                     value = model.outputPricePerMillion?.let(::formatPricePerMillion),
-                    unit = "M",
+                    unit = priceUnit,
                     isSelected = isSelected,
                     modifier = Modifier.weight(1f),
                 )
@@ -444,13 +446,6 @@ private fun ModelCard(model: SettingsModel, isSelected: Boolean, onClick: () -> 
                     icon = Icons.Outlined.CropFree,
                     value = model.contextWindow?.let { formatContextWindow(it) },
                     isSelected = isSelected,
-                    modifier = Modifier.weight(1f),
-                )
-                ModelTile(
-                    icon = Icons.Filled.Star,
-                    value = model.arenaScore?.toString(),
-                    isSelected = isSelected,
-                    valueColor = model.arenaScore?.let { arenaScoreColor(it) },
                     modifier = Modifier.weight(1f),
                 )
                 ModelTile(
@@ -471,7 +466,7 @@ private fun ModelCard(model: SettingsModel, isSelected: Boolean, onClick: () -> 
 }
 
 /**
- * Recommended-mode card: class chip, model name and the curated one-line description. Distinct
+ * Recommended-mode card: class chip, model name and the curated multi-line description. Distinct
  * from the plain [ModelCard] list — no tile row, an accent border marks the model's class.
  */
 @Composable
@@ -554,8 +549,6 @@ private fun RecommendedModelCard(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -572,7 +565,6 @@ private fun ModelTile(
     modifier: Modifier = Modifier,
     unit: String? = null,
     isSelected: Boolean = false,
-    valueColor: Color? = null,
 ) {
     val hasData = value != null
     val colors = MaterialTheme.colorScheme
@@ -597,7 +589,7 @@ private fun ModelTile(
         !hasData && isSelected -> colors.onPrimaryContainer.copy(alpha = 0.42f)
         !hasData -> colors.onSurfaceVariant.copy(alpha = 0.55f)
         isSelected -> colors.onPrimaryContainer
-        else -> valueColor ?: colors.onSurface
+        else -> colors.onSurface
     }
     Box(
         modifier = modifier
@@ -625,6 +617,7 @@ private fun ModelTile(
                     softWrap = false,
                 )
                 if (hasData && unit != null) {
+                    Spacer(Modifier.width(2.dp))
                     Text(
                         text = unit,
                         style = MaterialTheme.typography.labelSmall,
@@ -712,14 +705,6 @@ private fun formatPricePerMillion(price: Double): String {
     val whole = scaled / factor
     val fraction = (scaled % factor).toString().padStart(factor.toString().length - 1, '0')
     return "$whole.$fraction".trimEnd('0').trimEnd('.')
-}
-
-private fun arenaScoreColor(score: Int): Color = when {
-    score >= 1400 -> Color(0xFF2E7D32)
-    score >= 1350 -> Color(0xFF558B2F)
-    score >= 1300 -> Color(0xFF9E9D24)
-    score >= 1250 -> Color(0xFFF9A825)
-    else -> Color(0xFFEF6C00)
 }
 
 @Composable

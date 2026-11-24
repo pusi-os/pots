@@ -272,3 +272,24 @@ sealed class Service(
     val modelIdKey: String get() = "service_${settingsKeyPrefix}_model_id"
     val baseUrlKey: String get() = "service_${settingsKeyPrefix}_base_url"
 }
+
+/**
+ * Caption shown next to the per-token price in the model sheet tiles: the provider's price
+ * currency and the token volume the price is quoted for (researcher report for 3.20.0, board
+ * task t_b1dce70b, section B). Null when the service's price currency is unknown — the tile
+ * falls back to the plain "M" caption.
+ */
+val Service.priceTileUnit: String?
+    get() = when (this) {
+        Service.PlusVibe, Service.PlusVibeReserve, Service.Polza, Service.AiTunnel -> "₽/1M"
+        Service.Gptunnel -> "₽/1K"
+        Service.LlmRouter -> "$/1M"
+        else -> null
+    }
+
+/**
+ * The price-tile caption for the model sheet: the provider caption from [priceTileUnit], or
+ * the plain "M" fallback when there is no mapping — a sheet rendered without a [Service]
+ * (the vendor-agnostic provider screen) or a service with unknown price currency.
+ */
+fun priceTileCaption(service: Service?): String = service?.priceTileUnit ?: "M"
