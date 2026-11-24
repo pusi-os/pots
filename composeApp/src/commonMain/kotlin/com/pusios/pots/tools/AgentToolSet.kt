@@ -102,9 +102,10 @@ fun buildAgentToolSet(
         )
     }
 
-    // Password vault tools. One master toggle (off by default); the spend-tools
-    // additionally ask the owner on every use. Null where Koin has no vault session.
-    if (vault != null && appSettings.isToolEnabled(VaultTools.MASTER_ID, defaultEnabled = false)) {
+    // Password vault tools. One master toggle, on by default — the owner can turn the
+    // whole set off from the Tools tab; the spend-tools additionally ask the owner on
+    // every use. Null where Koin has no vault session.
+    if (vault != null && appSettings.isToolEnabled(VaultTools.MASTER_ID, defaultEnabled = true)) {
         addAll(VaultTools.create(vault))
     }
 
