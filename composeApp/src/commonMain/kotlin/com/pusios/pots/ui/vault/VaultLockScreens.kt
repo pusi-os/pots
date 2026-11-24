@@ -14,11 +14,13 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -108,12 +110,15 @@ internal fun VaultSetupScreen(
 
 /** Unlock screen; [error] names why the previous attempt failed. Public so
  * paparazzi can compose the real vault tab without a session or a Koin
- * container. */
+ * container. [biometricEnabled] + [onBiometricUnlock] offer the device-bound
+ * quick unlock (card t_6b300431); defaults keep the old signature valid. */
 @Composable
 public fun VaultUnlockScreen(
     error: VaultUnlockError?,
     onUnlock: (String) -> Unit,
     modifier: Modifier = Modifier,
+    biometricEnabled: Boolean = false,
+    onBiometricUnlock: (() -> Unit)? = null,
 ) {
     var password by remember { mutableStateOf("") }
 
@@ -147,6 +152,15 @@ public fun VaultUnlockScreen(
             enabled = password.isNotEmpty(),
         ) {
             Text(stringResource(Res.string.vault_unlock_button))
+        }
+        if (biometricEnabled && onBiometricUnlock != null) {
+            TextButton(onClick = onBiometricUnlock) {
+                Icon(
+                    imageVector = Icons.Outlined.Fingerprint,
+                    contentDescription = null,
+                )
+                Text(stringResource(Res.string.vault_biometric_unlock_button))
+            }
         }
     }
 }

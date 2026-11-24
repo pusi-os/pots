@@ -353,4 +353,36 @@ class VaultSessionTest {
         assertTrue(elapsed < 1000.milliseconds, "unlock took $elapsed, budget is 1 s")
         assertEquals(200, session.document()?.items?.size)
     }
+
+    @Test
+    fun `unlockWithKey opens the session with the raw vault key`() = runTest {
+        val dir = tempDir()
+        val session = newSession(dir)
+        session.createVault("master-1")
+        session.upsert(VaultTemplates.draft("login", name = "GitHub")!!, values = mapOf("password" to "s3cret-42"))
+        var captured: ByteArray? = null
+        session.withKey { captured = it.copyOf() }
+        session.lock()
+        assertTrue(session.locked.value)
+
+        val key = assertNotNull(captured)
+        assertEquals(VaultUnlockResult.Success, session.unlockWithKey(key))
+        assertFalse(session.locked.value)
+        assertEquals("GitHub", session.document()?.items?.single()?.name)
+    }
+
+    @Test
+    fun `unlockWithKey with a stale key reports tampered and stays locked`() = runTest {
+        val dir = tempDir()
+        val session = newSession(dir)
+        session.createVault("master-1")
+        session.upsert(VaultTemplates.draft("note", name = "Secret note")!!)
+        session.lock()
+
+        assertEquals(VaultUnlockResult.Tampered, session.unlockWithKey(ByteArray(32)))
+        assertTrue(session.locked.value)
+        assertNull(session.document())
+        // The vault file is untouched: the master password still opens it.
+        assertEquals(VaultUnlockResult.Success, session.unlock("master-1"))
+    }
 }

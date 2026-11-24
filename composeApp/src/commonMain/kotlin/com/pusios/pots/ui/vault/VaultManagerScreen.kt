@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
@@ -37,6 +38,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -51,6 +53,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.data.vault.VaultBiometricUnlock
 import com.pusios.pots.data.vault.VaultField
 import com.pusios.pots.data.vault.VaultItem
 import com.pusios.pots.data.vault.VaultItemKind
@@ -61,8 +64,11 @@ import com.pusios.pots.ui.PotsClearableTextField
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import org.koin.mp.KoinPlatformTools
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.vault_add_item
+import pots.composeapp.generated.resources.vault_biometric_prompt_title
+import pots.composeapp.generated.resources.vault_biometric_toggle
 import pots.composeapp.generated.resources.vault_kind_all
 import pots.composeapp.generated.resources.vault_kind_card
 import pots.composeapp.generated.resources.vault_kind_host
@@ -84,6 +90,7 @@ import pots.composeapp.generated.resources.vault_unavailable
 fun VaultManagerScreen(
     session: VaultSession = koinInject(),
     modifier: Modifier = Modifier,
+    biometric: VaultBiometricUnlock? = null,
 ) {
     if (!session.isSupported) {
         Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -92,8 +99,11 @@ fun VaultManagerScreen(
         return
     }
     val scope = rememberCoroutineScope()
-    val model = remember(session) { VaultViewModel(session, scope) }
+    val biometricUnlock = remember(biometric, session) { biometric ?: vaultBiometricOrNull() }
+    val model = remember(session, biometricUnlock) { VaultViewModel(session, scope, biometricUnlock) }
     val state by model.state.collectAsState()
+    val biometricHost = if (model.biometricAvailable) rememberVaultBiometricHost() else null
+    val biometricPromptTitle = stringResource(Res.string.vault_biometric_prompt_title)
 
     when (val current = state) {
         VaultUiState.Unavailable -> Box(
@@ -112,11 +122,23 @@ fun VaultManagerScreen(
             error = current.error,
             onUnlock = { password -> scope.launch { model.unlock(password) } },
             modifier = modifier,
+            biometricEnabled = current.biometricEnabled,
+            onBiometricUnlock = if (current.biometricEnabled) {
+                {
+                    scope.launch { model.unlockBiometric(biometricHost, biometricPromptTitle) }
+                }
+            } else {
+                null
+            },
         )
 
         is VaultUiState.Unlocked -> VaultUnlockedContent(model, current, modifier)
     }
 }
+
+/** Optional DI lookup: null outside the app shell (tests, previews, no Koin). */
+private fun vaultBiometricOrNull(): VaultBiometricUnlock? =
+    runCatching { KoinPlatformTools.defaultContext().get().get<VaultBiometricUnlock>() }.getOrNull()
 
 private sealed interface VaultRoute {
     data object List : VaultRoute
@@ -201,6 +223,8 @@ private fun VaultListContent(
 ) {
     val scope = rememberCoroutineScope()
     var kindFilter by remember { mutableStateOf<VaultItemKind?>(null) }
+    val biometricHost = if (model.biometricAvailable) rememberVaultBiometricHost() else null
+    val biometricPromptTitle = stringResource(Res.string.vault_biometric_prompt_title)
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -244,6 +268,30 @@ private fun VaultListContent(
                         selected = kindFilter == kind,
                         onClick = { kindFilter = kind },
                         label = { Text(kindLabel(kind)) },
+                    )
+                }
+            }
+            if (model.biometricAvailable) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Fingerprint,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = stringResource(Res.string.vault_biometric_toggle),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Switch(
+                        checked = state.biometricEnabled,
+                        onCheckedChange = { enabled ->
+                            scope.launch { model.setBiometricEnabled(enabled, biometricHost, biometricPromptTitle) }
+                        },
                     )
                 }
             }

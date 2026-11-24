@@ -22,11 +22,14 @@ import com.pusios.pots.data.miniapp.createMiniAppPersistence
 import com.pusios.pots.data.miniapp.createMiniAppServer
 import com.pusios.pots.data.miniapp.createMiniAppServerController
 import com.pusios.pots.data.runMigrations
+import com.pusios.pots.data.vault.VaultBiometricUnlock
+import com.pusios.pots.data.vault.VaultBiometricUnlockUnavailable
 import com.pusios.pots.data.vault.VaultFormBridge
 import com.pusios.pots.data.vault.VaultGate
 import com.pusios.pots.data.vault.VaultRevealBridge
 import com.pusios.pots.data.vault.VaultSession
 import com.pusios.pots.data.vault.VaultStore
+import com.pusios.pots.data.vault.createVaultBiometricUnlock
 import com.pusios.pots.data.vault.createVaultCryptoEngine
 import com.pusios.pots.data.vault.createVaultFileAccess
 import com.pusios.pots.email.EmailPoller
@@ -101,6 +104,9 @@ val appModule = module {
     }
     single {
         VaultSession(get())
+    }
+    single<VaultBiometricUnlock> {
+        createVaultBiometricUnlock() ?: VaultBiometricUnlockUnavailable
     }
     single {
         VaultFormBridge(get())
