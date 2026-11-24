@@ -100,6 +100,7 @@ internal fun MiniAppServerSection(
                 Text(
                     text = stringResource(Res.string.mini_app_server_title),
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = stringResource(Res.string.mini_app_server_description),
@@ -156,6 +157,7 @@ internal fun MiniAppServerSection(
                 Text(
                     text = stringResource(Res.string.mini_app_server_database),
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 if (state.apps.isEmpty()) {
                     Text(
@@ -281,6 +283,7 @@ private fun DatabaseContent(state: MiniAppServerUiState, viewModel: MiniAppServe
     Text(
         text = stringResource(Res.string.mini_app_server_collections),
         style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurface,
     )
     CollectionPicker(
         collections = state.collections,
@@ -301,6 +304,7 @@ private fun DatabaseContent(state: MiniAppServerUiState, viewModel: MiniAppServe
             Text(
                 text = "${stringResource(Res.string.mini_app_server_records)}: ${state.records.size}",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = viewModel::clearCollection, modifier = Modifier.handCursor()) {
@@ -335,6 +339,7 @@ private fun DatabaseContent(state: MiniAppServerUiState, viewModel: MiniAppServe
                                 text = record.value.toString(),
                                 style = MaterialTheme.typography.bodySmall,
                                 fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 3,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
@@ -363,7 +368,7 @@ private fun ToggleRow(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
@@ -378,7 +383,7 @@ private fun ToggleRow(
 @Composable
 private fun Counter(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(value, style = MaterialTheme.typography.titleSmall)
+        Text(value, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
