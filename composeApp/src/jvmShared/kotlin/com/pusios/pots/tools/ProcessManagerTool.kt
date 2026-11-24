@@ -4,10 +4,10 @@ import com.pusios.pots.network.tools.ParameterSchema
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.network.tools.ToolSchema
-import kotlin.time.Duration.Companion.seconds
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.tool_manage_process_description
 import pots.composeapp.generated.resources.tool_manage_process_name
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Shared by Android and desktop — the two builds differ only in how the underlying
