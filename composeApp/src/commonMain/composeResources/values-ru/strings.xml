@@ -1026,6 +1026,9 @@
     <string name="vault_unlock_hint">Введите мастер-пароль, чтобы разблокировать хранилище.</string>
     <string name="vault_unlock_password">Мастер-пароль</string>
     <string name="vault_unlock_button">Разблокировать</string>
+    <string name="vault_biometric_toggle">Разблокировка отпечатком или PIN</string>
+    <string name="vault_biometric_unlock_button">Отпечатком или PIN</string>
+    <string name="vault_biometric_prompt_title">Разблокировать хранилище</string>
     <string name="vault_error_wrong_password">Неверный мастер-пароль</string>
     <string name="vault_error_tampered">Файл хранилища был изменён и не может быть открыт</string>
     <string name="vault_error_corrupted">Файл хранилища повреждён</string>

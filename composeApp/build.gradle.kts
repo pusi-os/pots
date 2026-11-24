@@ -155,6 +155,7 @@ kotlin {
             kotlin.srcDir("src/jvmShared/kotlin")
             dependencies {
                 implementation(libs.androidx.activity.compose)
+                implementation(libs.androidx.biometric)
                 implementation(libs.androidx.documentfile)
                 implementation(libs.androidx.lifecycle.process)
                 implementation(libs.spght.encryptedprefs)

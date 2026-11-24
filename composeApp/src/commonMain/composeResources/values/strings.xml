@@ -1025,6 +1025,9 @@
     <string name="vault_unlock_hint">Enter the master password to unlock the vault.</string>
     <string name="vault_unlock_password">Master password</string>
     <string name="vault_unlock_button">Unlock</string>
+    <string name="vault_biometric_toggle">Unlock with fingerprint or PIN</string>
+    <string name="vault_biometric_unlock_button">Use fingerprint or PIN</string>
+    <string name="vault_biometric_prompt_title">Unlock the password vault</string>
     <string name="vault_error_wrong_password">Wrong master password</string>
     <string name="vault_error_tampered">The vault file has been tampered with and cannot be opened</string>
     <string name="vault_error_corrupted">The vault file is corrupted</string>

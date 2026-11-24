@@ -114,6 +114,38 @@ class VaultSession(
         }
     }
 
+    /**
+     * Unlock from an already unwrapped vault key — the device-bound quick
+     * unlock path (card t_6b300431). The key must still open the current
+     * envelope's payload: a stale or wrong key comes back as
+     * [VaultUnlockResult.Tampered], never as a silent success.
+     */
+    suspend fun unlockWithKey(vaultKey: ByteArray): VaultUnlockResult {
+        if (!_locked.value) return VaultUnlockResult.Success
+        if (!isSupported) return VaultUnlockResult.NotSupported
+        val engine = requireNotNull(store.engine)
+        return withContext(Dispatchers.Default) {
+            try {
+                val env = store.readEnvelope() ?: return@withContext VaultUnlockResult.NotCreated
+                val doc = openPayload(engine, vaultKey, env.payload)
+                adopt(env, vaultKey, doc)
+                VaultUnlockResult.Success
+            } catch (_: VaultWrongPasswordException) {
+                lock()
+                VaultUnlockResult.WrongPassword
+            } catch (_: VaultTamperedException) {
+                lock()
+                VaultUnlockResult.Tampered
+            } catch (_: VaultCorruptedException) {
+                lock()
+                VaultUnlockResult.Corrupted
+            } catch (e: VaultUnsupportedVersionException) {
+                lock()
+                VaultUnlockResult.UnsupportedVersion(e.version)
+            }
+        }
+    }
+
     /** Wipe the key and the plaintext document. Safe to call when already locked. */
     fun lock() {
         vaultKey?.fill(0)
