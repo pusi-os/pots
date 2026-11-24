@@ -45,11 +45,43 @@ class RecommendedModelsTest {
 
     @Test
     fun `everyday ids match the live catalogs`() {
-        assertEquals("z-ai/glm-5.3-flash", RecommendedModels.everydayModelId(Service.PlusVibe))
-        assertEquals("z-ai/glm-5.3-flash", RecommendedModels.everydayModelId(Service.Polza))
-        assertEquals("glm-5.3-flash", RecommendedModels.everydayModelId(Service.AiTunnel))
-        assertEquals("gpt-6-luna", RecommendedModels.everydayModelId(Service.Gptunnel))
-        assertEquals("glm-5.3-flash", RecommendedModels.everydayModelId(Service.LlmRouter))
+        assertEquals("deepseek-v4.1-flash-1017", RecommendedModels.everydayModelId(Service.PlusVibe))
+        assertEquals("deepseek/deepseek-v4.1-flash-1017", RecommendedModels.everydayModelId(Service.Polza))
+        assertEquals("deepseek-v4.1-flash-1017", RecommendedModels.everydayModelId(Service.AiTunnel))
+        assertEquals("deepseek-v4.1-flash", RecommendedModels.everydayModelId(Service.Gptunnel))
+        assertEquals("deepseek-v4-flash", RecommendedModels.everydayModelId(Service.LlmRouter))
+    }
+
+    @Test
+    fun `every pick description is 3 to 5 lines`() {
+        val services = listOf(
+            Service.PlusVibe,
+            Service.PlusVibeReserve,
+            Service.Polza,
+            Service.AiTunnel,
+            Service.Gptunnel,
+            Service.LlmRouter,
+        )
+        for (service in services) {
+            for (pick in RecommendedModels.picksFor(service)) {
+                val lines = pick.description.split('\n').filter { it.isNotBlank() }
+                assertTrue(
+                    lines.size in 3..5,
+                    "$service/${pick.id} description must be 3-5 lines, got ${lines.size}",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `price tiles carry the provider currency and volume`() {
+        assertEquals("₽/1M", Service.PlusVibe.priceTileUnit)
+        assertEquals("₽/1M", Service.PlusVibeReserve.priceTileUnit)
+        assertEquals("₽/1M", Service.Polza.priceTileUnit)
+        assertEquals("₽/1M", Service.AiTunnel.priceTileUnit)
+        assertEquals("₽/1K", Service.Gptunnel.priceTileUnit)
+        assertEquals("$/1M", Service.LlmRouter.priceTileUnit)
+        assertNull(Service.LiteRT.priceTileUnit)
     }
 
     // --- selectRecommended ---
@@ -58,33 +90,33 @@ class RecommendedModelsTest {
     fun `recommended list is everyday-first and only contains catalog models`() {
         // PlusVibe catalog as the service returned it (not in table order).
         val catalog = listOf(
-            model("gpt-6.2-astra"),
+            model("gemini-4-argon"),
             model("deepseek-v4.1-flash-1017"),
-            model("google/gemini-3.8-flash"),
-            model("z-ai/glm-5.3-flash"),
+            model("gemini-3.8-flash"),
+            model("glm-5.3-flash"),
             model("some-foreign-model"),
         )
         val result = RecommendedModels.selectRecommended(catalog, Service.PlusVibe, selectedId = null)
         assertEquals(
-            listOf("z-ai/glm-5.3-flash", "deepseek-v4.1-flash-1017", "google/gemini-3.8-flash", "gpt-6.2-astra"),
+            listOf("deepseek-v4.1-flash-1017", "glm-5.3-flash", "gemini-3.8-flash", "gemini-4-argon"),
             result.map { it.id },
         )
     }
 
     @Test
     fun `missing class pick is skipped without leaving a hole`() {
-        // GPTunnel catalog without the middle-class gemini-3.6-flash.
-        val catalog = listOf(model("gpt-6-luna"), model("gpt-6.2-astra"))
+        // GPTunnel catalog without the middle-class gemini-3.8-flash.
+        val catalog = listOf(model("gpt-6-astra"), model("deepseek-v4.1-flash"))
         val result = RecommendedModels.selectRecommended(catalog, Service.Gptunnel, selectedId = null)
-        assertEquals(listOf("gpt-6-luna", "gpt-6.2-astra"), result.map { it.id })
+        assertEquals(listOf("deepseek-v4.1-flash", "gpt-6-astra"), result.map { it.id })
     }
 
     @Test
     fun `current choice stays reachable even when it is outside the table`() {
         val catalog = listOf(
-            model("z-ai/glm-5.3-flash"),
-            model("google/gemini-3.8-flash"),
-            model("gpt-6.2-astra"),
+            model("glm-5.3-flash"),
+            model("gemini-3.8-flash"),
+            model("gemini-4-argon"),
             model("my-fine-tuned-model"),
         )
         val result = RecommendedModels.selectRecommended(catalog, Service.PlusVibe, selectedId = "my-fine-tuned-model")
@@ -95,10 +127,10 @@ class RecommendedModelsTest {
     @Test
     fun `list is capped at five entries`() {
         val catalog = listOf(
-            model("z-ai/glm-5.3-flash"),
             model("deepseek-v4.1-flash-1017"),
-            model("google/gemini-3.8-flash"),
-            model("gpt-6.2-astra"),
+            model("glm-5.3-flash"),
+            model("gemini-3.8-flash"),
+            model("gemini-4-argon"),
             model("user-picked-oddity"),
             model("another-one"),
         )
@@ -118,16 +150,16 @@ class RecommendedModelsTest {
     @Test
     fun `fresh key entry lands on the everyday model before the kimi heuristic`() {
         // Catalog order as the provider returned it: heuristic-first model up top.
-        val catalog = listOf(model("kimi-k2.5-instruct"), model("gpt-6.2-astra"), model("z-ai/glm-5.3-flash"))
+        val catalog = listOf(model("kimi-k2.5-instruct"), model("gemini-4-argon"), model("deepseek-v4.1-flash-1017"))
         val withSelected = ensureSelectedModelPresent(catalog, selectedModelId = "")
         assertTrue(withSelected.none { it.isSelected }, "nothing stored yet: nothing may be selected")
         val default = pickDefaultModel(withSelected, Service.PlusVibe)
-        assertEquals("z-ai/glm-5.3-flash", default?.id)
+        assertEquals("deepseek-v4.1-flash-1017", default?.id)
     }
 
     @Test
     fun `saved selection is not replaced by the everyday default`() {
-        val catalog = listOf(model("z-ai/glm-5.3-flash"), model("gpt-6.2-astra"), model("kimi-k2.5-instruct"))
+        val catalog = listOf(model("deepseek-v4.1-flash-1017"), model("gemini-4-argon"), model("kimi-k2.5-instruct"))
         val withSelected = ensureSelectedModelPresent(catalog, selectedModelId = "kimi-k2.5-instruct")
         // The auto-pick only runs when nothing is selected: a saved choice must survive.
         val autoPick = if (withSelected.none { it.isSelected }) pickDefaultModel(withSelected, Service.PlusVibe) else null
