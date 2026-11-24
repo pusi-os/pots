@@ -312,11 +312,13 @@ private fun VaultListContent(
             onNotice = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
             onDismiss = { backupDialog = null },
         )
+
         VaultBackupDialog.Import -> VaultBackupImportDialog(
             model = model,
             onNotice = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
             onDismiss = { backupDialog = null },
         )
+
         null -> {}
     }
 }

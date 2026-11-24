@@ -8,6 +8,7 @@ package com.pusios.pots.data.vault
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.exportToJson
 import com.russhwolf.settings.MapSettings
+import kotlinx.coroutines.test.runTest
 import java.io.File
 import java.nio.file.Files
 import java.util.Base64
@@ -18,7 +19,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlinx.coroutines.test.runTest
 
 class VaultBackupTest {
 

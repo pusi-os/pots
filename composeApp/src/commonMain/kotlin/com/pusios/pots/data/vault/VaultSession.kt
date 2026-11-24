@@ -293,6 +293,7 @@ class VaultSession(
                         when (mode) {
                             VaultImportMode.MERGE ->
                                 current.filterNot { existing -> items.any { it.id == existing.id } } + items
+
                             VaultImportMode.REPLACE -> items
                         }
                     }

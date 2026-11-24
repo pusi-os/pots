@@ -27,8 +27,6 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.vault.VaultImportMode
 import com.pusios.pots.data.vault.VaultImportResult
 import com.pusios.pots.ui.PotsOutlinedTextField
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,6 +54,8 @@ import pots.composeapp.generated.resources.vault_import_replace_hint
 import pots.composeapp.generated.resources.vault_import_title
 import pots.composeapp.generated.resources.vault_password_mismatch
 import pots.composeapp.generated.resources.vault_pick_file
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /** Which backup dialog is open on the list screen, if any. */
 internal sealed interface VaultBackupDialog {
@@ -209,12 +209,18 @@ internal fun VaultBackupImportDialog(
                                     onNotice(importedMessage)
                                     onDismiss()
                                 }
+
                                 VaultImportResult.WrongPassword -> error = Res.string.vault_error_wrong_password
+
                                 VaultImportResult.Tampered -> error = Res.string.vault_error_tampered
+
                                 VaultImportResult.Corrupted -> error = Res.string.vault_error_corrupted
+
                                 is VaultImportResult.UnsupportedVersion ->
                                     error = Res.string.vault_error_unsupported_version
+
                                 VaultImportResult.Locked -> onDismiss()
+
                                 VaultImportResult.NotSupported -> onDismiss()
                             }
                         }
@@ -231,8 +237,7 @@ internal fun VaultBackupImportDialog(
 }
 
 @OptIn(ExperimentalTime::class)
-private fun backupFileName(): String =
-    "pots-vault-${Clock.System.now().toEpochMilliseconds()}.pvault"
+private fun backupFileName(): String = "pots-vault-${Clock.System.now().toEpochMilliseconds()}.pvault"
 
 @Composable
 private fun VaultPasswordField(
