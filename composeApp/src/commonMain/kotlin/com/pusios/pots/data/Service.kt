@@ -94,6 +94,12 @@ sealed class Service(
     val sortModelsById: Boolean = false,
     val apiKeyUrl: String? = null,
     val apiKeyUrlDisplay: String? = null,
+    /**
+     * Direct URL to the provider's API-keys page in its cabinet (opens the keys section for a
+     * logged-in user; no referral parameter — referrals only fire on sign-up). Shown on the
+     * onboarding "you already have an account" button next to the [apiKeyUrl] sign-up link.
+     */
+    val cabinetApiKeysUrl: String? = null,
     val isOnDevice: Boolean = false,
     val supportsPdf: Boolean = false,
     val supportsImages: Boolean = true,
@@ -110,6 +116,7 @@ sealed class Service(
         chatUrl = "https://polza.ai/api/v1/chat/completions",
         modelsUrl = "https://polza.ai/api/v1/models",
         apiKeyUrl = "https://polza.ai/?referral=GAiyEDme7O",
+        cabinetApiKeysUrl = "https://polza.ai/dashboard/api-keys",
         apiKeyUrlDisplay = "polza.ai",
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
@@ -124,6 +131,7 @@ sealed class Service(
         chatUrl = "https://gptunnel.ru/v1/chat/completions",
         modelsUrl = "https://gptunnel.ru/v1/models",
         apiKeyUrl = "https://gptunnel.ru/?ref=pots",
+        cabinetApiKeysUrl = "https://gptunnel.ru/profile/api",
         apiKeyUrlDisplay = "gptunnel.ru",
         apiKeyAuthStyle = ApiKeyAuthStyle.RAW,
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
@@ -139,6 +147,7 @@ sealed class Service(
         chatUrl = "https://api.aitunnel.ru/v1/chat/completions",
         modelsUrl = "https://api.aitunnel.ru/v1/models",
         apiKeyUrl = "https://aitunnel.ru/?r=67643",
+        cabinetApiKeysUrl = "https://aitunnel.ru/panel/keys",
         apiKeyUrlDisplay = "aitunnel.ru",
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
@@ -153,6 +162,7 @@ sealed class Service(
         chatUrl = "https://plusvibeapi.ru/v1/chat/completions",
         modelsUrl = "https://plusvibeapi.ru/v1/models",
         apiKeyUrl = "https://plusvibeapi.ru/?ref=9APNMZKK",
+        cabinetApiKeysUrl = "https://plusvibeapi.ru/dashboard/keys",
         apiKeyUrlDisplay = "plusvibeapi.ru",
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
@@ -167,6 +177,7 @@ sealed class Service(
         chatUrl = "https://gw.plusvibeapi.ru/v1/chat/completions",
         modelsUrl = "https://gw.plusvibeapi.ru/v1/models",
         apiKeyUrl = "https://plusvibeapi.ru/?ref=9APNMZKK",
+        cabinetApiKeysUrl = "https://plusvibeapi.ru/dashboard/keys",
         apiKeyUrlDisplay = "plusvibeapi.ru",
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )
@@ -181,6 +192,7 @@ sealed class Service(
         chatUrl = "https://llm-router.org/v1/chat/completions",
         modelsUrl = "https://llm-router.org/v1/models",
         apiKeyUrl = "https://llm-router.org?ref=kxknsvt9",
+        cabinetApiKeysUrl = "https://llm-router.org/cabinet",
         apiKeyUrlDisplay = "llm-router.org",
         reasoningRequestMode = ReasoningRequestMode.REASONING_CONTENT,
     )

@@ -76,6 +76,8 @@ object ScreenshotTestData {
         onboardingAddKey = { _, _ -> },
         onboardingClearKeyState = {},
         onboardingConfirmKey = {},
+        onboardingGoToStep = { _, _ -> },
+        onboardingSelectModel = { _ -> },
         onboardingSkip = {},
         onboardingResume = {},
         onboardingChooseLocal = {},

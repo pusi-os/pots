@@ -39,7 +39,6 @@ import com.pusios.pots.ui.potsAdaptiveCardColors
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.onboarding_aborted
-import pots.composeapp.generated.resources.onboarding_button_done
 import pots.composeapp.generated.resources.onboarding_button_resume
 import pots.composeapp.generated.resources.onboarding_intro_1
 import pots.composeapp.generated.resources.onboarding_intro_2
@@ -143,14 +142,6 @@ internal fun OnboardingWizardCard(
                     modifier = Modifier.handCursor(),
                 ) {
                     Text(stringResource(Res.string.onboarding_skip_button))
-                }
-                if (state.isKeyAdded) {
-                    Button(
-                        onClick = { actions.onboardingConfirmKey() },
-                        modifier = Modifier.handCursor(),
-                    ) {
-                        Text(stringResource(Res.string.onboarding_button_done))
-                    }
                 }
             }
         }

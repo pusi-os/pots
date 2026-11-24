@@ -208,9 +208,21 @@ class FakeDataRepository : DataRepository {
     /** When > 0, validateConnection suspends this many (virtual) milliseconds before returning. */
     var validateConnectionDelayMs: Long = 0
 
+    /**
+     * When non-null, validateConnection (on success) writes these models into the instance's
+     * catalog — mirroring the real repository, where validateConnection is what populates
+     * instanceModels after a key check. Seed this, not the flow directly: the add-key flow
+     * clears cached models before validating.
+     */
+    var modelsFetchedOnValidate: List<SettingsModel>? = null
+
     override suspend fun validateConnection(service: Service, instanceId: String) {
         if (validateConnectionDelayMs > 0) delay(validateConnectionDelayMs)
         validateConnectionException?.let { throw it }
+        modelsFetchedOnValidate?.let { models ->
+            val flow = getInstanceModels(instanceId, service) as? MutableStateFlow ?: return@let
+            flow.update { models }
+        }
     }
 
     fun setConfiguredServices(vararg services: Service) {
