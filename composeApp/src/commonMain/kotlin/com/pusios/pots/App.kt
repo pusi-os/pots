@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composer
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -40,6 +41,7 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.svg.SvgDecoder
 import com.pusios.pots.data.AppSettings
+import com.pusios.pots.data.RemoteDataRepository
 import com.pusios.pots.data.ThemeMode
 import com.pusios.pots.data.TtsEngine
 import com.pusios.pots.data.miniapp.MiniAppServer
@@ -56,6 +58,7 @@ import com.pusios.pots.ui.background.AnimatedBackdrop
 import com.pusios.pots.ui.background.screenBackground
 import com.pusios.pots.ui.chat.ChatScreen
 import com.pusios.pots.ui.chat.ChatViewModel
+import com.pusios.pots.ui.chat.VaultRequestSheetHost
 import com.pusios.pots.ui.components.FullScreenImageHost
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.rememberSandboxAwareUriHandler
@@ -157,6 +160,16 @@ private fun AppContent(
     AppPermission.entries.forEach { permission ->
         SetupPermissionHandler(koinInject<PermissionController>(permissionQualifier(permission)))
     }
+
+    // The vault credential request sheet: the chat-side half of the
+    // `vault_request_form` tool. The bridge's pending StateFlow decides whether
+    // anything is on screen; the shown conversation scopes the submit.
+    VaultRequestSheetHost(
+        bridge = koinInject(),
+        session = koinInject(),
+        conversationId = koinInject<RemoteDataRepository>()
+            .currentConversationId.collectAsState().value,
+    )
 
     // The spoken language follows the app language: the saved system voice wins
     // when it can speak it, otherwise the engine's default for that language is

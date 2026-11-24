@@ -148,7 +148,11 @@ class VaultFormBridge(private val session: VaultSession) {
     fun cancel(formId: String) {
         if (_pending.value?.id != formId) return
         _pending.value = null
-        deferred?.complete(VaultFormOutcome.Cancelled)
+        // §6.1: cancelling the unlock step is not a plain refusal — the vault is
+        // closed, so the tool must hear `vault_locked` (the agent can retry after
+        // the user unlocks), not `cancelled`.
+        val outcome = if (session.locked.value) VaultFormOutcome.Locked else VaultFormOutcome.Cancelled
+        deferred?.complete(outcome)
         deferred = null
     }
 

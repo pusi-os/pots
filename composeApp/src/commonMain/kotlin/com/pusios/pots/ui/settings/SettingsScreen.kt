@@ -80,6 +80,7 @@ import com.pusios.pots.ui.components.VerticalScrollbarForScroll
 import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.potsAdaptiveCardBorder
 import com.pusios.pots.ui.potsAdaptiveCardColors
+import com.pusios.pots.ui.vault.VaultManagerScreen
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import org.jetbrains.compose.resources.painterResource
@@ -100,7 +101,6 @@ import pots.composeapp.generated.resources.settings_tab_sandbox
 import pots.composeapp.generated.resources.settings_tab_services
 import pots.composeapp.generated.resources.settings_tab_tools
 import pots.composeapp.generated.resources.settings_tab_vault
-import pots.composeapp.generated.resources.settings_vault_placeholder
 import pots.composeapp.generated.resources.settings_version
 import pots.composeapp.generated.resources.snackbar_email_removed
 import pots.composeapp.generated.resources.snackbar_mcp_server_removed
@@ -160,6 +160,7 @@ fun SettingsScreen(
             mediaServiceSection = { entries ->
                 MediaServiceSection(entries, koinInject<AppSettings>())
             },
+            vaultContent = { VaultManagerScreen() },
         )
     }
 }
@@ -181,6 +182,7 @@ fun SettingsScreenContent(
     onOpenPotsBuild: (() -> Unit)? = null,
     onRestartOnboarding: () -> Unit = {},
     mediaServiceSection: (@Composable (List<ConfiguredServiceEntry>) -> Unit)? = null,
+    vaultContent: (@Composable () -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val undoLabel = stringResource(Res.string.snackbar_undo)
@@ -269,123 +271,137 @@ fun SettingsScreenContent(
 
             val settingsScrollState = rememberScrollState()
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                Column(
-                    Modifier.fillMaxWidth().verticalScroll(settingsScrollState),
-                    horizontalAlignment = CenterHorizontally,
-                ) {
-                    Spacer(Modifier.height(16.dp))
-
-                    val maxContentWidth = when (filteredUiState.currentTab) {
-                        SettingsTab.Services -> 500.dp
-                        else -> 900.dp
-                    }
+                if (filteredUiState.currentTab == SettingsTab.Vault) {
+                    // The password manager is a full-height screen with its own
+                    // internal scrolling; inside the settings scroll column its
+                    // weighted child would collapse to zero height. Pure slot,
+                    // so paparazzi composes this branch without a Koin container.
                     Column(
-                        Modifier.widthIn(max = maxContentWidth).fillMaxWidth().padding(horizontal = 16.dp),
+                        Modifier.widthIn(max = 900.dp).fillMaxWidth().padding(horizontal = 16.dp),
+                    ) {
+                        vaultContent?.invoke()
+                    }
+                } else {
+                    Column(
+                        Modifier.fillMaxWidth().verticalScroll(settingsScrollState),
                         horizontalAlignment = CenterHorizontally,
                     ) {
-                        when (filteredUiState.currentTab) {
-                            SettingsTab.General -> {
-                                GeneralContent(uiState = filteredUiState, actions = actions)
+                        Spacer(Modifier.height(16.dp))
+
+                        val maxContentWidth = when (filteredUiState.currentTab) {
+                            SettingsTab.Services -> 500.dp
+                            else -> 900.dp
+                        }
+                        Column(
+                            Modifier.widthIn(max = maxContentWidth).fillMaxWidth().padding(horizontal = 16.dp),
+                            horizontalAlignment = CenterHorizontally,
+                        ) {
+                            when (filteredUiState.currentTab) {
+                                SettingsTab.General -> {
+                                    GeneralContent(uiState = filteredUiState, actions = actions)
+                                }
+
+                                SettingsTab.Agent -> {
+                                    AgentContent(uiState = filteredUiState, actions = actions)
+                                }
+
+                                SettingsTab.Services -> {
+                                    ServicesContent(
+                                        uiState = filteredUiState,
+                                        actions = actions,
+                                        onRestartOnboarding = onRestartOnboarding,
+                                        mediaServiceSection = mediaServiceSection,
+                                    )
+                                }
+
+                                SettingsTab.Integrations -> {
+                                    IntegrationsContent()
+                                }
+
+                                SettingsTab.Tools -> {
+                                    ToolsContent(
+                                        tools = filteredUiState.tools,
+                                        onToggleTool = actions.onToggleTool,
+                                        mcpServers = filteredUiState.mcpServers,
+                                        onAddMcpServer = actions.onAddMcpServer,
+                                        onRemoveMcpServer = actions.onRemoveMcpServer,
+                                        onToggleMcpServer = actions.onToggleMcpServer,
+                                        onRefreshMcpServer = actions.onRefreshMcpServer,
+                                        showAddMcpServerDialog = filteredUiState.showAddMcpServerDialog,
+                                        onShowAddMcpServerDialog = actions.onShowAddMcpServerDialog,
+                                        onAddPopularMcpServer = actions.onAddPopularMcpServer,
+                                        skills = filteredUiState.skills,
+                                        onUninstallSkill = actions.onUninstallSkill,
+                                        showAddSkillDialog = filteredUiState.showAddSkillDialog,
+                                        onShowAddSkillDialog = actions.onShowAddSkillDialog,
+                                        onInstallGitHubSkill = actions.onInstallGitHubSkill,
+                                        onInstallBrowsedSkill = actions.onInstallBrowsedSkill,
+                                        isInstallingSkill = filteredUiState.isInstallingSkill,
+                                        skillInstallError = filteredUiState.skillInstallError,
+                                        browsableSkills = filteredUiState.browsableSkills,
+                                        isBrowsingSkills = filteredUiState.isBrowsingSkills,
+                                        browseSkillsFailed = filteredUiState.browseSkillsFailed,
+                                        showSkills = sandboxState.showSandbox,
+                                        isSandboxInstalled = sandboxState.sandboxInstalled,
+                                        onNavigateToSandbox = { actions.onSelectTab(SettingsTab.Sandbox) },
+                                    )
+
+                                    // The «Локальная модель» block — collapsed by default, at the
+                                    // very bottom of the Tools tab. Pure slot parameters, so it
+                                    // composes without a Koin container (screenshot tests).
+                                    Spacer(Modifier.height(24.dp))
+                                    LocalModelCollapsibleSection(
+                                        tools = filteredUiState.tools,
+                                        mcpServers = filteredUiState.mcpServers,
+                                        selection = filteredUiState.localToolSelection,
+                                        isConfigured = filteredUiState.isLocalToolSelectionConfigured,
+                                        onToggleTool = actions.onToggleLocalTool,
+                                        onToggleMcpServer = actions.onToggleLocalMcpServer,
+                                        onReset = actions.onResetLocalToolSelection,
+                                    )
+                                }
+
+                                SettingsTab.Vault -> {
+                                    // Handled by the full-height branch above;
+                                    // this case only keeps the when exhaustive.
+                                    Unit
+                                }
+
+                                SettingsTab.Sandbox -> {
+                                    SandboxSettingsCard(
+                                        sandboxState = sandboxState,
+                                        onToggleSandbox = onToggleSandbox,
+                                        onSelectDistro = onSelectDistro,
+                                        onSetupSandbox = onSetupSandbox,
+                                        onCancelSandbox = onCancelSandbox,
+                                        onResetSandbox = onResetSandbox,
+                                        onInstallPackages = onInstallPackages,
+                                        onMigrateHome = onMigrateHome,
+                                        onOpenPotsBuild = onOpenPotsBuild,
+                                    )
+                                }
+
+                                SettingsTab.Potsiki -> {
+                                    PotsikiContent(uiState = filteredUiState, actions = actions)
+                                }
+
+                                SettingsTab.Companion -> {
+                                    CompanionContent()
+                                }
                             }
 
-                            SettingsTab.Agent -> {
-                                AgentContent(uiState = filteredUiState, actions = actions)
-                            }
-
-                            SettingsTab.Services -> {
-                                ServicesContent(
-                                    uiState = filteredUiState,
-                                    actions = actions,
-                                    onRestartOnboarding = onRestartOnboarding,
-                                    mediaServiceSection = mediaServiceSection,
-                                )
-                            }
-
-                            SettingsTab.Integrations -> {
-                                IntegrationsContent()
-                            }
-
-                            SettingsTab.Tools -> {
-                                ToolsContent(
-                                    tools = filteredUiState.tools,
-                                    onToggleTool = actions.onToggleTool,
-                                    mcpServers = filteredUiState.mcpServers,
-                                    onAddMcpServer = actions.onAddMcpServer,
-                                    onRemoveMcpServer = actions.onRemoveMcpServer,
-                                    onToggleMcpServer = actions.onToggleMcpServer,
-                                    onRefreshMcpServer = actions.onRefreshMcpServer,
-                                    showAddMcpServerDialog = filteredUiState.showAddMcpServerDialog,
-                                    onShowAddMcpServerDialog = actions.onShowAddMcpServerDialog,
-                                    onAddPopularMcpServer = actions.onAddPopularMcpServer,
-                                    skills = filteredUiState.skills,
-                                    onUninstallSkill = actions.onUninstallSkill,
-                                    showAddSkillDialog = filteredUiState.showAddSkillDialog,
-                                    onShowAddSkillDialog = actions.onShowAddSkillDialog,
-                                    onInstallGitHubSkill = actions.onInstallGitHubSkill,
-                                    onInstallBrowsedSkill = actions.onInstallBrowsedSkill,
-                                    isInstallingSkill = filteredUiState.isInstallingSkill,
-                                    skillInstallError = filteredUiState.skillInstallError,
-                                    browsableSkills = filteredUiState.browsableSkills,
-                                    isBrowsingSkills = filteredUiState.isBrowsingSkills,
-                                    browseSkillsFailed = filteredUiState.browseSkillsFailed,
-                                    showSkills = sandboxState.showSandbox,
-                                    isSandboxInstalled = sandboxState.sandboxInstalled,
-                                    onNavigateToSandbox = { actions.onSelectTab(SettingsTab.Sandbox) },
-                                )
-
-                                // The «Локальная модель» block — collapsed by default, at the
-                                // very bottom of the Tools tab. Pure slot parameters, so it
-                                // composes without a Koin container (screenshot tests).
-                                Spacer(Modifier.height(24.dp))
-                                LocalModelCollapsibleSection(
-                                    tools = filteredUiState.tools,
-                                    mcpServers = filteredUiState.mcpServers,
-                                    selection = filteredUiState.localToolSelection,
-                                    isConfigured = filteredUiState.isLocalToolSelectionConfigured,
-                                    onToggleTool = actions.onToggleLocalTool,
-                                    onToggleMcpServer = actions.onToggleLocalMcpServer,
-                                    onReset = actions.onResetLocalToolSelection,
-                                )
-                            }
-
-                            SettingsTab.Vault -> {
-                                VaultPlaceholderContent()
-                            }
-
-                            SettingsTab.Sandbox -> {
-                                SandboxSettingsCard(
-                                    sandboxState = sandboxState,
-                                    onToggleSandbox = onToggleSandbox,
-                                    onSelectDistro = onSelectDistro,
-                                    onSetupSandbox = onSetupSandbox,
-                                    onCancelSandbox = onCancelSandbox,
-                                    onResetSandbox = onResetSandbox,
-                                    onInstallPackages = onInstallPackages,
-                                    onMigrateHome = onMigrateHome,
-                                    onOpenPotsBuild = onOpenPotsBuild,
-                                )
-                            }
-
-                            SettingsTab.Potsiki -> {
-                                PotsikiContent(uiState = filteredUiState, actions = actions)
-                            }
-
-                            SettingsTab.Companion -> {
-                                CompanionContent()
-                            }
+                            Spacer(Modifier.height(16.dp))
                         }
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.weight(1f))
+
+                        BottomInfo()
                     }
-
-                    Spacer(Modifier.weight(1f))
-
-                    BottomInfo()
+                    VerticalScrollbarForScroll(
+                        scrollState = settingsScrollState,
+                        modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                    )
                 }
-                VerticalScrollbarForScroll(
-                    scrollState = settingsScrollState,
-                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
-                )
             }
         }
         SnackbarHost(
@@ -693,18 +709,4 @@ internal fun ToggleableHeadline(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-}
-
-@Composable
-private fun VaultPlaceholderContent() {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-        horizontalAlignment = CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(Res.string.settings_vault_placeholder),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
 }

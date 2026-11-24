@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.CardColors
@@ -121,6 +122,7 @@ fun PotsOutlinedTextField(
     placeholder: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     singleLine: Boolean = false,
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
@@ -135,6 +137,7 @@ fun PotsOutlinedTextField(
         placeholder = placeholder,
         trailingIcon = trailingIcon,
         visualTransformation = visualTransformation,
+        keyboardOptions = keyboardOptions,
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,

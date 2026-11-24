@@ -23,6 +23,7 @@ import com.pusios.pots.ui.chat.OnboardingPhase
 import com.pusios.pots.ui.chat.OnboardingState
 import com.pusios.pots.ui.dynamicui.LocalPreviewImages
 import com.pusios.pots.ui.settings.SettingsScreenContent
+import com.pusios.pots.ui.vault.VaultUnlockScreen
 import nl.marc_apps.tts.experimental.ExperimentalVoiceApi
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.setResourceReaderAndroidContext
@@ -154,6 +155,9 @@ class ScreenshotTest {
             SettingsScreenContent(
                 uiState = ScreenshotTestData.settingsVault,
                 sandboxState = ScreenshotTestData.sandboxState,
+                // The real lock screen: the slot composes without a session or
+                // a Koin container, which paparazzi does not provide.
+                vaultContent = { VaultUnlockScreen(error = null, onUnlock = {}) },
             )
         }
     }
