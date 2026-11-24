@@ -7,6 +7,8 @@ package com.pusios.pots.tools
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.MemoryStore
 import com.pusios.pots.data.TaskStore
+import com.pusios.pots.data.vault.JvmVaultCryptoEngine
+import com.pusios.pots.data.vault.JvmVaultFileAccess
 import com.pusios.pots.data.vault.VaultFormBridge
 import com.pusios.pots.data.vault.VaultGate
 import com.pusios.pots.data.vault.VaultRevealBridge
