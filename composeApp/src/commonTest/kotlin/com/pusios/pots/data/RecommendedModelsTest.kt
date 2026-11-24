@@ -84,6 +84,16 @@ class RecommendedModelsTest {
         assertNull(Service.LiteRT.priceTileUnit)
     }
 
+    @Test
+    fun `the price tile caption falls back to plain M when there is no mapping`() {
+        // The vendor-agnostic provider screen renders the sheet with service == null; the
+        // caption must degrade to the plain "M" instead of the tile losing its unit.
+        assertEquals("M", priceTileCaption(null))
+        assertEquals("M", priceTileCaption(Service.LiteRT))
+        assertEquals("₽/1M", priceTileCaption(Service.Polza))
+        assertEquals("₽/1K", priceTileCaption(Service.Gptunnel))
+    }
+
     // --- selectRecommended ---
 
     @Test

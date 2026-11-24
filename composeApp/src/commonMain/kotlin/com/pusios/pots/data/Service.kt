@@ -286,3 +286,10 @@ val Service.priceTileUnit: String?
         Service.LlmRouter -> "$/1M"
         else -> null
     }
+
+/**
+ * The price-tile caption for the model sheet: the provider caption from [priceTileUnit], or
+ * the plain "M" fallback when there is no mapping — a sheet rendered without a [Service]
+ * (the vendor-agnostic provider screen) or a service with unknown price currency.
+ */
+fun priceTileCaption(service: Service?): String = service?.priceTileUnit ?: "M"

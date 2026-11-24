@@ -67,7 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.RecommendedModels
 import com.pusios.pots.data.Service
-import com.pusios.pots.data.priceTileUnit
+import com.pusios.pots.data.priceTileCaption
 import com.pusios.pots.formatContextWindow
 import com.pusios.pots.formatReleaseDate
 import com.pusios.pots.ui.PotsOutlinedTextField
@@ -293,7 +293,7 @@ internal fun ModelSelection(
                                 } else {
                                     ModelCard(
                                         model = model,
-                                        priceUnit = service?.priceTileUnit,
+                                        priceUnit = priceTileCaption(service),
                                         isSelected = currentSelectedModel?.id == model.id,
                                         onClick = select,
                                     )
