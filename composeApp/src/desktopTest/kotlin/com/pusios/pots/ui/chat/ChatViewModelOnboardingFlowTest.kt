@@ -2,6 +2,7 @@ package com.pusios.pots.ui.chat
 
 import com.pusios.pots.data.ProviderBalance
 import com.pusios.pots.data.Service
+import com.pusios.pots.data.TaskScheduler
 import com.pusios.pots.network.ProviderBalanceClient
 import com.pusios.pots.testutil.FakeDataRepository
 import com.pusios.pots.ui.settings.SettingsModel
