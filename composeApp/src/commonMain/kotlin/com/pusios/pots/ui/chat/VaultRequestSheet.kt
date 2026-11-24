@@ -46,8 +46,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.vault.VaultFieldInput
-import com.pusios.pots.data.vault.VaultFormFieldSpec
 import com.pusios.pots.data.vault.VaultFormBridge
+import com.pusios.pots.data.vault.VaultFormFieldSpec
 import com.pusios.pots.data.vault.VaultFormOutcome
 import com.pusios.pots.data.vault.VaultFormRequest
 import com.pusios.pots.data.vault.VaultSession
@@ -130,12 +130,18 @@ fun VaultRequestSheetHost(
                             noVault = false
                             unlockError = null
                         }
+
                         VaultUnlockResult.NotCreated -> noVault = true
+
                         VaultUnlockResult.WrongPassword -> unlockError = VaultUnlockError.WRONG_PASSWORD
+
                         VaultUnlockResult.Tampered -> unlockError = VaultUnlockError.TAMPERED
+
                         VaultUnlockResult.Corrupted -> unlockError = VaultUnlockError.CORRUPTED
+
                         is VaultUnlockResult.UnsupportedVersion ->
                             unlockError = VaultUnlockError.UNSUPPORTED_VERSION
+
                         VaultUnlockResult.NotSupported -> unlockError = null
                     }
                 }
