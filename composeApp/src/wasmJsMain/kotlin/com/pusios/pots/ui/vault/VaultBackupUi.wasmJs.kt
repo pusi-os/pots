@@ -13,7 +13,7 @@ actual fun VaultExportPickButton(
     enabled: Boolean,
     fileName: String,
     produceBytes: suspend () -> ByteArray,
-    onDone: (Boolean) -> Unit,
+    onDone: (VaultExportOutcome) -> Unit,
 ) {
     TextButton(onClick = {}, enabled = false) {
         Text(label)

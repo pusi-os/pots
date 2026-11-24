@@ -115,12 +115,16 @@ internal fun VaultBackupExportDialog(
                     // catch the failure and report it through [onDone].
                     model.exportVault(password) ?: error("vault session locked")
                 },
-                onDone = { written ->
-                    if (written) {
-                        onNotice(exportedMessage)
-                        onDismiss()
-                    } else {
-                        onNotice(failedMessage)
+                onDone = { outcome ->
+                    when (outcome) {
+                        VaultExportOutcome.WRITTEN -> {
+                            onNotice(exportedMessage)
+                            onDismiss()
+                        }
+
+                        VaultExportOutcome.CANCELLED -> Unit
+
+                        VaultExportOutcome.FAILED -> onNotice(failedMessage)
                     }
                 },
             )

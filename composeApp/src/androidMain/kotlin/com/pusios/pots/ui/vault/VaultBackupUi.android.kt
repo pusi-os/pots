@@ -1,6 +1,6 @@
 // Vault export/import file pickers on Android: SAF CreateDocument /
 // OpenDocument. Bytes are produced and written on IO after the system sheet
-// closes; cancelled picks report false / null like the desktop flow.
+// closes; a cancelled pick reports CANCELLED / null, not a write failure.
 
 package com.pusios.pots.ui.vault
 
@@ -25,7 +25,7 @@ actual fun VaultExportPickButton(
     enabled: Boolean,
     fileName: String,
     produceBytes: suspend () -> ByteArray,
-    onDone: (Boolean) -> Unit,
+    onDone: (VaultExportOutcome) -> Unit,
 ) {
     if (LocalInspectionMode.current) {
         TextButton(onClick = {}, enabled = false) { Text(label) }
@@ -37,7 +37,7 @@ actual fun VaultExportPickButton(
         contract = ActivityResultContracts.CreateDocument(EXPORT_MIME),
     ) { uri ->
         if (uri == null) {
-            onDone(false)
+            onDone(VaultExportOutcome.CANCELLED)
             return@rememberLauncherForActivityResult
         }
         scope.launch(Dispatchers.IO) {
@@ -49,7 +49,13 @@ actual fun VaultExportPickButton(
                     context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } != null
                 }.getOrDefault(false)
             }
-            onDone(written)
+            onDone(
+                if (written) {
+                    VaultExportOutcome.WRITTEN
+                } else {
+                    VaultExportOutcome.FAILED
+                },
+            )
         }
     }
     TextButton(onClick = { launcher.launch(fileName) }, enabled = enabled) {

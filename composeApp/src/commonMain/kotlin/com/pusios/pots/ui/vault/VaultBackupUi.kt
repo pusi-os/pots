@@ -22,10 +22,24 @@ interface VaultImportSource {
 }
 
 /**
+ * How the export file step ended.
+ */
+enum class VaultExportOutcome {
+    /** The file was written to the picked destination. */
+    WRITTEN,
+
+    /** The user cancelled the file picker; the dialog stays open. */
+    CANCELLED,
+
+    /** The pick succeeded but writing (or producing) the bytes failed. */
+    FAILED,
+}
+
+/**
  * The file-saving step of the export dialog. [produceBytes] is invoked only
- * after the user picked a destination; [onDone] reports whether the file was
- * written (false also on a cancelled or failed write). [enabled] mirrors the
- * dialog's form validation.
+ * after the user picked a destination; [onDone] reports the outcome — picking
+ * nothing is a [VaultExportOutcome.CANCELLED], not a write failure.
+ * [enabled] mirrors the dialog's form validation.
  */
 @Composable
 expect fun VaultExportPickButton(
@@ -33,7 +47,7 @@ expect fun VaultExportPickButton(
     enabled: Boolean,
     fileName: String,
     produceBytes: suspend () -> ByteArray,
-    onDone: (Boolean) -> Unit,
+    onDone: (VaultExportOutcome) -> Unit,
 )
 
 /**

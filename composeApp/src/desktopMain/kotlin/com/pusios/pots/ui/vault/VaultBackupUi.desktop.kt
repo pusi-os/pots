@@ -1,5 +1,9 @@
 // Vault export/import file pickers on desktop: Swing save/open dialogs.
-// The heavy sealing (PBKDF2) runs in a coroutine after the dialog closes.
+// onClick runs on the AWT EDT (Compose Desktop dispatches composition through
+// the Swing event queue), so the chooser is opened from an IO coroutine — a
+// nested `invokeAndWait` issued from the EDT itself throws
+// "Cannot call invokeAndWait from the event dispatcher thread". The heavy
+// sealing (PBKDF2) runs in the same coroutine after the dialog closes.
 
 package com.pusios.pots.ui.vault
 
@@ -20,33 +24,41 @@ actual fun VaultExportPickButton(
     enabled: Boolean,
     fileName: String,
     produceBytes: suspend () -> ByteArray,
-    onDone: (Boolean) -> Unit,
+    onDone: (VaultExportOutcome) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     TextButton(
         onClick = {
-            var picked: File? = null
-            SwingUtilities.invokeAndWait {
-                val chooser = JFileChooser().apply {
-                    dialogTitle = "Export vault"
-                    selectedFile = File(fileName)
-                    isAcceptAllFileFilterUsed = false
+            scope.launch(Dispatchers.IO) {
+                var picked: File? = null
+                runCatching {
+                    SwingUtilities.invokeAndWait {
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Export vault"
+                            selectedFile = File(fileName)
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            picked = chooser.selectedFile
+                        }
+                    }
                 }
-                if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
-                    picked = chooser.selectedFile
-                }
-            }
-            val file = picked
-            if (file == null) {
-                onDone(false)
-            } else {
-                scope.launch(Dispatchers.IO) {
+                val file = picked
+                if (file == null) {
+                    onDone(VaultExportOutcome.CANCELLED)
+                } else {
                     val bytes = runCatching { produceBytes() }.getOrNull()
                     val written = bytes != null && runCatching {
                         file.writeBytes(bytes)
                         true
                     }.getOrDefault(false)
-                    onDone(written)
+                    onDone(
+                        if (written) {
+                            VaultExportOutcome.WRITTEN
+                        } else {
+                            VaultExportOutcome.FAILED
+                        },
+                    )
                 }
             }
         },
@@ -62,28 +74,33 @@ actual fun VaultImportPickButton(
     enabled: Boolean,
     onLoaded: (VaultImportSource?) -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
     TextButton(
         onClick = {
-            var picked: File? = null
-            SwingUtilities.invokeAndWait {
-                val chooser = JFileChooser().apply {
-                    dialogTitle = "Import vault"
-                    fileFilter = FileNameExtensionFilter("Pots vault (*.pvault)", "pvault")
-                    isAcceptAllFileFilterUsed = true
-                }
-                if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
-                    picked = chooser.selectedFile
-                }
-            }
-            onLoaded(
-                picked?.let { path ->
-                    object : VaultImportSource {
-                        override fun read(): ByteArray? = runCatching {
-                            path.takeIf(File::isFile)?.readBytes()
-                        }.getOrNull()
+            scope.launch(Dispatchers.IO) {
+                var picked: File? = null
+                runCatching {
+                    SwingUtilities.invokeAndWait {
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Import vault"
+                            fileFilter = FileNameExtensionFilter("Pots vault (*.pvault)", "pvault")
+                            isAcceptAllFileFilterUsed = true
+                        }
+                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            picked = chooser.selectedFile
+                        }
                     }
-                },
-            )
+                }
+                onLoaded(
+                    picked?.let { path ->
+                        object : VaultImportSource {
+                            override fun read(): ByteArray? = runCatching {
+                                path.takeIf(File::isFile)?.readBytes()
+                            }.getOrNull()
+                        }
+                    },
+                )
+            }
         },
         enabled = enabled,
     ) {
