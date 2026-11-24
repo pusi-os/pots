@@ -8,6 +8,7 @@
 package com.pusios.pots.ui.chat
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
@@ -17,6 +18,7 @@ import com.pusios.pots.data.vault.VaultFieldInput
 import com.pusios.pots.data.vault.VaultFormFieldSpec
 import com.pusios.pots.data.vault.VaultFormRequest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
@@ -40,25 +42,46 @@ class VaultRequestSheetTest {
             .fetchSemanticsNodes()
             .map { it.config[SemanticsProperties.EditableText].text }
 
+        // The sheet is fully controlled: the HOST owns the values (the same
+        // shape as VaultRequestSheetHost's remember(form.id) map). Pass a test
+        // -side map so typed input actually lands; the default no-op
+        // onValueChange would reject every keystroke by design.
+        val values = mutableStateMapOf<String, String>()
         setContent {
             MaterialTheme {
-                VaultRequestSheetContent(form = form(), stage = VaultSheetStage.Form())
+                VaultRequestSheetContent(
+                    form = form(),
+                    stage = VaultSheetStage.Form(),
+                    values = values,
+                    onValueChange = { key, v -> values[key] = v },
+                )
             }
         }
         onAllNodes(hasSetTextAction())[0].performTextInput("alice")
         onAllNodes(hasSetTextAction())[1].performTextInput("s3cret-42")
         // The values are in composable state — and only there.
         assertTrue(typedEditableTexts().any { "s3cret-42" in it })
+        assertEquals("s3cret-42", values["password"])
 
-        // Simulated activity recreation: a fresh composition. rememberSaveable
-        // would restore the values here; plain remember must not.
+        // Simulated activity recreation: a fresh composition AND a fresh host
+        // map — exactly what a recreated activity produces, because the host
+        // holds the values in plain `remember`, never `rememberSaveable`. The
+        // sheet must render the host's (empty) values and hold no internal
+        // copy of its own.
+        val recreated = mutableStateMapOf<String, String>()
         setContent {
             MaterialTheme {
-                VaultRequestSheetContent(form = form(), stage = VaultSheetStage.Form())
+                VaultRequestSheetContent(
+                    form = form(),
+                    stage = VaultSheetStage.Form(),
+                    values = recreated,
+                    onValueChange = { key, v -> recreated[key] = v },
+                )
             }
         }
         val restored = typedEditableTexts()
         assertTrue(restored.isNotEmpty())
         assertTrue(restored.all { it.isEmpty() }, "values leaked into saved state: $restored")
+        assertTrue(recreated.isEmpty(), "recreated host state must start empty")
     }
 }

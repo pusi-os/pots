@@ -631,8 +631,10 @@ class VaultToolsTest {
         for ((name, response) in lockedResponses) {
             assertEquals("vault_locked", (response as Map<*, *>)["error"], "$name must report the lock")
         }
-        // The request form is not a locked-vault error: the sheet offers an unlock step
-        // first, so it stays cancellable.
+        // The request form still opens when locked (the sheet offers an unlock
+        // step first), but delta §6.1: cancelling the unlock step answers
+        // `vault_locked` — the agent can retry after the user unlocks — not a
+        // plain refusal.
         val formResult = CompletableDeferred<Any>()
         launch {
             formResult.complete(
@@ -647,7 +649,8 @@ class VaultToolsTest {
         }
         delay(100)
         deps.formBridge.cancel(deps.formBridge.pending.value!!.id)
-        assertEquals(true, (formResult.await() as Map<*, *>)["cancelled"])
+        val formResponse = formResult.await() as Map<*, *>
+        assertEquals("vault_locked", formResponse["error"], "cancelling the unlock step reports the lock")
     }
 
     // --- headless runs -------------------------------------------------------------
