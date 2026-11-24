@@ -807,13 +807,15 @@ class ChatViewModel(
         }
         _state.update { it.copy(onboarding = it.onboarding.copy(isChecking = true, error = null)) }
         viewModelScope.launch(backgroundDispatcher) {
+            // Reuse an instance of the same service so a re-run of the wizard never
+            // stacks a duplicate. Resolved before the try so the success branch can
+            // still load the catalog and balance for this exact instance.
+            val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.serviceId == service.id }
+                ?: dataRepository.addConfiguredService(service.id)
             val errorRes = try {
-                // Reuse an instance of the same service so a re-run of the wizard never
-                // stacks a duplicate, and clear the cached models — they belong to the
-                // previous key (parity with Settings → Services' onChangeApiKey).
-                val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.serviceId == service.id }
-                    ?: dataRepository.addConfiguredService(service.id)
                 dataRepository.updateInstanceApiKey(instance.instanceId, apiKey.trim())
+                // Clear the cached models — they belong to the previous key
+                // (parity with Settings → Services' onChangeApiKey).
                 dataRepository.clearInstanceModels(instance.instanceId, service)
                 // The mockup's 12 s ceiling: no eternal spinner, a slow answer is a network error.
                 withTimeout(12_000) { dataRepository.validateConnection(service, instance.instanceId) }
