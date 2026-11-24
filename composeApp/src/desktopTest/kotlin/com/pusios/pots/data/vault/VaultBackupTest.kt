@@ -56,10 +56,10 @@ class VaultBackupTest {
         target.upsert(VaultTemplates.draft("note", name = "Old")!!)
 
         val result = target.importVault(exportBytes, "export-pass", VaultImportMode.REPLACE)
-        assertEquals(VaultImportResult.Success(3), result)
+        assertEquals(VaultImportResult.Success(2), result)
 
         val document = assertNotNull(target.document())
-        assertEquals(3, document.items.size)
+        assertEquals(2, document.items.size)
         val restored = document.items.first { it.id == login.id }
         assertEquals("GitHub", restored.name)
         assertEquals("https://github.com", restored.url)
@@ -154,7 +154,18 @@ class VaultBackupTest {
 
         val target = newSession(tempDir())
         target.createVault("target-pass")
-        val existing = target.upsert(VaultTemplates.draft("login", name = "GitHub")!!, values = mapOf("password" to "old-pass"))
+        // Same id as the imported card: merge must let the import win.
+        target.upsert(
+            VaultItem(
+                id = "gh",
+                type = VaultItemKind.LOGIN.id,
+                name = "GitHub",
+                username = "bob",
+                fields = listOf(
+                    VaultField(key = "password", label = "Password", type = VaultFieldKind.SECRET.id, value = "old-pass"),
+                ),
+            ),
+        )
         target.upsert(VaultTemplates.draft("card", name = "Bank")!!)
 
         val result = target.importVault(bytes, "export-pass", VaultImportMode.MERGE)
@@ -167,9 +178,9 @@ class VaultBackupTest {
         assertEquals("gh", github.id)
         assertEquals("alice", github.username)
         assertEquals("new-pass", github.fields.first { it.key == "password" }.value)
-        // Unrelated current cards survive the merge.
+        // Unrelated current cards survive the merge; the replaced card is gone.
         assertTrue(document.items.any { it.name == "Bank" })
-        assertTrue(document.items.none { it.id == existing.id && it.name == "GitHub" })
+        assertTrue(document.items.none { it.id == "gh" && it.username == "bob" })
     }
 
     @Test
