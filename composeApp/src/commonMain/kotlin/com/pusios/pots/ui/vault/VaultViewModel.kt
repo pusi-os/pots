@@ -122,12 +122,14 @@ class VaultViewModel(
         val key = bio.promptForVaultKey(host, promptTitle) ?: return
         when (session.unlockWithKey(key)) {
             VaultUnlockResult.Success -> _state.value = unlockedState("")
+
             // The wrap blob is stale (vault recreated, device key invalidated):
             // quick unlock is dead until the master password re-enables it.
             VaultUnlockResult.Tampered, VaultUnlockResult.NotCreated -> {
                 bio.disable()
                 _state.value = locked(null)
             }
+
             else -> _state.value = locked(null)
         }
     }
@@ -160,8 +162,7 @@ class VaultViewModel(
         refreshUnlocked()
     }
 
-    private fun locked(error: VaultUnlockError?): VaultUiState =
-        VaultUiState.Locked(error, biometric?.isEnabled == true)
+    private fun locked(error: VaultUnlockError?): VaultUiState = VaultUiState.Locked(error, biometric?.isEnabled == true)
 
     private fun refreshUnlocked() {
         val current = _state.value

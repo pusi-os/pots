@@ -137,8 +137,7 @@ fun VaultManagerScreen(
 }
 
 /** Optional DI lookup: null outside the app shell (tests, previews, no Koin). */
-private fun vaultBiometricOrNull(): VaultBiometricUnlock? =
-    runCatching { KoinPlatformTools.defaultContext().get().get<VaultBiometricUnlock>() }.getOrNull()
+private fun vaultBiometricOrNull(): VaultBiometricUnlock? = runCatching { KoinPlatformTools.defaultContext().get().get<VaultBiometricUnlock>() }.getOrNull()
 
 private sealed interface VaultRoute {
     data object List : VaultRoute

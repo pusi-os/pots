@@ -39,8 +39,7 @@ private class FakeVaultBiometric : VaultBiometricUnlock {
         return true
     }
 
-    override suspend fun promptForVaultKey(host: VaultBiometricHost?, promptTitle: String): ByteArray? =
-        if (promptReturnsKey) blob else null
+    override suspend fun promptForVaultKey(host: VaultBiometricHost?, promptTitle: String): ByteArray? = if (promptReturnsKey) blob else null
 
     override fun disable() {
         disableCalls += 1
