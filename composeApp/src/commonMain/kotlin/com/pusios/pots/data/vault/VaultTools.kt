@@ -94,10 +94,12 @@ object VaultTools {
 
     /**
      * Display definitions for Settings and chat. The master switch is the set's single
-     * user toggle: flipping it in the Tools tab writes the per-profile
-     * `tool_enabled_vault_tools` override ([AppSettings.setToolEnabled]) and the vault
-     * tab exposes no separate switch, so both surfaces read one state. The individual
-     * tools are not per-tool toggleable — they are declared for chat to resolve names.
+     * user toggle: flipping it in the Tools tab writes the per-profile override
+     * `toolOverrides[MASTER_ID]` through [AppSettings.setToolEnabled] (persisted as the
+     * profile's `tool_overrides` map; the legacy flat key `tool_enabled_vault_tools` only
+     * migrates into it when profiles load). The vault tab exposes no separate switch, so
+     * both surfaces read one state. The individual tools are not per-tool toggleable —
+     * they are declared for chat to resolve names.
      */
     val toolDefinitions: List<ToolInfo> = listOf(
         ToolInfo(

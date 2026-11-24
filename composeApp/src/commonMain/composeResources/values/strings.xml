@@ -642,6 +642,8 @@
     <string name="tool_vector_search_description">Semantic search over indexed photos and documents</string>
     <string name="tool_ssh_configure_host_name">Configure SSH Host</string>
     <string name="tool_ssh_configure_host_description">Register a named SSH host for the Linux sandbox</string>
+    <string name="tool_manage_process_name">Manage Process</string>
+    <string name="tool_manage_process_description">Manage background shell processes started with execute_shell_command</string>
     <string name="tool_vault_name">Password vault</string>
     <string name="tool_vault_description">Stores passwords and form data in an encrypted vault; secrets never reach the chat or the provider: they are substituted into requests and forms at transport level</string>
     <string name="tool_vault_list_name">Vault: list</string>
