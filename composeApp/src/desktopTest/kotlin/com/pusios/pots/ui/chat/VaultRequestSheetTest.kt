@@ -2,8 +2,12 @@
 // criterion — entered values live in plain `remember`, so composition
 // recreation drops them; nothing is wired into rememberSaveable, so a
 // recreated composition cannot contain any marker of the typed secret.
-// The sheet body composes here without a bridge; the host itself wraps a
-// ModalBottomSheet (an AWT dialog on desktop), which cannot run headless.
+// Empirical note (verified on the compose 1.12.x desktop test): EditableText
+// behind the password mask carries the TRANSFORMED text, not the raw value —
+// so the field semantics must never expose the raw secret, and the raw value
+// is asserted in the host-owned state map only. The sheet body composes here
+// without a bridge; the host itself wraps a ModalBottomSheet (an AWT dialog
+// on desktop), which cannot run headless.
 
 package com.pusios.pots.ui.chat
 
@@ -36,8 +40,9 @@ class VaultRequestSheetTest {
 
     @Test
     fun `typed values are not in saved state and vanish on composition recreation`() = runComposeUiTest {
-        // EditableText carries the raw value even behind the password mask, so
-        // the field semantics are the only place the secret can be detected.
+        // EditableText of the masked field is the transformed text (verified
+        // locally on compose 1.12.x), so these strings must never contain the
+        // raw secret.
         fun typedEditableTexts(): List<String> = onAllNodes(hasSetTextAction())
             .fetchSemanticsNodes()
             .map { it.config[SemanticsProperties.EditableText].text }
@@ -59,9 +64,17 @@ class VaultRequestSheetTest {
         }
         onAllNodes(hasSetTextAction())[0].performTextInput("alice")
         onAllNodes(hasSetTextAction())[1].performTextInput("s3cret-42")
-        // The values are in composable state — and only there.
-        assertTrue(typedEditableTexts().any { "s3cret-42" in it })
+        // The raw value lives in the host-owned composable state — and only
+        // there: the password mask turns the field semantics (EditableText)
+        // into the transformed text, so nothing readable of the secret can be
+        // scraped off the UI tree.
         assertEquals("s3cret-42", values["password"])
+        val exposed = typedEditableTexts()
+        assertTrue(exposed.isNotEmpty())
+        assertTrue(
+            exposed.none { "s3cret-42" in it },
+            "secret leaked into field semantics: $exposed",
+        )
 
         // Simulated activity recreation: a fresh composition AND a fresh host
         // map — exactly what a recreated activity produces, because the host
