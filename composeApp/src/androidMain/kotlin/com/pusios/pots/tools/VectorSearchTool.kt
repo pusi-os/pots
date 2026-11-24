@@ -7,6 +7,9 @@ import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.network.tools.ToolSchema
 import org.koin.java.KoinJavaComponent
+import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.tool_vector_search_description
+import pots.composeapp.generated.resources.tool_vector_search_name
 
 object VectorSearchTool {
 
@@ -16,6 +19,8 @@ object VectorSearchTool {
         id = ID,
         name = "Vector Search Storage",
         description = "Semantic search over indexed photos and documents",
+        nameRes = Res.string.tool_vector_search_name,
+        descriptionRes = Res.string.tool_vector_search_description,
     )
 
     fun create(context: Context): Tool {
