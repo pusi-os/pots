@@ -101,7 +101,6 @@ import pots.composeapp.generated.resources.settings_tab_sandbox
 import pots.composeapp.generated.resources.settings_tab_services
 import pots.composeapp.generated.resources.settings_tab_tools
 import pots.composeapp.generated.resources.settings_tab_vault
-import pots.composeapp.generated.resources.settings_vault_placeholder
 import pots.composeapp.generated.resources.settings_version
 import pots.composeapp.generated.resources.snackbar_email_removed
 import pots.composeapp.generated.resources.snackbar_mcp_server_removed
@@ -280,7 +279,7 @@ fun SettingsScreenContent(
                     Column(
                         Modifier.widthIn(max = 900.dp).fillMaxWidth().padding(horizontal = 16.dp),
                     ) {
-                        vaultContent?.invoke() ?: VaultPlaceholderContent()
+                        vaultContent?.invoke()
                     }
                 } else {
                     Column(
@@ -710,18 +709,4 @@ internal fun ToggleableHeadline(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-}
-
-@Composable
-private fun VaultPlaceholderContent() {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-        horizontalAlignment = CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(Res.string.settings_vault_placeholder),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
 }

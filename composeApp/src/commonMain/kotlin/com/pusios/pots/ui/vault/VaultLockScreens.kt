@@ -106,9 +106,11 @@ internal fun VaultSetupScreen(
     }
 }
 
-/** Unlock screen; [error] names why the previous attempt failed. */
+/** Unlock screen; [error] names why the previous attempt failed. Public so
+ * paparazzi can compose the real vault tab without a session or a Koin
+ * container. */
 @Composable
-internal fun VaultUnlockScreen(
+public fun VaultUnlockScreen(
     error: VaultUnlockError?,
     onUnlock: (String) -> Unit,
     modifier: Modifier = Modifier,

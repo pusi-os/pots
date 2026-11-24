@@ -2,9 +2,12 @@
 // agent's `vault_request_form` tool. The tool publishes a form description via
 // [VaultFormBridge.pending]; the sheet renders it from the typed model, takes
 // the user's values and hands them to [VaultFormBridge.submit] — the only path
-// values ever travel. Values live in plain `remember` — never
-// `rememberSaveable` — so nothing lands in saved instance state, and no value
-// becomes a chat message: after save the sheet itself shows the confirmation.
+// values ever travel. Values live in a `remember`ed map hoisted into the host
+// — never `rememberSaveable` — so nothing lands in saved instance state, and
+// no value becomes a chat message: after save the sheet itself shows the
+// confirmation. If the session auto-locks under a filled form, the submit is
+// held back and the unlock step shows instead; after unlocking the user gets
+// the same form with the same values (delta §6.1).
 
 @file:OptIn(ExperimentalMaterial3Api::class)
 
@@ -107,6 +110,12 @@ fun VaultRequestSheetHost(
     val scope = rememberCoroutineScope()
     val locked by session.locked.collectAsState()
 
+    // The entered values live HERE, one level above the form stage: after a
+    // successful unlock the stage returns to the form and the user gets the
+    // same values back instead of an empty sheet (delta §6.1). Plain
+    // remember — never rememberSaveable — so nothing reaches saved state.
+    val values = remember(form.id) { mutableStateMapOf<String, String>() }
+
     var savedName by remember(form.id) { mutableStateOf<String?>(null) }
     var submitError by remember(form.id) { mutableStateOf<String?>(null) }
     var unlockError by remember(form.id) { mutableStateOf<VaultUnlockError?>(null) }
@@ -123,6 +132,8 @@ fun VaultRequestSheetHost(
         VaultRequestSheetContent(
             form = form,
             stage = stage,
+            values = values,
+            onValueChange = { key, value -> values[key] = value },
             onUnlock = { password ->
                 scope.launch {
                     when (session.unlock(password)) {
@@ -146,13 +157,28 @@ fun VaultRequestSheetHost(
                     }
                 }
             },
-            onSubmit = { values ->
-                scope.launch {
-                    when (val outcome = bridge.submit(form.id, conversationId, values)) {
-                        is VaultFormOutcome.Saved -> savedName = outcome.itemName
-                        VaultFormOutcome.Locked -> { /* the locked flow picks the stage up */ }
-                        is VaultFormOutcome.Failed -> submitError = outcome.reason
-                        VaultFormOutcome.Cancelled -> bridge.cancel(form.id)
+            onSubmit = { submitted ->
+                // The session auto-locked under the filled form: submitting now
+                // would bounce with Locked and drop everything — the bridge
+                // clears `pending` before the write, so the sheet would close
+                // with no unlock step and no values. Hold the submit instead;
+                // the stage below flips to Unlock and the values stay here.
+                if (session.locked.value) {
+                    submitError = null
+                } else {
+                    scope.launch {
+                        when (val outcome = bridge.submit(form.id, conversationId, submitted)) {
+                            is VaultFormOutcome.Saved -> savedName = outcome.itemName
+                            VaultFormOutcome.Locked -> {
+                                // Auto-lock raced the submit: pending is already
+                                // null, the sheet closes and the tool hears
+                                // vault_locked. Recovering the input needs a
+                                // re-openable form on the bridge — out of scope here.
+                            }
+
+                            is VaultFormOutcome.Failed -> submitError = outcome.reason
+                            VaultFormOutcome.Cancelled -> bridge.cancel(form.id)
+                        }
                     }
                 }
             },
@@ -161,13 +187,16 @@ fun VaultRequestSheetHost(
     }
 }
 
-/** Dumb sheet body: renders one [VaultSheetStage] of the given form. Public so
- * screenshot tests (another module) can compose the stages without a bridge. */
+/** Dumb sheet body: renders one [VaultSheetStage] of the given form. The values
+ * are controlled — owned by the caller ([VaultRequestSheetHost]) so they survive
+ * the unlock step. Public so screenshot tests (another module) can compose the
+ * stages without a bridge. */
 @Composable
 public fun VaultRequestSheetContent(
     form: VaultFormRequest,
     stage: VaultSheetStage,
-    initialValues: Map<String, String> = emptyMap(),
+    values: Map<String, String> = emptyMap(),
+    onValueChange: (key: String, value: String) -> Unit = { _, _ -> },
     onUnlock: (String) -> Unit = {},
     onSubmit: (Map<String, String>) -> Unit = {},
     onCancel: () -> Unit = {},
@@ -190,7 +219,8 @@ public fun VaultRequestSheetContent(
             is VaultSheetStage.Form -> VaultSheetFormStage(
                 form = form,
                 error = stage.error,
-                initialValues = initialValues,
+                values = values,
+                onValueChange = onValueChange,
                 onSubmit = onSubmit,
                 onCancel = onCancel,
             )
@@ -216,14 +246,12 @@ public fun VaultRequestSheetContent(
 private fun VaultSheetFormStage(
     form: VaultFormRequest,
     error: String?,
-    initialValues: Map<String, String>,
+    values: Map<String, String>,
+    onValueChange: (key: String, value: String) -> Unit,
     onSubmit: (Map<String, String>) -> Unit,
     onCancel: () -> Unit,
 ) {
     val generateLabel = stringResource(Res.string.vault_form_generate)
-    // Plain remember — the values must not survive process death via
-    // rememberSaveable, and they never leave the sheet in any other way.
-    val values = remember(form.id) { mutableStateMapOf<String, String>().apply { putAll(initialValues) } }
     val requiredMissing = form.fields.any { it.required && values[it.key].isNullOrBlank() }
 
     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -237,10 +265,10 @@ private fun VaultSheetFormStage(
                 spec = spec,
                 value = values[spec.key].orEmpty(),
                 allowGenerate = form.allowGenerate,
-                onValueChange = { values[spec.key] = it },
+                onValueChange = { onValueChange(spec.key, it) },
                 onGenerate = {
                     createVaultCryptoEngine()?.let { engine ->
-                        values[spec.key] = engine.encodeBase64(engine.randomBytes(24))
+                        onValueChange(spec.key, engine.encodeBase64(engine.randomBytes(24)))
                     }
                 },
                 generateLabel = generateLabel,
@@ -290,7 +318,7 @@ private fun VaultSheetFieldRow(
             // keyboard; autofill semantics are deliberately not set — the
             // platform must not offer to save what is typed here.
             keyboardOptions = KeyboardOptions(
-                autoCorrect = false,
+                autoCorrectEnabled = false,
                 capitalization = KeyboardCapitalization.None,
                 keyboardType = when {
                     spec.input == VaultFieldInput.URL -> KeyboardType.Uri
@@ -361,7 +389,7 @@ private fun VaultSheetUnlockStage(
             label = { Text(stringResource(Res.string.vault_unlock_password)) },
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
-                autoCorrect = false,
+                autoCorrectEnabled = false,
                 capitalization = KeyboardCapitalization.None,
                 keyboardType = KeyboardType.Password,
             ),

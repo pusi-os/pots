@@ -97,7 +97,7 @@ class VaultSheetScreenshotTest {
             VaultRequestSheetContent(
                 form = form,
                 stage = VaultSheetStage.Form(),
-                initialValues = mapOf("username" to "alice", "password" to "s3cret-42"),
+                values = mapOf("username" to "alice", "password" to "s3cret-42"),
             )
         }
     }

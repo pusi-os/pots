@@ -54,10 +54,13 @@ import pots.composeapp.generated.resources.vault_editor_add_field
 import pots.composeapp.generated.resources.vault_editor_new_title
 import pots.composeapp.generated.resources.vault_error_wrong_password
 import pots.composeapp.generated.resources.vault_list_empty
+import pots.composeapp.generated.resources.vault_list_empty_hint
+import pots.composeapp.generated.resources.vault_lock_action
 import pots.composeapp.generated.resources.vault_password_mismatch
 import pots.composeapp.generated.resources.vault_setup_create
 import pots.composeapp.generated.resources.vault_toggle_show
 import pots.composeapp.generated.resources.vault_unlock_button
+import pots.composeapp.generated.resources.vault_unlock_title
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
@@ -323,5 +326,24 @@ class VaultManagerScreenTest {
             model.setQuery("github")
         }
         assertTrue(model.state.value is VaultUiState.Locked)
+    }
+
+    @Test
+    fun `lock button closes the session back to the unlock screen`() = runComposeUiTest {
+        val dir = tempDir()
+        seededVaultFile(dir, "master-1")
+        val session = newSession(dir)
+        runBlocking { session.unlock("master-1") }
+        val lock = runBlocking { getString(Res.string.vault_lock_action) }
+        val unlockTitle = runBlocking { getString(Res.string.vault_unlock_title) }
+
+        setContent {
+            MaterialTheme {
+                VaultManagerScreen(session)
+            }
+        }
+
+        onNodeWithContentDescription(lock).performClick()
+        waitUntilAtLeastOneExists(hasText(unlockTitle))
     }
 }

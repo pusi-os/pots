@@ -32,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,8 +42,6 @@ import com.pusios.pots.data.vault.VaultItem
 import com.pusios.pots.data.vault.isSecret
 import com.pusios.pots.data.vault.kind
 import com.pusios.pots.ui.clipEntryOfText
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.vault_back
@@ -61,25 +58,23 @@ import pots.composeapp.generated.resources.vault_toggle_hide
 import pots.composeapp.generated.resources.vault_toggle_show
 import pots.composeapp.generated.resources.vault_url_label
 import pots.composeapp.generated.resources.vault_username_label
-import kotlin.time.Duration.Companion.seconds
 
-/** The report's clipboard rule: wipe a copied value ~45 s after the copy. */
-private val CLIPBOARD_CLEAR_AFTER = 45.seconds
-
-/** Copy as sensitive and schedule a clipboard wipe; one call per composable. */
+/**
+ * Copy as sensitive and schedule a clipboard wipe. The timer lives in
+ * [vaultClipboardWiper] — a process-level singleton with its own scope — so it
+ * keeps running after this screen leaves composition; a
+ * `rememberCoroutineScope` here would cancel the wipe and the secret would
+ * stay in the clipboard forever.
+ */
 @Composable
 internal fun rememberVaultCopy(): (String) -> Unit {
     val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
-    return remember(clipboard, scope) {
-        { text ->
-            scope.launch {
-                clipboard.setClipEntry(clipEntryOfText(text, sensitive = true))
-                delay(CLIPBOARD_CLEAR_AFTER)
-                clipboard.setClipEntry(clipEntryOfText("", sensitive = true))
-            }
+    val sink = remember(clipboard) {
+        VaultClipboardSink { text ->
+            clipboard.setClipEntry(clipEntryOfText(text, sensitive = true))
         }
     }
+    return remember(sink) { { text -> vaultClipboardWiper.copy(text, sink) } }
 }
 
 /** Card view: header, card trio, fields with mask/eye/copy, notes, tags, actions. */
