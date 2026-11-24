@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.ui.PotsOutlinedTextField
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.vault_biometric_unlock_button
 import pots.composeapp.generated.resources.vault_error_corrupted
 import pots.composeapp.generated.resources.vault_error_tampered
 import pots.composeapp.generated.resources.vault_error_unsupported_version
