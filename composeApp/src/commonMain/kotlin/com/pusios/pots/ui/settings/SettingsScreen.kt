@@ -276,10 +276,17 @@ fun SettingsScreenContent(
                     // internal scrolling; inside the settings scroll column its
                     // weighted child would collapse to zero height. Pure slot,
                     // so paparazzi composes this branch without a Koin container.
-                    Column(
-                        Modifier.widthIn(max = 900.dp).fillMaxWidth().padding(horizontal = 16.dp),
-                    ) {
-                        vaultContent?.invoke()
+                    // The settings host is a plain Box, so LocalContentColor is
+                    // never provided there and vault Texts without an explicit
+                    // color fall back to the material3 default (black). A themed
+                    // Surface restores the onBackground token for the whole vault
+                    // tab, internal sub-screens included.
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        Column(
+                            Modifier.widthIn(max = 900.dp).fillMaxWidth().padding(horizontal = 16.dp),
+                        ) {
+                            vaultContent?.invoke()
+                        }
                     }
                 } else {
                     Column(
