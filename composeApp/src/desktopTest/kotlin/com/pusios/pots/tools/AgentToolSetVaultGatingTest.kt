@@ -27,8 +27,7 @@ import kotlin.test.assertTrue
 
 class AgentToolSetVaultGatingTest {
 
-    private fun tempVaultStore(): VaultStore =
-        VaultStore(JvmVaultFileAccess(Files.createTempDirectory("vault-tools-test").toFile()), JvmVaultCryptoEngine())
+    private fun tempVaultStore(): VaultStore = VaultStore(JvmVaultFileAccess(Files.createTempDirectory("vault-tools-test").toFile()), JvmVaultCryptoEngine())
 
     private fun vaultDeps(store: VaultStore): VaultToolDependencies {
         val session = VaultSession(store = store)

@@ -14,8 +14,6 @@ import com.pusios.pots.network.tools.ParameterSchema
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.network.tools.ToolSchema
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.tool_media_enhance_prompt_description
 import pots.composeapp.generated.resources.tool_media_enhance_prompt_name
@@ -25,6 +23,8 @@ import pots.composeapp.generated.resources.tool_media_generate_video_description
 import pots.composeapp.generated.resources.tool_media_generate_video_name
 import pots.composeapp.generated.resources.tool_media_list_models_description
 import pots.composeapp.generated.resources.tool_media_list_models_name
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * Agent media tools. Gated by the per-tool toggles `generate_image`,

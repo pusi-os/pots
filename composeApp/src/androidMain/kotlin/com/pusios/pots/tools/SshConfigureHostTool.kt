@@ -9,10 +9,10 @@ import com.pusios.pots.sandbox.LinuxSandboxManager
 import com.pusios.pots.sandbox.SandboxState
 import com.pusios.pots.sandbox.SshConfigManager
 import org.koin.java.KoinJavaComponent.inject
-import java.io.File
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.tool_ssh_configure_host_description
 import pots.composeapp.generated.resources.tool_ssh_configure_host_name
+import java.io.File
 
 private fun toolDescription(distro: LinuxDistro): String {
     val installSshpass = distro.packageManager.installCommand("sshpass")
