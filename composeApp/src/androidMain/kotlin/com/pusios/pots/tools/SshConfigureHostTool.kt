@@ -10,6 +10,9 @@ import com.pusios.pots.sandbox.SandboxState
 import com.pusios.pots.sandbox.SshConfigManager
 import org.koin.java.KoinJavaComponent.inject
 import java.io.File
+import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.tool_ssh_configure_host_description
+import pots.composeapp.generated.resources.tool_ssh_configure_host_name
 
 private fun toolDescription(distro: LinuxDistro): String {
     val installSshpass = distro.packageManager.installCommand("sshpass")
@@ -112,8 +115,8 @@ object SshConfigureHostTool : Tool {
         id = "ssh_configure_host",
         name = "Configure SSH Host",
         description = "Register a named SSH host for the Linux sandbox",
-        nameRes = null,
-        descriptionRes = null,
+        nameRes = Res.string.tool_ssh_configure_host_name,
+        descriptionRes = Res.string.tool_ssh_configure_host_description,
         isEnabled = false,
         // Availability follows Settings → Agent → Linux sandbox plus the sandbox being
         // Ready, so a per-tool switch here would read back a setting nothing consults.

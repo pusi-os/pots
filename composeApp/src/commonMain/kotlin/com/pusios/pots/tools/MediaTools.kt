@@ -16,6 +16,15 @@ import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.network.tools.ToolSchema
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.tool_media_enhance_prompt_description
+import pots.composeapp.generated.resources.tool_media_enhance_prompt_name
+import pots.composeapp.generated.resources.tool_media_generate_image_description
+import pots.composeapp.generated.resources.tool_media_generate_image_name
+import pots.composeapp.generated.resources.tool_media_generate_video_description
+import pots.composeapp.generated.resources.tool_media_generate_video_name
+import pots.composeapp.generated.resources.tool_media_list_models_description
+import pots.composeapp.generated.resources.tool_media_list_models_name
 
 /**
  * Agent media tools. Gated by the per-tool toggles `generate_image`,
@@ -68,6 +77,8 @@ object MediaTools {
             id = ID_GENERATE_IMAGE,
             name = "Generate image",
             description = "Generate or edit an image with the configured media provider",
+            nameRes = Res.string.tool_media_generate_image_name,
+            descriptionRes = Res.string.tool_media_generate_image_description,
             isEnabled = true,
             userToggleable = true,
         ),
@@ -75,6 +86,8 @@ object MediaTools {
             id = ID_GENERATE_VIDEO,
             name = "Generate video",
             description = "Generate a video with the configured media provider",
+            nameRes = Res.string.tool_media_generate_video_name,
+            descriptionRes = Res.string.tool_media_generate_video_description,
             isEnabled = true,
             userToggleable = true,
         ),
@@ -82,6 +95,8 @@ object MediaTools {
             id = ID_LIST_MODELS,
             name = "List media models",
             description = "List image/video models with prices from the media provider",
+            nameRes = Res.string.tool_media_list_models_name,
+            descriptionRes = Res.string.tool_media_list_models_description,
             isEnabled = true,
             userToggleable = true,
         ),
@@ -89,6 +104,8 @@ object MediaTools {
             id = ID_ENHANCE_PROMPT,
             name = "Enhance prompt",
             description = "Rewrite a prompt into a detailed generation prompt",
+            nameRes = Res.string.tool_media_enhance_prompt_name,
+            descriptionRes = Res.string.tool_media_enhance_prompt_description,
             isEnabled = true,
             userToggleable = true,
         ),
