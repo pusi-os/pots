@@ -169,6 +169,7 @@ fun VaultRequestSheetHost(
                     scope.launch {
                         when (val outcome = bridge.submit(form.id, conversationId, submitted)) {
                             is VaultFormOutcome.Saved -> savedName = outcome.itemName
+
                             VaultFormOutcome.Locked -> {
                                 // Auto-lock raced the submit: pending is already
                                 // null, the sheet closes and the tool hears
@@ -177,6 +178,7 @@ fun VaultRequestSheetHost(
                             }
 
                             is VaultFormOutcome.Failed -> submitError = outcome.reason
+
                             VaultFormOutcome.Cancelled -> bridge.cancel(form.id)
                         }
                     }

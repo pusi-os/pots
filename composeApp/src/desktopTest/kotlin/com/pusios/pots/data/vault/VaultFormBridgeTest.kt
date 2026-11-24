@@ -26,8 +26,7 @@ class VaultFormBridgeTest {
         assertTrue(JvmVaultFileAccess(dir).writeAtomic(envelopeBytes(sealed.envelope)))
     }
 
-    private fun newSession(dir: File): VaultSession =
-        VaultSession(store = VaultStore(JvmVaultFileAccess(dir), JvmVaultCryptoEngine()))
+    private fun newSession(dir: File): VaultSession = VaultSession(store = VaultStore(JvmVaultFileAccess(dir), JvmVaultCryptoEngine()))
 
     /** An existing vault whose master password is known; the session is open. */
     private suspend fun unlockedSession(): VaultSession {
