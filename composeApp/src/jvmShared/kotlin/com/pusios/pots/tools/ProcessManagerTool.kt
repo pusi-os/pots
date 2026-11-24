@@ -4,6 +4,9 @@ import com.pusios.pots.network.tools.ParameterSchema
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.network.tools.ToolSchema
+import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.tool_manage_process_description
+import pots.composeapp.generated.resources.tool_manage_process_name
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -69,8 +72,8 @@ Actions:
         id = "manage_process",
         name = "Manage Process",
         description = "Manage background shell processes",
-        nameRes = null,
-        descriptionRes = null,
+        nameRes = Res.string.tool_manage_process_name,
+        descriptionRes = Res.string.tool_manage_process_description,
         isEnabled = false,
         // Availability follows the execute_shell_command switch, so a switch of its own
         // would read back a setting nothing consults.

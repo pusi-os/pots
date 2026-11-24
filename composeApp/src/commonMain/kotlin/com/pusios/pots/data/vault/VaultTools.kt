@@ -25,6 +25,23 @@ import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import pots.composeapp.generated.resources.Res
+import pots.composeapp.generated.resources.tool_vault_description
+import pots.composeapp.generated.resources.tool_vault_form_fill_description
+import pots.composeapp.generated.resources.tool_vault_form_fill_name
+import pots.composeapp.generated.resources.tool_vault_get_description
+import pots.composeapp.generated.resources.tool_vault_get_name
+import pots.composeapp.generated.resources.tool_vault_http_request_description
+import pots.composeapp.generated.resources.tool_vault_http_request_name
+import pots.composeapp.generated.resources.tool_vault_list_description
+import pots.composeapp.generated.resources.tool_vault_list_name
+import pots.composeapp.generated.resources.tool_vault_name
+import pots.composeapp.generated.resources.tool_vault_request_form_description
+import pots.composeapp.generated.resources.tool_vault_request_form_name
+import pots.composeapp.generated.resources.tool_vault_reveal_description
+import pots.composeapp.generated.resources.tool_vault_reveal_name
+import pots.composeapp.generated.resources.tool_vault_save_description
+import pots.composeapp.generated.resources.tool_vault_save_name
 import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration.Companion.seconds
 
@@ -41,7 +58,7 @@ data class VaultToolDependencies(
 
 /**
  * The seven vault tools. Registered in `buildAgentToolSet` behind one master toggle
- * ([MASTER_ID], off by default); the spend-tools additionally ask the owner on every use.
+ * ([MASTER_ID], on by default); the spend-tools additionally ask the owner on every use.
  */
 object VaultTools {
 
@@ -75,21 +92,80 @@ object VaultTools {
         "HEAD" to HttpMethod.Head,
     )
 
-    /** Display definitions for Settings and chat: the tools are not per-tool toggleable. */
+    /**
+     * Display definitions for Settings and chat. The master switch is the set's single
+     * user toggle: flipping it in the Tools tab writes the per-profile override
+     * `toolOverrides[MASTER_ID]` through [AppSettings.setToolEnabled] (persisted as the
+     * profile's `tool_overrides` map; the legacy flat key `tool_enabled_vault_tools` only
+     * migrates into it when profiles load). The vault tab exposes no separate switch, so
+     * both surfaces read one state. The individual tools are not per-tool toggleable —
+     * they are declared for chat to resolve names.
+     */
     val toolDefinitions: List<ToolInfo> = listOf(
         ToolInfo(
             id = MASTER_ID,
             name = "Password vault",
             description = "Master switch for the agent's password vault tools",
+            nameRes = Res.string.tool_vault_name,
+            descriptionRes = Res.string.tool_vault_description,
+            isEnabled = true,
+        ),
+        ToolInfo(
+            "vault_list",
+            "Vault: list",
+            "List vault cards without secret values",
+            nameRes = Res.string.tool_vault_list_name,
+            descriptionRes = Res.string.tool_vault_list_description,
             userToggleable = false,
         ),
-        ToolInfo("vault_list", "Vault: list", "List vault cards without secret values", userToggleable = false),
-        ToolInfo("vault_get", "Vault: get reference", "Get a vault:// reference for a card field", userToggleable = false),
-        ToolInfo("vault_http_request", "Vault: authenticated request", "Send an HTTP request with a vault secret substituted at transport level", userToggleable = false),
-        ToolInfo("vault_form_fill", "Vault: fill form", "Submit credentials to a form with values substituted at transport level", userToggleable = false),
-        ToolInfo("vault_reveal", "Vault: reveal", "Show a secret to the owner in an overlay after explicit confirmation", userToggleable = false),
-        ToolInfo("vault_save", "Vault: save card", "Save card metadata; values only via the request form", userToggleable = false),
-        ToolInfo("vault_request_form", "Vault: request secrets", "Show a form that saves user input straight into the vault", userToggleable = false),
+        ToolInfo(
+            "vault_get",
+            "Vault: get reference",
+            "Get a vault:// reference for a card field",
+            nameRes = Res.string.tool_vault_get_name,
+            descriptionRes = Res.string.tool_vault_get_description,
+            userToggleable = false,
+        ),
+        ToolInfo(
+            "vault_http_request",
+            "Vault: authenticated request",
+            "Send an HTTP request with a vault secret substituted at transport level",
+            nameRes = Res.string.tool_vault_http_request_name,
+            descriptionRes = Res.string.tool_vault_http_request_description,
+            userToggleable = false,
+        ),
+        ToolInfo(
+            "vault_form_fill",
+            "Vault: fill form",
+            "Submit credentials to a form with values substituted at transport level",
+            nameRes = Res.string.tool_vault_form_fill_name,
+            descriptionRes = Res.string.tool_vault_form_fill_description,
+            userToggleable = false,
+        ),
+        ToolInfo(
+            "vault_reveal",
+            "Vault: reveal",
+            "Show a secret to the owner in an overlay after explicit confirmation",
+            nameRes = Res.string.tool_vault_reveal_name,
+            descriptionRes = Res.string.tool_vault_reveal_description,
+            userToggleable = false,
+        ),
+        ToolInfo(
+            "vault_save",
+            "Vault: save card",
+            "Save card metadata; values only via the request form",
+            nameRes = Res.string.tool_vault_save_name,
+            descriptionRes = Res.string.tool_vault_save_description,
+            userToggleable = false,
+        ),
+        ToolInfo(
+            "vault_request_form",
+            "Vault: request secrets",
+            "Show a form that saves user input straight into the vault",
+            nameRes = Res.string.tool_vault_request_form_name,
+            descriptionRes = Res.string.tool_vault_request_form_description,
+            userToggleable = false,
+        ),
     )
 
     fun create(deps: VaultToolDependencies): List<Tool> = listOf(
