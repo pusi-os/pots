@@ -29,7 +29,7 @@ import kotlin.test.assertTrue
  * providers that expose one, and a provider switch clears everything the previous key loaded.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class ChatViewModelOnboardingTest {
+class ChatViewModelOnboardingFlowTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val unconfinedDispatcher = UnconfinedTestDispatcher()
