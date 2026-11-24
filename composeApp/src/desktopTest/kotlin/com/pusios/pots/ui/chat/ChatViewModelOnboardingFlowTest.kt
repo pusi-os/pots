@@ -1,5 +1,6 @@
 package com.pusios.pots.ui.chat
 
+import app.cash.turbine.test
 import com.pusios.pots.data.ProviderBalance
 import com.pusios.pots.data.Service
 import com.pusios.pots.data.TaskScheduler
@@ -9,7 +10,6 @@ import com.pusios.pots.ui.settings.SettingsModel
 import com.pusios.pots.ui.settings.formatProviderBalance
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -33,7 +33,9 @@ import kotlin.test.assertTrue
 class ChatViewModelOnboardingFlowTest {
 
     private val testDispatcher = StandardTestDispatcher()
-    private val unconfinedDispatcher = UnconfinedTestDispatcher()
+
+    // Shares the scheduler with runTest, so virtual time (timeouts) advances in tests.
+    private val unconfinedDispatcher = UnconfinedTestDispatcher(testDispatcher.scheduler)
     private lateinit var fakeRepository: FakeDataRepository
 
     @BeforeTest
@@ -56,126 +58,148 @@ class ChatViewModelOnboardingFlowTest {
         return ChatViewModel(fakeRepository, noOpScheduler, unconfinedDispatcher, balanceClient = StubBalanceClient(balance))
     }
 
-    /** Seeds the fake instance's catalog the way validateConnection populates the real one. */
-    private fun seedCatalog(instanceId: String, service: Service, ids: List<String>) {
-        val flow = fakeRepository.getInstanceModels(instanceId, service) as MutableStateFlow
-        flow.value = ids.map { SettingsModel(id = it, subtitle = "") }
-    }
-
     @Test
     fun `pasted key saves immediately and marks the wizard key-added`() = runTest {
         val viewModel = createViewModel()
-        assertTrue(viewModel.state.value.onboarding.phase == OnboardingPhase.Active)
+        viewModel.state.test {
+            val initial = awaitItem()
+            assertEquals(OnboardingPhase.Active, initial.onboarding.phase)
 
-        viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
+            // The unconfined test dispatcher resolves the add synchronously, so the
+            // intermediate "checking" emission may be conflated away by the StateFlow.
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
+            val state = awaitItem()
 
-        // Same mechanism as Settings → Services: key on the instance, connection validated.
-        assertEquals("sk-pv-test", fakeRepository.getInstanceApiKey(Service.PlusVibe.id))
-        val onboarding = viewModel.state.value.onboarding
-        assertTrue(onboarding.isKeyAdded)
-        assertEquals(4, onboarding.step)
-        assertEquals(4, fakeRepository.getOnboardingStep())
-        assertEquals(Service.PlusVibe.id, onboarding.serviceId)
+            // Same mechanism as Settings → Services: key on the instance, connection validated.
+            assertEquals("sk-pv-test", fakeRepository.getInstanceApiKey(Service.PlusVibe.id))
+            assertTrue(state.onboarding.isKeyAdded)
+            assertEquals(4, state.onboarding.step)
+            assertEquals(4, fakeRepository.getOnboardingStep())
+            assertEquals(Service.PlusVibe.id, state.onboarding.serviceId)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
     fun `after the save the catalog loads and the DeepSeek default is selected`() = runTest {
-        val instance = fakeRepository.addConfiguredService(Service.PlusVibe.id)
-        seedCatalog(
-            instance.instanceId,
-            Service.PlusVibe,
-            listOf("glm-5.3-flash", "deepseek-v4.1-flash-1017", "gemini-3.8-flash"),
-        )
         val viewModel = createViewModel(balance = ProviderBalance(amount = 123.45, currency = "RUB"))
+        fakeRepository.modelsFetchedOnValidate = listOf(
+            SettingsModel(id = "glm-5.3-flash", subtitle = ""),
+            SettingsModel(id = "deepseek-v4.1-flash-1017", subtitle = ""),
+            SettingsModel(id = "gemini-3.8-flash", subtitle = ""),
+        )
+        viewModel.state.test {
+            awaitItem()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
+            val state = awaitItem()
 
-        viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
-
-        val onboarding = viewModel.state.value.onboarding
-        assertTrue(onboarding.isKeyAdded)
-        assertEquals("deepseek-v4.1-flash-1017", onboarding.selectedModelId)
-        assertEquals(3, onboarding.modelOptions.size)
-        assertTrue(onboarding.modelOptions.first { it.id == "deepseek-v4.1-flash-1017" }.isSelected)
-        // The balance row shows only what the provider reports, formatted like in Settings.
-        assertEquals("123.45 ₽", onboarding.balance?.let { formatProviderBalance(it) })
+            assertTrue(state.onboarding.isKeyAdded)
+            assertEquals("deepseek-v4.1-flash-1017", state.onboarding.selectedModelId)
+            assertEquals(3, state.onboarding.modelOptions.size)
+            assertTrue(state.onboarding.modelOptions.first { it.id == "deepseek-v4.1-flash-1017" }.isSelected)
+            // The balance row shows only what the provider reports, formatted like in Settings.
+            assertEquals("123.45 ₽", state.onboarding.balance?.let { formatProviderBalance(it) })
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
     fun `provider switch clears the verdict and everything the previous key loaded`() = runTest {
-        val instance = fakeRepository.addConfiguredService(Service.PlusVibe.id)
-        seedCatalog(
-            instance.instanceId,
-            Service.PlusVibe,
-            listOf("deepseek-v4.1-flash-1017", "glm-5.3-flash"),
-        )
         val viewModel = createViewModel(balance = ProviderBalance(amount = 50.0, currency = "RUB"))
-        viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
+        fakeRepository.modelsFetchedOnValidate = listOf(
+            SettingsModel(id = "deepseek-v4.1-flash-1017", subtitle = ""),
+        )
+        viewModel.state.test {
+            awaitItem()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
+            val added = awaitItem()
+            assertTrue(added.onboarding.isKeyAdded)
+            assertTrue(added.onboarding.modelOptions.isNotEmpty())
 
-        viewModel.state.value.actions.onboardingClearKeyState()
-
-        val onboarding = viewModel.state.value.onboarding
-        assertFalse(onboarding.isKeyAdded)
-        assertNull(onboarding.error)
-        assertFalse(onboarding.isChecking)
-        assertTrue(onboarding.modelOptions.isEmpty())
-        assertNull(onboarding.selectedModelId)
-        assertNull(onboarding.balance)
-        assertFalse(onboarding.isLoadingDetails)
+            // Rule 03 (03-key-states §3): a switch to another provider resets the verdict
+            // and everything the previous key loaded — catalog, picked model, balance.
+            viewModel.state.value.actions.onboardingClearKeyState()
+            val reset = awaitItem()
+            assertFalse(reset.onboarding.isKeyAdded)
+            assertNull(reset.onboarding.error)
+            assertFalse(reset.onboarding.isChecking)
+            assertTrue(reset.onboarding.modelOptions.isEmpty())
+            assertNull(reset.onboarding.selectedModelId)
+            assertNull(reset.onboarding.balance)
+            assertFalse(reset.onboarding.isLoadingDetails)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
     fun `a failing check keeps the wizard open with the mapped error`() = runTest {
         fakeRepository.validateConnectionException = RuntimeException("boom")
         val viewModel = createViewModel()
+        viewModel.state.test {
+            awaitItem()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-bad")
+            val failed = awaitItem()
 
-        viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-bad")
-
-        val onboarding = viewModel.state.value.onboarding
-        assertFalse(onboarding.isKeyAdded)
-        assertTrue(onboarding.error != null)
-        // The key still landed on the instance — the field keeps it for the next attempt.
-        assertEquals("sk-pv-bad", fakeRepository.getInstanceApiKey(Service.PlusVibe.id))
+            assertFalse(failed.onboarding.isKeyAdded)
+            assertTrue(failed.onboarding.error != null)
+            // The key still landed on the instance — the field keeps it for the next attempt.
+            assertEquals("sk-pv-bad", fakeRepository.getInstanceApiKey(Service.PlusVibe.id))
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
     fun `onboardingGoToStep persists the step and carries the picked provider`() = runTest {
         val viewModel = createViewModel()
+        viewModel.state.test {
+            val initial = awaitItem()
+            initial.actions.onboardingGoToStep(2, Service.Polza.id)
+            val moved = awaitItem()
 
-        viewModel.state.value.actions.onboardingGoToStep(2, Service.Polza.id)
-
-        assertEquals(2, viewModel.state.value.onboarding.step)
-        assertEquals(Service.Polza.id, viewModel.state.value.onboarding.serviceId)
-        assertEquals(2, fakeRepository.getOnboardingStep())
+            assertEquals(2, moved.onboarding.step)
+            assertEquals(Service.Polza.id, moved.onboarding.serviceId)
+            assertEquals(2, fakeRepository.getOnboardingStep())
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
     fun `onboardingSelectModel persists the picked model on the instance`() = runTest {
-        val instance = fakeRepository.addConfiguredService(Service.PlusVibe.id)
-        seedCatalog(
-            instance.instanceId,
-            Service.PlusVibe,
-            listOf("deepseek-v4.1-flash-1017", "gemini-3.8-flash"),
-        )
         val viewModel = createViewModel()
-        viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
-        assertEquals("deepseek-v4.1-flash-1017", viewModel.state.value.onboarding.selectedModelId)
+        fakeRepository.modelsFetchedOnValidate = listOf(
+            SettingsModel(id = "deepseek-v4.1-flash-1017", subtitle = ""),
+            SettingsModel(id = "gemini-3.8-flash", subtitle = ""),
+        )
+        viewModel.state.test {
+            awaitItem()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
+            val added = awaitItem()
+            assertEquals("deepseek-v4.1-flash-1017", added.onboarding.selectedModelId)
 
-        viewModel.state.value.actions.onboardingSelectModel("gemini-3.8-flash")
+            viewModel.state.value.actions.onboardingSelectModel("gemini-3.8-flash")
+            val picked = awaitItem()
 
-        val onboarding = viewModel.state.value.onboarding
-        assertEquals("gemini-3.8-flash", onboarding.selectedModelId)
-        assertTrue(onboarding.modelOptions.first { it.id == "gemini-3.8-flash" }.isSelected)
-        assertFalse(onboarding.modelOptions.first { it.id == "deepseek-v4.1-flash-1017" }.isSelected)
+            assertEquals("gemini-3.8-flash", picked.onboarding.selectedModelId)
+            assertTrue(picked.onboarding.modelOptions.first { it.id == "gemini-3.8-flash" }.isSelected)
+            assertFalse(picked.onboarding.modelOptions.first { it.id == "deepseek-v4.1-flash-1017" }.isSelected)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
     fun `a provider without a balance endpoint shows no balance at all`() = runTest {
-        val instance = fakeRepository.addConfiguredService(Service.PlusVibe.id)
-        seedCatalog(instance.instanceId, Service.PlusVibe, listOf("deepseek-v4.1-flash-1017"))
         val viewModel = createViewModel(balance = null)
+        fakeRepository.modelsFetchedOnValidate = listOf(
+            SettingsModel(id = "deepseek-v4.1-flash-1017", subtitle = ""),
+        )
+        viewModel.state.test {
+            awaitItem()
+            viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
+            val state = awaitItem()
 
-        viewModel.state.value.actions.onboardingAddKey(Service.PlusVibe.id, "sk-pv-test")
-
-        assertNull(viewModel.state.value.onboarding.balance)
-        assertTrue(viewModel.state.value.onboarding.modelOptions.isNotEmpty())
+            assertNull(state.onboarding.balance)
+            assertTrue(state.onboarding.modelOptions.isNotEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }
