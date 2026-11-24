@@ -11,7 +11,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.pusios.pots.data.vault.VaultFieldInput
@@ -33,12 +32,14 @@ class VaultRequestSheetTest {
         ),
     )
 
-    private fun typedEditableTexts(): List<String> = onAllNodes(hasSetTextAction())
-        .fetchSemanticsNodes()
-        .map { it.config[SemanticsProperties.EditableText] }
-
     @Test
     fun `typed values are not in saved state and vanish on composition recreation`() = runComposeUiTest {
+        // EditableText carries the raw value even behind the password mask, so
+        // the field semantics are the only place the secret can be detected.
+        fun typedEditableTexts(): List<String> = onAllNodes(hasSetTextAction())
+            .fetchSemanticsNodes()
+            .map { it.config[SemanticsProperties.EditableText].text }
+
         setContent {
             MaterialTheme {
                 VaultRequestSheetContent(form = form(), stage = VaultSheetStage.Form())
@@ -46,8 +47,7 @@ class VaultRequestSheetTest {
         }
         onAllNodes(hasSetTextAction())[0].performTextInput("alice")
         onAllNodes(hasSetTextAction())[1].performTextInput("s3cret-42")
-        // The values are in composable state (EditableText carries the raw
-        // value even behind the password mask) — and only there.
+        // The values are in composable state — and only there.
         assertTrue(typedEditableTexts().any { "s3cret-42" in it })
 
         // Simulated activity recreation: a fresh composition. rememberSaveable
