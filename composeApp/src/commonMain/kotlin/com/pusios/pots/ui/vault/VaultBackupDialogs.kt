@@ -73,6 +73,8 @@ internal fun VaultBackupExportDialog(
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     val valid = password.isNotEmpty() && password == confirm
+    val exportedMessage = stringResource(Res.string.vault_export_done)
+    val failedMessage = stringResource(Res.string.vault_export_failed)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -115,10 +117,10 @@ internal fun VaultBackupExportDialog(
                 },
                 onDone = { written ->
                     if (written) {
-                        onNotice(stringResource(Res.string.vault_export_done))
+                        onNotice(exportedMessage)
                         onDismiss()
                     } else {
-                        onNotice(stringResource(Res.string.vault_export_failed))
+                        onNotice(failedMessage)
                     }
                 },
             )
@@ -141,6 +143,7 @@ internal fun VaultBackupImportDialog(
     var password by remember { mutableStateOf("") }
     var mode by remember { mutableStateOf(VaultImportMode.MERGE) }
     var error by remember { mutableStateOf<StringResource?>(null) }
+    val importedMessage = stringResource(Res.string.vault_import_done)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -203,7 +206,7 @@ internal fun VaultBackupImportDialog(
                         } else {
                             when (model.importVault(bytes, password, mode)) {
                                 is VaultImportResult.Success -> {
-                                    onNotice(stringResource(Res.string.vault_import_done))
+                                    onNotice(importedMessage)
                                     onDismiss()
                                 }
                                 VaultImportResult.WrongPassword -> error = Res.string.vault_error_wrong_password

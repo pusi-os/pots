@@ -5,6 +5,7 @@
 package com.pusios.pots.ui.vault
 
 import android.content.Context
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Text
@@ -70,15 +71,19 @@ actual fun VaultImportPickButton(
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
-        onLoaded(uri?.let { picked ->
-            VaultImportSource { readContent(context, picked) }
-        })
+        onLoaded(
+            uri?.let { picked ->
+                object : VaultImportSource {
+                    override fun read(): ByteArray? = readContent(context, picked)
+                }
+            },
+        )
     }
     TextButton(onClick = { launcher.launch(arrayOf("*/*")) }, enabled = enabled) {
         Text(label)
     }
 }
 
-private fun readContent(context: Context, uri: android.net.Uri): ByteArray? = runCatching {
+private fun readContent(context: Context, uri: Uri): ByteArray? = runCatching {
     context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
 }.getOrNull()

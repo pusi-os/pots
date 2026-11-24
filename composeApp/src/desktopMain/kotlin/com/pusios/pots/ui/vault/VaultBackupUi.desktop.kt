@@ -75,11 +75,15 @@ actual fun VaultImportPickButton(
                     picked = chooser.selectedFile
                 }
             }
-            onLoaded(picked?.let { path ->
-                VaultImportSource {
-                    runCatching { path.takeIf(File::isFile)?.readBytes() }.getOrNull()
-                }
-            })
+            onLoaded(
+                picked?.let { path ->
+                    object : VaultImportSource {
+                        override fun read(): ByteArray? = runCatching {
+                            path.takeIf(File::isFile)?.readBytes()
+                        }.getOrNull()
+                    }
+                },
+            )
         },
         enabled = enabled,
     ) {

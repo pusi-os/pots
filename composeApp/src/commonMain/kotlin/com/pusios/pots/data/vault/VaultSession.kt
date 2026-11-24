@@ -258,7 +258,7 @@ class VaultSession(
         val engine = requireNotNull(store.engine)
         val document = currentDocument()
         return withContext(Dispatchers.Default) {
-            envelopeBytes(buildEnvelope(engine, document, exportPassword))
+            envelopeBytes(buildEnvelope(engine, document, exportPassword).envelope)
         }
     }
 
