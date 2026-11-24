@@ -28,7 +28,7 @@ class OnboardingDefaultModelTest {
     }
 
     @Test
-    fun `gptunnel has no snapshot and lands on the base v4.1 flash`() {
+    fun `gptunnel has no snapshot and lands on the base v4 flash`() {
         val catalog = listOf(SettingsModel(id = "deepseek-v4.1-flash", subtitle = ""))
         assertEquals("deepseek-v4.1-flash", OnboardingDefaultModel.pick(catalog, Service.Gptunnel))
     }
