@@ -1,6 +1,8 @@
 package com.pusios.pots.ui.chat
 
 import androidx.compose.runtime.Immutable
+import com.pusios.pots.data.ProviderBalance
+import com.pusios.pots.ui.settings.SettingsModel
 import org.jetbrains.compose.resources.StringResource
 
 /**
@@ -48,11 +50,25 @@ internal fun emptyChatSlot(
 data class OnboardingState(
     val phase: OnboardingPhase = OnboardingPhase.Hidden,
     val step: Int = 1,
+    /**
+     * The provider the wizard is currently working on, set when the user moves past the picker
+     * and derived from the configured instances on a resume. Null falls back to the default
+     * (PlusVibe) in the UI.
+     */
+    val serviceId: String? = null,
     val isChecking: Boolean = false,
     val error: StringResource? = null,
     val showLocalLimits: Boolean = false,
     /** The add-service call succeeded: the field shows the green «Добавлено» state until «Готово». */
     val isKeyAdded: Boolean = false,
+    /** Catalog of the just-added provider, loaded right after the key validated. */
+    val modelOptions: List<SettingsModel> = emptyList(),
+    /** Model picked for the new provider; the onboarding default when the user did not choose. */
+    val selectedModelId: String? = null,
+    /** Prepaid balance read right after the key validated; null when the provider exposes none. */
+    val balance: ProviderBalance? = null,
+    /** True while the catalog and balance load after a successful key save. */
+    val isLoadingDetails: Boolean = false,
     /**
      * Seed for the guide section's open state. The open/close toggling itself lives in the
      * composable; the field exists so a screenshot test can compose the expanded section

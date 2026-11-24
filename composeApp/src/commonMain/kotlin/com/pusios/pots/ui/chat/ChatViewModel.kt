@@ -23,6 +23,7 @@ import com.pusios.pots.network.AnthropicInvalidApiKeyException
 import com.pusios.pots.network.GeminiInvalidApiKeyException
 import com.pusios.pots.network.OpenAICompatibleInvalidApiKeyException
 import com.pusios.pots.network.OpenAICompatibleQuotaExhaustedException
+import com.pusios.pots.network.ProviderBalanceClient
 import com.pusios.pots.network.UiError
 import com.pusios.pots.network.shouldShowFreeProviderSuggestions
 import com.pusios.pots.network.toUiError
@@ -108,6 +109,7 @@ class ChatViewModel(
     private val localNetworkPermissionController: PermissionController = PermissionController(AppPermission.LOCAL_NETWORK),
     private val miniAppRepository: MiniAppRepository? = null,
     private val taskStore: TaskStore? = null,
+    private val balanceClient: ProviderBalanceClient = ProviderBalanceClient(),
 ) : ViewModel() {
 
     private val actions = ChatActions(
@@ -147,6 +149,8 @@ class ChatViewModel(
         onboardingAddKey = ::onboardingAddKey,
         onboardingClearKeyState = ::onboardingClearKeyState,
         onboardingConfirmKey = ::onboardingConfirmKey,
+        onboardingGoToStep = ::onboardingGoToStep,
+        onboardingSelectModel = ::onboardingSelectModel,
         onboardingSkip = ::onboardingSkip,
         onboardingResume = ::onboardingResume,
         onboardingChooseLocal = ::onboardingChooseLocal,
@@ -172,11 +176,16 @@ class ChatViewModel(
         val step = dataRepository.getOnboardingStep()
         val done = dataRepository.isOnboardingDone()
         val finishedWithoutSuccess = dataRepository.isOnboardingFinishedStep()
+        // Steps 2/3 need to know which provider they serve even after a process restart:
+        // the last configured onboarding service is the one the wizard added.
+        val serviceId = dataRepository.getConfiguredServiceInstances()
+            .lastOrNull { instance -> Service.onboardingServices.any { it.id == instance.serviceId } }
+            ?.serviceId
         return when {
-            done && finishedWithoutSuccess -> OnboardingState(phase = OnboardingPhase.Skipped, step = step)
-            finishedWithoutSuccess -> OnboardingState(phase = OnboardingPhase.Aborted, step = step)
+            done && finishedWithoutSuccess -> OnboardingState(phase = OnboardingPhase.Skipped, step = step, serviceId = serviceId)
+            finishedWithoutSuccess -> OnboardingState(phase = OnboardingPhase.Aborted, step = step, serviceId = serviceId)
             done || dataRepository.getConfiguredServiceInstances().isNotEmpty() -> OnboardingState()
-            else -> OnboardingState(phase = OnboardingPhase.Active, step = step)
+            else -> OnboardingState(phase = OnboardingPhase.Active, step = step, serviceId = serviceId)
         }
     }
 
@@ -781,10 +790,12 @@ class ChatViewModel(
     // provider list and the guide section; the ViewModel only runs the add-service flow.
 
     /**
-     * «Проверить и добавить»: validates the pasted key at the picked provider and adds the
-     * service through the same add+key mechanism as Settings → Services. A mapped error
-     * lands under the field; success keeps the wizard open in the green «Добавлено» state
-     * until [onboardingConfirmKey].
+     * Saves the pasted key immediately (the onboarding key card calls this automatically once
+     * the draft settles — there is no separate «Проверить и добавить» button anymore), adds the
+     * service through the same add+key mechanism as Settings → Services and validates the
+     * connection with [DataRepository.validateConnection]. A mapped error lands under the
+     * field; success loads the catalog and balance via [loadOnboardingDetails] and keeps the
+     * wizard open in the green «Добавлено» state until [onboardingConfirmKey].
      */
     private fun onboardingAddKey(serviceId: String, apiKey: String) {
         val onboarding = _state.value.onboarding
@@ -822,13 +833,86 @@ class ChatViewModel(
                 dataRepository.setOnboardingStep(4)
                 _state.update {
                     it.copy(
-                        onboarding = it.onboarding.copy(step = 4, isChecking = false, isKeyAdded = true, error = null),
+                        onboarding = it.onboarding.copy(
+                            step = 4,
+                            isChecking = false,
+                            isKeyAdded = true,
+                            error = null,
+                            serviceId = service.id,
+                            isLoadingDetails = true,
+                        ),
                     )
                 }
                 updateAvailableServices()
+                loadOnboardingDetails(service, instance.instanceId)
             } else {
                 _state.update { it.copy(onboarding = it.onboarding.copy(isChecking = false, error = errorRes)) }
             }
+        }
+    }
+
+    /**
+     * Loads the just-added provider's catalog and balance for the key card. The dropdown's
+     * default is the DeepSeek V4.1 Flash snapshot ([OnboardingDefaultModel]); the balance row
+     * appears only for providers that expose one — null means no row at all, no dashes.
+     */
+    private fun loadOnboardingDetails(service: Service, instanceId: String) {
+        viewModelScope.launch(backgroundDispatcher) {
+            val models = dataRepository.getInstanceModels(instanceId, service).value
+            val defaultModelId = OnboardingDefaultModel.pick(models, service)
+            if (defaultModelId != null) {
+                dataRepository.updateInstanceSelectedModel(instanceId, service, defaultModelId)
+            }
+            val refreshedModels = dataRepository.getInstanceModels(instanceId, service).value
+            val balance = balanceClient.fetch(service, dataRepository.getInstanceApiKey(instanceId))
+            _state.update {
+                it.copy(
+                    onboarding = it.onboarding.copy(
+                        modelOptions = refreshedModels.toImmutableList(),
+                        selectedModelId = defaultModelId,
+                        balance = balance,
+                        isLoadingDetails = false,
+                    ),
+                )
+            }
+        }
+    }
+
+    /** Model picked in the onboarding dropdown: persists it on the just-added instance. */
+    private fun onboardingSelectModel(modelId: String) {
+        val onboarding = _state.value.onboarding
+        if (onboarding.phase != OnboardingPhase.Active || !onboarding.isKeyAdded) return
+        val service = Service.fromId(onboarding.serviceId ?: return) ?: return
+        val instance = dataRepository.getConfiguredServiceInstances().firstOrNull { it.serviceId == service.id } ?: return
+        dataRepository.updateInstanceSelectedModel(instance.instanceId, service, modelId)
+        val models = dataRepository.getInstanceModels(instance.instanceId, service).value
+        _state.update {
+            it.copy(
+                onboarding = it.onboarding.copy(
+                    modelOptions = models.toImmutableList(),
+                    selectedModelId = modelId,
+                ),
+            )
+        }
+    }
+
+    /**
+     * «Далее» between the wizard steps (1 provider → 2 sign-up → 3 key): persists the step
+     * so a resume reopens the wizard here, and remembers which provider the steps 2/3 serve.
+     */
+    private fun onboardingGoToStep(step: Int, serviceId: String?) {
+        val onboarding = _state.value.onboarding
+        if (onboarding.phase != OnboardingPhase.Active || onboarding.isChecking) return
+        val target = step.coerceIn(1, 4)
+        dataRepository.setOnboardingStep(target)
+        _state.update {
+            it.copy(
+                onboarding = it.onboarding.copy(
+                    step = target,
+                    error = null,
+                    serviceId = serviceId ?: it.onboarding.serviceId,
+                ),
+            )
         }
     }
 
@@ -845,10 +929,21 @@ class ChatViewModel(
      * A check verdict (error / added) belongs to the provider it was produced for
      * (03-key-states §3: another card → empty state). Called on a provider switch and
      * on a wizard restart, so a stale red/green never shows under an unchecked provider.
+     * The catalog, the picked model and the balance belong to the checked provider too.
      */
     private fun onboardingClearKeyState() {
         _state.update {
-            it.copy(onboarding = it.onboarding.copy(isChecking = false, error = null, isKeyAdded = false))
+            it.copy(
+                onboarding = it.onboarding.copy(
+                    isChecking = false,
+                    error = null,
+                    isKeyAdded = false,
+                    modelOptions = emptyList(),
+                    selectedModelId = null,
+                    balance = null,
+                    isLoadingDetails = false,
+                ),
+            )
         }
     }
 

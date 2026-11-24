@@ -1,9 +1,11 @@
 package com.pusios.pots.ui.chat.composables
 
-// The onboarding provider picker (docs/design/onboarding/01..03): a radio list of the
-// full-functionality providers, an expandable "how to sign up and get a key" section
-// with per-provider steps and a video placeholder, and the API-key field whose
-// «Проверить и добавить» runs the same add-service flow as Settings → Services.
+// The onboarding wizard (docs/design/onboarding; 3.20.0 rework) walks the user forward with
+// «Далее»: step 1 — provider cards (each with its referral link), step 2 — «Регистрация» and
+// «Личный кабинет · API-ключи» buttons plus the per-provider guide, step 3 — the API-key field
+// that saves immediately (no separate check button; validation still runs validateConnection)
+// and then shows the model dropdown (DeepSeek V4.1 Flash default) and the balance.
+// State resets between providers stay per 03-key-states §3.
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,21 +24,28 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -69,12 +79,17 @@ import com.pusios.pots.ui.icons.OnboardRoundCheck
 import com.pusios.pots.ui.icons.OnboardRoute
 import com.pusios.pots.ui.icons.OnboardTunnel
 import com.pusios.pots.ui.icons.OnboardWifiOff
+import com.pusios.pots.ui.settings.formatProviderBalance
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
-import pots.composeapp.generated.resources.onboarding_button_added
-import pots.composeapp.generated.resources.onboarding_button_check_and_add
-import pots.composeapp.generated.resources.onboarding_button_checking
+import pots.composeapp.generated.resources.onboarding_balance_label
+import pots.composeapp.generated.resources.onboarding_button_cabinet
+import pots.composeapp.generated.resources.onboarding_button_done
+import pots.composeapp.generated.resources.onboarding_button_next
+import pots.composeapp.generated.resources.onboarding_button_retry
+import pots.composeapp.generated.resources.onboarding_button_signup
 import pots.composeapp.generated.resources.onboarding_checking_message
 import pots.composeapp.generated.resources.onboarding_desc_aitunnel_1
 import pots.composeapp.generated.resources.onboarding_desc_aitunnel_2
@@ -91,21 +106,23 @@ import pots.composeapp.generated.resources.onboarding_desc_plusvibe_3
 import pots.composeapp.generated.resources.onboarding_desc_polza_1
 import pots.composeapp.generated.resources.onboarding_desc_polza_2
 import pots.composeapp.generated.resources.onboarding_desc_polza_3
-import pots.composeapp.generated.resources.onboarding_error_empty_key
 import pots.composeapp.generated.resources.onboarding_error_invalid_key
 import pots.composeapp.generated.resources.onboarding_error_network
 import pots.composeapp.generated.resources.onboarding_error_no_balance
-import pots.composeapp.generated.resources.onboarding_guide_step_key
-import pots.composeapp.generated.resources.onboarding_guide_step_register
-import pots.composeapp.generated.resources.onboarding_guide_step_topup
 import pots.composeapp.generated.resources.onboarding_guide_title
 import pots.composeapp.generated.resources.onboarding_key_added
+import pots.composeapp.generated.resources.onboarding_key_autosave_hint
 import pots.composeapp.generated.resources.onboarding_key_hint_aitunnel
 import pots.composeapp.generated.resources.onboarding_key_hint_generic
 import pots.composeapp.generated.resources.onboarding_key_hint_llmrouter
 import pots.composeapp.generated.resources.onboarding_key_hint_plusvibe
+import pots.composeapp.generated.resources.onboarding_model_guide_body
+import pots.composeapp.generated.resources.onboarding_model_guide_title
+import pots.composeapp.generated.resources.onboarding_model_label
+import pots.composeapp.generated.resources.onboarding_models_loading
 import pots.composeapp.generated.resources.onboarding_provider_default
 import pots.composeapp.generated.resources.onboarding_provider_section
+import pots.composeapp.generated.resources.onboarding_step_key_title
 import pots.composeapp.generated.resources.onboarding_sub_aitunnel
 import pots.composeapp.generated.resources.onboarding_sub_gptunnel
 import pots.composeapp.generated.resources.onboarding_sub_llmrouter
@@ -122,10 +139,14 @@ private val GuideSuccessColor = Color(0xFF6EE7A0)
 
 private val PickerShape = RoundedCornerShape(12.dp)
 
+/** How long the key draft must stay unchanged before the automatic save+check fires. */
+private const val KEY_AUTOSAVE_DELAY_MS = 700L
+
 /**
- * Screen 1 of the onboarding: PlusVibe preselected first, the other full-functionality
- * providers as radio cards, the guide section below. Selection is local to the screen;
- * the check result (checking / errors / added) comes from [OnboardingState].
+ * Screen dispatcher of the onboarding: step 1 — the provider picker, step 2 — sign-up and the
+ * cabinet guide, steps 3/4 — the key field with the model dropdown and the balance. The
+ * provider for steps 2/4 comes from [OnboardingState.serviceId]; before it is set (and before
+ * the user reaches step 2) the local card selection is used, falling back to PlusVibe.
  */
 @Composable
 internal fun OnboardingProviderPicker(
@@ -134,24 +155,50 @@ internal fun OnboardingProviderPicker(
     modifier: Modifier = Modifier,
 ) {
     var selectedId by rememberSaveable { mutableStateOf(Service.PlusVibe.id) }
-    var guideOpen by rememberSaveable { mutableStateOf(state.isGuideOpen) }
-    var keyDraft by rememberSaveable { mutableStateOf("") }
-    var keyVisible by rememberSaveable { mutableStateOf(false) }
 
     fun pick(service: Service) {
-        // Switching cards closes the guide and clears the draft — the key belongs to its
-        // provider and must not travel to another one (03-key-states §3). The check
-        // verdict (error/added) belongs to the checked provider and is reset too.
-        // Reopening the same provider keeps the unsent draft.
+        // Switching cards clears the check verdict (error/added) and everything loaded from
+        // the previous key — the key and its catalog belong to their provider and must not
+        // travel to another one (03-key-states §3). Reopening the same provider keeps them.
         if (service.id != selectedId) {
             selectedId = service.id
-            guideOpen = false
-            keyDraft = ""
-            keyVisible = false
             actions.onboardingClearKeyState()
         }
     }
 
+    when (state.step) {
+        2 -> OnboardingSignupStep(
+            service = Service.fromId(state.serviceId ?: selectedId) ?: Service.PlusVibe,
+            actions = actions,
+            modifier = modifier,
+        )
+
+        3, 4 -> OnboardingKeyStep(
+            service = Service.fromId(state.serviceId ?: selectedId) ?: Service.PlusVibe,
+            state = state,
+            actions = actions,
+            modifier = modifier,
+        )
+
+        else -> OnboardingProviderStep(
+            selectedId = selectedId,
+            isChecking = state.isChecking,
+            onPick = ::pick,
+            onNext = { actions.onboardingGoToStep(2, selectedId) },
+            modifier = modifier,
+        )
+    }
+}
+
+/** Step 1: the provider cards and the «Далее» button below them. */
+@Composable
+private fun OnboardingProviderStep(
+    selectedId: String,
+    isChecking: Boolean,
+    onPick: (Service) -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -181,23 +228,19 @@ internal fun OnboardingProviderPicker(
             OnboardingProviderCard(
                 service = service,
                 selected = service.id == selectedId,
-                enabled = !state.isChecking,
-                onClick = { pick(service) },
+                enabled = !isChecking,
+                onClick = { onPick(service) },
             )
         }
 
-        val selected = Service.fromId(selectedId) ?: Service.PlusVibe
-        OnboardingGuideSection(
-            service = selected,
-            state = state,
-            actions = actions,
-            open = guideOpen,
-            onToggle = { guideOpen = !guideOpen },
-            keyDraft = keyDraft,
-            onKeyDraftChange = { keyDraft = it },
-            keyVisible = keyVisible,
-            onKeyVisibleChange = { keyVisible = it },
-        )
+        Spacer(Modifier.height(4.dp))
+        Button(
+            onClick = onNext,
+            modifier = Modifier.fillMaxWidth().handCursor(),
+            shape = PickerShape,
+        ) {
+            Text(stringResource(Res.string.onboarding_button_next))
+        }
     }
 }
 
@@ -208,6 +251,7 @@ private fun OnboardingProviderCard(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val uriHandler = LocalUriHandler.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -283,6 +327,26 @@ private fun OnboardingProviderCard(
             )
         }
         Spacer(Modifier.width(8.dp))
+        // Referral link — the same one as Settings → Services. Clicking it must not
+        // change the selection, so it is its own button, not part of the card click.
+        service.apiKeyUrl?.let { url ->
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = { uriHandler.openUri(url) })
+                    .handCursor(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.OpenInNew,
+                    contentDescription = url,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(6.dp))
+        }
         val ringColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.28f)
         Box(
             modifier = Modifier
@@ -297,33 +361,19 @@ private fun OnboardingProviderCard(
     }
 }
 
+/** Step 2: the per-provider guide, the sign-up / cabinet buttons and «Далее» to the key field. */
 @Composable
-private fun OnboardingGuideSection(
+private fun OnboardingSignupStep(
     service: Service,
-    state: OnboardingState,
     actions: ChatActions,
-    open: Boolean,
-    onToggle: () -> Unit,
-    keyDraft: String,
-    onKeyDraftChange: (String) -> Unit,
-    keyVisible: Boolean,
-    onKeyVisibleChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    val uriHandler = LocalUriHandler.current
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(PickerShape)
-            .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.03f))
-            .border(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f), PickerShape),
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clickable(onClick = onToggle)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Filled.OnboardKey,
                 contentDescription = null,
@@ -337,126 +387,129 @@ private fun OnboardingGuideSection(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f),
             )
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowDown,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp).rotate(if (open) 180f else 0f),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
-        if (open) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 12.dp)) {
-                guideSteps(service).forEachIndexed { index, (titleRes, descRes) ->
-                    if (index > 0) {
-                        HorizontalDivider(
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f),
-                        )
-                    }
-                    GuideStepRow(number = index + 1, titleRes = titleRes, descRes = descRes)
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(PickerShape)
+                .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.03f))
+                .border(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f), PickerShape)
+                .padding(horizontal = 14.dp)
+                .padding(top = 4.dp, bottom = 12.dp),
+        ) {
+            providerGuideSteps(service).forEachIndexed { index, descRes ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f),
+                    )
                 }
-                Spacer(Modifier.height(12.dp))
-                OnboardingVideoPlaceholder()
-                Spacer(Modifier.height(12.dp))
-                OnboardingKeyField(
-                    service = service,
-                    state = state,
-                    actions = actions,
-                    keyDraft = keyDraft,
-                    onKeyDraftChange = onKeyDraftChange,
-                    keyVisible = keyVisible,
-                    onKeyVisibleChange = onKeyVisibleChange,
-                )
+                GuideStepRow(number = index + 1, descRes = descRes)
             }
         }
-    }
-}
 
-@Composable
-private fun GuideStepRow(number: Int, titleRes: StringResource, descRes: StringResource) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(26.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = number.toString(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimary,
-            )
+        OnboardingVideoPlaceholder()
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { service.apiKeyUrl?.let { uriHandler.openUri(it) } },
+                modifier = Modifier.weight(1f).handCursor(),
+                shape = PickerShape,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.OpenInNew,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(Res.string.onboarding_button_signup), maxLines = 1)
+            }
+            service.cabinetApiKeysUrl?.let { url ->
+                OutlinedButton(
+                    onClick = { uriHandler.openUri(url) },
+                    modifier = Modifier.weight(1f).handCursor(),
+                    shape = PickerShape,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.OnboardKey,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(Res.string.onboarding_button_cabinet), maxLines = 1)
+                }
+            }
         }
-        Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(titleRes),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = stringResource(descRes),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+
+        Button(
+            onClick = { actions.onboardingGoToStep(3, service.id) },
+            modifier = Modifier.fillMaxWidth().handCursor(),
+            shape = PickerShape,
+        ) {
+            Text(stringResource(Res.string.onboarding_button_next))
         }
     }
 }
 
 /**
- * The video-guide placeholder: dashed outline and a dimmed play circle mark the slot;
- * the copy says the video will appear later instead of promising a player.
+ * Step 3: the API-key field (the key saves automatically once the draft settles) and, after a
+ * successful save, the model dropdown with the onboarding default, the balance and «Готово».
  */
 @Composable
-private fun OnboardingVideoPlaceholder() {
-    val lineColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(62.dp)
-            .clip(PickerShape)
-            .drawBehind {
-                drawRoundRect(
-                    color = lineColor,
-                    cornerRadius = CornerRadius(12.dp.toPx()),
-                    style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f))),
-                )
-            }
-            .alpha(0.55f)
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .drawBehind { drawCircle(color = lineColor, style = Stroke(width = 1.dp.toPx())) },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.OnboardPlay,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = LocalContentColor.current,
-            )
+private fun OnboardingKeyStep(
+    service: Service,
+    state: OnboardingState,
+    actions: ChatActions,
+    modifier: Modifier = Modifier,
+) {
+    var keyDraft by rememberSaveable { mutableStateOf("") }
+    var keyVisible by rememberSaveable { mutableStateOf(false) }
+
+    // The key saves immediately after the paste (03-key-states rule 4): when the draft stops
+    // changing for a moment, the same add-service flow as Settings → Services runs. A stale
+    // draft never retries on its own — the next check fires only after the user edits the field.
+    LaunchedEffect(keyDraft, service.id) {
+        if (keyDraft.isNotBlank() && !state.isKeyAdded) {
+            delay(KEY_AUTOSAVE_DELAY_MS)
+            actions.onboardingAddKey(service.id, keyDraft)
         }
-        Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(Res.string.onboarding_video_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                text = stringResource(Res.string.onboarding_video_note),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(Res.string.onboarding_step_key_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+
+        OnboardingKeyField(
+            service = service,
+            state = state,
+            actions = actions,
+            keyDraft = keyDraft,
+            onKeyDraftChange = { keyDraft = it },
+            keyVisible = keyVisible,
+            onKeyVisibleChange = { keyVisible = it },
+        )
+
+        if (state.isKeyAdded) {
+            OnboardingModelGuide()
+            OnboardingModelSection(state = state, actions = actions)
+            state.balance?.let { balance ->
+                OnboardingBalanceRow(balanceText = formatProviderBalance(balance))
+            }
+            Spacer(Modifier.height(4.dp))
+            Button(
+                onClick = actions.onboardingConfirmKey,
+                modifier = Modifier.fillMaxWidth().handCursor(),
+                shape = PickerShape,
+            ) {
+                Text(stringResource(Res.string.onboarding_button_done))
+            }
         }
     }
 }
@@ -473,7 +526,7 @@ private fun OnboardingKeyField(
 ) {
     // The five field states from 03-key-states: default, checking (primary), invalid
     // (error), network (warn), added (success). The message lives under the field and
-    // never moves the field or the button.
+    // never moves the field or the buttons below it.
     val accent: Color? = when {
         state.isKeyAdded -> GuideSuccessColor
 
@@ -556,24 +609,231 @@ private fun OnboardingKeyField(
                 text = stringResource(state.error),
             )
         }
+
+        // No verdict yet: the field saves the key on its own, so the copy just says so.
+        else -> Text(
+            text = stringResource(Res.string.onboarding_key_autosave_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 
-    Spacer(Modifier.height(8.dp))
-    Button(
-        onClick = { actions.onboardingAddKey(service.id, keyDraft) },
-        enabled = !state.isChecking && !state.isKeyAdded,
-        modifier = Modifier.fillMaxWidth().handCursor(),
-        shape = PickerShape,
+    if (state.error != null && !state.isKeyAdded) {
+        TextButton(
+            onClick = { actions.onboardingAddKey(service.id, keyDraft) },
+            enabled = !state.isChecking && keyDraft.isNotBlank(),
+            modifier = Modifier.handCursor(),
+        ) {
+            Text(stringResource(Res.string.onboarding_button_retry))
+        }
+    }
+}
+
+/** Guide D from the researcher report (t_b1dce70b §5): how a newcomer picks a model. */
+@Composable
+private fun OnboardingModelGuide() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(PickerShape)
+            .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.03f))
+            .border(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f), PickerShape)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
-        if (state.isChecking) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(Res.string.onboarding_button_checking))
-        } else {
+        Text(
+            text = stringResource(Res.string.onboarding_model_guide_title),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(Res.string.onboarding_model_guide_body),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** The model dropdown fed by the provider's own catalog, loaded right after the key validated. */
+@Composable
+private fun OnboardingModelSection(
+    state: OnboardingState,
+    actions: ChatActions,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val selected = state.modelOptions.firstOrNull { it.id == state.selectedModelId }
+
+    Text(
+        text = stringResource(Res.string.onboarding_model_label),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+    )
+
+    if (state.isLoadingDetails && state.modelOptions.isEmpty()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(6.dp))
             Text(
-                stringResource(
-                    if (state.isKeyAdded) Res.string.onboarding_button_added else Res.string.onboarding_button_check_and_add,
-                ),
+                text = stringResource(Res.string.onboarding_models_loading),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+
+    if (state.modelOptions.isEmpty()) return
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = selected?.displayName ?: state.selectedModelId.orEmpty(),
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            shape = PickerShape,
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp).rotate(if (menuOpen) 180f else 0f),
+                )
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            ),
+        )
+        // The readOnly field swallows clicks, so a transparent overlay above it opens the menu.
+        Box(
+            modifier = Modifier.matchParentSize().clip(PickerShape).clickable(onClick = { menuOpen = true }).handCursor(),
+        )
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+        ) {
+            state.modelOptions.forEach { model ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = model.displayName ?: model.id,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (model.id == state.selectedModelId) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                    },
+                    onClick = {
+                        actions.onboardingSelectModel(model.id)
+                        menuOpen = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingBalanceRow(balanceText: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = stringResource(Res.string.onboarding_balance_label),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = balanceText,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = GuideSuccessColor,
+        )
+    }
+}
+
+@Composable
+private fun GuideStepRow(number: Int, descRes: StringResource) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = number.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = stringResource(descRes),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * The video-guide placeholder: dashed outline and a dimmed play circle mark the slot;
+ * the copy says the video will appear later instead of promising a player.
+ */
+@Composable
+private fun OnboardingVideoPlaceholder() {
+    val lineColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(62.dp)
+            .clip(PickerShape)
+            .drawBehind {
+                drawRoundRect(
+                    color = lineColor,
+                    cornerRadius = CornerRadius(12.dp.toPx()),
+                    style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f))),
+                )
+            }
+            .alpha(0.55f)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .drawBehind { drawCircle(color = lineColor, style = Stroke(width = 1.dp.toPx())) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.OnboardPlay,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = LocalContentColor.current,
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(Res.string.onboarding_video_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = stringResource(Res.string.onboarding_video_note),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -629,35 +889,35 @@ private fun keyHint(service: Service): StringResource = when (service) {
     else -> error("not an onboarding provider: ${service.id}")
 }
 
-private fun guideSteps(service: Service): List<Pair<StringResource, StringResource>> = when (service) {
+private fun providerGuideSteps(service: Service): List<StringResource> = when (service) {
     Service.PlusVibe -> listOf(
-        Res.string.onboarding_guide_step_register to Res.string.onboarding_desc_plusvibe_1,
-        Res.string.onboarding_guide_step_key to Res.string.onboarding_desc_plusvibe_2,
-        Res.string.onboarding_guide_step_topup to Res.string.onboarding_desc_plusvibe_3,
+        Res.string.onboarding_desc_plusvibe_1,
+        Res.string.onboarding_desc_plusvibe_2,
+        Res.string.onboarding_desc_plusvibe_3,
     )
 
     Service.Polza -> listOf(
-        Res.string.onboarding_guide_step_register to Res.string.onboarding_desc_polza_1,
-        Res.string.onboarding_guide_step_key to Res.string.onboarding_desc_polza_2,
-        Res.string.onboarding_guide_step_topup to Res.string.onboarding_desc_polza_3,
+        Res.string.onboarding_desc_polza_1,
+        Res.string.onboarding_desc_polza_2,
+        Res.string.onboarding_desc_polza_3,
     )
 
     Service.AiTunnel -> listOf(
-        Res.string.onboarding_guide_step_register to Res.string.onboarding_desc_aitunnel_1,
-        Res.string.onboarding_guide_step_key to Res.string.onboarding_desc_aitunnel_2,
-        Res.string.onboarding_guide_step_topup to Res.string.onboarding_desc_aitunnel_3,
+        Res.string.onboarding_desc_aitunnel_1,
+        Res.string.onboarding_desc_aitunnel_2,
+        Res.string.onboarding_desc_aitunnel_3,
     )
 
     Service.Gptunnel -> listOf(
-        Res.string.onboarding_guide_step_register to Res.string.onboarding_desc_gptunnel_1,
-        Res.string.onboarding_guide_step_key to Res.string.onboarding_desc_gptunnel_2,
-        Res.string.onboarding_guide_step_topup to Res.string.onboarding_desc_gptunnel_3,
+        Res.string.onboarding_desc_gptunnel_1,
+        Res.string.onboarding_desc_gptunnel_2,
+        Res.string.onboarding_desc_gptunnel_3,
     )
 
     Service.LlmRouter -> listOf(
-        Res.string.onboarding_guide_step_register to Res.string.onboarding_desc_llmrouter_1,
-        Res.string.onboarding_guide_step_key to Res.string.onboarding_desc_llmrouter_2,
-        Res.string.onboarding_guide_step_topup to Res.string.onboarding_desc_llmrouter_3,
+        Res.string.onboarding_desc_llmrouter_1,
+        Res.string.onboarding_desc_llmrouter_2,
+        Res.string.onboarding_desc_llmrouter_3,
     )
 
     else -> error("not an onboarding provider: ${service.id}")

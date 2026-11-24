@@ -20,11 +20,12 @@ import kotlinx.serialization.json.jsonObject
  * Reads the prepaid balance of providers that expose an account endpoint. Balance is
  * informational: any failure yields null so the settings screen and the chat path never break.
  */
-class ProviderBalanceClient {
+open class ProviderBalanceClient {
 
     private val client = httpClient()
 
-    suspend fun fetch(service: Service, apiKey: String): ProviderBalance? {
+    /** Open so tests can stub the network call out. */
+    open suspend fun fetch(service: Service, apiKey: String): ProviderBalance? {
         if (apiKey.isBlank()) return null
         val spec = balanceSpec(service) ?: return null
         return runCatching {

@@ -879,7 +879,8 @@ internal fun MediaServiceSection(
     }
 }
 
-private fun formatProviderBalance(balance: ProviderBalance): String {
+/** Shared by the settings card and the onboarding key card; both show the same string. */
+internal fun formatProviderBalance(balance: ProviderBalance): String {
     val symbol = when (balance.currency.uppercase()) {
         "RUB" -> "₽"
         "USD" -> "$"
