@@ -69,10 +69,4 @@ data class OnboardingState(
     val balance: ProviderBalance? = null,
     /** True while the catalog and balance load after a successful key save. */
     val isLoadingDetails: Boolean = false,
-    /**
-     * Seed for the guide section's open state. The open/close toggling itself lives in the
-     * composable; the field exists so a screenshot test can compose the expanded section
-     * through the public state, without a Koin container or an interaction.
-     */
-    val isGuideOpen: Boolean = false,
 )

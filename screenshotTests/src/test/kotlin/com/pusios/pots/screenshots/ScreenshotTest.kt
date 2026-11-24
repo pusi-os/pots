@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
+import com.pusios.pots.data.Service
 import com.pusios.pots.ui.DarkColorScheme
 import com.pusios.pots.ui.LightColorScheme
 import com.pusios.pots.ui.Theme
@@ -175,19 +176,20 @@ class ScreenshotTest {
         }
     }
 
-    // ---- onboarding provider picker (docs/design/onboarding) ----
+    // ---- onboarding wizard steps (docs/design/onboarding; 3.20.0 step flow) ----
 
     private fun onboardingState(
         error: org.jetbrains.compose.resources.StringResource? = null,
         isChecking: Boolean = false,
         isKeyAdded: Boolean = false,
-        isGuideOpen: Boolean = false,
+        step: Int = 1,
     ) = OnboardingState(
         phase = OnboardingPhase.Active,
+        step = step,
+        serviceId = if (step >= 2) Service.PlusVibe.id else null,
         error = error,
         isChecking = isChecking,
         isKeyAdded = isKeyAdded,
-        isGuideOpen = isGuideOpen,
     )
 
     @Test
@@ -200,7 +202,7 @@ class ScreenshotTest {
     @Test
     fun onboardingProviderGuide_dark() {
         paparazzi.snap(DarkColorScheme) {
-            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(isGuideOpen = true)))
+            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(step = 2)))
         }
     }
 
@@ -208,7 +210,7 @@ class ScreenshotTest {
     fun onboardingProviderGuide_narrow_dark() {
         paparazzi.snap(DarkColorScheme) {
             Box(Modifier.width(300.dp)) {
-                ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(isGuideOpen = true)))
+                ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(step = 2)))
             }
         }
     }
@@ -216,7 +218,7 @@ class ScreenshotTest {
     @Test
     fun onboardingKeyChecking_dark() {
         paparazzi.snap(DarkColorScheme) {
-            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(isChecking = true, isGuideOpen = true)))
+            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(step = 3, isChecking = true)))
         }
     }
 
@@ -224,7 +226,7 @@ class ScreenshotTest {
     fun onboardingKeyNetworkError_light() {
         paparazzi.snap(LightColorScheme) {
             ChatScreenContent(
-                uiState = ScreenshotTestData.chatOnboarding(onboardingState(error = Res.string.onboarding_error_network, isGuideOpen = true)),
+                uiState = ScreenshotTestData.chatOnboarding(onboardingState(step = 3, error = Res.string.onboarding_error_network)),
             )
         }
     }
@@ -232,7 +234,7 @@ class ScreenshotTest {
     @Test
     fun onboardingKeyAdded_dark() {
         paparazzi.snap(DarkColorScheme) {
-            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(isKeyAdded = true, isGuideOpen = true)))
+            ChatScreenContent(uiState = ScreenshotTestData.chatOnboarding(onboardingState(step = 3, isKeyAdded = true)))
         }
     }
 }
