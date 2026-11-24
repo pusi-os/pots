@@ -264,6 +264,34 @@ class VaultSessionTest {
     }
 
     @Test
+    fun `refreshLockState sees the auto-lock expiry without any other session access`() = runTest {
+        val dir = tempDir()
+        val clock = ManualClock()
+        val session = newSession(dir, autoLockTimeout = 100.milliseconds, clock = clock)
+        session.createVault("master-1")
+
+        // Idle past the timeout with NO other call on the session: the locked
+        // StateFlow is lazy — it still publishes `false` — which is exactly
+        // what the sheet's old `locked.value` gate tripped over (review
+        // round 2, item 1).
+        clock.elapsedMillis = 500
+        assertFalse(session.locked.value)
+
+        // The eager check sees the real state and locks the session.
+        assertTrue(session.refreshLockState())
+        assertTrue(session.locked.value)
+        assertNull(session.document())
+        assertFailsWith<VaultLockedException> { session.withKey { it } }
+
+        // Unlocking again works, and a fresh check on a live session stays
+        // unlocked: checking is not activity, so it must not expire the timer.
+        assertEquals(VaultUnlockResult.Success, session.unlock("master-1"))
+        clock.elapsedMillis = 520
+        assertFalse(session.refreshLockState())
+        assertNotNull(session.withKey { it })
+    }
+
+    @Test
     fun `upsert values path does not require serialized fields and search and delete work`() = runTest {
         val dir = tempDir()
         val session = newSession(dir)

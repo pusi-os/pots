@@ -158,12 +158,17 @@ fun VaultRequestSheetHost(
                 }
             },
             onSubmit = { submitted ->
-                // The session auto-locked under the filled form: submitting now
-                // would bounce with Locked and drop everything — the bridge
-                // clears `pending` before the write, so the sheet would close
-                // with no unlock step and no values. Hold the submit instead;
-                // the stage below flips to Unlock and the values stay here.
-                if (session.locked.value) {
+                // The session may have auto-locked while the form sat filled:
+                // the locked StateFlow only publishes lock()/adopt() events and
+                // the expiry is noticed lazily inside the session, so reading
+                // locked.value here would be stale after idle time. The eager
+                // refresh both reports the actual state and locks, which flips
+                // the stage below to Unlock — the submit is held back (the
+                // bridge clears `pending` before the write, so without this
+                // gate the sheet would close with no unlock step and no
+                // values), and after unlocking the user gets the same form
+                // with the same values.
+                if (session.refreshLockState()) {
                     submitError = null
                 } else {
                     scope.launch {

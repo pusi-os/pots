@@ -105,6 +105,25 @@ class VaultSession(
     }
 
     /**
+     * Eager check of the auto-lock timeout against the current clock, returning
+     * the fresh locked state. The [locked] flow only publishes lock()/adopt()
+     * transitions — it goes stale while nobody touches the session, because
+     * the expiry itself is noticed lazily inside [checkUnlocked]. Callers that
+     * must act on the *actual* state (the chat request sheet gating its
+     * submit) use this instead of [locked.value]. Checking is not activity:
+     * the timer is left alone, an expired session only locks.
+     */
+    fun refreshLockState(): Boolean {
+        if (!_locked.value) {
+            val mark = lastActivity
+            if (mark != null && mark.elapsedNow() > autoLockTimeout) {
+                lock()
+            }
+        }
+        return _locked.value
+    }
+
+    /**
      * Run [block] with the raw vault key. Throws [VaultLockedException] when the
      * session is locked, including when it timed out right before the call.
      */
