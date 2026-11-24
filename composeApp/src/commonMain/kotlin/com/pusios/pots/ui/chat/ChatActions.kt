@@ -52,6 +52,10 @@ data class ChatActions(
     val onboardingClearKeyState: () -> Unit,
     /** «Готово» after a successful add: closes the wizard the same way the old check success did. */
     val onboardingConfirmKey: () -> Unit,
+    /** «Далее» on any wizard step: persists and opens the next card (carries the picked provider). */
+    val onboardingGoToStep: (step: Int, serviceId: String?) -> Unit,
+    /** Model picked in the onboarding dropdown: persists it on the just-added instance. */
+    val onboardingSelectModel: (modelId: String) -> Unit,
     /** «Пропустить» — parks the wizard behind the final card. */
     val onboardingSkip: () -> Unit,
     /** Reopens the wizard from the final card at the persisted step. */
