@@ -5,6 +5,7 @@
 
 package com.pusios.pots.ui.vault
 
+import com.pusios.pots.data.vault.VaultBiometricUnlock
 import com.pusios.pots.data.vault.VaultItem
 import com.pusios.pots.data.vault.VaultSession
 import com.pusios.pots.data.vault.VaultUnlockResult
@@ -30,17 +31,30 @@ sealed interface VaultUiState {
     /** No vault file yet: the first-run master password setup. */
     data object Setup : VaultUiState
 
-    /** Vault exists but the key is not in memory; [error] names the last failure. */
-    data class Locked(val error: VaultUnlockError?) : VaultUiState
+    /**
+     * Vault exists but the key is not in memory; [error] names the last
+     * failure. [biometricEnabled] is true when a device-bound quick-unlock
+     * blob exists, so the lock screen offers the fingerprint/PIN button.
+     */
+    data class Locked(val error: VaultUnlockError?, val biometricEnabled: Boolean = false) : VaultUiState
 
-    /** Session open; [items] already filtered by [query]. */
-    data class Unlocked(val query: String, val items: List<VaultItem>) : VaultUiState
+    /** Session open; [items] already filtered by [query]. [biometricEnabled] drives the settings toggle. */
+    data class Unlocked(
+        val query: String,
+        val items: List<VaultItem>,
+        val biometricEnabled: Boolean = false,
+    ) : VaultUiState
 }
 
 class VaultViewModel(
     private val session: VaultSession,
     scope: CoroutineScope,
+    private val biometric: VaultBiometricUnlock? = null,
 ) {
+    /** Platform offers quick unlock at all (Android 11+ only in v1). */
+    val biometricAvailable: Boolean
+        get() = biometric?.isAvailable == true
+
     private val _state = MutableStateFlow<VaultUiState>(VaultUiState.Unavailable)
 
     /** Current screen to render; collect in the composable. */
@@ -48,11 +62,11 @@ class VaultViewModel(
 
     init {
         scope.launch {
-            session.locked.collect { locked ->
+            session.locked.collect { isLocked ->
                 // Auto-lock or an explicit lock() from anywhere sends the UI
                 // back to the unlock screen; plaintext is gone with the key.
-                if (locked && _state.value is VaultUiState.Unlocked) {
-                    _state.value = VaultUiState.Locked(null)
+                if (isLocked && _state.value is VaultUiState.Unlocked) {
+                    _state.value = locked(null)
                 }
             }
         }
@@ -64,7 +78,7 @@ class VaultViewModel(
         _state.value = when {
             !session.isSupported -> VaultUiState.Unavailable
             !session.hasVaultFile() -> VaultUiState.Setup
-            session.locked.value -> VaultUiState.Locked(null)
+            session.locked.value -> locked(null)
             else -> unlockedState("")
         }
     }
@@ -80,19 +94,57 @@ class VaultViewModel(
     suspend fun unlock(masterPassword: String) {
         when (session.unlock(masterPassword)) {
             VaultUnlockResult.Success -> _state.value = unlockedState("")
-            VaultUnlockResult.WrongPassword -> locked(VaultUnlockError.WRONG_PASSWORD)
-            VaultUnlockResult.Tampered -> locked(VaultUnlockError.TAMPERED)
-            VaultUnlockResult.Corrupted -> locked(VaultUnlockError.CORRUPTED)
-            is VaultUnlockResult.UnsupportedVersion -> locked(VaultUnlockError.UNSUPPORTED_VERSION)
+            VaultUnlockResult.WrongPassword -> _state.value = locked(VaultUnlockError.WRONG_PASSWORD)
+            VaultUnlockResult.Tampered -> _state.value = locked(VaultUnlockError.TAMPERED)
+            VaultUnlockResult.Corrupted -> _state.value = locked(VaultUnlockError.CORRUPTED)
+            is VaultUnlockResult.UnsupportedVersion -> _state.value = locked(VaultUnlockError.UNSUPPORTED_VERSION)
             VaultUnlockResult.NotCreated -> _state.value = VaultUiState.Setup
             VaultUnlockResult.NotSupported -> _state.value = VaultUiState.Unavailable
         }
     }
 
-    /** First-run setup: create the vault file and open the empty list. */
+    /** First-run setup: create the vault file and open the empty list. A fresh
+     * vault invalidates any stale quick-unlock blob from a previous vault. */
     suspend fun setup(masterPassword: String) {
         session.createVault(masterPassword)
+        biometric?.disable()
         _state.value = unlockedState("")
+    }
+
+    /**
+     * Quick unlock (card t_6b300431): confirm with biometry/PIN and open the
+     * session from the stored wrap blob. A declined prompt leaves the screen
+     * untouched; a blob that no longer matches the vault is dropped.
+     */
+    suspend fun unlockBiometric(host: VaultBiometricHost?, promptTitle: String) {
+        val bio = biometric ?: return
+        if (!bio.isEnabled) return
+        val key = bio.promptForVaultKey(host, promptTitle) ?: return
+        when (session.unlockWithKey(key)) {
+            VaultUnlockResult.Success -> _state.value = unlockedState("")
+
+            // The wrap blob is stale (vault recreated, device key invalidated):
+            // quick unlock is dead until the master password re-enables it.
+            VaultUnlockResult.Tampered, VaultUnlockResult.NotCreated -> {
+                bio.disable()
+                _state.value = locked(null)
+            }
+
+            else -> _state.value = locked(null)
+        }
+    }
+
+    /** Toggle quick unlock. Enabling wraps the current vault key under the
+     * device key after one confirmation; disabling drops the blob. */
+    suspend fun setBiometricEnabled(enabled: Boolean, host: VaultBiometricHost?, promptTitle: String) {
+        val bio = biometric ?: return
+        if (enabled) {
+            if (_state.value !is VaultUiState.Unlocked) return
+            session.withKey { key -> bio.enable(key, host, promptTitle) }
+        } else {
+            bio.disable()
+        }
+        refreshUnlocked()
     }
 
     /** Lock now; the [session.locked] flow moves the UI back to the unlock screen. */
@@ -110,9 +162,7 @@ class VaultViewModel(
         refreshUnlocked()
     }
 
-    private fun locked(error: VaultUnlockError) {
-        _state.value = VaultUiState.Locked(error)
-    }
+    private fun locked(error: VaultUnlockError?): VaultUiState = VaultUiState.Locked(error, biometric?.isEnabled == true)
 
     private fun refreshUnlocked() {
         val current = _state.value
@@ -127,8 +177,8 @@ class VaultViewModel(
         // a timed-out session reports empty results but has not locked yet.
         val items = session.search(query)
         if (session.locked.value) {
-            return VaultUiState.Locked(null)
+            return locked(null)
         }
-        return VaultUiState.Unlocked(query, items)
+        return VaultUiState.Unlocked(query, items, biometric?.isEnabled == true)
     }
 }

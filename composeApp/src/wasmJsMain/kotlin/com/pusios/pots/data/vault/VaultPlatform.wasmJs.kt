@@ -4,5 +4,6 @@
 package com.pusios.pots.data.vault
 
 actual fun createVaultCryptoEngine(): VaultCryptoEngine? = null
+actual fun createVaultBiometricUnlock(): VaultBiometricUnlock? = null
 
 actual fun createVaultFileAccess(): VaultFileAccess? = null
