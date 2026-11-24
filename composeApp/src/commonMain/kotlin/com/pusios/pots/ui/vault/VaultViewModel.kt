@@ -94,10 +94,10 @@ class VaultViewModel(
     suspend fun unlock(masterPassword: String) {
         when (session.unlock(masterPassword)) {
             VaultUnlockResult.Success -> _state.value = unlockedState("")
-            VaultUnlockResult.WrongPassword -> locked(VaultUnlockError.WRONG_PASSWORD)
-            VaultUnlockResult.Tampered -> locked(VaultUnlockError.TAMPERED)
-            VaultUnlockResult.Corrupted -> locked(VaultUnlockError.CORRUPTED)
-            is VaultUnlockResult.UnsupportedVersion -> locked(VaultUnlockError.UNSUPPORTED_VERSION)
+            VaultUnlockResult.WrongPassword -> _state.value = locked(VaultUnlockError.WRONG_PASSWORD)
+            VaultUnlockResult.Tampered -> _state.value = locked(VaultUnlockError.TAMPERED)
+            VaultUnlockResult.Corrupted -> _state.value = locked(VaultUnlockError.CORRUPTED)
+            is VaultUnlockResult.UnsupportedVersion -> _state.value = locked(VaultUnlockError.UNSUPPORTED_VERSION)
             VaultUnlockResult.NotCreated -> _state.value = VaultUiState.Setup
             VaultUnlockResult.NotSupported -> _state.value = VaultUiState.Unavailable
         }
