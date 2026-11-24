@@ -28,8 +28,10 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.Token
 import androidx.compose.material.icons.outlined.VpnKey
 import androidx.compose.material3.ElevatedCard
@@ -38,6 +40,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -69,6 +73,8 @@ import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.vault_add_item
 import pots.composeapp.generated.resources.vault_biometric_prompt_title
 import pots.composeapp.generated.resources.vault_biometric_toggle
+import pots.composeapp.generated.resources.vault_export_action
+import pots.composeapp.generated.resources.vault_import_action
 import pots.composeapp.generated.resources.vault_kind_all
 import pots.composeapp.generated.resources.vault_kind_card
 import pots.composeapp.generated.resources.vault_kind_host
@@ -222,6 +228,8 @@ private fun VaultListContent(
 ) {
     val scope = rememberCoroutineScope()
     var kindFilter by remember { mutableStateOf<VaultItemKind?>(null) }
+    var backupDialog by remember { mutableStateOf<VaultBackupDialog?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val biometricHost = if (model.biometricAvailable) rememberVaultBiometricHost() else null
     val biometricPromptTitle = stringResource(Res.string.vault_biometric_prompt_title)
 
@@ -236,6 +244,20 @@ private fun VaultListContent(
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.weight(1f),
                 )
+                IconButton(onClick = { backupDialog = VaultBackupDialog.Export }) {
+                    Icon(
+                        imageVector = Icons.Outlined.SaveAlt,
+                        contentDescription = stringResource(Res.string.vault_export_action),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = { backupDialog = VaultBackupDialog.Import }) {
+                    Icon(
+                        imageVector = Icons.Outlined.FolderOpen,
+                        contentDescription = stringResource(Res.string.vault_import_action),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 IconButton(onClick = { model.lock() }) {
                     Icon(
                         imageVector = Icons.Outlined.Lock,
@@ -324,6 +346,27 @@ private fun VaultListContent(
             icon = { Icon(imageVector = Icons.Outlined.Add, contentDescription = null) },
             text = { Text(stringResource(Res.string.vault_add_item)) },
         )
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 88.dp),
+        )
+    }
+    when (backupDialog) {
+        VaultBackupDialog.Export -> VaultBackupExportDialog(
+            model = model,
+            onNotice = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
+            onDismiss = { backupDialog = null },
+        )
+
+        VaultBackupDialog.Import -> VaultBackupImportDialog(
+            model = model,
+            onNotice = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
+            onDismiss = { backupDialog = null },
+        )
+
+        null -> {}
     }
 }
 

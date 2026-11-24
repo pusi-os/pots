@@ -6,7 +6,10 @@
 package com.pusios.pots.ui.vault
 
 import com.pusios.pots.data.vault.VaultBiometricUnlock
+import com.pusios.pots.data.vault.VaultImportMode
+import com.pusios.pots.data.vault.VaultImportResult
 import com.pusios.pots.data.vault.VaultItem
+import com.pusios.pots.data.vault.VaultLockedException
 import com.pusios.pots.data.vault.VaultSession
 import com.pusios.pots.data.vault.VaultUnlockResult
 import kotlinx.coroutines.CoroutineScope
@@ -160,6 +163,26 @@ class VaultViewModel(
     suspend fun delete(itemId: String) {
         session.delete(itemId)
         refreshUnlocked()
+    }
+
+    /**
+     * Serialized *.pvault backup of the whole vault, sealed under [password];
+     * null when the session locked meanwhile (the UI returns to the lock
+     * screen through the [session.locked] flow).
+     */
+    suspend fun exportVault(password: String): ByteArray? = try {
+        session.exportVault(password)
+    } catch (_: VaultLockedException) {
+        null
+    }
+
+    /** Import a *.pvault backup and refresh the visible list on success. */
+    suspend fun importVault(bytes: ByteArray, password: String, mode: VaultImportMode): VaultImportResult {
+        val result = session.importVault(bytes, password, mode)
+        if (result is VaultImportResult.Success) {
+            refreshUnlocked()
+        }
+        return result
     }
 
     private fun locked(error: VaultUnlockError?): VaultUiState = VaultUiState.Locked(error, biometric?.isEnabled == true)

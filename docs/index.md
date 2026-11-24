@@ -154,6 +154,8 @@ Plus a built-in **Free** tier that requires no API key.
 - **[SMS](features/sms.md)** — Reading SMS and drafting replies for the user to send (Android, FOSS build)
 - **[Appearance](features/appearance.md)** — Theme picker
 - **[Encryption](features/encryption.md)** — Secure settings storage per platform
+- **[Password Manager](features/vault.md)** — Encrypted card vault, agent secret tools, export/import
+- **[Security](SECURITY.md)** — Password manager threat model: what is protected, what is not, backup guide
 - **[Settings Export & Import](features/settings-export-import.md)** — JSON backup and restore
 - **[Splinterlands](features/splinterlands.md)** — Auto-battle integration
 

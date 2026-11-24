@@ -30,6 +30,26 @@ sealed interface VaultUnlockResult {
     data object NotSupported : VaultUnlockResult
 }
 
+/** How [VaultSession.importVault] treats the cards from a *.pvault backup. */
+enum class VaultImportMode {
+    /** Keep the current cards; imported cards replace ones with the same id. */
+    MERGE,
+
+    /** Drop the current cards and take the whole file contents. */
+    REPLACE,
+}
+
+/** Result of [VaultSession.importVault], one per situation the import dialog must name. */
+sealed interface VaultImportResult {
+    data class Success(val imported: Int) : VaultImportResult
+    data object WrongPassword : VaultImportResult
+    data object Tampered : VaultImportResult
+    data object Corrupted : VaultImportResult
+    data class UnsupportedVersion(val version: Int) : VaultImportResult
+    data object Locked : VaultImportResult
+    data object NotSupported : VaultImportResult
+}
+
 /** How long the session stays unlocked without activity before locking itself. */
 val DEFAULT_AUTO_LOCK_TIMEOUT: Duration = 5.minutes
 
@@ -254,6 +274,76 @@ class VaultSession(
             envelope = rewrapped
             touch()
             true
+        }
+    }
+
+    /**
+     * Serialized *.pvault backup bytes of the whole current document, sealed in
+     * a fresh envelope under [exportPassword]: fresh salt, fresh vault key, own
+     * KDF header. The live vault's master password is not involved — the file
+     * opens only with [exportPassword]. Throws [VaultLockedException] when the
+     * session is locked.
+     */
+    suspend fun exportVault(exportPassword: String): ByteArray {
+        assertSupported()
+        checkUnlocked()
+        val engine = requireNotNull(store.engine)
+        val document = currentDocument()
+        return withContext(Dispatchers.Default) {
+            envelopeBytes(buildEnvelope(engine, document, exportPassword).envelope)
+        }
+    }
+
+    /**
+     * Import a *.pvault backup: parse, verify the header and both tags (a wrong
+     * password and a tampered file are distinct results, the vault is never
+     * touched on failure), then apply the cards in [mode]. Blank ids get fresh
+     * ones; blank timestamps are stamped now, otherwise ids and createdAt are
+     * preserved so repeated imports stay idempotent.
+     */
+    suspend fun importVault(bytes: ByteArray, password: String, mode: VaultImportMode): VaultImportResult {
+        if (!isSupported) return VaultImportResult.NotSupported
+        if (refreshLockState()) return VaultImportResult.Locked
+        val engine = requireNotNull(store.engine)
+        return withContext(Dispatchers.Default) {
+            try {
+                val envelope = parseEnvelope(bytes)
+                val kek = deriveKek(engine, password, envelope.kdf)
+                val key = unwrapVaultKey(engine, kek, envelope.wrap)
+                val importedDocument = openPayload(engine, key, envelope.payload)
+                val imported = withKey { vaultKey ->
+                    val now = epochMillis()
+                    val items = importedDocument.items.map { item ->
+                        val id = item.id.ifBlank { Uuid.random().toString() }
+                        val createdAt = currentDocument().items.firstOrNull { it.id == id }?.createdAt
+                            ?.takeIf { it > 0 }
+                            ?: item.createdAt.takeIf { it > 0 }
+                            ?: now
+                        item.copy(id = id, createdAt = createdAt, updatedAt = item.updatedAt.takeIf { it > 0 } ?: now)
+                    }
+                    updateDocument { current ->
+                        when (mode) {
+                            VaultImportMode.MERGE ->
+                                current.filterNot { existing -> items.any { it.id == existing.id } } + items
+
+                            VaultImportMode.REPLACE -> items
+                        }
+                    }
+                    persist(vaultKey)
+                    items.size
+                }
+                VaultImportResult.Success(imported)
+            } catch (_: VaultWrongPasswordException) {
+                VaultImportResult.WrongPassword
+            } catch (_: VaultTamperedException) {
+                VaultImportResult.Tampered
+            } catch (_: VaultCorruptedException) {
+                VaultImportResult.Corrupted
+            } catch (e: VaultUnsupportedVersionException) {
+                VaultImportResult.UnsupportedVersion(e.version)
+            } catch (_: VaultLockedException) {
+                VaultImportResult.Locked
+            }
         }
     }
 
