@@ -5,4 +5,7 @@
     <!-- The encrypted password vault: user credentials must never leave the
          device through Auto Backup, even though the file is ciphertext. -->
     <exclude domain="file" path="vault/" />
+    <!-- The ADB host key and the device registry: a key restored onto another
+         device would impersonate this one to every paired Android device. -->
+    <exclude domain="file" path="adb/" />
 </full-backup-content>

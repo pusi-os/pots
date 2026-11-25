@@ -64,6 +64,14 @@
 -keep class org.bouncycastle.** { *; }
 -dontwarn org.bouncycastle.**
 
+# libadb-android — the ADB client behind the ADB agent. Its pairing handshake calls into
+# spake2 through JNI and its TLS layer reaches Conscrypt by reflection (SSLContext
+# "Conscrypt", exportKeyingMaterial), so renaming or stripping any of it fails only at
+# runtime — on the pairing screen, which is the one place a user cannot work around.
+-keep class io.github.muntashirakon.adb.** { *; }
+-keep class org.conscrypt.** { *; }
+-dontwarn org.conscrypt.**
+
 # LiteRT LM — on-device inference SDK with JNI native bridge.
 -keep class com.google.ai.edge.litertlm.** { *; }
 -dontwarn com.google.ai.edge.litertlm.**

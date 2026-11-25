@@ -4,10 +4,12 @@
         <exclude domain="sharedpref" path="pots_secure_prefs.xml" />
         <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
         <exclude domain="file" path="vault/" />
+        <exclude domain="file" path="adb/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="pots_secure_prefs.xml" />
         <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
         <exclude domain="file" path="vault/" />
+        <exclude domain="file" path="adb/" />
     </device-transfer>
 </data-extraction-rules>
