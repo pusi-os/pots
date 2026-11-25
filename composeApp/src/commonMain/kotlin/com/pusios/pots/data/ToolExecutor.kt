@@ -4,6 +4,7 @@ import com.pusios.pots.getAvailableTools
 import com.pusios.pots.getPlatformToolDefinitions
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.smartTruncate
+import com.pusios.pots.tools.ToolActivation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -50,6 +51,16 @@ class ToolExecutor(
         val tools = toolsProvider()
         val tool = tools.find { it.schema.name == name }
             ?: return toolErrorJson("Unknown tool: $name")
+
+        // Lazy delivery ships an index, not every schema: a tool the model never saw must be
+        // described first. Without this gate a hallucinated call would run a tool the user's
+        // request never exposed — and the model would never learn it needs the schema.
+        if (!ToolActivation.canExecute(conversationId, name)) {
+            return toolErrorJson(
+                "Tool '$name' is not loaded in this conversation. " +
+                    "Call describe_tool with name=\"$name\" first, then call it again.",
+            )
+        }
 
         val args = try {
             parseJsonToMap(arguments)

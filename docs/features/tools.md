@@ -1,6 +1,6 @@
 # Tools
 
-**Last verified:** 2026-11-19
+**Last verified:** 2026-11-25
 
 Pots's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -260,6 +260,28 @@ Tool availability is controlled at multiple levels:
 
 The platform layer assembles the final list of available tools by checking all gates and per-tool settings, and only enabled tools are sent to the AI provider.
 
+## Lazy Tool Delivery
+
+Every enabled tool used to be sent with its full schema on every request: with 60 tools that was ~10K tokens of tool definitions before the first word, whether or not the request needed a tool at all. Above a threshold — more than 8 tools, or more than ~8K estimated tokens — a remote request now carries a compact index instead of the schemas.
+
+What the model gets in that mode:
+
+- **Three meta-tools.** `list_tools` prints the categories, each with a one-line summary and the tool names inside (or one category expanded with parameter signatures). `find_tools` searches names and descriptions and returns the best matches with their signatures. `describe_tool` returns one tool's full JSON schema.
+- **The hot set.** `web_search`, `fetch_url`, `get_local_time`, `memory_store` and `open_url` are always sent with full schemas, plus anything already activated in this conversation. The set is capped, so a chatty turn cannot undo the saving.
+- **A `## Tool catalogue` section in the system prompt.** One line per category (id, count, summary, names) and the instruction to search and describe before calling. Feature sections (vault, ADB, media, automation) still render from the full enabled set — they describe capabilities that remain reachable through the catalogue, so hiding them would make the prompt lie.
+
+`describe_tool` activates the tool for the rest of the conversation: the executor then accepts the call, and the tool is re-sent with its schema from the next round on. The tool set is re-resolved on every round of the tool loop for exactly this reason — a tool activated mid-turn has to be declared on the very next request, otherwise the message sanitizer strips the model's own call and its result.
+
+A call to a tool that was neither delivered nor described comes back as `success: false` with a "call describe_tool first" message instead of running. That keeps a hallucinated call from reaching a tool the user's request never exposed.
+
+Below the threshold nothing changes: the full set goes out exactly as before. The on-device (LiteRT) path always stays eager — the native engine owns its own tool loop and cannot extend the tool list mid-turn, and the user's local tool selection is already the filter there. Tools behind an off master toggle (vault, ADB, media, scheduling, email) are absent from the catalogue entirely, so they cannot be found, described or called.
+
+The token estimate is a plain `characters / 4` over the schema JSON, logged on debug builds as `[Tools] delivery=… enabled=… sent=… tokens≈sent/full`.
+
+### Adding a tool to a category
+
+Categories are derived from the tool's schema name in `composeApp/.../tools/ToolCatalog.kt` (`categoryOf`), not declared per tool: MCP tools are recognised by type, everything else by name family (`vault_*`, `adb_*`, `memory_*`, `*_email`, `*_sms`, anything containing `notification`, and the explicit sets for calendar, media, files, tasks, web and system tools). A new tool lands in the right category automatically when its name follows its family prefix; otherwise it falls into `other` and stays reachable through `find_tools`. Add it to the matching set in that file when the name does not follow a prefix, and cover the discovery path in `ToolDeliveryTest` when the category matters.
+
 ## Settings UI
 
 The tools tab in settings displays a responsive grid of toggle cards:
@@ -315,6 +337,11 @@ The interactive-mode top bar shows only the static title — loading is surfaced
 | `composeApp/src/commonMain/.../data/providers/OpenAIMessages.kt` | OpenAI-compatible message building + tool-call pairing sanitization |
 | `composeApp/src/commonMain/.../tools/CommonTools.kt` | Common tool implementations and the cross-platform definition list |
 | `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Shared gating every platform's available-tools list is built from |
+| `composeApp/src/commonMain/.../tools/ToolDelivery.kt` | Eager/lazy decision, hot set, token estimate logging |
+| `composeApp/src/commonMain/.../tools/ToolCatalog.kt` | Tool categories, `find_tools` ranking, compact catalogue rendering, token estimate |
+| `composeApp/src/commonMain/.../tools/MetaTools.kt` | `list_tools`, `find_tools`, `describe_tool` |
+| `composeApp/src/commonMain/.../tools/ToolActivation.kt` | Per-conversation delivered/activated sets behind the executor gate |
+| `composeApp/src/commonMain/.../data/ChatSystemPromptBuilder.kt` | System prompt sections, including the `## Tool catalogue` index |
 | `composeApp/src/commonMain/.../tools/WebSearchTool.kt` | `web_search` |
 | `composeApp/src/commonMain/.../tools/FetchUrlTool.kt` | `fetch_url` with private-address and redirect checks |
 | `composeApp/src/commonMain/.../tools/MediaTools.kt` | `generate_image`, `generate_video`, `list_media_models`, `enhance_prompt` |
