@@ -16,9 +16,7 @@ import kotlin.test.assertTrue
 private class ErroringAdbBackend(private val failure: Throwable) : AdbBackend by FakeAdbBackend() {
     override suspend fun connect(host: String, port: Int, tls: Boolean): Boolean = throw failure
 
-    override suspend fun disconnect(host: String, port: Int) {
-        throw failure
-    }
+    override suspend fun disconnect(host: String, port: Int): Unit = throw failure
 
     override suspend fun shell(host: String, port: Int, command: String, timeoutSec: Int): String = throw failure
 
