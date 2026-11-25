@@ -538,7 +538,21 @@ class WebPanelRuntime(
         val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS, hermesEnv(panel))
         val link = HermesWebappOutput.parse(output.text)
         if (link == null) {
-            setState(panel, WebPanelStatus.Failed("hermes webapp: ${reasonLine(output.text)}"))
+            // The port answered a moment ago, so the gateway is up. The launcher's
+            // wording is Hermes' own — a release may print an address Pots cannot
+            // read, or a warning line before it — and quoting that at the owner
+            // while the panel is serving in the browser is the bug this asks a
+            // refresh's question to avoid: a live gateway is Running, and only a
+            // panel that really is not serving gets the launcher's sentence.
+            val probed = probe(panel)
+            setState(
+                panel,
+                if (probed is WebPanelStatus.NotRunning) {
+                    WebPanelStatus.Failed("hermes webapp: ${reasonLine(output.text)}")
+                } else {
+                    probed
+                },
+            )
             return
         }
         val servedPort = WebPanels.portOf(link.url) ?: port
@@ -625,23 +639,40 @@ class WebPanelRuntime(
         output.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
             .ifEmpty { "no link printed" }
 
+    /**
+     * What the panel is doing, from the strongest evidence there is.
+     *
+     * A panel with its own status command is asked first, and a serving address
+     * in the answer settles it. Its wording is Hermes' own and moves between
+     * releases, so an answer without a readable address falls through to the
+     * process check instead of reading as "not running": a gateway whose pid is
+     * alive and whose port answers is running whatever its status line says, and
+     * that is the case the owner was left staring at — a panel that opened in the
+     * browser while the row offered to start it again.
+     */
     private fun probe(panel: WebPanel): WebPanelStatus {
         val statusCommand = WebPanels.statusCommand(panel)
-        if (statusCommand != null) {
-            val output = guest.run(statusCommand, STATUS_TIMEOUT_SECONDS)
-            val url = HermesWebappOutput.servingUrl(output.text) ?: return WebPanelStatus.NotRunning
+        val serving = statusCommand?.let { command ->
+            HermesWebappOutput.servingUrl(guest.run(command, STATUS_TIMEOUT_SECONDS).text)
+        }
+        if (serving != null) {
             // `--status` reports the address the gateway serves on, which is its
             // loopback dial origin even when the bind is every interface. Pots
             // writes that bind, so the panel sits behind the sign-in gate: the row
             // gets the LAN address and says an account is needed.
-            val port = WebPanels.portOf(url) ?: WebPanels.HERMES_PORT
-            return WebPanelStatus.Running(hermesRowAddress(port, url), WebPanelOpen.DASHBOARD_SIGN_IN)
+            val port = WebPanels.portOf(serving) ?: WebPanels.HERMES_PORT
+            return WebPanelStatus.Running(hermesRowAddress(port, serving), WebPanelOpen.DASHBOARD_SIGN_IN)
         }
         val pid = guest.pid(panel) ?: return WebPanelStatus.NotRunning
         if (!guest.alive(pid)) return WebPanelStatus.NotRunning
         val port = guest.port(panel) ?: return WebPanelStatus.Failed("pid $pid is alive but its port is unknown")
-        return if (guest.portFree(port)) {
-            WebPanelStatus.Failed("pid $pid is alive, port $port is not listening")
+        if (guest.portFree(port)) {
+            return WebPanelStatus.Failed("pid $pid is alive, port $port is not listening")
+        }
+        return if (statusCommand != null) {
+            // The launcher's own address, without one printed: the gateway is up
+            // and listening, and the bind Pots writes puts it behind the account.
+            WebPanelStatus.Running(hermesRowAddress(port, null), WebPanelOpen.DASHBOARD_SIGN_IN)
         } else {
             WebPanelStatus.Running(WebPanels.address(port), WebPanels.openKind(panel))
         }

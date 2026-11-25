@@ -476,7 +476,9 @@ object HermesWebappOutput {
 
     private val URL = Regex("""https?://\S+""")
     private val EXPIRES = Regex("""(?:within|valid for)\s+(\d+)\s+seconds""", RegexOption.IGNORE_CASE)
-    private val SERVING = Regex("""Serving at\s+(https?://\S+)""")
+
+    /** A port at the end of an address, optionally followed by a path. */
+    private val PORT = Regex(""":\d+(?:/.*)?$""")
 
     const val SIGN_IN_MARKER = "sign in with your dashboard account"
 
@@ -494,8 +496,23 @@ object HermesWebappOutput {
         )
     }
 
-    /** The address `hermes webapp --status` reports, without any one-use token. */
-    fun servingUrl(status: String): String? = SERVING.find(status)?.groupValues?.get(1)?.trimEnd('.', ',', ')')
+    /**
+     * The address `hermes webapp --status` reports, without any one-use token.
+     *
+     * Any address in the output, not just the one after "Serving at". The wording
+     * is Hermes' own and moves between releases: a bind address with the loopback
+     * one in parentheses, a warning line ahead of the answer, a sentence instead
+     * of the prefix. Reading only the strict shape made a serving gateway look
+     * stopped, and the row then quoted the launcher at the owner instead of
+     * saying "running". What a serving address always carries is a port, which is
+     * what separates it from a link quoted inside a warning, and the first one is
+     * the address the gateway is bound to — where another device dials; with no
+     * such address the last one in the output is the best reading left.
+     */
+    fun servingUrl(status: String): String? {
+        val addresses = URL.findAll(status).map { it.value.trimEnd('.', ',', ')', ']') }.toList()
+        return addresses.firstOrNull { PORT.containsMatchIn(it) } ?: addresses.lastOrNull()
+    }
 }
 
 /**
