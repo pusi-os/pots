@@ -338,7 +338,7 @@ class McpTokenStore(private val appSettings: AppSettings) {
 }
 
 /** The discovery + registration + token half of the flow. Network only, no UI, no storage. */
-class McpAuthClient(private val http: HttpClient = defaultHttp()) {
+class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
 
     /** The 401 challenge of the MCP endpoint, or null when it does not challenge at all. */
     suspend fun probeChallenge(url: String, headers: Map<String, String> = emptyMap()): WwwAuthenticate? = try {
@@ -458,7 +458,7 @@ class McpAuthClient(private val http: HttpClient = defaultHttp()) {
         tokenEndpoint = token.tokenEndpoint,
         fields = listOfNotNull(
             "grant_type" to "refresh_token",
-            "refresh_token" to token.refreshToken,
+            token.refreshToken?.let { "refresh_token" to it },
             "client_id" to token.clientId,
             "resource" to token.resource,
             token.clientSecret?.let { "client_secret" to it },
@@ -546,11 +546,13 @@ class McpAuthClient(private val http: HttpClient = defaultHttp()) {
         Result.failure(McpAuthException("$url failed: ${e.message ?: "network error"}"))
     }
 
-    private fun defaultHttp(): HttpClient = httpClient {
-        install(HttpTimeout) {
-            requestTimeoutMillis = 20_000
-            connectTimeoutMillis = 10_000
-        }
+}
+
+/** Shared HTTP client for discovery, registration and token requests. */
+private fun defaultMcpAuthHttp(): HttpClient = httpClient {
+    install(HttpTimeout) {
+        requestTimeoutMillis = 20_000
+        connectTimeoutMillis = 10_000
     }
 }
 
@@ -627,8 +629,15 @@ internal fun buildAuthorizeUrl(
  * A human adding the same URL by hand is a deliberate act and stays allowed.
  */
 internal fun isPrivateAddress(url: String): Boolean {
-    val afterScheme = url.substringAfter("://", "").substringBefore('/')
-    val host = afterScheme.substringAfterLast('@').substringBefore(':').lowercase()
+    val authority = url.substringAfter("://", "").substringBefore('/')
+    val hostPort = authority.substringAfterLast('@')
+    // Bracketed IPv6 (`[::1]:8080`) keeps its colons inside the brackets, so the port split has
+    // to happen after the closing bracket.
+    val host = if (hostPort.startsWith("[")) {
+        hostPort.substringBefore(']').removePrefix("[")
+    } else {
+        hostPort.substringBefore(':')
+    }.lowercase()
     if (host.isEmpty()) return true
     if (host == "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return true
     if (host == "[::1]" || host == "::1" || host == "0.0.0.0") return true

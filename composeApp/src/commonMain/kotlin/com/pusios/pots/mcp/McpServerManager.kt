@@ -344,13 +344,15 @@ class McpServerManager(
         detail: String,
     ): Result<List<McpToolMetadata>> {
         val failure = McpFailure(kind, status, detail, nowMs())
+        val needsAuth = kind == McpFailureKind.NeedsAuth || kind == McpFailureKind.NeedsScope
+        if (needsAuth) {
+            // The session that used to work is now refused by the server; keeping it around would
+            // let a tool call pretend to succeed against a revoked token.
+            mutex.withLock { clients.remove(serverId) }?.close()
+        }
         updateStatus(serverId) {
             it.copy(
-                state = if (kind == McpFailureKind.NeedsAuth || kind == McpFailureKind.NeedsScope) {
-                    McpServerStateKind.NeedsAuth
-                } else {
-                    McpServerStateKind.Failed
-                },
+                state = if (needsAuth) McpServerStateKind.NeedsAuth else McpServerStateKind.Failed,
                 failure = failure,
                 updatedAtEpochMs = nowMs(),
             )
@@ -703,12 +705,12 @@ class McpServerManager(
     }
 
     private fun persistStatuses() {
-        runCatching { appSettings.setMcpStatusJson(statusesSerializer.encodeToString(_statuses.value)) }
+        runCatching { appSettings.setMcpStatusJson(json.encodeToString(statusesSerializer, _statuses.value)) }
     }
 
     private fun loadStatuses(): Map<String, McpServerStatus> = try {
         val raw = appSettings.getMcpStatusJson()
-        if (raw.isBlank()) emptyMap() else statusesSerializer.decodeFromString(raw)
+        if (raw.isBlank()) emptyMap() else json.decodeFromString(statusesSerializer, raw)
     } catch (_: Exception) {
         emptyMap()
     }
@@ -735,7 +737,7 @@ class McpServerManager(
 
         val CONNECT_TIMEOUT = 20.seconds
         val LIST_TOOLS_TIMEOUT = 30.seconds
-        val AUTH_TIMEOUT = 5 * 60.seconds
+        val AUTH_TIMEOUT = (5 * 60).seconds
         val TOTAL_BUDGET = 90.seconds
         const val MAX_ATTEMPTS = 3
         val INITIAL_BACKOFF = 1.seconds

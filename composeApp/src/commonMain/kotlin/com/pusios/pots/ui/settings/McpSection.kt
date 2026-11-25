@@ -42,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.mcp.McpConfirmRequest
@@ -69,9 +71,11 @@ import pots.composeapp.generated.resources.settings_mcp_api_key
 import pots.composeapp.generated.resources.settings_mcp_api_key_help
 import pots.composeapp.generated.resources.settings_mcp_auth_required_help
 import pots.composeapp.generated.resources.settings_mcp_authorize
+import pots.composeapp.generated.resources.settings_mcp_copy_link
 import pots.composeapp.generated.resources.settings_mcp_deny
 import pots.composeapp.generated.resources.settings_mcp_header_key
 import pots.composeapp.generated.resources.settings_mcp_header_value
+import pots.composeapp.generated.resources.settings_mcp_link_copied
 import pots.composeapp.generated.resources.settings_mcp_manual_token
 import pots.composeapp.generated.resources.settings_mcp_manual_token_help
 import pots.composeapp.generated.resources.settings_mcp_manual_token_label
@@ -95,6 +99,7 @@ import pots.composeapp.generated.resources.settings_mcp_status_needs_auth
 import pots.composeapp.generated.resources.settings_mcp_status_unknown
 import pots.composeapp.generated.resources.settings_mcp_tool_count
 import pots.composeapp.generated.resources.settings_mcp_tools_cached
+import pots.composeapp.generated.resources.settings_mcp_waiting_browser
 
 @Composable
 internal fun McpServersSection(
@@ -206,6 +211,7 @@ private fun McpServerCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showTokenDialog by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
 
     Card(
         onClick = { expanded = !expanded },
@@ -334,6 +340,23 @@ private fun McpServerCard(
                         modifier = Modifier.handCursor(),
                     ) {
                         Text(stringResource(Res.string.settings_mcp_open_link))
+                    }
+                    // Opening the link is not always possible (a custom scheme the platform does
+                    // not route, or a browser that never comes to the foreground), so the owner can
+                    // also take the URL to another device or app.
+                    var copied by remember(authorizeUrl) { mutableStateOf(false) }
+                    TextButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(authorizeUrl))
+                            copied = true
+                        },
+                        modifier = Modifier.handCursor(),
+                    ) {
+                        Text(
+                            stringResource(
+                                if (copied) Res.string.settings_mcp_link_copied else Res.string.settings_mcp_copy_link,
+                            ),
+                        )
                     }
                 }
 

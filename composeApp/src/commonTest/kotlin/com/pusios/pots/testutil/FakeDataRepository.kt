@@ -379,7 +379,7 @@ class FakeDataRepository : DataRepository {
         return config
     }
 
-    override fun removeMcpServer(serverId: String) {
+    override suspend fun removeMcpServer(serverId: String) {
         mcpServers.removeAll { it.id == serverId }
         mcpConnected.remove(serverId)
         mcpTools.remove(serverId)
