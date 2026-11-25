@@ -21,6 +21,7 @@ import com.pusios.pots.adb.AdbTimeouts
 import com.pusios.pots.adb.adbDeviceId
 import com.pusios.pots.adb.isPrivateAdbHost
 import com.pusios.pots.adb.parseAdbEndpoint
+import com.pusios.pots.adb.readProductModelOrNull
 import com.pusios.pots.tools.PermissionController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -228,7 +229,11 @@ class AdbSettingsViewModel(
 
     private suspend fun connect(device: AdbDevice): AdbNotice = try {
         if (backend.connect(device.host, device.port, device.tls)) {
-            store.touch(device.id, lastModel = null, lastSeenEpochMs = Clock.System.now().toEpochMilliseconds())
+            store.touch(
+                device.id,
+                lastModel = backend.readProductModelOrNull(device.host, device.port),
+                lastSeenEpochMs = Clock.System.now().toEpochMilliseconds(),
+            )
             AdbNotice.Connected(device.endpoint)
         } else {
             AdbNotice.NoAnswer(device.endpoint)

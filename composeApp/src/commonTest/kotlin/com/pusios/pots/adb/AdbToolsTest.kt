@@ -6,11 +6,17 @@
 package com.pusios.pots.adb
 
 import com.pusios.pots.network.tools.Tool
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 private class Fixture(devices: List<AdbDevice> = listOf(TEST_DEVICE), gateAllowed: Boolean = true) {
     val backend = FakeAdbBackend()
@@ -193,6 +199,85 @@ class AdbToolsTest {
         val summary = fixture.gate.calls.single().second
         assertFalse(summary.contains("SECRET-VALUE"))
         assertTrue(summary.contains("***"))
+    }
+
+    @Test
+    fun gatedToolBudgetsOutliveTheConfirmationWindow() {
+        // ToolExecutor wraps execute in withTimeout(tool.timeout). A budget shorter than the gate's
+        // window would kill the call while the owner is still deciding, and respond() would have
+        // nowhere to deliver the answer.
+        val window = AdbGate().confirmTimeout
+        val gated = listOf("adb_connect", "adb_shell", "adb_install", "adb_uninstall")
+        val tools = Fixture().tools
+        for (name in gated) {
+            val budget = tools.first { it.schema.name == name }.timeout
+            assertTrue(
+                budget > window + AdbTimeouts.SHELL_SEC.seconds,
+                "$name budget $budget must outlive the $window confirmation window plus a shell command",
+            )
+        }
+    }
+
+    @Test
+    fun connectRecordsTheModelItReadsFromTheDevice() = runTest {
+        val fixture = Fixture()
+        fixture.backend.shellOutput = "Pixel 7\n"
+        val result = fixture.run("adb_connect", mapOf("device_id" to TEST_DEVICE.id))
+        assertEquals(true, result["success"])
+        assertEquals(listOf("getprop ro.product.model"), fixture.backend.shellCalls)
+        assertEquals("Pixel 7", fixture.store.all().single().lastModel)
+    }
+
+    @Test
+    fun connectSucceedsWhenTheModelReadFails() = runTest {
+        val fixture = Fixture()
+        fixture.backend.shellFailure = AdbException(AdbErrorKind.IO, "connection closed")
+        val result = fixture.run("adb_connect", mapOf("device_id" to TEST_DEVICE.id))
+        assertEquals(true, result["success"])
+        assertNull(fixture.store.all().single().lastModel)
+    }
+
+    @Test
+    fun installPropagatesCancellationInsteadOfReportingAFailure() = runTest {
+        val fixture = Fixture()
+        val cancelling = object : AdbBackend by fixture.backend {
+            override suspend fun installApk(host: String, port: Int, apkPath: String): String =
+                throw CancellationException("cancelled")
+        }
+        val install = AdbTools.create(AdbToolDependencies(cancelling, fixture.store, fixture.gate, fixture.cache))
+            .first { it.schema.name == "adb_install" }
+        val caught = try {
+            install.execute(mapOf("device_id" to TEST_DEVICE.id, "url" to "https://example.com/app.apk"))
+            null
+        } catch (cancelled: CancellationException) {
+            cancelled
+        }
+        assertNotNull(caught, "the tool must rethrow cancellation, not turn it into a failure result")
+    }
+
+    @Test
+    fun anOwnerAnswerAtSixtySecondsStillReachesGatedTools() = runTest {
+        // The reviewer's reproduction of the old budgets: the owner answers 60 s after the request,
+        // which is inside the 120 s window but was past the 45 s / 30 s tool budgets.
+        val fixture = Fixture()
+        fixture.backend.shellOutput = "uid=2000(shell)"
+        val slowGate = AdbConfirmation { _, _ ->
+            delay(60.seconds)
+            true
+        }
+        val tools = AdbTools.create(AdbToolDependencies(fixture.backend, fixture.store, slowGate, fixture.cache))
+        val calls = listOf(
+            "adb_shell" to mapOf("device_id" to TEST_DEVICE.id, "command" to "settings put global x 1"),
+            "adb_uninstall" to mapOf("device_id" to TEST_DEVICE.id, "package" to "com.example.app"),
+            "adb_connect" to mapOf("endpoint" to "192.168.1.77:5555"),
+        )
+        for ((name, args) in calls) {
+            val tool = tools.first { it.schema.name == name }
+            // ToolExecutor's own wrapper, so the test exercises the real ordering.
+            @Suppress("UNCHECKED_CAST")
+            val result = withTimeout(tool.timeout) { tool.execute(args) } as Map<String, Any>
+            assertEquals(true, result["success"], "$name must survive a 60 s answer")
+        }
     }
 
     @Test

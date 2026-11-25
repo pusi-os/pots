@@ -66,6 +66,11 @@ There is no pairing tool, no screenshot tool and no port forwarding in 3.21.
   see over mDNS; another device on the LAN is added by `host:port`.
 - **Switching the master toggle off drops every open session** — the tools
   disappear from the agent's set on the next request.
+- **The confirmation dialog is not wired into the chat yet.** `AdbGate`
+  publishes the request and waits up to 120 s, but no chat screen collects it in
+  3.21, so a gated action currently ends with «denied by user». Wiring one dialog
+  for both Vault and ADB is a separate task; the gate itself (window, masking,
+  headless refusal) is already in place and tested.
 
 ## Security notes
 

@@ -29,7 +29,7 @@ class AdbSettingsViewModelTest {
 
     @Test
     fun pairingSuccessStoresTheDeviceTrustedAndConnects() = runTest {
-        val backend = FakeAdbBackend()
+        val backend = FakeAdbBackend().apply { shellOutput = "Pixel 8\n" }
         val store = FakeAdbStore(emptyList())
         val model = model(this, backend, store)
         model.onEndpointChange("192.168.1.50:43125")
@@ -43,6 +43,8 @@ class AdbSettingsViewModelTest {
         assertEquals("192.168.1.50:43125", stored.id)
         assertTrue(stored.trusted)
         assertTrue(stored.tls)
+        // The model is read once after connect, so adb_list_devices has something to show.
+        assertEquals("Pixel 8", stored.lastModel)
         assertEquals(listOf("192.168.1.50:43125"), backend.connects)
         assertTrue(model.state.value.notice is AdbNotice.Connected)
         assertFalse(model.state.value.busy)

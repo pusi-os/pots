@@ -38,7 +38,9 @@ class AndroidAdbApkCache(private val context: Context) : AdbApkCache {
     private val client: HttpClient by lazy {
         httpClient {
             install(HttpTimeout) {
-                requestTimeoutMillis = 10 * 60 * 1000
+                // The install tool's budget is 300 s and already includes the owner's 120 s
+                // confirmation window: a longer request timeout would never fire.
+                requestTimeoutMillis = 150_000
                 connectTimeoutMillis = 15_000
             }
         }

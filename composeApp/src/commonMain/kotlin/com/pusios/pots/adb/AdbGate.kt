@@ -32,7 +32,7 @@ fun interface AdbConfirmation {
 }
 
 @OptIn(ExperimentalUuidApi::class)
-class AdbGate(private val confirmTimeout: Duration = 120.seconds) : AdbConfirmation {
+class AdbGate(val confirmTimeout: Duration = DEFAULT_CONFIRM_TIMEOUT_SECONDS.seconds) : AdbConfirmation {
 
     private val _pending = MutableStateFlow<AdbConfirmRequest?>(null)
 
@@ -60,7 +60,16 @@ class AdbGate(private val confirmTimeout: Duration = 120.seconds) : AdbConfirmat
         if (_pending.value?.id == requestId) deferred?.complete(allowed)
     }
 
-    private companion object {
-        const val SUMMARY_LIMIT = 200
+    companion object {
+        /**
+         * How long the owner has to answer a confirmation. A tool that may wait here must set a
+         * [com.pusios.pots.network.tools.Tool.timeout] longer than this window plus its own backend
+         * deadline: [ToolExecutor][com.pusios.pots.data.ToolExecutor] wraps the call in
+         * `withTimeout(tool.timeout)`, and a shorter budget would kill the call while the owner is
+         * still deciding. `AdbToolsTest.gatedToolBudgetsOutliveTheConfirmationWindow` holds the two
+         * numbers together.
+         */
+        const val DEFAULT_CONFIRM_TIMEOUT_SECONDS = 120L
+        private const val SUMMARY_LIMIT = 200
     }
 }

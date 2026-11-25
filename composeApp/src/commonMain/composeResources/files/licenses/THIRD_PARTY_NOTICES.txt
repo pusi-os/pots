@@ -89,13 +89,13 @@ The ADB agent links the following Java/Kotlin libraries into the app. They are
 code, not separate programs: no source offer is needed, the notices are below.
 
 libadb-android 3.1.1
-License:   Apache License, Version 2.0 (full text below)
+License:   Apache License, Version 2.0
            https://www.apache.org/licenses/LICENSE-2.0
 Copyright: Copyright (C) Muntashir Akon and libadb-android contributors
 Source:    https://github.com/MuntashirAkon/libadb-android/tree/v3.1.1
 
 conscrypt-android 2.5.3
-License:   Apache License, Version 2.0 (full text below)
+License:   Apache License, Version 2.0
            https://www.apache.org/licenses/LICENSE-2.0
 Copyright: Copyright (C) Google Inc.
 Source:    https://github.com/google/conscrypt/tree/2.5.3

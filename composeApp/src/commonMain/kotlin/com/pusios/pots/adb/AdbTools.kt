@@ -16,6 +16,7 @@ import com.pusios.pots.network.tools.ParameterSchema
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.network.tools.ToolSchema
+import kotlinx.coroutines.CancellationException
 import pots.composeapp.generated.resources.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -39,6 +40,16 @@ object AdbTools {
 
     /** How much of a command's output a tool result may carry. */
     const val SHELL_OUTPUT_LIMIT_BYTES = 8 * 1024
+
+    /**
+     * Budget for a tool whose call may wait in the owner confirmation gate: the gate's window plus
+     * the backend's own deadline and slack. `ToolExecutor` wraps `execute` in
+     * `withTimeout(tool.timeout)`, so a shorter budget would kill the call while the owner is still
+     * deciding and the answer would have nowhere to go. `adb_install` is longer (it also downloads
+     * and pushes); AdbToolsTest keeps every gated budget above the window.
+     */
+    private val GATED_TOOL_TIMEOUT =
+        (AdbGate.DEFAULT_CONFIRM_TIMEOUT_SECONDS + AdbTimeouts.SHELL_SEC + 30).seconds
 
     /** Ports below this on a plain-TCP daemon are the legacy `adb tcpip 5555` setup. */
     private const val LEGACY_ADB_PORT = 5555
@@ -202,6 +213,9 @@ object AdbTools {
     // --- adb_connect ------------------------------------------------------------
 
     private fun connectTool(deps: AdbToolDependencies) = object : Tool {
+        // A new endpoint waits for the owner's confirmation, then the backend's connect deadline.
+        override val timeout = GATED_TOOL_TIMEOUT
+
         override val schema = ToolSchema(
             name = "adb_connect",
             description = "Connect to an ADB device on the local network. Pass device_id for a device " +
@@ -266,7 +280,11 @@ object AdbTools {
                             "a wireless-debugging device must be paired first",
                     )
                 } else {
-                    deps.store.touch(device.id, lastModel = null, lastSeenEpochMs = Clock.System.now().toEpochMilliseconds())
+                    deps.store.touch(
+                        device.id,
+                        lastModel = deps.backend.readProductModelOrNull(device.host, device.port),
+                        lastSeenEpochMs = Clock.System.now().toEpochMilliseconds(),
+                    )
                     mapOf(
                         "success" to true,
                         "device_id" to device.id,
@@ -302,8 +320,9 @@ object AdbTools {
     // --- adb_shell --------------------------------------------------------------
 
     private fun shellTool(deps: AdbToolDependencies) = object : Tool {
-        // The backend enforces its own 30 s deadline; the tool's budget only has to outlive it.
-        override val timeout = (AdbTimeouts.SHELL_SEC + 15).seconds
+        // A non-read-only command on a trusted device waits for the owner, then runs up to
+        // AdbTimeouts.SHELL_SEC on the device: the budget covers both.
+        override val timeout = GATED_TOOL_TIMEOUT
 
         override val schema = ToolSchema(
             name = "adb_shell",
@@ -352,6 +371,7 @@ object AdbTools {
 
     private fun installTool(deps: AdbToolDependencies) = object : Tool {
         // A download, a push and `pm install` in one call: 30 s would cut a large APK off mid-push.
+        // 300 s also clears the confirmation window plus the backend deadlines.
         override val timeout = 300.seconds
 
         override val schema = ToolSchema(
@@ -405,6 +425,9 @@ object AdbTools {
                 )
             } catch (failure: AdbException) {
                 adbFailure(failure)
+            } catch (failure: CancellationException) {
+                // ToolExecutor treats cancellation as its own outcome; it must not look like a failure.
+                throw failure
             } catch (failure: Exception) {
                 error("download or install failed", failure.message ?: failure::class.simpleName.orEmpty())
             }
@@ -414,6 +437,9 @@ object AdbTools {
     // --- adb_uninstall ----------------------------------------------------------
 
     private fun uninstallTool(deps: AdbToolDependencies) = object : Tool {
+        // Every uninstall waits for the owner, then runs `pm uninstall` on the device.
+        override val timeout = GATED_TOOL_TIMEOUT
+
         override val schema = ToolSchema(
             name = "adb_uninstall",
             description = "Uninstall a package from the device (`pm uninstall`). The owner is asked to " +
@@ -445,4 +471,14 @@ object AdbTools {
             }
         }
     }
+}
+
+/**
+ * Best-effort product model for the registry's `lastModel`. A device that answers `connect` but not
+ * `getprop` still connects, so a failed read is null, not an error.
+ */
+internal suspend fun AdbBackend.readProductModelOrNull(host: String, port: Int): String? = try {
+    shell(host, port, "getprop ro.product.model", AdbTimeouts.SHELL_SEC).trim().ifEmpty { null }
+} catch (failure: AdbException) {
+    null
 }
