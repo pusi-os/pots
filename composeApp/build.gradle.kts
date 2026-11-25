@@ -34,6 +34,13 @@ composeCompiler {
 compose.resources {
     publicResClass = true
 }
+// libadb-android declares bcprov-jdk15to18; the app already ships bcprov-jdk18on and the
+// two jars carry the same org.bouncycastle classes, which D8 rejects as duplicates. The
+// exclusion is module-wide because the KMP dependency handler has no
+// Provider+configuration-lambda overload for catalog dependencies.
+configurations.configureEach {
+    exclude(mapOf("group" to "org.bouncycastle", "module" to "bcprov-jdk15to18"))
+}
 
 kotlin {
     android {
@@ -168,9 +175,7 @@ kotlin {
                 // platform's own provider. libadb declares bcprov-jdk15to18; it is excluded
                 // because the app already ships bcprov-jdk18on and the two jars carry the same
                 // org.bouncycastle classes, which D8 rejects as duplicates.
-                implementation(libs.libadb.android) {
-                    exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
-                }
+                implementation(libs.libadb.android)
                 implementation(libs.conscrypt.android)
                 implementation(libs.litert.lm)
                 implementation(libs.sqldelight.android.driver)
