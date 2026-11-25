@@ -65,6 +65,7 @@ enum class SettingsTab {
     Services,
     Tools,
     Vault,
+    Adb,
     Sandbox,
     Integrations,
     Potsiki,

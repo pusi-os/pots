@@ -28,15 +28,15 @@ private data class AdbDeviceFile(val devices: List<AdbDevice> = emptyList())
  * Reads and writes go through one lock and a temp-file rename, so a process death mid-write cannot
  * leave half a JSON document behind.
  */
-class AdbDeviceRegistry(private val directory: File) {
+class AdbDeviceRegistry(private val directory: File) : AdbDeviceStore {
     private val file = File(directory, "devices.json")
     private val lock = Any()
 
     /** Every known device, in the order it was added. */
-    fun all(): List<AdbDevice> = synchronized(lock) { read() }
+    override fun all(): List<AdbDevice> = synchronized(lock) { read() }
 
     /** Adds [device], or replaces the entry with the same [AdbDevice.id]. Returns the new list. */
-    fun upsert(device: AdbDevice): List<AdbDevice> = synchronized(lock) {
+    override fun upsert(device: AdbDevice): List<AdbDevice> = synchronized(lock) {
         val devices = read().toMutableList()
         val index = devices.indexOfFirst { it.id == device.id }
         if (index >= 0) devices[index] = device else devices.add(device)
@@ -45,21 +45,21 @@ class AdbDeviceRegistry(private val directory: File) {
     }
 
     /** Forgets the device with [id]. Returns the new list. */
-    fun remove(id: String): List<AdbDevice> = synchronized(lock) {
+    override fun remove(id: String): List<AdbDevice> = synchronized(lock) {
         val devices = read().filterNot { it.id == id }
         write(devices)
         devices
     }
 
     /** Flips the trust flag of [id] — the settings screen's "Trust" toggle. Returns the new list. */
-    fun setTrusted(id: String, trusted: Boolean): List<AdbDevice> = synchronized(lock) {
+    override fun setTrusted(id: String, trusted: Boolean): List<AdbDevice> = synchronized(lock) {
         val devices = read().map { if (it.id == id) it.copy(trusted = trusted) else it }
         write(devices)
         devices
     }
 
     /** Records a successful connection: the model it reported and when it answered. */
-    fun touch(id: String, lastModel: String?, lastSeenEpochMs: Long): List<AdbDevice> = synchronized(lock) {
+    override fun touch(id: String, lastModel: String?, lastSeenEpochMs: Long): List<AdbDevice> = synchronized(lock) {
         val devices = read().map { device ->
             if (device.id == id) {
                 device.copy(lastModel = lastModel ?: device.lastModel, lastSeenEpochMs = lastSeenEpochMs)

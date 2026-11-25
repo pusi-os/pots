@@ -8,6 +8,7 @@
 
 package com.pusios.pots.data
 
+import com.pusios.pots.adb.AdbTools
 import com.pusios.pots.data.vault.VaultTools
 import com.pusios.pots.skills.SkillManifest
 import kotlin.time.Instant
@@ -161,6 +162,21 @@ internal const val DEFAULT_VAULT_SECTION =
         "instead. `vault_reveal` shows a value to the owner only after explicit confirmation.\n"
 
 /**
+ * Rules for the ADB tools. Everything they reach is on the local network and in the owner's
+ * registry; the prompt has to say so, because the model's default assumption about "control an
+ * Android device" is a cloud service with root access.
+ */
+internal const val DEFAULT_ADB_SECTION =
+    "## ADB Devices\n" +
+        "You can drive Android devices the owner added in Settings → ADB devices (the adb_* tools). " +
+        "Everything runs over the local network only — there is no internet relay and no cloud device. " +
+        "Call `adb_list_devices` first: it shows which devices exist and whether they are trusted. " +
+        "`adb_shell` runs as uid 2000 (the `shell` user), NOT root, so root-only paths and some dumpsys sections are unavailable — don't promise them. " +
+        "A device that was never paired accepts read-only shell commands only; on a trusted device the owner is still asked to confirm every state-changing command, every install and every uninstall. " +
+        "Never print pairing codes, ADB keys or key fingerprints in a reply. " +
+        "If a tool reports that the device rejected our key or asks to be paired again, tell the owner to pair it again in Settings → ADB devices — do not describe it as a network problem or «no connection»."
+
+/**
  * Media generation guidance. Rendered whenever the request actually carries
  * `generate_image` or `generate_video`. Teaches the agent that attached photos
  * reach the generation tools via `reference_image="attachment"` — the historical
@@ -308,6 +324,13 @@ internal fun buildChatSystemPrompt(
     if (VaultTools.TOOL_NAMES.any { it in toolNames }) {
         if (isNotEmpty()) append("\n\n")
         append(DEFAULT_VAULT_SECTION)
+    }
+
+    // The ADB section describes tools that reach another device; it renders only when the model is
+    // actually handed one of them (the master toggle gates the whole set, off by default).
+    if (AdbTools.TOOL_NAMES.any { it in toolNames }) {
+        if (isNotEmpty()) append("\n\n")
+        append(DEFAULT_ADB_SECTION)
     }
 
     if (activeSkill != null) {

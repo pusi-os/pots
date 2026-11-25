@@ -155,6 +155,7 @@ Plus a built-in **Free** tier that requires no API key.
 - **[Appearance](features/appearance.md)** — Theme picker
 - **[Encryption](features/encryption.md)** — Secure settings storage per platform
 - **[Password Manager](features/vault.md)** — Encrypted card vault, agent secret tools, export/import
+- **[ADB Agent](features/adb-agent.md)** — Drive Android devices over the local network: six agent tools, pairing, trust (Android)
 - **[Security](SECURITY.md)** — Password manager threat model: what is protected, what is not, backup guide
 - **[Settings Export & Import](features/settings-export-import.md)** — JSON backup and restore
 - **[Splinterlands](features/splinterlands.md)** — Auto-battle integration

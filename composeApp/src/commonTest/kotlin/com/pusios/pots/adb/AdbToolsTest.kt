@@ -1,0 +1,205 @@
+// The ADB tools' decisions, checked without a device: the six registered names, the untrusted
+// read-only rule, the owner confirmation on every changing action, the LAN address check and the
+// 8 KB output tail. The transport is a fake, so a passing test says the policy works, not that
+// the socket does.
+
+package com.pusios.pots.adb
+
+import com.pusios.pots.network.tools.Tool
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+private class Fixture(devices: List<AdbDevice> = listOf(TEST_DEVICE), gateAllowed: Boolean = true) {
+    val backend = FakeAdbBackend()
+    val store = FakeAdbStore(devices)
+    val gate = RecordingAdbGate(gateAllowed)
+    val cache = FakeAdbApkCache()
+    val tools: List<Tool> = AdbTools.create(AdbToolDependencies(backend, store, gate, cache))
+
+    fun tool(name: String): Tool = tools.first { it.schema.name == name }
+
+    suspend fun run(name: String, args: Map<String, Any>): Map<String, Any> {
+        @Suppress("UNCHECKED_CAST")
+        return tool(name).execute(args) as Map<String, Any>
+    }
+}
+
+class AdbToolsTest {
+
+    @Test
+    fun registersExactlyTheSixTools() {
+        val names = Fixture().tools.map { it.schema.name }
+        assertEquals(AdbTools.TOOL_NAMES, names)
+        assertEquals(6, names.size)
+        // The names that are explicitly out of scope for 3.21 must not leak into the set.
+        assertFalse(names.any { it == "adb_screencap" || it == "adb_forward" || it == "adb_pair" })
+    }
+
+    @Test
+    fun listDevicesReadsTheRegistryWithoutScanning() = runTest {
+        val fixture = Fixture()
+        val result = fixture.run("adb_list_devices", emptyMap())
+        assertEquals(true, result["success"])
+        assertEquals(1, result["count"])
+        assertEquals(0, fixture.backend.discoverCalls)
+    }
+
+    @Test
+    fun untrustedDeviceRefusesAWriteCommandBeforeTouchingTheBackend() = runTest {
+        val untrusted = TEST_DEVICE.copy(trusted = false)
+        val fixture = Fixture(devices = listOf(untrusted))
+        val result = fixture.run("adb_shell", mapOf("device_id" to TEST_DEVICE.id, "command" to "pm install -r /sdcard/x.apk"))
+        assertEquals(false, result["success"])
+        assertTrue((result["error"] as String).contains("read-only"))
+        assertTrue(fixture.backend.shellCalls.isEmpty())
+        assertTrue(fixture.gate.calls.isEmpty())
+    }
+
+    @Test
+    fun untrustedDeviceAllowsAReadOnlyCommandWithoutAsking() = runTest {
+        val untrusted = TEST_DEVICE.copy(trusted = false)
+        val fixture = Fixture(devices = listOf(untrusted))
+        fixture.backend.shellOutput = "uid=2000(shell) gid=2000(shell)"
+        val result = fixture.run("adb_shell", mapOf("device_id" to TEST_DEVICE.id, "command" to "id"))
+        assertEquals(true, result["success"])
+        assertEquals(listOf("id"), fixture.backend.shellCalls)
+        assertTrue(fixture.gate.calls.isEmpty())
+    }
+
+    @Test
+    fun trustedDeviceAsksTheOwnerBeforeAWriteCommand() = runTest {
+        val fixture = Fixture(gateAllowed = false)
+        val result = fixture.run("adb_shell", mapOf("device_id" to TEST_DEVICE.id, "command" to "settings put global x 1"))
+        assertEquals(false, result["success"])
+        assertEquals("denied by user", result["error"])
+        assertEquals(1, fixture.gate.calls.size)
+        assertEquals("adb_shell", fixture.gate.calls.single().first)
+        assertTrue(fixture.backend.shellCalls.isEmpty())
+    }
+
+    @Test
+    fun installAsksTheOwnerAndPushesTheDownloadedApk() = runTest {
+        val fixture = Fixture()
+        val result = fixture.run(
+            "adb_install",
+            mapOf("device_id" to TEST_DEVICE.id, "url" to "https://example.com/app.apk"),
+        )
+        assertEquals(true, result["success"])
+        assertEquals(1, fixture.gate.calls.size)
+        assertEquals("adb_install", fixture.gate.calls.single().first)
+        assertEquals(listOf("https://example.com/app.apk"), fixture.cache.urls)
+        assertEquals(listOf("/data/cache/install.apk"), fixture.backend.installs)
+    }
+
+    @Test
+    fun installOfAPathOnTheDeviceRunsPmInstallWithoutPush() = runTest {
+        val fixture = Fixture()
+        fixture.backend.shellOutput = "Success"
+        val result = fixture.run(
+            "adb_install",
+            mapOf("device_id" to TEST_DEVICE.id, "path" to "/sdcard/Download/app.apk"),
+        )
+        assertEquals(true, result["success"])
+        assertEquals(listOf("pm install -r /sdcard/Download/app.apk"), fixture.backend.shellCalls)
+        assertTrue(fixture.backend.installs.isEmpty())
+    }
+
+    @Test
+    fun installRejectsAShellMetacharacterInTheDevicePath() = runTest {
+        val fixture = Fixture()
+        val result = fixture.run(
+            "adb_install",
+            mapOf("device_id" to TEST_DEVICE.id, "path" to "/sdcard/app.apk; reboot"),
+        )
+        assertEquals(false, result["success"])
+        assertTrue(fixture.gate.calls.isEmpty())
+        assertTrue(fixture.backend.shellCalls.isEmpty())
+    }
+
+    @Test
+    fun uninstallAlwaysAsksAndPassesTheBackendRefusalThrough() = runTest {
+        val fixture = Fixture()
+        val result = fixture.run("adb_uninstall", mapOf("device_id" to TEST_DEVICE.id, "package" to "com.example.app"))
+        assertEquals(true, result["success"])
+        assertEquals(listOf("com.example.app"), fixture.backend.uninstalls)
+        assertEquals("adb_uninstall", fixture.gate.calls.single().first)
+
+        // The backend refuses an invalid name; the tool must not swallow the wording.
+        val refused = Fixture()
+        val invalid = AdbException(AdbErrorKind.IO, "not an Android package name: com.x; reboot")
+        val failing = object : AdbBackend by refused.backend {
+            override suspend fun uninstall(host: String, port: Int, packageName: String): String = throw invalid
+        }
+        val tools = AdbTools.create(AdbToolDependencies(failing, refused.store, refused.gate, refused.cache))
+        @Suppress("UNCHECKED_CAST")
+        val error = tools.first { it.schema.name == "adb_uninstall" }
+            .execute(mapOf("device_id" to TEST_DEVICE.id, "package" to "com.x; reboot")) as Map<String, Any>
+        assertEquals(false, error["success"])
+        assertEquals("not an Android package name: com.x; reboot", error["error"])
+    }
+
+    @Test
+    fun connectRejectsAPublicAddress() = runTest {
+        val fixture = Fixture()
+        val result = fixture.run("adb_connect", mapOf("endpoint" to "203.0.113.7:5555"))
+        assertEquals(false, result["success"])
+        assertTrue((result["error"] as String).contains("private/LAN"))
+        assertTrue(fixture.gate.calls.isEmpty())
+        assertTrue(fixture.backend.connects.isEmpty())
+    }
+
+    @Test
+    fun connectGatesANewEndpointAndStoresItUntrusted() = runTest {
+        val fixture = Fixture(devices = emptyList())
+        val result = fixture.run("adb_connect", mapOf("endpoint" to "192.168.1.77:5555"))
+        assertEquals(true, result["success"])
+        assertEquals("adb_connect", fixture.gate.calls.single().first)
+        val stored = fixture.store.all().single()
+        assertEquals("192.168.1.77:5555", stored.id)
+        assertFalse(stored.trusted)
+    }
+
+    @Test
+    fun connectOfAKnownTrustedDeviceDoesNotAsk() = runTest {
+        val fixture = Fixture()
+        val result = fixture.run("adb_connect", mapOf("device_id" to TEST_DEVICE.id))
+        assertEquals(true, result["success"])
+        assertTrue(fixture.gate.calls.isEmpty())
+    }
+
+    @Test
+    fun shellOutputIsCutToTheLastEightKilobytes() = runTest {
+        val fixture = Fixture()
+        val tail = "TAIL-MARKER"
+        fixture.backend.shellOutput = "A".repeat(10_000) + tail
+        val result = fixture.run("adb_shell", mapOf("device_id" to TEST_DEVICE.id, "command" to "dumpsys activity"))
+        assertEquals(true, result["success"])
+        val output = result["output"] as String
+        assertTrue(output.startsWith("[output truncated: showing the last "))
+        assertTrue(output.endsWith(tail))
+        assertEquals(true, result["truncated"])
+    }
+
+    @Test
+    fun gateSummaryMasksTokenLikeArguments() = runTest {
+        val fixture = Fixture()
+        fixture.run(
+            "adb_shell",
+            mapOf("device_id" to TEST_DEVICE.id, "command" to "curl -H token=SECRET-VALUE http://x"),
+        )
+        val summary = fixture.gate.calls.single().second
+        assertFalse(summary.contains("SECRET-VALUE"))
+        assertTrue(summary.contains("***"))
+    }
+
+    @Test
+    fun missingDeviceIdIsReportedWithAHint() = runTest {
+        val fixture = Fixture()
+        val result = fixture.run("adb_shell", mapOf("command" to "id"))
+        assertEquals(false, result["success"])
+        assertTrue((result["hint"] as String).contains("adb_list_devices"))
+    }
+}

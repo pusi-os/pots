@@ -40,6 +40,19 @@ Offline speech synthesis and recognition, linked on Android with models shipped 
 
 Note: piper-phonemize is GPLv3 and linked into the Android build. See `docs/features/voice-engines.md`.
 
+## ADB client (Android)
+
+The ADB agent (Settings › ADB devices, and the `adb_*` agent tools) links these Java/Kotlin
+libraries into the Android build. They are not binaries in `jniLibs`, so no source offer is needed
+for them — but their notices ship with the app.
+
+- **libadb-android 3.1.1** — Apache-2.0, https://github.com/MuntashirAkon/libadb-android (ADB client with the SPAKE2 wireless-debugging pairing handshake)
+- **conscrypt-android 2.5.3** — Apache-2.0, https://github.com/google/conscrypt (TLS provider that offers `exportKeyingMaterial`, which the pairing handshake needs)
+- **bcprov-jdk18on 1.86** — Bouncy Castle License (MIT-style), https://www.bouncycastle.org/licence.html (SPAKE2 and Ed25519 primitives)
+- **spake2-android** — LGPL-3.0, https://github.com/MuntashirAkon/spake2-android (transitive dependency of libadb-android)
+
+spake2-android is LGPL-3.0 and is linked unmodified; its source is available at the URL above.
+
 ## Bundled fonts
 
 - **DejaVu Serif** — Bitstream Vera Fonts Copyright (permissive, requires the notice), https://dejavu-fonts.github.io/
