@@ -88,6 +88,14 @@ class ToolExecutor(
             throw e
         } catch (e: Exception) {
             toolErrorJson("Tool execution failed: ${e.message}")
+        } catch (e: Throwable) {
+            // An Error (StackOverflowError, OutOfMemoryError, ...) is not an Exception, so without
+            // this branch it unwinds out of the agent loop and kills the process. A tool has no
+            // right to take the app down with it: the failure becomes a tool result the model can
+            // read and the user can see.
+            val kind = e::class.simpleName ?: "error"
+            println("ToolExecutor: tool '$name' threw $kind: ${e.message}")
+            toolErrorJson("Tool '$name' failed with $kind: ${e.message ?: "no message"}")
         }
     }
 

@@ -165,6 +165,17 @@ object AdbTools {
 
     private fun adbFailure(failure: AdbException): Map<String, Any> = error(failureText(failure.kind), failure.message)
 
+    /**
+     * Wording for a failure that is not an [AdbException] — an `Error` above all, which no
+     * `catch (e: Exception)` ever sees. The tool result has to carry it: an ADB call that blows the
+     * stack (a real 3.21.0 crash in `getDeviceName`) or runs out of memory must not take the
+     * process down with it.
+     */
+    private fun unexpectedFailure(failure: Throwable): Map<String, Any> = error(
+        "${failure::class.simpleName ?: "failure"}: ${failure.message ?: "no message"}",
+        "the ADB backend failed unexpectedly; check the connection and try again",
+    )
+
     private fun findDevice(deps: AdbToolDependencies, args: Map<String, Any>): AdbDevice? = str(args, "device_id")?.let { id -> deps.store.byId(id) }
 
     /** The error for a missing or unknown `device_id`, worded so the model knows which one it is. */
@@ -297,6 +308,11 @@ object AdbTools {
                 }
             } catch (failure: AdbException) {
                 adbFailure(failure)
+            } catch (failure: CancellationException) {
+                // The owner's "stop" is an outcome of its own, not a tool failure.
+                throw failure
+            } catch (failure: Throwable) {
+                unexpectedFailure(failure)
             }
         }
     }
@@ -315,8 +331,16 @@ object AdbTools {
 
         override suspend fun execute(args: Map<String, Any>): Any {
             val device = findDevice(deps, args) ?: return missingDevice(args)
-            deps.backend.disconnect(device.host, device.port)
-            return mapOf("success" to true, "device_id" to device.id, "connected" to false)
+            return try {
+                deps.backend.disconnect(device.host, device.port)
+                mapOf("success" to true, "device_id" to device.id, "connected" to false)
+            } catch (failure: AdbException) {
+                adbFailure(failure)
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Throwable) {
+                unexpectedFailure(failure)
+            }
         }
     }
 
@@ -366,6 +390,10 @@ object AdbTools {
                 )
             } catch (failure: AdbException) {
                 adbFailure(failure)
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Throwable) {
+                unexpectedFailure(failure)
             }
         }
     }
@@ -433,6 +461,8 @@ object AdbTools {
                 throw failure
             } catch (failure: Exception) {
                 error("download or install failed", failure.message ?: failure::class.simpleName.orEmpty())
+            } catch (failure: Throwable) {
+                unexpectedFailure(failure)
             }
         }
     }
@@ -471,6 +501,10 @@ object AdbTools {
             } catch (failure: AdbException) {
                 // The backend already validates the package id and words the refusal; hand it over.
                 error(failure.message ?: failureText(failure.kind))
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Throwable) {
+                unexpectedFailure(failure)
             }
         }
     }

@@ -42,7 +42,7 @@ class LibAdbBackend(
     private val context: Context,
     private val keys: AdbKeyStore,
     private val localNetworkPermission: PermissionController,
-    private val deviceName: String = DEVICE_NAME,
+    private val hostName: String = DEVICE_NAME,
 ) : AdbBackend {
     private val managers = mutableMapOf<String, AbsAdbConnectionManager>()
 
@@ -285,11 +285,17 @@ class LibAdbBackend(
     }
 
     private fun createManager(): AbsAdbConnectionManager = object : AbsAdbConnectionManager() {
-        override fun getPrivateKey(): PrivateKey = keys.privateKey()
+        // Every outer property is read through `this@LibAdbBackend`: a Java getter of this object is
+        // also a Kotlin synthetic property on `this`, so a bare name can silently resolve to a
+        // method of the very object being built. `getDeviceName()` below is exactly that case.
+        override fun getPrivateKey(): PrivateKey = this@LibAdbBackend.keys.privateKey()
 
-        override fun getCertificate(): Certificate = keys.certificate()
+        override fun getCertificate(): Certificate = this@LibAdbBackend.keys.certificate()
 
-        override fun getDeviceName(): String = deviceName
+        // A bare `deviceName` here resolved to this override (the Java getter is the synthetic
+        // property `deviceName`) and recursed until the stack overflowed — the 3.21.0 crash on the
+        // first `connect()`. The property is `hostName` and it is qualified, so it cannot happen.
+        override fun getDeviceName(): String = this@LibAdbBackend.hostName
     }.apply {
         // The daemon runs on the same OS family as this app, so telling it our API version lets it
         // pick the fastest protocol variant (shell_v2, features) instead of the oldest one.
