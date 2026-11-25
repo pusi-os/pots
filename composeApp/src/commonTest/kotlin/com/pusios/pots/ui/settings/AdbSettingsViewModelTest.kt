@@ -91,6 +91,22 @@ class AdbSettingsViewModelTest {
     }
 
     @Test
+    fun aPublicAddressIsNeverDiagnosed() = runTest {
+        // «Диагностика» takes the same free-text endpoint as a connect; the LAN-only rule has to
+        // hold on this path too, or a probe would leave the phone for an arbitrary address.
+        val backend = FakeAdbBackend()
+        val model = model(this, backend)
+        model.onEndpointChange("203.0.113.7:5555")
+        model.onDiagnose()
+        advanceUntilIdle()
+
+        assertEquals(AdbNotice.EndpointNotPrivate, model.state.value.notice)
+        assertEquals(0, backend.probeCalls)
+        assertTrue(model.state.value.statuses.isEmpty())
+        assertFalse(model.state.value.busy)
+    }
+
+    @Test
     fun connectingAnUnknownDeviceStoresItUntrusted() = runTest {
         val backend = FakeAdbBackend()
         val store = FakeAdbStore(emptyList())
@@ -225,5 +241,78 @@ class AdbSettingsViewModelTest {
 
         assertTrue(backend.disconnects.isEmpty())
         assertTrue(model.state.value.notice is AdbNotice.Diagnosis)
+    }
+
+    @Test
+    fun cancelIsOfferedOnlyForTheLiveAttemptsOwnDevice() = runTest {
+        // «Диагностика» of A leaves A in the waiting state without anything waiting for the owner;
+        // a connect to B must not show «Отмена» just because A still says «waiting».
+        val fake = FakeAdbBackend().apply { probeResult = AdbProbeResult.AuthRequired }
+        val backend = object : AdbBackend by fake {
+            override suspend fun connect(
+                host: String,
+                port: Int,
+                tls: Boolean,
+                firstContact: Boolean,
+                onPhase: (AdbConnectPhase) -> Unit,
+            ): Boolean {
+                onPhase(AdbConnectPhase.WAITING_FOR_CONFIRMATION)
+                awaitCancellation()
+            }
+        }
+        val model = model(this, backend)
+
+        model.onEndpointChange("192.168.1.50:5555")
+        model.onDiagnose()
+        advanceUntilIdle()
+        val first = adbDeviceId("192.168.1.50", 5555)
+        assertEquals(AdbDeviceState.WAITING_FOR_CONFIRMATION, model.state.value.statuses.getValue(first).state)
+        assertFalse(model.state.value.canCancelConnect)
+
+        model.onEndpointChange("192.168.1.60:5555")
+        model.onConnect()
+        // Started, but the attempt has not reached B's dialog yet.
+        assertFalse(model.state.value.canCancelConnect)
+        advanceUntilIdle()
+        assertTrue(model.state.value.canCancelConnect)
+
+        model.onCancelConnect()
+        advanceUntilIdle()
+        assertFalse(model.state.value.canCancelConnect)
+    }
+
+    @Test
+    fun aConnectFailureWithoutAMessageStillSaysWhatFailed() = runTest {
+        // The status line must never fall back to «не подключено» for a real failure: an
+        // AdbException can carry a blank message, and the transport also throws message-less ones.
+        val blank = FakeAdbBackend().apply { connectFailure = AdbException(AdbErrorKind.TIMEOUT, "") }
+        val blankModel = model(this, blank)
+        blankModel.onEndpointChange("192.168.1.50:5555")
+        blankModel.onConnect()
+        advanceUntilIdle()
+
+        val id = adbDeviceId("192.168.1.50", 5555)
+        val blankStatus = blankModel.state.value.statuses.getValue(id)
+        assertEquals(AdbDeviceState.ERROR, blankStatus.state)
+        assertTrue(!blankStatus.detail.isNullOrBlank(), "detail was ${blankStatus.detail}")
+        assertTrue(blankModel.state.value.notice is AdbNotice.DeviceDidNotConfirm)
+
+        val silent = object : AdbBackend by FakeAdbBackend() {
+            override suspend fun connect(
+                host: String,
+                port: Int,
+                tls: Boolean,
+                firstContact: Boolean,
+                onPhase: (AdbConnectPhase) -> Unit,
+            ): Boolean = throw RuntimeException()
+        }
+        val silentModel = model(this, silent)
+        silentModel.onEndpointChange("192.168.1.50:5555")
+        silentModel.onConnect()
+        advanceUntilIdle()
+
+        val silentStatus = silentModel.state.value.statuses.getValue(id)
+        assertEquals(AdbDeviceState.ERROR, silentStatus.state)
+        assertTrue(!silentStatus.detail.isNullOrBlank(), "detail was ${silentStatus.detail}")
     }
 }

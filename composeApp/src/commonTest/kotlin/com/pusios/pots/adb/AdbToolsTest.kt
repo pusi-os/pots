@@ -212,6 +212,23 @@ class AdbToolsTest {
     }
 
     @Test
+    fun diagnoseRejectsAPublicAddressAndANonLanHostname() = runTest {
+        // «Диагностика» takes the same free-text endpoint as a connect, so it has to answer the same
+        // way: no probe leaves the phone for an address outside the LAN, and no name resolution of a
+        // public hostname either.
+        val fixture = Fixture()
+        val address = fixture.run("adb_diagnose", mapOf("endpoint" to "203.0.113.7:5555"))
+        assertEquals(false, address["success"])
+        assertTrue((address["error"] as String).contains("private/LAN"))
+
+        val hostname = fixture.run("adb_diagnose", mapOf("endpoint" to "example.com:5555"))
+        assertEquals(false, hostname["success"])
+        assertTrue((hostname["error"] as String).contains("private/LAN"))
+
+        assertEquals(0, fixture.backend.probeCalls)
+    }
+
+    @Test
     fun connectGatesANewEndpointAndStoresItUntrusted() = runTest {
         val fixture = Fixture(devices = emptyList())
         val result = fixture.run("adb_connect", mapOf("endpoint" to "192.168.1.77:5555"))

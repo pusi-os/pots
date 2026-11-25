@@ -113,6 +113,12 @@ data class AdbSettingsUiState(
      * state too, but nothing is waiting there and there is nothing to cancel.
      */
     val connectInFlight: Boolean = false,
+    /**
+     * «Отмена» has something to stop: the live attempt's own device is showing its «Allow debugging»
+     * dialog. Derived from [connectInFlight] and that device's status — a device left waiting by
+     * «Диагностика» must not offer a button that would do nothing.
+     */
+    val canCancelConnect: Boolean = false,
     /** Per-endpoint state, keyed by [adbDeviceId]; an entry appears once an attempt starts. */
     val statuses: Map<String, AdbDeviceStatus> = emptyMap(),
     val notice: AdbNotice? = null,
@@ -160,7 +166,7 @@ class AdbSettingsViewModel(
             // agent could still reach through a stale tool argument.
             backend.disconnect(device.host, device.port)
             _state.update {
-                it.copy(devices = store.remove(device.id), statuses = it.statuses - device.id)
+                it.copy(devices = store.remove(device.id), statuses = it.statuses - device.id).withCancelFlag()
             }
         }
     }
@@ -407,7 +413,7 @@ class AdbSettingsViewModel(
                     connectInFlight = false,
                     statuses = current.statuses + (target.id to AdbDeviceStatus(AdbDeviceState.IDLE)),
                     notice = AdbNotice.ConnectCancelled(target.endpoint),
-                )
+                ).withCancelFlag()
             }
         }
     }
@@ -464,7 +470,10 @@ class AdbSettingsViewModel(
             // Throwable, not Exception: an Error from the transport must become a notice on the
             // screen instead of taking the process down mid-connection.
             val kind = (failure as? AdbException)?.kind
-            setStatus(device.id, AdbDeviceStatus(AdbDeviceState.ERROR, failure.message))
+            // A transport failure can arrive without a message (a socket error, a TLS throwable);
+            // the screen must say what failed instead of falling back to «не подключено».
+            val detail = failure.message?.ifBlank { null } ?: failure::class.simpleName.orEmpty()
+            setStatus(device.id, AdbDeviceStatus(AdbDeviceState.ERROR, detail))
             when (kind) {
                 AdbErrorKind.AUTHENTICATION_FAILED, AdbErrorKind.PAIRING_REQUIRED -> AdbNotice.PairingRequiredAgain
 
@@ -483,11 +492,22 @@ class AdbSettingsViewModel(
     private fun isLiveAttempt(token: Long): Boolean = token == attemptId
 
     private fun connectInFlight(value: Boolean) {
-        _state.update { it.copy(connectInFlight = value) }
+        _state.update { it.copy(connectInFlight = value).withCancelFlag() }
+    }
+
+    /**
+     * Recomputes [AdbSettingsUiState.canCancelConnect] from the live attempt and the status of the
+     * device it is working on. [onDiagnose] can leave a device in the waiting state too, so the
+     * status alone is not enough — the attempt's own target is what counts.
+     */
+    private fun AdbSettingsUiState.withCancelFlag(): AdbSettingsUiState {
+        val target = connectTarget
+        val waiting = target != null && statuses[target.id]?.state == AdbDeviceState.WAITING_FOR_CONFIRMATION
+        return copy(canCancelConnect = connectInFlight && waiting)
     }
 
     private fun setStatus(id: String, status: AdbDeviceStatus) {
-        _state.update { it.copy(statuses = it.statuses + (id to status)) }
+        _state.update { it.copy(statuses = it.statuses + (id to status)).withCancelFlag() }
     }
 
     private fun stateForProbe(result: AdbProbeResult): AdbDeviceState = when (result) {

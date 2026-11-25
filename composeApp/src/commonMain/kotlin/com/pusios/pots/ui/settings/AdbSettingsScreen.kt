@@ -248,11 +248,10 @@ fun AdbSettingsScreen(
                 }
                 // Only while a device is actually showing its dialog: that is the one wait that can
                 // last minutes, and the one the owner may want to abort (for example after walking
-                // away from the TV). A «Диагностика» can leave a device in the waiting state too,
-                // but nothing is waiting there, so `connectInFlight` gates the button.
-                if (state.connectInFlight &&
-                    state.statuses.values.any { status -> status.state == AdbDeviceState.WAITING_FOR_CONFIRMATION }
-                ) {
+                // away from the TV). A «Диагностика» can leave a device in the waiting state too, so
+                // the model decides this in `canCancelConnect` — from the live attempt and its own
+                // target's status, never from any device's status.
+                if (state.canCancelConnect) {
                     Spacer(Modifier.width(12.dp))
                     TextButton(
                         onClick = { model.onCancelConnect() },

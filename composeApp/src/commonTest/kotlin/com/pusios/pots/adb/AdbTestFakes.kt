@@ -52,6 +52,7 @@ internal class FakeAdbBackend : AdbBackend {
     val firstContacts = mutableListOf<Boolean>()
     var discoverCalls = 0
     var scanCalls = 0
+    var probeCalls = 0
     var connectResult = true
     var connectFailure: AdbException? = null
     var pairResult: AdbPairResult = AdbPairResult.Success
@@ -85,7 +86,10 @@ internal class FakeAdbBackend : AdbBackend {
         return connectResult
     }
 
-    override suspend fun probe(host: String, port: Int): AdbProbeResult = probeResult
+    override suspend fun probe(host: String, port: Int): AdbProbeResult {
+        probeCalls++
+        return probeResult
+    }
 
     override fun isConnected(host: String, port: Int): Boolean = connected
 
