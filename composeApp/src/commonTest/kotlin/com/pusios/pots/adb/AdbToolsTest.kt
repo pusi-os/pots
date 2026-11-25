@@ -259,15 +259,18 @@ class AdbToolsTest {
     fun gatedToolBudgetsOutliveTheConfirmationWindow() {
         // ToolExecutor wraps execute in withTimeout(tool.timeout). A budget shorter than the gate's
         // window would kill the call while the owner is still deciding, and respond() would have
-        // nowhere to deliver the answer.
+        // nowhere to deliver the answer. The longest path is gate + first connect (the owner tapping
+        // «Allow» on a TV) + one shell command, so all three have to fit.
         val window = AdbGate().confirmTimeout
+        val connectWindow = AdbTimeouts.CONNECT_FIRST_SEC.seconds
         val gated = listOf("adb_connect", "adb_shell", "adb_install", "adb_uninstall")
         val tools = Fixture().tools
         for (name in gated) {
             val budget = tools.first { it.schema.name == name }.timeout
             assertTrue(
-                budget > window + AdbTimeouts.SHELL_SEC.seconds,
-                "$name budget $budget must outlive the $window confirmation window plus a shell command",
+                budget > window + connectWindow + AdbTimeouts.SHELL_SEC.seconds,
+                "$name budget $budget must outlive the $window confirmation window, the " +
+                    "$connectWindow first connect and a shell command",
             )
         }
     }

@@ -1,6 +1,6 @@
 # ADB Agent
 
-**Last verified:** 2026-11-25
+**Last verified:** 2026-11-26
 
 Pots can drive Android devices in the local network over ADB: run shell
 commands, install and uninstall APKs. It works without root, without a bundled
@@ -45,7 +45,11 @@ The deadline then follows the verdict. A device that already holds our key gets
 minutes, because the answer is a person reaching for the remote, not a network
 round trip. While that wait runs the device row says «Ждём подтверждения на
 устройстве» and a «Отмена» button appears next to «Подключить»; cancelling closes
-the transport, which is what takes the prompt off the device's screen.
+the transport, which is what takes the prompt off the device's screen. The button
+is tied to a live attempt: a «Диагностика» can leave the row in the waiting state,
+but nothing is waiting there, so it offers no cancel. A verdict that arrives after
+«Отмена» — the blocking socket read cannot be interrupted — belongs to an attempt
+nobody is waiting for and is discarded instead of replacing the cancellation.
 
 One attempt at a time, and no automatic retry: AOSP keeps a single prompt in
 flight and queues the rest, so a retry while the first dialog is still up only
@@ -58,9 +62,10 @@ in a 200-entry ring buffer shown at the bottom of Settings → ADB devices.
 
 «Найти в сети» is mDNS, and the library behind it only reports daemons on this
 phone's own addresses — it cannot see a TV. «Сканировать LAN (5555)» probes the
-/24 this phone sits in, 32 hosts at a time, 300 ms per host, cancellable, one scan
-at a time, private addresses only. A host is reported only when it answers as an
-ADB daemon, so a random service on 5555 is not offered as a device.
+/24 this phone sits in, 32 hosts at a time, 300 ms per host for both the TCP
+connect and the reply to `CNXN`, cancellable, one scan at a time, private
+addresses only. A host is reported only when it answers as an ADB daemon, so a
+random service on 5555 is not offered as a device.
 
 ## The seven tools
 

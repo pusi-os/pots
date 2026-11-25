@@ -184,7 +184,11 @@ object AdbTimeouts {
     /** How many hosts a LAN scan probes at once: 254 hosts finish in a couple of seconds. */
     const val SCAN_CONCURRENCY = 32
 
-    /** Per-host TCP deadline during a scan; a host that does not answer this fast is not ADB. */
+    /**
+     * Per-host deadline during a scan: both the TCP connect and the wait for the reply to `CNXN`.
+     * A host that does not answer this fast is not ADB, and a silent one must not hold a wave for
+     * the [PROBE_SEC] a manual probe allows.
+     */
     const val SCAN_HOST_TIMEOUT_MS = 300L
 
     /** Upper bound on the addresses one scan touches, so a /16 network cannot turn into a flood. */

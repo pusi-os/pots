@@ -107,6 +107,12 @@ data class AdbSettingsUiState(
     val pairingPort: String = "",
     val code: String = "",
     val busy: Boolean = false,
+    /**
+     * A connection attempt is in flight and «Отмена» can stop it. Set only by [AdbSettingsViewModel.onConnect]
+     * and [AdbSettingsViewModel.onPairAndConnect]: a «Диагностика» leaves a device in the waiting
+     * state too, but nothing is waiting there and there is nothing to cancel.
+     */
+    val connectInFlight: Boolean = false,
     /** Per-endpoint state, keyed by [adbDeviceId]; an entry appears once an attempt starts. */
     val statuses: Map<String, AdbDeviceStatus> = emptyMap(),
     val notice: AdbNotice? = null,
@@ -123,6 +129,17 @@ class AdbSettingsViewModel(
 
     /** The connection attempt in flight, so «Отмена» can stop waiting for the device dialog. */
     private var connectJob: Job? = null
+
+    /**
+     * Id of the newest connection attempt.
+     *
+     * The transport blocks on a socket read that no cancellation can interrupt, so a cancelled
+     * attempt still returns a verdict — often seconds later. That late verdict belongs to an attempt
+     * nobody is waiting for: it is compared against this id and dropped instead of overwriting the
+     * «Отмена» the owner just pressed. A [Job] identity would not do: on an immediate dispatcher the
+     * attempt body runs before `connectJob` is assigned.
+     */
+    private var attemptId = 0L
 
     /** The endpoint [connectJob] is working on. */
     private var connectTarget: AdbDevice? = null
@@ -293,10 +310,12 @@ class AdbSettingsViewModel(
                         )
                         _state.update { it.copy(devices = store.upsert(device), notice = AdbNotice.Paired) }
                         // The connect half can also wait for a dialog, so it is cancellable too.
+                        val token = ++attemptId
                         connectTarget = device
                         connectJob = currentCoroutineContext()[Job]
-                        val connected = connect(device)
-                        _state.update { it.copy(notice = connected, devices = store.all()) }
+                        connectInFlight(true)
+                        val connected = connect(device, token)
+                        if (connected != null) _state.update { it.copy(notice = connected, devices = store.all()) }
                     }
 
                     AdbPairResult.InvalidCode -> _state.update { it.copy(notice = AdbNotice.InvalidCode) }
@@ -310,6 +329,7 @@ class AdbSettingsViewModel(
             } finally {
                 connectJob = null
                 connectTarget = null
+                connectInFlight(false)
                 _state.update { it.copy(busy = false, code = "") }
             }
         }
@@ -333,19 +353,24 @@ class AdbSettingsViewModel(
             trusted = false,
         )
         connectTarget = device
-        // A `lateinit` holder instead of the launch's return value: the coroutine may start before
-        // `connectJob` is assigned, and the identity check below must not clear a newer attempt.
+        // Set before the launch, so a body that finishes on an immediate dispatcher cannot leave the
+        // flag on: its `finally` clears it.
+        connectInFlight(true)
+        // The token, not the job, is the attempt's identity: on an immediate dispatcher the body
+        // runs to its first suspension before `connectJob` is assigned below.
+        val token = ++attemptId
         lateinit var attempt: Job
         attempt = scope.launch {
             _state.update { it.copy(busy = true, notice = null) }
             if (store.byId(device.id) == null) _state.update { it.copy(devices = store.upsert(device)) }
             try {
-                val connected = connect(device)
-                _state.update { it.copy(notice = connected, busy = false, devices = store.all()) }
+                val connected = connect(device, token)
+                if (connected != null) _state.update { it.copy(notice = connected, busy = false, devices = store.all()) }
             } finally {
-                if (connectJob === attempt) {
+                if (isLiveAttempt(token)) {
                     connectJob = null
                     connectTarget = null
+                    connectInFlight(false)
                 }
             }
         }
@@ -368,6 +393,9 @@ class AdbSettingsViewModel(
         val target = connectTarget ?: return
         val job = connectJob ?: return
         if (_state.value.statuses[target.id]?.state != AdbDeviceState.WAITING_FOR_CONFIRMATION) return
+        // Invalidate the attempt before cancelling: the blocking transport will still return a
+        // verdict after this, and it must not overwrite the cancellation below.
+        attemptId++
         connectJob = null
         connectTarget = null
         job.cancel()
@@ -376,6 +404,7 @@ class AdbSettingsViewModel(
             _state.update { current ->
                 current.copy(
                     busy = false,
+                    connectInFlight = false,
                     statuses = current.statuses + (target.id to AdbDeviceStatus(AdbDeviceState.IDLE)),
                     notice = AdbNotice.ConnectCancelled(target.endpoint),
                 )
@@ -388,8 +417,12 @@ class AdbSettingsViewModel(
      *
      * The attempt is never retried here: a second connect while the first dialog is still on the
      * device's screen only queues another prompt, and the owner would see two dialogs for one tap.
+     *
+     * Returns null when the attempt was superseded (the owner pressed «Отмена», or a newer attempt
+     * started) while the transport was still blocking: its verdict is stale, so neither the notice
+     * nor the per-device status is written from it.
      */
-    private suspend fun connect(device: AdbDevice): AdbNotice {
+    private suspend fun connect(device: AdbDevice, token: Long): AdbNotice? {
         setStatus(device.id, AdbDeviceStatus(AdbDeviceState.PROBING))
         return try {
             val connected = backend.connect(
@@ -398,17 +431,20 @@ class AdbSettingsViewModel(
                 device.tls,
                 firstContact = !device.trusted,
             ) { phase ->
-                when (phase) {
-                    AdbConnectPhase.PROBING -> setStatus(device.id, AdbDeviceStatus(AdbDeviceState.PROBING))
+                if (isLiveAttempt(token)) {
+                    when (phase) {
+                        AdbConnectPhase.PROBING -> setStatus(device.id, AdbDeviceStatus(AdbDeviceState.PROBING))
 
-                    AdbConnectPhase.WAITING_FOR_CONFIRMATION -> {
-                        setStatus(device.id, AdbDeviceStatus(AdbDeviceState.WAITING_FOR_CONFIRMATION))
-                        _state.update { it.copy(notice = AdbNotice.WaitingForConfirmation(device.endpoint)) }
+                        AdbConnectPhase.WAITING_FOR_CONFIRMATION -> {
+                            setStatus(device.id, AdbDeviceStatus(AdbDeviceState.WAITING_FOR_CONFIRMATION))
+                            _state.update { it.copy(notice = AdbNotice.WaitingForConfirmation(device.endpoint)) }
+                        }
+
+                        AdbConnectPhase.CONNECTED -> setStatus(device.id, AdbDeviceStatus(AdbDeviceState.CONNECTED))
                     }
-
-                    AdbConnectPhase.CONNECTED -> setStatus(device.id, AdbDeviceStatus(AdbDeviceState.CONNECTED))
                 }
             }
+            if (!isLiveAttempt(token)) return null
             if (!connected) {
                 setStatus(device.id, AdbDeviceStatus(AdbDeviceState.ERROR, "no answer"))
                 AdbNotice.NoAnswer(device.endpoint)
@@ -424,6 +460,7 @@ class AdbSettingsViewModel(
             setStatus(device.id, AdbDeviceStatus(AdbDeviceState.IDLE))
             throw cancelled
         } catch (failure: Throwable) {
+            if (!isLiveAttempt(token)) return null
             // Throwable, not Exception: an Error from the transport must become a notice on the
             // screen instead of taking the process down mid-connection.
             val kind = (failure as? AdbException)?.kind
@@ -440,6 +477,13 @@ class AdbSettingsViewModel(
                 else -> AdbNotice.ConnectFailed(failure.message ?: failure::class.simpleName.orEmpty())
             }
         }
+    }
+
+    /** True while [token] is still the attempt the screen is waiting for. */
+    private fun isLiveAttempt(token: Long): Boolean = token == attemptId
+
+    private fun connectInFlight(value: Boolean) {
+        _state.update { it.copy(connectInFlight = value) }
     }
 
     private fun setStatus(id: String, status: AdbDeviceStatus) {

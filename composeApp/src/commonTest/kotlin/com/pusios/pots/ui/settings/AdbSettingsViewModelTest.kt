@@ -7,17 +7,23 @@ package com.pusios.pots.ui.settings
 import com.pusios.pots.adb.AdbBackend
 import com.pusios.pots.adb.AdbConnectPhase
 import com.pusios.pots.adb.AdbDeviceState
+import com.pusios.pots.adb.AdbErrorKind
+import com.pusios.pots.adb.AdbException
 import com.pusios.pots.adb.AdbPairResult
+import com.pusios.pots.adb.AdbProbeResult
 import com.pusios.pots.adb.FakeAdbBackend
 import com.pusios.pots.adb.FakeAdbStore
 import com.pusios.pots.adb.TEST_DEVICE
 import com.pusios.pots.adb.adbDeviceId
 import com.pusios.pots.tools.AppPermission
 import com.pusios.pots.tools.PermissionController
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -154,5 +160,70 @@ class AdbSettingsViewModelTest {
         assertEquals(AdbDeviceState.IDLE, model.state.value.statuses.getValue(id).state)
         assertTrue(model.state.value.notice is AdbNotice.ConnectCancelled)
         assertFalse(model.state.value.busy)
+    }
+
+    @Test
+    fun aLateVerdictFromACancelledAttemptDoesNotOverwriteTheCancellation() = runTest {
+        // The real transport blocks on a socket read that no cancellation can interrupt, so after
+        // «Отмена» it still returns its own verdict a moment later. That verdict belongs to an
+        // attempt nobody is waiting for and must not replace the cancellation on screen.
+        val fake = FakeAdbBackend()
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val backend = object : AdbBackend by fake {
+            override suspend fun connect(
+                host: String,
+                port: Int,
+                tls: Boolean,
+                firstContact: Boolean,
+                onPhase: (AdbConnectPhase) -> Unit,
+            ): Boolean {
+                onPhase(AdbConnectPhase.WAITING_FOR_CONFIRMATION)
+                started.complete(Unit)
+                withContext(NonCancellable) { release.await() }
+                throw AdbException(AdbErrorKind.TIMEOUT, "the device did not confirm the connection within 120s")
+            }
+        }
+        val model = model(this, backend)
+        model.onEndpointChange("192.168.1.50:5555")
+        model.onConnect()
+        advanceUntilIdle()
+        started.await()
+
+        val id = adbDeviceId("192.168.1.50", 5555)
+        assertEquals(AdbDeviceState.WAITING_FOR_CONFIRMATION, model.state.value.statuses.getValue(id).state)
+        assertTrue(model.state.value.connectInFlight)
+
+        model.onCancelConnect()
+        release.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("192.168.1.50:5555"), fake.disconnects)
+        assertTrue(model.state.value.notice is AdbNotice.ConnectCancelled)
+        assertEquals(AdbDeviceState.IDLE, model.state.value.statuses.getValue(id).state)
+        assertFalse(model.state.value.busy)
+        assertFalse(model.state.value.connectInFlight)
+    }
+
+    @Test
+    fun aDiagnosisThatFindsAKeyRequestDoesNotOfferCancel() = runTest {
+        // A bare CNXN made the daemon ask for a key, but the app is not waiting for anything: the
+        // screen must not show «Отмена» for a wait that does not exist.
+        val backend = FakeAdbBackend().apply { probeResult = AdbProbeResult.AuthRequired }
+        val model = model(this, backend)
+        model.onEndpointChange("192.168.1.50:5555")
+        model.onDiagnose()
+        advanceUntilIdle()
+
+        val id = adbDeviceId("192.168.1.50", 5555)
+        assertEquals(AdbDeviceState.WAITING_FOR_CONFIRMATION, model.state.value.statuses.getValue(id).state)
+        assertFalse(model.state.value.connectInFlight)
+        assertFalse(model.state.value.busy)
+
+        model.onCancelConnect()
+        advanceUntilIdle()
+
+        assertTrue(backend.disconnects.isEmpty())
+        assertTrue(model.state.value.notice is AdbNotice.Diagnosis)
     }
 }

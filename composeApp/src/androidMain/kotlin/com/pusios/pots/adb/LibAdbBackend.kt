@@ -172,18 +172,27 @@ class LibAdbBackend(
      *
      * `log = false` is the LAN scan: 254 lines about closed ports would push the one interesting
      * attempt out of the ring buffer. The scan logs its own summary instead.
+     *
+     * [timeoutMs] bounds both the TCP connect and the wait for the reply header. A manual probe can
+     * afford [AdbTimeouts.PROBE_SEC]; the scan passes [AdbTimeouts.SCAN_HOST_TIMEOUT_MS], because a
+     * silent host must not hold a scan wave for seconds.
      */
-    private suspend fun probeInternal(host: String, port: Int, log: Boolean): AdbProbeResult = withContext(Dispatchers.IO) {
+    private suspend fun probeInternal(
+        host: String,
+        port: Int,
+        log: Boolean,
+        timeoutMs: Int = AdbTimeouts.PROBE_SEC * 1000,
+    ): AdbProbeResult = withContext(Dispatchers.IO) {
         var tcpConnected = false
         var packetSize = 0
         var replySize = 0
         val result = try {
             Socket().use { socket ->
-                socket.connect(InetSocketAddress(host, port), AdbTimeouts.PROBE_SEC * 1000)
+                socket.connect(InetSocketAddress(host, port), timeoutMs)
                 tcpConnected = true
                 val packet = AdbProbeProtocol.connectPacket()
                 packetSize = packet.size
-                socket.soTimeout = AdbTimeouts.PROBE_SEC * 1000
+                socket.soTimeout = timeoutMs
                 socket.getOutputStream().apply {
                     write(packet)
                     flush()
@@ -310,7 +319,8 @@ class LibAdbBackend(
                 return@withContext emptyList()
             }
             PotsAdbLog.step("scan", "probing ${hosts.size} hosts on port $port")
-            val found = scanAdbHosts(hosts) { host -> probeInternal(host, port, log = false) }
+            val perHostMs = AdbTimeouts.SCAN_HOST_TIMEOUT_MS.toInt()
+            val found = scanAdbHosts(hosts) { host -> probeInternal(host, port, log = false, timeoutMs = perHostMs) }
             PotsAdbLog.step("scan", "found ${found.size} on port $port: ${found.joinToString().ifEmpty { "none" }}")
             found.map { host -> AdbDiscovery(AdbDiscoveryServiceType.LEGACY_TCP, host, port) }
         } finally {
