@@ -18,11 +18,10 @@ class AdbPublicKeyEncoderTest {
     private val publicKey: RSAPublicKey = keyPair.public as RSAPublicKey
     private val twoPow32: BigInteger = BigInteger.ONE.shiftLeft(32)
 
-    private fun readInt(bytes: ByteArray, offset: Int): Int =
-        (bytes[offset].toInt() and 0xFF) or
-            ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
-            ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
-            ((bytes[offset + 3].toInt() and 0xFF) shl 24)
+    private fun readInt(bytes: ByteArray, offset: Int): Int = (bytes[offset].toInt() and 0xFF) or
+        ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
+        ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
+        ((bytes[offset + 3].toInt() and 0xFF) shl 24)
 
     private fun readBigEndianFromLittleEndian(bytes: ByteArray): BigInteger = BigInteger(1, bytes.reversedArray())
 
