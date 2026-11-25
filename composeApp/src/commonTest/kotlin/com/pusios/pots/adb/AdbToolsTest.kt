@@ -36,12 +36,65 @@ private class Fixture(devices: List<AdbDevice> = listOf(TEST_DEVICE), gateAllowe
 class AdbToolsTest {
 
     @Test
-    fun registersExactlyTheSixTools() {
+    fun registersExactlyTheSevenTools() {
         val names = Fixture().tools.map { it.schema.name }
         assertEquals(AdbTools.TOOL_NAMES, names)
-        assertEquals(6, names.size)
+        assertEquals(7, names.size)
+        assertTrue("adb_diagnose" in names)
         // The names that are explicitly out of scope for 3.21 must not leak into the set.
         assertFalse(names.any { it == "adb_screencap" || it == "adb_forward" || it == "adb_pair" })
+    }
+
+    @Test
+    fun diagnoseReportsTheProbeVerdictAndTheLogTailWithoutAskingTheOwner() = runTest {
+        val fixture = Fixture()
+        fixture.backend.probeResult = AdbProbeResult.AuthRequired
+        PotsAdbLog.clear()
+        PotsAdbLog.step("probe", "192.168.1.50:5555 -> AuthRequired")
+        val result = fixture.run("adb_diagnose", mapOf("device_id" to TEST_DEVICE.id))
+        assertEquals(true, result["success"])
+        assertEquals(true, result["reachable"])
+        assertEquals(true, result["daemon"])
+        assertTrue((result["probe"] as String).contains("waits for the device owner"))
+        assertTrue((result["hint"] as String).contains("«Allow»"))
+        assertTrue((result["log"] as List<*>).any { line -> (line as String).contains("AuthRequired") })
+        assertTrue(fixture.gate.calls.isEmpty())
+    }
+
+    @Test
+    fun diagnoseOfAClosedPortSaysNothingListens() = runTest {
+        val fixture = Fixture()
+        fixture.backend.probeResult = AdbProbeResult.PortClosed
+        val result = fixture.run("adb_diagnose", mapOf("endpoint" to "192.168.1.90:5555"))
+        assertEquals(true, result["success"])
+        assertEquals(false, result["reachable"])
+        assertEquals(false, result["daemon"])
+        assertTrue((result["probe"] as String).contains("nothing listens"))
+    }
+
+    @Test
+    fun connectPassesTheProbeVerdictThroughInsteadOfNoConnection() = runTest {
+        val fixture = Fixture()
+        fixture.backend.connectFailure = AdbException(
+            AdbErrorKind.TIMEOUT,
+            "the device did not confirm the connection within 120s — tap «Allow» on its screen",
+        )
+        val result = fixture.run("adb_connect", mapOf("device_id" to TEST_DEVICE.id))
+        assertEquals(false, result["success"])
+        assertEquals("the operation timed out", result["error"])
+        assertTrue((result["hint"] as String).contains("did not confirm"))
+        assertTrue((result["hint"] as String).contains("«Allow»"))
+    }
+
+    @Test
+    fun connectAsksForTheLongWindowOnlyOnAnUntrustedDevice() = runTest {
+        val trusted = Fixture()
+        trusted.run("adb_connect", mapOf("device_id" to TEST_DEVICE.id))
+        assertEquals(listOf(false), trusted.backend.firstContacts)
+
+        val untrusted = Fixture(devices = listOf(TEST_DEVICE.copy(trusted = false)))
+        untrusted.run("adb_connect", mapOf("device_id" to TEST_DEVICE.id))
+        assertEquals(listOf(true), untrusted.backend.firstContacts)
     }
 
     @Test

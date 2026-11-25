@@ -15,6 +15,12 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.net.Inet4Address
+import java.net.InetSocketAddress
+import java.net.NetworkInterface
+import java.net.Socket
+import java.net.SocketTimeoutException
 import java.security.PrivateKey
 import java.security.cert.Certificate
 import java.util.Collections
@@ -31,7 +37,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * The library is used the way its README suggests: one [AbsAdbConnectionManager] per endpoint, key
  * and certificate from [AdbKeyStore], `shell:` and `sync:` streams for the actual work. Everything
  * that is a decision rather than a socket call — timeouts, the read-only classifier, error mapping,
- * the sync framing — lives in commonMain with tests; this class only moves bytes.
+ * the sync framing, the probe packet — lives in commonMain with tests; this class only moves bytes.
+ *
+ * Every step writes one line to [PotsAdbLog] under the `PotsAdb` tag. Before 3.21.1 an ADB attempt
+ * left no trace anywhere, and a silent failure on a TV took an hour of packet-level probing to
+ * explain; the log is the difference between that and `adb logcat -s PotsAdb`.
  *
  * `close()` is not called on a manager: it does the same teardown as `disconnect()` and then
  * destroys the key instance it was handed. Managers stay in the map for the next [connect], so the
@@ -46,18 +56,26 @@ class LibAdbBackend(
 ) : AdbBackend {
     private val managers = mutableMapOf<String, AbsAdbConnectionManager>()
 
+    /** Guards the "one LAN scan at a time" rule; two scans would double the probes for no gain. */
+    private val scanInProgress = AtomicBoolean(false)
+
     override suspend fun pair(host: String, port: Int, code: String): AdbPairResult = withContext(Dispatchers.IO) {
+        PotsAdbLog.step("pair", "pairing with $host:$port")
         try {
             // Pairing opens a plain socket with no connect or handshake timeout, so the deadline has
             // to come from outside: the coroutine machinery cannot interrupt a blocking call.
             val paired = callWithDeadline(AdbTimeouts.PAIR_SEC * 1000L) { managerFor(host, port).pair(host, port, code) }
-            when (paired) {
+            val result = when (paired) {
                 null -> AdbPairResult.Timeout
                 true -> AdbPairResult.Success
                 false -> AdbPairResult.IoError("the device refused the pairing")
             }
+            PotsAdbLog.step("pair", "$host:$port -> $result")
+            result
         } catch (error: Exception) {
-            adbPairResultOf(error)
+            val result = adbPairResultOf(error)
+            PotsAdbLog.step("pair", "$host:$port failed -> $result (${error.message})")
+            result
         }
     }
 
@@ -86,18 +104,117 @@ class LibAdbBackend(
         }
     }
 
-    override suspend fun connect(host: String, port: Int, tls: Boolean): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun connect(
+        host: String,
+        port: Int,
+        tls: Boolean,
+        firstContact: Boolean,
+        onPhase: (AdbConnectPhase) -> Unit,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val id = adbDeviceId(host, port)
         val manager = managerFor(host, port)
-        try {
-            manager.isConnected || manager.connect(host, port)
+        if (manager.isConnected) {
+            PotsAdbLog.step("connect", "$id is already connected")
+            onPhase(AdbConnectPhase.CONNECTED)
+            return@withContext true
+        }
+
+        PotsAdbLog.step("connect", "$id tls=$tls firstContact=$firstContact")
+        onPhase(AdbConnectPhase.PROBING)
+        val probe = probeInternal(host, port, log = true)
+        if (!adbProbeIsDaemon(probe)) {
+            PotsAdbLog.step("connect", "$id refused: ${adbProbeSummary(probe)}")
+            throw adbProbeException(host, port, probe)
+        }
+        if (tls != (probe is AdbProbeResult.TlsRequired)) {
+            // The label is a hint, the wire is the truth: `connect` follows A_STLS and nothing else,
+            // so a mismatch is worth a line but never a reason to refuse a working endpoint.
+            PotsAdbLog.step("connect", "$id is labelled tls=$tls but answers $probe — following the wire")
+        }
+
+        val timeoutSec = adbConnectTimeoutSec(probe, firstContact)
+        if (probe is AdbProbeResult.AuthRequired) {
+            PotsAdbLog.step(
+                "waiting",
+                "$id asked for a key; waiting up to ${timeoutSec}s for the owner to tap «Allow» on the device",
+            )
+            onPhase(AdbConnectPhase.WAITING_FOR_CONFIRMATION)
+        }
+        manager.setTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
+        val connected = try {
+            manager.connect(host, port)
         } catch (error: Exception) {
+            PotsAdbLog.step("connect", "$id failed: ${error::class.simpleName}: ${error.message}")
             throw adbExceptionOf(error)
         }
+        if (!connected) {
+            // Close explicitly: the transport is abandoned by the library either way, but the device
+            // keeps its prompt alive until the socket is gone, and a half-dead prompt blocks the next
+            // attempt (AOSP dispatches one prompt at a time).
+            PotsAdbLog.step("timeout", "$id did not confirm within ${timeoutSec}s; closing the transport")
+            runCatching { manager.disconnect() }
+            throw AdbException(
+                AdbErrorKind.TIMEOUT,
+                "the device did not confirm the connection within ${timeoutSec}s — if its «Allow debugging» " +
+                    "dialog is on screen, tap «Allow» (and tick «Always allow from this computer»); if a dialog " +
+                    "was left over from an earlier attempt, press «Cancel» on the device first, then connect once more",
+            )
+        }
+        PotsAdbLog.step("connected", "$id authorized")
+        onPhase(AdbConnectPhase.CONNECTED)
+        true
+    }
+
+    override suspend fun probe(host: String, port: Int): AdbProbeResult = probeInternal(host, port, log = true)
+
+    /**
+     * One `CNXN` on a throwaway socket.
+     *
+     * `log = false` is the LAN scan: 254 lines about closed ports would push the one interesting
+     * attempt out of the ring buffer. The scan logs its own summary instead.
+     */
+    private suspend fun probeInternal(host: String, port: Int, log: Boolean): AdbProbeResult = withContext(Dispatchers.IO) {
+        var tcpConnected = false
+        var packetSize = 0
+        var replySize = 0
+        val result = try {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(host, port), AdbTimeouts.PROBE_SEC * 1000)
+                tcpConnected = true
+                val packet = AdbProbeProtocol.connectPacket()
+                packetSize = packet.size
+                socket.soTimeout = AdbTimeouts.PROBE_SEC * 1000
+                socket.getOutputStream().apply {
+                    write(packet)
+                    flush()
+                }
+                val reply = readUpTo(socket.getInputStream(), AdbProbeProtocol.HEADER_SIZE)
+                replySize = reply.size
+                if (reply.isEmpty()) AdbProbeResult.Silent else AdbProbeProtocol.parseReply(reply)
+            }
+        } catch (_: SocketTimeoutException) {
+            // A read timeout after a successful connect is the daemon going quiet, not a dead host.
+            if (tcpConnected) AdbProbeResult.Silent else AdbProbeResult.Timeout
+        } catch (error: Exception) {
+            adbProbeFailureOf(error)
+        }
+        if (log) {
+            PotsAdbLog.step(
+                "probe",
+                "$host:$port tcp=${if (tcpConnected) "ok" else "failed"} cnxn=$packetSize B reply=$replySize B -> $result",
+            )
+        }
+        result
+    }
+
+    override fun isConnected(host: String, port: Int): Boolean = synchronized(managers) {
+        managers[adbDeviceId(host, port)]?.isConnected == true
     }
 
     override suspend fun disconnect(host: String, port: Int) {
         withContext(Dispatchers.IO) {
             val manager = synchronized(managers) { managers.remove(adbDeviceId(host, port)) } ?: return@withContext
+            PotsAdbLog.step("disconnect", adbDeviceId(host, port))
             runCatching { manager.disconnect() }
         }
     }
@@ -109,6 +226,7 @@ class LibAdbBackend(
                 managers.clear()
                 snapshot
             }
+            if (open.isNotEmpty()) PotsAdbLog.step("disconnect", "closing ${open.size} session(s)")
             open.forEach { manager -> runCatching { manager.disconnect() } }
         }
     }
@@ -162,6 +280,7 @@ class LibAdbBackend(
                 ).also { it.start() }
             }.getOrNull()
         }
+        PotsAdbLog.step("mdns", "listening for ${listeners.size} service type(s) for ${timeoutMs}ms")
         try {
             // Cancelling the coroutine (the UI's "stop") lands here too and still stops the scan.
             delay(timeoutMs)
@@ -169,24 +288,73 @@ class LibAdbBackend(
             listeners.forEach { mdns -> runCatching { mdns.stop() } }
             runCatching { multicastLock?.release() }
         }
-        synchronized(found) { found.toList() }
+        val result = synchronized(found) { found.toList() }
+        PotsAdbLog.step("mdns", "found ${result.size} daemon(s)")
+        result
+    }
+
+    override suspend fun scanLan(port: Int): List<AdbDiscovery> = withContext(Dispatchers.IO) {
+        if (!localNetworkPermission.hasPermission()) {
+            throw AdbException(
+                AdbErrorKind.PERMISSION_DENIED,
+                "local network permission is required for a LAN scan",
+            )
+        }
+        if (!scanInProgress.compareAndSet(false, true)) {
+            throw AdbException(AdbErrorKind.IO, "a LAN scan is already running")
+        }
+        try {
+            val hosts = localSubnetHosts()
+            if (hosts.isEmpty()) {
+                PotsAdbLog.step("scan", "no private IPv4 interface to scan")
+                return@withContext emptyList()
+            }
+            PotsAdbLog.step("scan", "probing ${hosts.size} hosts on port $port")
+            val found = scanAdbHosts(hosts) { host -> probeInternal(host, port, log = false) }
+            PotsAdbLog.step("scan", "found ${found.size} on port $port: ${found.joinToString().ifEmpty { "none" }}")
+            found.map { host -> AdbDiscovery(AdbDiscoveryServiceType.LEGACY_TCP, host, port) }
+        } finally {
+            scanInProgress.set(false)
+        }
+    }
+
+    /**
+     * The /24 this phone sits in, one entry per usable private IPv4 interface.
+     *
+     * A /24 rather than the interface's real prefix: home LANs are /24 and probing a /16 would be
+     * 65 534 sockets for the one TV on the shelf. The phone's own address is skipped, and the list
+     * is capped at [AdbTimeouts.SCAN_MAX_HOSTS] so a multi-interface device cannot blow it up.
+     */
+    private fun localSubnetHosts(): List<String> {
+        val hosts = LinkedHashSet<String>()
+        val interfaces = NetworkInterface.getNetworkInterfaces() ?: return emptyList()
+        for (networkInterface in Collections.list(interfaces)) {
+            val usable = runCatching {
+                networkInterface.isUp && !networkInterface.isLoopback && !networkInterface.isPointToPoint
+            }.getOrDefault(false)
+            if (!usable) continue
+            for (address in Collections.list(networkInterface.inetAddresses)) {
+                val ipv4 = address as? Inet4Address ?: continue
+                val host = ipv4.hostAddress ?: continue
+                if (!isPrivateAdbHost(host)) continue
+                val prefix = host.substringBeforeLast('.', missingDelimiterValue = "")
+                if (prefix.isEmpty()) continue
+                for (last in 1..254) {
+                    val candidate = "$prefix.$last"
+                    if (candidate != host) hosts += candidate
+                    if (hosts.size >= AdbTimeouts.SCAN_MAX_HOSTS) return hosts.toList()
+                }
+            }
+        }
+        return hosts.toList()
     }
 
     private suspend fun connectedManager(host: String, port: Int): AbsAdbConnectionManager {
         val manager = managerFor(host, port)
         if (manager.isConnected) return manager
-        val connected = try {
-            manager.connect(host, port)
-        } catch (error: Exception) {
-            throw adbExceptionOf(error)
-        }
-        if (!connected) {
-            throw AdbException(
-                AdbErrorKind.TIMEOUT,
-                "no connection to $host:$port within ${AdbTimeouts.CONNECT_SEC}s " +
-                    "(a legacy device may still be showing its authorization dialog)",
-            )
-        }
+        // Reuse the full attempt, so a shell on a sleeping device reports the same probe verdict and
+        // the same long authorization window as a manual connect instead of a bare timeout.
+        connect(host, port, tls = port != ADB_LEGACY_PORT)
         return manager
     }
 
@@ -280,6 +448,18 @@ class LibAdbBackend(
         }
     }
 
+    /** Reads up to [size] bytes, returning what arrived before EOF — a daemon may close early. */
+    private fun readUpTo(input: InputStream, size: Int): ByteArray {
+        val buffer = ByteArray(size)
+        var offset = 0
+        while (offset < size) {
+            val read = input.read(buffer, offset, size - offset)
+            if (read < 0) break
+            offset += read
+        }
+        return buffer.copyOf(offset)
+    }
+
     private fun managerFor(host: String, port: Int): AbsAdbConnectionManager = synchronized(managers) {
         managers.getOrPut(adbDeviceId(host, port)) { createManager() }
     }
@@ -297,8 +477,9 @@ class LibAdbBackend(
         // first `connect()`. The property is `hostName` and it is qualified, so it cannot happen.
         override fun getDeviceName(): String = this@LibAdbBackend.hostName
     }.apply {
-        // The daemon runs on the same OS family as this app, so telling it our API version lets it
-        // pick the fastest protocol variant (shell_v2, features) instead of the oldest one.
+        // The API level only selects the protocol version and the feature set we advertise; an old
+        // daemon (Android 11 TV, protocol 0x01000000) ignores the newer features and answers in the
+        // dialect it knows, so a high value here does not break legacy devices.
         setApi(Build.VERSION.SDK_INT)
         setTimeout(AdbTimeouts.CONNECT_SEC.toLong(), TimeUnit.SECONDS)
         // A legacy 5555 device shows "Allow USB debugging?" and needs a human tap; failing fast here

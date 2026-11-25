@@ -1,6 +1,6 @@
-// State for the «ADB devices» settings tab: the known devices, the mDNS search, pairing and
-// connecting. Everything that talks to a device goes through AdbBackend, so this model never
-// touches a socket itself; the backend is Android-only and the tab is hidden elsewhere.
+// State for the «ADB devices» settings tab: the known devices, the mDNS search, the LAN scan,
+// pairing and connecting. Everything that talks to a device goes through AdbBackend, so this model
+// never touches a socket itself; the backend is Android-only and the tab is hidden elsewhere.
 //
 // Pairing happens here and only here: the six-digit code is typed by the owner, and the agent has
 // no tool that can pair a device.
@@ -9,21 +9,29 @@
 
 package com.pusios.pots.ui.settings
 
+import com.pusios.pots.adb.ADB_LEGACY_PORT
 import com.pusios.pots.adb.AdbBackend
+import com.pusios.pots.adb.AdbConnectPhase
 import com.pusios.pots.adb.AdbDevice
+import com.pusios.pots.adb.AdbDeviceState
 import com.pusios.pots.adb.AdbDeviceStore
 import com.pusios.pots.adb.AdbDiscovery
 import com.pusios.pots.adb.AdbDiscoveryServiceType
 import com.pusios.pots.adb.AdbErrorKind
 import com.pusios.pots.adb.AdbException
 import com.pusios.pots.adb.AdbPairResult
+import com.pusios.pots.adb.AdbProbeResult
 import com.pusios.pots.adb.AdbTimeouts
 import com.pusios.pots.adb.adbDeviceId
+import com.pusios.pots.adb.adbProbeSummary
 import com.pusios.pots.adb.isPrivateAdbHost
 import com.pusios.pots.adb.parseAdbEndpoint
 import com.pusios.pots.adb.readProductModelOrNull
 import com.pusios.pots.tools.PermissionController
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,7 +55,7 @@ sealed interface AdbNotice {
     /** The device answered and the connection is open. */
     data class Connected(val address: String) : AdbNotice
 
-    /** Nothing answered on the connect port. */
+    /** Nothing answered on the connect port: closed port, no route, or a TCP timeout. */
     data class NoAnswer(val address: String) : AdbNotice
 
     data class ConnectFailed(val reason: String) : AdbNotice
@@ -65,12 +73,32 @@ sealed interface AdbNotice {
 
     /** A pairing service was picked but no connect service is advertised for that host yet. */
     data object EnterConnectPort : AdbNotice
+
+    /** The device is showing its «Allow debugging» dialog; the app is waiting for the owner. */
+    data class WaitingForConfirmation(val address: String) : AdbNotice
+
+    /** The wait ran out: the device never confirmed the key. Not a network failure. */
+    data class DeviceDidNotConfirm(val address: String) : AdbNotice
+
+    /** The port is open but nothing on it speaks ADB. */
+    data class NotAdb(val address: String) : AdbNotice
+
+    /** The «Диагностика» result, so the screen can word each verdict differently. */
+    data class Diagnosis(val result: AdbProbeResult) : AdbNotice
+
+    /** The owner stopped waiting for the device dialog before the deadline. */
+    data class ConnectCancelled(val address: String) : AdbNotice
 }
+
+/** What the screen shows next to one endpoint. */
+data class AdbDeviceStatus(val state: AdbDeviceState, val detail: String? = null)
 
 data class AdbSettingsUiState(
     val devices: List<AdbDevice> = emptyList(),
     val discovered: List<AdbDiscovery> = emptyList(),
     val isScanning: Boolean = false,
+    /** A LAN scan of port 5555 is running; mDNS and the subnet scan are mutually exclusive. */
+    val isScanningLan: Boolean = false,
     /** A scan has finished at least once — the screen only reports "nothing found" after one. */
     val hasScanned: Boolean = false,
     /** The local-network permission was refused; the screen explains what to do instead. */
@@ -79,6 +107,8 @@ data class AdbSettingsUiState(
     val pairingPort: String = "",
     val code: String = "",
     val busy: Boolean = false,
+    /** Per-endpoint state, keyed by [adbDeviceId]; an entry appears once an attempt starts. */
+    val statuses: Map<String, AdbDeviceStatus> = emptyMap(),
     val notice: AdbNotice? = null,
 )
 
@@ -90,6 +120,12 @@ class AdbSettingsViewModel(
 ) {
     private val _state = MutableStateFlow(AdbSettingsUiState(devices = store.all()))
     val state: StateFlow<AdbSettingsUiState> = _state.asStateFlow()
+
+    /** The connection attempt in flight, so «Отмена» can stop waiting for the device dialog. */
+    private var connectJob: Job? = null
+
+    /** The endpoint [connectJob] is working on. */
+    private var connectTarget: AdbDevice? = null
 
     fun onEndpointChange(text: String) = _state.update { it.copy(endpoint = text, notice = null) }
 
@@ -106,13 +142,15 @@ class AdbSettingsViewModel(
             // Closing the session first: a removed device must not keep a live connection the
             // agent could still reach through a stale tool argument.
             backend.disconnect(device.host, device.port)
-            _state.update { it.copy(devices = store.remove(device.id)) }
+            _state.update {
+                it.copy(devices = store.remove(device.id), statuses = it.statuses - device.id)
+            }
         }
     }
 
     /** mDNS search, behind the local-network permission it needs on Android 17+. */
     fun onScan() {
-        if (_state.value.isScanning) return
+        if (_state.value.isScanning || _state.value.isScanningLan) return
         scope.launch {
             if (!localNetworkPermission.hasPermission() && !localNetworkPermission.requestPermission()) {
                 _state.update { it.copy(isScanning = false, scanPermissionDenied = true, hasScanned = true) }
@@ -129,6 +167,43 @@ class AdbSettingsViewModel(
                 emptyList()
             }
             _state.update { it.copy(isScanning = false, discovered = found, hasScanned = true) }
+        }
+    }
+
+    /**
+     * Probes the /24 this phone sits in on port 5555.
+     *
+     * This is the search that finds a TV: mDNS only reports daemons on the phone's own addresses, so
+     * a device that answers `CNXN` on 5555 is found here and nowhere else. Results are merged into
+     * the list instead of replacing it, so an mDNS find does not disappear after a subnet scan.
+     */
+    fun onScanLan() {
+        val current = _state.value
+        if (current.isScanning || current.isScanningLan) return
+        scope.launch {
+            if (!localNetworkPermission.hasPermission() && !localNetworkPermission.requestPermission()) {
+                _state.update { it.copy(isScanningLan = false, scanPermissionDenied = true, hasScanned = true) }
+                return@launch
+            }
+            _state.update { it.copy(isScanningLan = true, scanPermissionDenied = false, notice = null) }
+            val found = try {
+                backend.scanLan()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                if (failure is AdbException && failure.kind == AdbErrorKind.PERMISSION_DENIED) {
+                    _state.update { it.copy(isScanningLan = false, scanPermissionDenied = true, hasScanned = true) }
+                    return@launch
+                }
+                emptyList()
+            }
+            _state.update { state ->
+                state.copy(
+                    isScanningLan = false,
+                    discovered = (state.discovered + found).distinct(),
+                    hasScanned = true,
+                )
+            }
         }
     }
 
@@ -154,6 +229,33 @@ class AdbSettingsViewModel(
     fun onOpenAppSettings() = localNetworkPermission.openAppSettings()
 
     /**
+     * One probe of the typed endpoint, with the verdict as a notice.
+     *
+     * It sends a bare `CNXN`, which cannot put a dialog on the device's screen, so the owner can run
+     * it before connecting and after a failed attempt without leaving a prompt behind.
+     */
+    fun onDiagnose() {
+        val current = _state.value
+        if (current.busy) return
+        val endpoint = parseAdbEndpoint(current.endpoint) ?: return notice(AdbNotice.EndpointInvalid)
+        if (!isPrivateAdbHost(endpoint.host)) return notice(AdbNotice.EndpointNotPrivate)
+        val id = adbDeviceId(endpoint.host, endpoint.port)
+        scope.launch {
+            _state.update { it.copy(busy = true, notice = null) }
+            setStatus(id, AdbDeviceStatus(AdbDeviceState.PROBING))
+            val result = try {
+                backend.probe(endpoint.host, endpoint.port)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                AdbProbeResult.Failed(failure.message ?: failure::class.simpleName.orEmpty())
+            }
+            setStatus(id, AdbDeviceStatus(stateForProbe(result), adbProbeSummary(result)))
+            _state.update { it.copy(busy = false, notice = AdbNotice.Diagnosis(result)) }
+        }
+    }
+
+    /**
      * Pairs with the code the owner typed, then connects to the endpoint.
      *
      * The pairing port is a separate, short-lived one that the device shows next to the code; the
@@ -172,36 +274,44 @@ class AdbSettingsViewModel(
         if (code.length != 6 || code.any { !it.isDigit() }) return notice(AdbNotice.CodeInvalid)
 
         scope.launch {
-            _state.update { it.copy(busy = true, notice = null) }
-            val result = try {
-                backend.pair(endpoint.host, pairingPort, code)
-            } catch (failure: Exception) {
-                AdbPairResult.IoError(failure.message ?: "pairing failed")
-            }
-            when (result) {
-                AdbPairResult.Success -> {
-                    val device = AdbDevice(
-                        id = adbDeviceId(endpoint.host, endpoint.port),
-                        label = "${endpoint.host}:${endpoint.port}",
-                        host = endpoint.host,
-                        port = endpoint.port,
-                        tls = true,
-                        trusted = true,
-                    )
-                    _state.update { it.copy(devices = store.upsert(device), notice = AdbNotice.Paired) }
-                    val connected = connect(device)
-                    _state.update { it.copy(notice = connected, devices = store.all()) }
+            try {
+                _state.update { it.copy(busy = true, notice = null) }
+                val result = try {
+                    backend.pair(endpoint.host, pairingPort, code)
+                } catch (failure: Exception) {
+                    AdbPairResult.IoError(failure.message ?: "pairing failed")
                 }
+                when (result) {
+                    AdbPairResult.Success -> {
+                        val device = AdbDevice(
+                            id = adbDeviceId(endpoint.host, endpoint.port),
+                            label = "${endpoint.host}:${endpoint.port}",
+                            host = endpoint.host,
+                            port = endpoint.port,
+                            tls = true,
+                            trusted = true,
+                        )
+                        _state.update { it.copy(devices = store.upsert(device), notice = AdbNotice.Paired) }
+                        // The connect half can also wait for a dialog, so it is cancellable too.
+                        connectTarget = device
+                        connectJob = currentCoroutineContext()[Job]
+                        val connected = connect(device)
+                        _state.update { it.copy(notice = connected, devices = store.all()) }
+                    }
 
-                AdbPairResult.InvalidCode -> _state.update { it.copy(notice = AdbNotice.InvalidCode) }
+                    AdbPairResult.InvalidCode -> _state.update { it.copy(notice = AdbNotice.InvalidCode) }
 
-                AdbPairResult.TargetNotFound -> _state.update { it.copy(notice = AdbNotice.PairingWindowClosed) }
+                    AdbPairResult.TargetNotFound -> _state.update { it.copy(notice = AdbNotice.PairingWindowClosed) }
 
-                AdbPairResult.Timeout -> _state.update { it.copy(notice = AdbNotice.PairingTimeout) }
+                    AdbPairResult.Timeout -> _state.update { it.copy(notice = AdbNotice.PairingTimeout) }
 
-                is AdbPairResult.IoError -> _state.update { it.copy(notice = AdbNotice.PairingFailed(result.message)) }
+                    is AdbPairResult.IoError -> _state.update { it.copy(notice = AdbNotice.PairingFailed(result.message)) }
+                }
+            } finally {
+                connectJob = null
+                connectTarget = null
+                _state.update { it.copy(busy = false, code = "") }
             }
-            _state.update { it.copy(busy = false, code = "") }
         }
     }
 
@@ -219,33 +329,127 @@ class AdbSettingsViewModel(
             host = endpoint.host,
             port = endpoint.port,
             // A plain-TCP daemon lives on 5555; anything else here is wireless debugging.
-            tls = endpoint.port != 5555,
+            tls = endpoint.port != ADB_LEGACY_PORT,
             trusted = false,
         )
-        scope.launch {
+        connectTarget = device
+        // A `lateinit` holder instead of the launch's return value: the coroutine may start before
+        // `connectJob` is assigned, and the identity check below must not clear a newer attempt.
+        lateinit var attempt: Job
+        attempt = scope.launch {
             _state.update { it.copy(busy = true, notice = null) }
             if (store.byId(device.id) == null) _state.update { it.copy(devices = store.upsert(device)) }
-            val connected = connect(device)
-            _state.update { it.copy(notice = connected, busy = false, devices = store.all()) }
+            try {
+                val connected = connect(device)
+                _state.update { it.copy(notice = connected, busy = false, devices = store.all()) }
+            } finally {
+                if (connectJob === attempt) {
+                    connectJob = null
+                    connectTarget = null
+                }
+            }
+        }
+        connectJob = attempt
+    }
+
+    /**
+     * Stops waiting for the device's «Allow debugging» dialog.
+     *
+     * Cancelling the coroutine alone is not enough: the transport blocks on a socket read that no
+     * cancellation can interrupt, so the connection is closed explicitly. That is also what takes
+     * the prompt off the device's screen — an abandoned prompt stays there and blocks the next
+     * attempt (AOSP dispatches one prompt at a time), which is how 3.21.0 ended up with a queue of
+     * dialogs nobody could answer.
+     *
+     * Only offered while a device is actually waiting for its owner: cancelling a finished attempt
+     * would report a failure for a connection that is already open.
+     */
+    fun onCancelConnect() {
+        val target = connectTarget ?: return
+        val job = connectJob ?: return
+        if (_state.value.statuses[target.id]?.state != AdbDeviceState.WAITING_FOR_CONFIRMATION) return
+        connectJob = null
+        connectTarget = null
+        job.cancel()
+        scope.launch {
+            backend.disconnect(target.host, target.port)
+            _state.update { current ->
+                current.copy(
+                    busy = false,
+                    statuses = current.statuses + (target.id to AdbDeviceStatus(AdbDeviceState.IDLE)),
+                    notice = AdbNotice.ConnectCancelled(target.endpoint),
+                )
+            }
         }
     }
 
-    private suspend fun connect(device: AdbDevice): AdbNotice = try {
-        if (backend.connect(device.host, device.port, device.tls)) {
-            store.touch(
-                device.id,
-                lastModel = backend.readProductModelOrNull(device.host, device.port),
-                lastSeenEpochMs = Clock.System.now().toEpochMilliseconds(),
-            )
-            AdbNotice.Connected(device.endpoint)
-        } else {
-            AdbNotice.NoAnswer(device.endpoint)
+    /**
+     * One connection attempt, with its phases mirrored into the per-device status.
+     *
+     * The attempt is never retried here: a second connect while the first dialog is still on the
+     * device's screen only queues another prompt, and the owner would see two dialogs for one tap.
+     */
+    private suspend fun connect(device: AdbDevice): AdbNotice {
+        setStatus(device.id, AdbDeviceStatus(AdbDeviceState.PROBING))
+        return try {
+            val connected = backend.connect(
+                device.host,
+                device.port,
+                device.tls,
+                firstContact = !device.trusted,
+            ) { phase ->
+                when (phase) {
+                    AdbConnectPhase.PROBING -> setStatus(device.id, AdbDeviceStatus(AdbDeviceState.PROBING))
+
+                    AdbConnectPhase.WAITING_FOR_CONFIRMATION -> {
+                        setStatus(device.id, AdbDeviceStatus(AdbDeviceState.WAITING_FOR_CONFIRMATION))
+                        _state.update { it.copy(notice = AdbNotice.WaitingForConfirmation(device.endpoint)) }
+                    }
+
+                    AdbConnectPhase.CONNECTED -> setStatus(device.id, AdbDeviceStatus(AdbDeviceState.CONNECTED))
+                }
+            }
+            if (!connected) {
+                setStatus(device.id, AdbDeviceStatus(AdbDeviceState.ERROR, "no answer"))
+                AdbNotice.NoAnswer(device.endpoint)
+            } else {
+                store.touch(
+                    device.id,
+                    lastModel = backend.readProductModelOrNull(device.host, device.port),
+                    lastSeenEpochMs = Clock.System.now().toEpochMilliseconds(),
+                )
+                AdbNotice.Connected(device.endpoint)
+            }
+        } catch (cancelled: CancellationException) {
+            setStatus(device.id, AdbDeviceStatus(AdbDeviceState.IDLE))
+            throw cancelled
+        } catch (failure: Throwable) {
+            // Throwable, not Exception: an Error from the transport must become a notice on the
+            // screen instead of taking the process down mid-connection.
+            val kind = (failure as? AdbException)?.kind
+            setStatus(device.id, AdbDeviceStatus(AdbDeviceState.ERROR, failure.message))
+            when (kind) {
+                AdbErrorKind.AUTHENTICATION_FAILED, AdbErrorKind.PAIRING_REQUIRED -> AdbNotice.PairingRequiredAgain
+
+                AdbErrorKind.TIMEOUT -> AdbNotice.DeviceDidNotConfirm(device.endpoint)
+
+                AdbErrorKind.NOT_ADB -> AdbNotice.NotAdb(device.endpoint)
+
+                AdbErrorKind.UNREACHABLE -> AdbNotice.NoAnswer(device.endpoint)
+
+                else -> AdbNotice.ConnectFailed(failure.message ?: failure::class.simpleName.orEmpty())
+            }
         }
-    } catch (failure: AdbException) {
-        when (failure.kind) {
-            AdbErrorKind.AUTHENTICATION_FAILED, AdbErrorKind.PAIRING_REQUIRED -> AdbNotice.PairingRequiredAgain
-            else -> AdbNotice.ConnectFailed(failure.message ?: failure.kind.name)
-        }
+    }
+
+    private fun setStatus(id: String, status: AdbDeviceStatus) {
+        _state.update { it.copy(statuses = it.statuses + (id to status)) }
+    }
+
+    private fun stateForProbe(result: AdbProbeResult): AdbDeviceState = when (result) {
+        AdbProbeResult.Connected -> AdbDeviceState.CONNECTED
+        AdbProbeResult.AuthRequired -> AdbDeviceState.WAITING_FOR_CONFIRMATION
+        else -> AdbDeviceState.ERROR
     }
 
     private fun notice(value: AdbNotice) {

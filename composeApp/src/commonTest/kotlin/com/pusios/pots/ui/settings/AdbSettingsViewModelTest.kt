@@ -4,12 +4,17 @@
 
 package com.pusios.pots.ui.settings
 
+import com.pusios.pots.adb.AdbBackend
+import com.pusios.pots.adb.AdbConnectPhase
+import com.pusios.pots.adb.AdbDeviceState
 import com.pusios.pots.adb.AdbPairResult
 import com.pusios.pots.adb.FakeAdbBackend
 import com.pusios.pots.adb.FakeAdbStore
 import com.pusios.pots.adb.TEST_DEVICE
+import com.pusios.pots.adb.adbDeviceId
 import com.pusios.pots.tools.AppPermission
 import com.pusios.pots.tools.PermissionController
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -21,7 +26,7 @@ import kotlin.test.assertTrue
 
 private fun model(
     scope: TestScope,
-    backend: FakeAdbBackend = FakeAdbBackend(),
+    backend: AdbBackend = FakeAdbBackend(),
     store: FakeAdbStore = FakeAdbStore(emptyList()),
 ) = AdbSettingsViewModel(backend, store, PermissionController(AppPermission.LOCAL_NETWORK), scope)
 
@@ -114,5 +119,40 @@ class AdbSettingsViewModelTest {
         assertEquals(listOf("192.168.1.50:5555"), backend.disconnects)
         assertTrue(store.all().isEmpty())
         assertNull(model.state.value.notice)
+    }
+
+    @Test
+    fun aWaitingDeviceShowsTheWaitingStateAndCancelClosesTheSession() = runTest {
+        val fake = FakeAdbBackend()
+        val backend = object : AdbBackend by fake {
+            override suspend fun connect(
+                host: String,
+                port: Int,
+                tls: Boolean,
+                firstContact: Boolean,
+                onPhase: (AdbConnectPhase) -> Unit,
+            ): Boolean {
+                onPhase(AdbConnectPhase.WAITING_FOR_CONFIRMATION)
+                awaitCancellation()
+            }
+        }
+        val model = model(this, backend)
+        model.onEndpointChange("192.168.1.50:5555")
+        model.onConnect()
+        advanceUntilIdle()
+
+        val id = adbDeviceId("192.168.1.50", 5555)
+        assertEquals(AdbDeviceState.WAITING_FOR_CONFIRMATION, model.state.value.statuses.getValue(id).state)
+        assertTrue(model.state.value.notice is AdbNotice.WaitingForConfirmation)
+        assertTrue(model.state.value.busy)
+
+        model.onCancelConnect()
+        advanceUntilIdle()
+
+        // Closing the transport is what takes the prompt off the device's screen.
+        assertEquals(listOf("192.168.1.50:5555"), fake.disconnects)
+        assertEquals(AdbDeviceState.IDLE, model.state.value.statuses.getValue(id).state)
+        assertTrue(model.state.value.notice is AdbNotice.ConnectCancelled)
+        assertFalse(model.state.value.busy)
     }
 }

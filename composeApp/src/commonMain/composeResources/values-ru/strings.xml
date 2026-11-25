@@ -1173,7 +1173,7 @@
     <string name="adb_pair_timeout">Время сопряжения истекло.</string>
     <string name="adb_pair_failed">Сопряжение не удалось: %1$s</string>
     <string name="adb_connected">Подключено к %1$s</string>
-    <string name="adb_no_answer">%1$s не ответило. Телевизор или старый телефон может ждать нажатия «Разрешить отладку»; TLS-устройству сначала нужно сопряжение.</string>
+    <string name="adb_no_answer">%1$s недоступно: порт закрыт или до него нет маршрута.</string>
     <string name="adb_connect_failed">Подключение не удалось: %1$s</string>
     <string name="adb_endpoint_invalid">Адрес должен быть host:port, например 192.168.1.50:5555</string>
     <string name="adb_endpoint_not_private">Разрешены только частные/LAN-адреса</string>
@@ -1182,12 +1182,37 @@
     <string name="adb_old_android_hint">Android 10 и старше, а также телевизоры без «Отладки по сети» требуют один раз компьютер: подключите по USB и выполните `adb tcpip 5555`. После этого устройство отвечает по host:5555 до перезагрузки.</string>
     <string name="adb_pairing_required">Устройство просит сопряжение заново — откройте на нём диалог «Сопряжение с кодом» и введите новый код.</string>
     <string name="adb_enter_connect_port">Сопряжение найдено. Укажите порт подключения с экрана «Отладка по сети» на устройстве.</string>
+    <string name="adb_scan_lan">Сканировать LAN (5555)</string>
+    <string name="adb_scanning_lan">Сканирую локальную сеть…</string>
+    <string name="adb_diagnose">Диагностика</string>
+    <string name="adb_cancel">Отмена</string>
+    <string name="adb_connect_cancelled">%1$s: ожидание остановлено. Если на устройстве остался диалог — нажмите на нём «Отмена».</string>
+    <string name="adb_waiting_confirmation">Ждём подтверждения на %1$s — нажмите «Разрешить» (и отметьте «Всегда разрешать с этого компьютера») на устройстве.</string>
+    <string name="adb_not_confirmed">%1$s не подтвердило подключение за отведённое время. На устройстве: нажмите «Разрешить», отметьте «Всегда разрешать с этого компьютера» и подключитесь ещё раз. Если на экране висит старый диалог — сначала нажмите «Отмена».</string>
+    <string name="adb_not_adb">Порт %1$s открыт, но ничего не отвечает на нём как ADB. Включите на устройстве «Отладку по сети» (или «Отладку по USB») либо проверьте номер порта.</string>
+    <string name="adb_status_idle">Не подключено</string>
+    <string name="adb_status_probing">Проверяю порт…</string>
+    <string name="adb_status_waiting">Ждём подтверждения на устройстве</string>
+    <string name="adb_status_connected">Подключено</string>
+    <string name="adb_status_error">Ошибка: %1$s</string>
+    <string name="adb_diagnostics_title">Лог ADB</string>
+    <string name="adb_diagnostics_empty">Пока пусто — нажмите «Диагностика» или «Подключить».</string>
+    <string name="adb_tv_steps">Шаги для телевизора: 1) включите «Отладку по сети» в настройках разработчика (на Android 11 достаточно «Отладки по USB», порт 5555 поднят всегда); 2) подключитесь один раз и, когда на ТВ появится диалог, отметьте «Всегда разрешать с этого компьютера» и нажмите «Разрешить» — без галочки ТВ спрашивает заново после каждого переподключения; 3) не нажимайте «Отозвать авторизацию отладки по USB», если не хотите начинать заново.</string>
+    <string name="adb_diag_auth_required">Порт отвечает как ADB и ждёт, пока вы подтвердите ключ этого телефона на устройстве.</string>
+    <string name="adb_diag_tls_required">Это TLS-демон отладки по сети: сначала сопрягите его шестизначным кодом.</string>
+    <string name="adb_diag_connected">Порт отвечает как ADB и уже доверяет ключу этого телефона.</string>
+    <string name="adb_diag_not_adb">Порт принимает TCP, но не отвечает на ADB-рукопожатие — это не ADB либо ответ держит зависший диалог.</string>
+    <string name="adb_diag_port_closed">На этом порту никто не слушает.</string>
+    <string name="adb_diag_no_route">Нет маршрута до хоста: он недоступен в этой сети.</string>
+    <string name="adb_diag_timeout">TCP-соединение не установилось за отведённое время.</string>
 
     <!-- Инструменты агента ADB -->
     <string name="tool_adb_name">ADB-устройства</string>
     <string name="tool_adb_description">Мастер-переключатель ADB-инструментов агента (по умолчанию выключен)</string>
     <string name="tool_adb_list_devices_name">ADB: список устройств</string>
     <string name="tool_adb_list_devices_description">Известные устройства и их статус</string>
+    <string name="tool_adb_diagnose_name">ADB: диагностика</string>
+    <string name="tool_adb_diagnose_description">Проверка устройства и последние шаги ADB</string>
     <string name="tool_adb_connect_name">ADB: подключение</string>
     <string name="tool_adb_connect_description">Подключение к устройству в локальной сети</string>
     <string name="tool_adb_disconnect_name">ADB: отключение</string>
