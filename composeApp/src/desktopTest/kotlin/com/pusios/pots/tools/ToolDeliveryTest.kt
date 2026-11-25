@@ -2,11 +2,16 @@ package com.pusios.pots.tools
 
 import com.pusios.pots.data.ConversationIdElement
 import com.pusios.pots.data.ToolExecutor
+import com.pusios.pots.data.providers.sanitizeToolMessages
+import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleChatRequestDto.FunctionCall
+import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleChatRequestDto.Message
+import com.pusios.pots.network.dtos.openaicompatible.OpenAICompatibleChatRequestDto.ToolCall
 import com.pusios.pots.network.tools.ParameterSchema
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolSchema
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -121,6 +126,47 @@ class ToolDeliveryTest {
         assertTrue(refused.contains("describe_tool"), refused)
 
         ToolActivation.activate(conversation, "vault_reveal")
+        assertEquals("done", executor.executeTool("vault_reveal", "{}", conversation))
+    }
+
+    @Test
+    fun `gate refusal reaches the model on the next round instead of being sanitized away`() = runBlocking {
+        val conversation = "refusal-round-trip"
+        val tools = FORTY_TOOLS.map { fakeTool(it) }
+        val executor = ToolExecutor { tools }
+
+        // Round 1: the request carries the lazy set, and the model calls a tool it only saw in
+        // the prompt index — its schema was never on the wire.
+        ToolActivation.recordDelivered(
+            conversation,
+            ToolDelivery.plan(tools).delivered.mapTo(mutableSetOf()) { it.schema.name },
+        )
+        val refusal = executor.executeTool("vault_reveal", "{}", conversation)
+        assertTrue(refusal.contains("not loaded"), refusal)
+
+        // Round 2: RemoteDataRepository re-plans the declared set for every round, and the
+        // sanitizer drops any call whose tool is not in it — together with its tool response.
+        val nextDeclared = ToolDelivery.plan(tools, ToolActivation.activatedNames(conversation))
+            .delivered.mapTo(mutableSetOf()) { it.schema.name }
+        val history = listOf(
+            Message(role = "user", content = JsonPrimitive("reveal my wifi password")),
+            Message(
+                role = "assistant",
+                // `toGroqMessageDto` nulls the empty content of a tool-calling assistant turn.
+                content = null,
+                tool_calls = listOf(
+                    ToolCall(id = "call_1", function = FunctionCall(name = "vault_reveal", arguments = "{}")),
+                ),
+            ),
+            Message(role = "tool", content = JsonPrimitive(refusal), tool_call_id = "call_1"),
+        )
+
+        val sent = sanitizeToolMessages(history, nextDeclared)
+
+        assertEquals(3, sent.size, "the refusal must survive the next request, got: $sent")
+        assertEquals(refusal, (sent.last().content as JsonPrimitive).content)
+        // The refusal also activated the tool, so the schema travels with the next request and
+        // the model can retry straight away instead of looping into the REPEATING bailout.
         assertEquals("done", executor.executeTool("vault_reveal", "{}", conversation))
     }
 

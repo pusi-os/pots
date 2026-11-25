@@ -1424,6 +1424,9 @@ class RemoteDataRepository(
                 tuning.maxParallelToolCalls
             }.coerceAtLeast(1)
             val results = mutableListOf<Triple<String, String, String>>()
+            // A batch runs in parallel, so `describe_tool` and the call it was meant to unlock can
+            // execute in either order. That is fine: a refused call activates its tool as well, so
+            // the tool ends up enabled either way and the next round declares it.
             for (batch in toolCalls.chunked(batchSize)) {
                 awaitToolCallBudget(batch.size, tuning.toolCallsPerMinute, toolCallTimestamps)
                 results += coroutineScope {

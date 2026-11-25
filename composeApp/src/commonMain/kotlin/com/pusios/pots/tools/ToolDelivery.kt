@@ -35,6 +35,12 @@ internal data class ToolDeliveryPlan(
  * - [HOT_TOOL_NAMES] — the handful a chat reaches for without thinking first. Only the
  *   cloud path uses this plan: the on-device engine owns its own tool loop and cannot extend
  *   the tool list mid-turn, so it stays eager (its user-chosen selection is the filter there).
+ *
+ * Cost: [plan] rebuilds the catalogue and re-serialises every schema to estimate tokens —
+ * ~1.4 ms on 40 tools, ~1.9 ms on 60 (measured on the desktop JVM on the RPi5). The two call
+ * sites — the system-prompt index once per turn and `toolsForRequest` once per round — stay
+ * far below one network round trip, so no cache is worth its invalidation: the plan depends
+ * on the activated set, which changes inside a turn when the model calls `describe_tool`.
  */
 internal object ToolDelivery {
 

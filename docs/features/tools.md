@@ -266,13 +266,13 @@ Every enabled tool used to be sent with its full schema on every request: with 6
 
 What the model gets in that mode:
 
-- **Three meta-tools.** `list_tools` prints the categories, each with a one-line summary and the tool names inside (or one category expanded with parameter signatures). `find_tools` searches names and descriptions and returns the best matches with their signatures. `describe_tool` returns one tool's full JSON schema.
+- **Three meta-tools.** `list_tools` prints the categories, each with a one-line summary and the tool names inside (or one category expanded with parameter signatures). `find_tools` searches names and descriptions and returns the best matches with their signatures. `describe_tool` returns one tool's full JSON schema, wrapped with its `category` and `enabled: true`.
 - **The hot set.** `web_search`, `fetch_url`, `get_local_time`, `memory_store` and `open_url` are always sent with full schemas, plus anything already activated in this conversation. The set is capped, so a chatty turn cannot undo the saving.
 - **A `## Tool catalogue` section in the system prompt.** One line per category (id, count, summary, names) and the instruction to search and describe before calling. Feature sections (vault, ADB, media, automation) still render from the full enabled set — they describe capabilities that remain reachable through the catalogue, so hiding them would make the prompt lie.
 
 `describe_tool` activates the tool for the rest of the conversation: the executor then accepts the call, and the tool is re-sent with its schema from the next round on. The tool set is re-resolved on every round of the tool loop for exactly this reason — a tool activated mid-turn has to be declared on the very next request, otherwise the message sanitizer strips the model's own call and its result.
 
-A call to a tool that was neither delivered nor described comes back as `success: false` with a "call describe_tool first" message instead of running. That keeps a hallucinated call from reaching a tool the user's request never exposed.
+A call to a tool that was neither delivered nor described does not run. It comes back as `success: false` with a "was not loaded when this call was made" message, and the refusal also activates the tool: the next round declares it with its schema, so the refusal is not stripped by the message sanitizer and the model can retry successfully instead of seeing its call vanish. That keeps a hallucinated call from reaching a tool the user's request never exposed, while still telling the model what to do next.
 
 Below the threshold nothing changes: the full set goes out exactly as before. The on-device (LiteRT) path always stays eager — the native engine owns its own tool loop and cannot extend the tool list mid-turn, and the user's local tool selection is already the filter there. Tools behind an off master toggle (vault, ADB, media, scheduling, email) are absent from the catalogue entirely, so they cannot be found, described or called.
 
