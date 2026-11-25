@@ -26,8 +26,10 @@ import com.pusios.pots.inference.ModelImportResult
 import com.pusios.pots.inference.NoModelDownloadedException
 import com.pusios.pots.inference.getTotalMemoryBytes
 import com.pusios.pots.linux.LinuxDistro
+import com.pusios.pots.mcp.McpConfirmRequest
 import com.pusios.pots.mcp.McpServerConfig
 import com.pusios.pots.mcp.McpServerManager
+import com.pusios.pots.mcp.McpServerStatus
 import com.pusios.pots.mcp.McpTool
 import com.pusios.pots.network.AllServicesFailedException
 import com.pusios.pots.network.AnthropicInsufficientCreditsException
@@ -83,6 +85,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -1890,16 +1893,16 @@ class RemoteDataRepository(
 
     override suspend fun addMcpServer(name: String, url: String, headers: Map<String, String>): McpServerConfig = mcpServerManager.addServer(name, url, headers)
 
-    override fun removeMcpServer(serverId: String) {
+    override suspend fun removeMcpServer(serverId: String) {
         mcpServerManager.removeServer(serverId)
     }
 
-    override fun setMcpServerEnabled(serverId: String, enabled: Boolean) {
+    override suspend fun setMcpServerEnabled(serverId: String, enabled: Boolean) {
         mcpServerManager.setServerEnabled(serverId, enabled)
     }
 
     override suspend fun connectMcpServer(serverId: String): Result<List<ToolInfo>> {
-        val result = mcpServerManager.connectAndDiscoverTools(serverId)
+        val result = mcpServerManager.connect(serverId)
         return result.map { mcpServerManager.getToolsForServer(serverId) }
     }
 
@@ -1909,6 +1912,32 @@ class RemoteDataRepository(
 
     override suspend fun connectEnabledMcpServers() {
         mcpServerManager.connectEnabledServers()
+    }
+
+    override fun getMcpServerStatuses(): Map<String, McpServerStatus> = mcpServerManager.statuses.value
+
+    override fun observeMcpStatuses(): Flow<Map<String, McpServerStatus>> = mcpServerManager.statuses
+
+    override fun observeMcpConfirmation(): Flow<McpConfirmRequest?> = mcpServerManager.gate.pending
+
+    override fun respondMcpConfirmation(requestId: String, allowed: Boolean) {
+        mcpServerManager.gate.respond(requestId, allowed)
+    }
+
+    override fun hasMcpToken(serverId: String): Boolean = mcpServerManager.hasStoredToken(serverId)
+
+    override suspend fun authorizeMcpServer(serverId: String): Result<String> =
+        mcpServerManager.beginAuthorization(serverId)
+
+    override fun getMcpPendingAuthorizationUrl(serverId: String): String? =
+        mcpServerManager.pendingAuthorizationUrl(serverId)
+
+    override suspend fun setMcpManualToken(serverId: String, token: String) {
+        mcpServerManager.setManualToken(serverId, token)
+    }
+
+    override suspend fun clearMcpToken(serverId: String) {
+        mcpServerManager.clearToken(serverId)
     }
 
     override fun getAgentProfiles(): List<AgentProfile> = appSettings.getAgentProfiles()

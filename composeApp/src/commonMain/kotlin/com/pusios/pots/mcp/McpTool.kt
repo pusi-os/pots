@@ -15,11 +15,18 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+/**
+ * One tool of one MCP server, as the agent sees it.
+ *
+ * The call goes through [call] rather than a captured client: the tool outlives any single
+ * connection (it comes from the persisted cache), so the manager reconnects — or reports
+ * "needs authorization" — at call time.
+ */
 class McpTool(
-    private val client: McpClient,
     private val metadata: McpToolMetadata,
     /** Name shown to the model; differs from [metadata]'s only when it would clash with another tool. */
     advertisedName: String = metadata.name,
+    private val call: suspend (JsonObject) -> String,
 ) : Tool {
 
     /** Id of the MCP server this tool came from. Used to scope the tool to one server. */
@@ -31,7 +38,7 @@ class McpTool(
         parameters = convertInputSchema(metadata.inputSchema),
     )
 
-    override val timeout: Duration = 60.seconds
+    override val timeout: Duration = 90.seconds
 
     override suspend fun execute(args: Map<String, Any>): Any {
         val jsonArgs = buildJsonObject {
@@ -40,7 +47,7 @@ class McpTool(
             }
         }
         return try {
-            val result = client.callTool(metadata.name, jsonArgs)
+            val result = call(jsonArgs)
             mapOf("success" to true, "result" to result)
         } catch (e: Exception) {
             // Stop must cancel the run, not hand the model a fake failure to reason about.
