@@ -77,8 +77,7 @@ class AdbKeyStore(private val directory: File) {
         return if (matches(privateKey, certificate)) privateKey to certificate else null
     }
 
-    private fun readStoredPublicKeyLine(): String? =
-        publicKeyFile.takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() }
+    private fun readStoredPublicKeyLine(): String? = publicKeyFile.takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() }
 
     /** True when [certificateDer] really carries the public half of [privateKeyDer]. */
     private fun matches(privateKeyDer: ByteArray, certificateDer: ByteArray): Boolean = runCatching {

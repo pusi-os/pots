@@ -43,11 +43,16 @@ fun isAdbShellCommandReadOnly(command: String): Boolean {
     val args = tokens.drop(1)
     return when (tokens.first()) {
         in ALWAYS_READ_ONLY -> true
+
         "logcat" -> args.any { it == "-d" || it == "--dump" }
+
         "pm" -> args.firstOrNull() == "list" || args.firstOrNull() == "path"
+
         "settings" -> args.firstOrNull() == "get"
+
         // `date` prints the clock with no arguments or with a +format; any other argument sets it.
         "date" -> args.isEmpty() || args.all { it.startsWith("+") }
+
         // Unknown programs are refused: an allowlist that guesses is not an allowlist.
         else -> false
     }

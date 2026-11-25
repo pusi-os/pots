@@ -83,8 +83,7 @@ object AdbSyncProtocol {
         }
     }
 
-    private fun frameId(word: String): Int =
-        (word[0].code) or (word[1].code shl 8) or (word[2].code shl 16) or (word[3].code shl 24)
+    private fun frameId(word: String): Int = (word[0].code) or (word[1].code shl 8) or (word[2].code shl 16) or (word[3].code shl 24)
 
     private fun writeInt(target: ByteArray, offset: Int, value: Int) {
         target[offset] = (value and 0xFF).toByte()
@@ -93,9 +92,8 @@ object AdbSyncProtocol {
         target[offset + 3] = ((value ushr 24) and 0xFF).toByte()
     }
 
-    private fun readInt(source: ByteArray, offset: Int): Int =
-        (source[offset].toInt() and 0xFF) or
-            ((source[offset + 1].toInt() and 0xFF) shl 8) or
-            ((source[offset + 2].toInt() and 0xFF) shl 16) or
-            ((source[offset + 3].toInt() and 0xFF) shl 24)
+    private fun readInt(source: ByteArray, offset: Int): Int = (source[offset].toInt() and 0xFF) or
+        ((source[offset + 1].toInt() and 0xFF) shl 8) or
+        ((source[offset + 2].toInt() and 0xFF) shl 16) or
+        ((source[offset + 3].toInt() and 0xFF) shl 24)
 }

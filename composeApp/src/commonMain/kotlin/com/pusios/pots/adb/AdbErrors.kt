@@ -101,9 +101,13 @@ fun adbPairResultOf(error: Throwable): AdbPairResult {
     if (isPairingTlsRejection(error)) return AdbPairResult.InvalidCode
     return when (val kind = adbErrorKindOf(error)) {
         AdbErrorKind.AUTHENTICATION_FAILED -> AdbPairResult.InvalidCode
+
         AdbErrorKind.TIMEOUT -> AdbPairResult.Timeout
+
         AdbErrorKind.UNREACHABLE -> AdbPairResult.TargetNotFound
+
         AdbErrorKind.PERMISSION_DENIED -> AdbPairResult.IoError("local network permission denied")
+
         // PAIRING_REQUIRED belongs to connect(), never to pair(); if a transport raises it here the
         // pairing did not happen and its message is all we can honestly report.
         AdbErrorKind.PAIRING_REQUIRED, AdbErrorKind.IO ->

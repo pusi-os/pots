@@ -140,6 +140,7 @@ class AdbToolsTest {
             override suspend fun uninstall(host: String, port: Int, packageName: String): String = throw invalid
         }
         val tools = AdbTools.create(AdbToolDependencies(failing, refused.store, refused.gate, refused.cache))
+
         @Suppress("UNCHECKED_CAST")
         val error = tools.first { it.schema.name == "adb_uninstall" }
             .execute(mapOf("device_id" to TEST_DEVICE.id, "package" to "com.x; reboot")) as Map<String, Any>
@@ -241,8 +242,7 @@ class AdbToolsTest {
     fun installPropagatesCancellationInsteadOfReportingAFailure() = runTest {
         val fixture = Fixture()
         val cancelling = object : AdbBackend by fixture.backend {
-            override suspend fun installApk(host: String, port: Int, apkPath: String): String =
-                throw CancellationException("cancelled")
+            override suspend fun installApk(host: String, port: Int, apkPath: String): String = throw CancellationException("cancelled")
         }
         val install = AdbTools.create(AdbToolDependencies(cancelling, fixture.store, fixture.gate, fixture.cache))
             .first { it.schema.name == "adb_install" }
@@ -273,6 +273,7 @@ class AdbToolsTest {
         )
         for ((name, args) in calls) {
             val tool = tools.first { it.schema.name == name }
+
             // ToolExecutor's own wrapper, so the test exercises the real ordering.
             @Suppress("UNCHECKED_CAST")
             val result = withTimeout(tool.timeout) { tool.execute(args) } as Map<String, Any>

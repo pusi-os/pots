@@ -10,11 +10,10 @@ import kotlin.test.assertFailsWith
  */
 class AdbSyncProtocolTest {
 
-    private fun littleEndianInt(bytes: ByteArray, offset: Int): Int =
-        (bytes[offset].toInt() and 0xFF) or
-            ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
-            ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
-            ((bytes[offset + 3].toInt() and 0xFF) shl 24)
+    private fun littleEndianInt(bytes: ByteArray, offset: Int): Int = (bytes[offset].toInt() and 0xFF) or
+        ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
+        ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
+        ((bytes[offset + 3].toInt() and 0xFF) shl 24)
 
     @Test
     fun `send request carries the path without a terminator`() {

@@ -113,10 +113,9 @@ class LibAdbBackend(
         }
     }
 
-    override suspend fun shell(host: String, port: Int, command: String, timeoutSec: Int): String =
-        withContext(Dispatchers.IO) {
-            runShell(connectedManager(host, port), command, timeoutSec)
-        }
+    override suspend fun shell(host: String, port: Int, command: String, timeoutSec: Int): String = withContext(Dispatchers.IO) {
+        runShell(connectedManager(host, port), command, timeoutSec)
+    }
 
     override suspend fun installApk(host: String, port: Int, apkPath: String): String = withContext(Dispatchers.IO) {
         val apk = File(apkPath)
@@ -131,15 +130,14 @@ class LibAdbBackend(
         }
     }
 
-    override suspend fun uninstall(host: String, port: Int, packageName: String): String =
-        withContext(Dispatchers.IO) {
-            // The name is interpolated into a shell command, so it is validated before anything is
-            // opened: `com.x; reboot` must never reach the device shell.
-            if (!isValidAdbPackageName(packageName)) {
-                throw AdbException(AdbErrorKind.IO, "not an Android package name: $packageName")
-            }
-            runShell(connectedManager(host, port), "pm uninstall $packageName", AdbTimeouts.SHELL_SEC)
+    override suspend fun uninstall(host: String, port: Int, packageName: String): String = withContext(Dispatchers.IO) {
+        // The name is interpolated into a shell command, so it is validated before anything is
+        // opened: `com.x; reboot` must never reach the device shell.
+        if (!isValidAdbPackageName(packageName)) {
+            throw AdbException(AdbErrorKind.IO, "not an Android package name: $packageName")
         }
+        runShell(connectedManager(host, port), "pm uninstall $packageName", AdbTimeouts.SHELL_SEC)
+    }
 
     override suspend fun discover(timeoutMs: Long): List<AdbDiscovery> = withContext(Dispatchers.IO) {
         if (!localNetworkPermission.hasPermission()) {
@@ -259,6 +257,7 @@ class LibAdbBackend(
             readFully(stream, header)
             when (val response = AdbSyncProtocol.parseResponse(header)) {
                 is AdbSyncResponse.Okay -> Unit
+
                 is AdbSyncResponse.Fail -> {
                     val message = ByteArray(response.messageLength.coerceAtLeast(0))
                     readFully(stream, message)

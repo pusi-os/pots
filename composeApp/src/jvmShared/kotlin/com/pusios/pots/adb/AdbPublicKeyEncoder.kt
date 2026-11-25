@@ -49,8 +49,7 @@ object AdbPublicKeyEncoder {
     }
 
     /** The one-line form of an `adbkey.pub`: base64 of [encode], a space, then the user name. */
-    fun encodeWithName(publicKey: RSAPublicKey, name: String): String =
-        Base64.getEncoder().encodeToString(encode(publicKey)) + " " + name
+    fun encodeWithName(publicKey: RSAPublicKey, name: String): String = Base64.getEncoder().encodeToString(encode(publicKey)) + " " + name
 
     /** `-1 / modulus[0] mod 2^32` — the Montgomery constant stored beside the modulus. */
     private fun n0inv(modulus: BigInteger): Int {

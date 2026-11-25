@@ -194,8 +194,11 @@ class AdbSettingsViewModel(
                 }
 
                 AdbPairResult.InvalidCode -> _state.update { it.copy(notice = AdbNotice.InvalidCode) }
+
                 AdbPairResult.TargetNotFound -> _state.update { it.copy(notice = AdbNotice.PairingWindowClosed) }
+
                 AdbPairResult.Timeout -> _state.update { it.copy(notice = AdbNotice.PairingTimeout) }
+
                 is AdbPairResult.IoError -> _state.update { it.copy(notice = AdbNotice.PairingFailed(result.message)) }
             }
             _state.update { it.copy(busy = false, code = "") }

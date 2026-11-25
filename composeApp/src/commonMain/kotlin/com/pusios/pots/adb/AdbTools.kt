@@ -150,19 +150,22 @@ object AdbTools {
     private fun failureText(kind: AdbErrorKind): String = when (kind) {
         AdbErrorKind.AUTHENTICATION_FAILED ->
             "the device rejected our key — it was revoked or never authorized; pair it again in Settings → ADB devices"
+
         AdbErrorKind.PAIRING_REQUIRED ->
             "the device requires pairing first; the owner has to pair it in Settings → ADB devices"
+
         AdbErrorKind.TIMEOUT -> "the operation timed out"
+
         AdbErrorKind.UNREACHABLE -> "nothing answers on that address"
+
         AdbErrorKind.PERMISSION_DENIED -> "Android blocked local network access — grant the local network permission"
+
         AdbErrorKind.IO -> "the ADB connection failed"
     }
 
-    private fun adbFailure(failure: AdbException): Map<String, Any> =
-        error(failureText(failure.kind), failure.message)
+    private fun adbFailure(failure: AdbException): Map<String, Any> = error(failureText(failure.kind), failure.message)
 
-    private fun findDevice(deps: AdbToolDependencies, args: Map<String, Any>): AdbDevice? =
-        str(args, "device_id")?.let { id -> deps.store.byId(id) }
+    private fun findDevice(deps: AdbToolDependencies, args: Map<String, Any>): AdbDevice? = str(args, "device_id")?.let { id -> deps.store.byId(id) }
 
     /** The error for a missing or unknown `device_id`, worded so the model knows which one it is. */
     private fun missingDevice(args: Map<String, Any>): Map<String, Any> {
