@@ -1,5 +1,7 @@
 package com.pusios.pots.tools
 
+import com.pusios.pots.adb.AdbToolDependencies
+import com.pusios.pots.adb.AdbTools
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.Attachment
 import com.pusios.pots.data.EmailStore
@@ -39,6 +41,8 @@ fun buildAgentToolSet(
     attachmentProvider: () -> List<Attachment> = { emptyList() },
     // The encrypted vault's session and bridges; null in tests without Koin.
     vault: VaultToolDependencies? = null,
+    // ADB over the local network; null on every platform without an ADB backend.
+    adb: AdbToolDependencies? = null,
     platformExtras: MutableList<Tool>.() -> Unit = {},
 ): List<Tool> = buildList {
     addAll(CommonTools.getCommonTools(appSettings))
@@ -107,6 +111,12 @@ fun buildAgentToolSet(
     // every use. Null where Koin has no vault session.
     if (vault != null && appSettings.isToolEnabled(VaultTools.MASTER_ID, defaultEnabled = true)) {
         addAll(VaultTools.create(vault))
+    }
+
+    // ADB devices. One master toggle, OFF by default: reaching into another device is a
+    // privilege the owner grants deliberately in Settings → ADB devices.
+    if (adb != null && appSettings.isToolEnabled(AdbTools.MASTER_ID, defaultEnabled = false)) {
+        addAll(AdbTools.create(adb))
     }
 
     platformExtras()

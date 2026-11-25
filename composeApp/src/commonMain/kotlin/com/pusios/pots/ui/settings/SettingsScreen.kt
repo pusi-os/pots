@@ -71,7 +71,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pusios.pots.BackIcon
+import com.pusios.pots.Platform
 import com.pusios.pots.Version
+import com.pusios.pots.currentPlatform
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.EmailAccount
 import com.pusios.pots.data.Service
@@ -93,6 +95,7 @@ import pots.composeapp.generated.resources.settings_ai_mistakes_warning
 import pots.composeapp.generated.resources.settings_documentation
 import pots.composeapp.generated.resources.settings_licenses
 import pots.composeapp.generated.resources.settings_licenses_close
+import pots.composeapp.generated.resources.settings_tab_adb
 import pots.composeapp.generated.resources.settings_tab_agent
 import pots.composeapp.generated.resources.settings_tab_general
 import pots.composeapp.generated.resources.settings_tab_integrations
@@ -161,6 +164,7 @@ fun SettingsScreen(
                 MediaServiceSection(entries, koinInject<AppSettings>())
             },
             vaultContent = { VaultManagerScreen() },
+            adbContent = { AdbSettingsScreen() },
         )
     }
 }
@@ -183,6 +187,7 @@ fun SettingsScreenContent(
     onRestartOnboarding: () -> Unit = {},
     mediaServiceSection: (@Composable (List<ConfiguredServiceEntry>) -> Unit)? = null,
     vaultContent: (@Composable () -> Unit)? = null,
+    adbContent: (@Composable () -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val undoLabel = stringResource(Res.string.snackbar_undo)
@@ -260,7 +265,11 @@ fun SettingsScreenContent(
             }
 
             val visibleTabs = remember(sandboxState.showSandbox) {
-                SettingsTab.entries.filter { it != SettingsTab.Sandbox || sandboxState.showSandbox }.toImmutableList()
+                SettingsTab.entries
+                    .filter { it != SettingsTab.Sandbox || sandboxState.showSandbox }
+                    // ADB needs an Android backend; the tab is not offered anywhere else.
+                    .filter { it != SettingsTab.Adb || currentPlatform is Platform.Mobile.Android }
+                    .toImmutableList()
             }
 
             SettingsTabSelector(
@@ -372,6 +381,10 @@ fun SettingsScreenContent(
                                     // Handled by the full-height branch above;
                                     // this case only keeps the when exhaustive.
                                     Unit
+                                }
+
+                                SettingsTab.Adb -> {
+                                    adbContent?.invoke()
                                 }
 
                                 SettingsTab.Sandbox -> {
@@ -496,6 +509,7 @@ private fun SettingsTabSelector(
                             SettingsTab.Services -> stringResource(Res.string.settings_tab_services)
                             SettingsTab.Tools -> stringResource(Res.string.settings_tab_tools)
                             SettingsTab.Vault -> stringResource(Res.string.settings_tab_vault)
+                            SettingsTab.Adb -> stringResource(Res.string.settings_tab_adb)
                             SettingsTab.Sandbox -> stringResource(Res.string.settings_tab_sandbox)
                             SettingsTab.Integrations -> stringResource(Res.string.settings_tab_integrations)
                             SettingsTab.Potsiki -> stringResource(Res.string.settings_tab_potsiki)

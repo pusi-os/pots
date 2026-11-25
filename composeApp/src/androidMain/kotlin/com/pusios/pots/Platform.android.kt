@@ -10,6 +10,12 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.graphics.scale
 import androidx.core.net.toUri
+import com.pusios.pots.adb.AdbApkCache
+import com.pusios.pots.adb.AdbBackend
+import com.pusios.pots.adb.AdbDeviceRegistry
+import com.pusios.pots.adb.AdbGate
+import com.pusios.pots.adb.AdbToolDependencies
+import com.pusios.pots.adb.AdbTools
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.EmailStore
 import com.pusios.pots.data.MemoryStore
@@ -219,7 +225,7 @@ actual fun getPlatformToolDefinitions(): List<ToolInfo> = CommonTools.commonTool
         AskSandboxAgentTool.toolInfo,
         ProcessManagerTool.toolInfo,
         SshConfigureHostTool.toolInfo,
-    ) + VaultTools.toolDefinitions
+    ) + VaultTools.toolDefinitions + AdbTools.toolDefinitions
 
 actual fun getAvailableTools(): List<Tool> {
     val context: Context by inject(Context::class.java)
@@ -239,6 +245,14 @@ actual fun getAvailableTools(): List<Tool> {
     val vaultGate: VaultGate by inject(VaultGate::class.java)
     val vault = VaultToolDependencies(vaultSession, vaultStore, vaultFormBridge, vaultRevealBridge, vaultGate)
 
+    // ADB: the backend, the device registry and the per-action gate. The tools are Android-only;
+    // every other platform's getAvailableTools passes no `adb`, so they never appear there.
+    val adbBackend: AdbBackend by inject(AdbBackend::class.java)
+    val adbDevices: AdbDeviceRegistry by inject(AdbDeviceRegistry::class.java)
+    val adbGate: AdbGate by inject(AdbGate::class.java)
+    val adbApkCache: AdbApkCache by inject(AdbApkCache::class.java)
+    val adb = AdbToolDependencies(adbBackend, adbDevices, adbGate, adbApkCache)
+
     return buildAgentToolSet(
         appSettings = appSettings,
         memoryStore = memoryStore,
@@ -248,6 +262,7 @@ actual fun getAvailableTools(): List<Tool> {
         emailStore = emailStore,
         miniAppRepository = miniAppRepository,
         vault = vault,
+        adb = adb,
         attachmentProvider = {
             // The last user message's attachments in the active chat.
             dataRepository.chatHistory.value

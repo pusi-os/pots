@@ -1140,4 +1140,62 @@
     <string name="vault_form_close">Закрыть</string>
     <string name="vault_form_locked_hint">Хранилище закрыто. Введите мастер-пароль, чтобы продолжить.</string>
     <string name="vault_form_no_vault">Хранилище ещё не создано — настройте его в Настройках → Менеджер паролей.</string>
+
+    <!-- ADB-устройства (Android) -->
+    <string name="settings_tab_adb">ADB</string>
+    <string name="adb_title">ADB-устройства</string>
+    <string name="adb_intro">Pots может управлять Android-устройствами в локальной сети: выполнять shell-команды, устанавливать и удалять приложения. Используются только адреса LAN и loopback — интернет-ретранслятора нет.</string>
+    <string name="adb_master_hint">Инструменты агента включаются в Настройки → Инструменты → ADB-устройства. Сопряжение и доверие настраиваются только здесь.</string>
+    <string name="adb_known_title">Известные устройства</string>
+    <string name="adb_known_empty">Устройств пока нет. Добавьте ниже.</string>
+    <string name="adb_trusted">Доверенное — разрешены все команды</string>
+    <string name="adb_untrusted">Без сопряжения — только команды чтения</string>
+    <string name="adb_trust_toggle">Доверять</string>
+    <string name="adb_remove">Удалить</string>
+    <string name="adb_add_title">Добавить устройство</string>
+    <string name="adb_scan">Найти в сети</string>
+    <string name="adb_scanning">Ищу в сети…</string>
+    <string name="adb_scan_empty">Ничего не найдено. Добавьте устройство по host:port.</string>
+    <string name="adb_scan_denied_title">Нужен доступ к локальной сети</string>
+    <string name="adb_scan_denied_body">Android 17 и новее спрашивают разрешение на локальную сеть перед поиском по mDNS. Без него Pots не может искать устройства — выдайте разрешение в системных настройках и повторите.</string>
+    <string name="adb_open_settings">Открыть настройки</string>
+    <string name="adb_discovery_note">Поиск показывает только демоны, видимые этому телефону через mDNS. Другое устройство в LAN добавляется по host:port.</string>
+    <string name="adb_endpoint_label">Адрес устройства (host:port)</string>
+    <string name="adb_endpoint_hint">192.168.1.50:5555</string>
+    <string name="adb_pairing_port_label">Порт сопряжения (из диалога с кодом)</string>
+    <string name="adb_pairing_port_hint">37000</string>
+    <string name="adb_code_label">Шестизначный код</string>
+    <string name="adb_pair_action">Сопряжение и подключение</string>
+    <string name="adb_connect_action">Подключить</string>
+    <string name="adb_pair_success">Сопряжено. Подключаюсь…</string>
+    <string name="adb_pair_invalid_code">Неверный код — проверьте шесть цифр на устройстве.</string>
+    <string name="adb_pair_window_closed">На порту сопряжения никто не отвечает: окно сопряжения закрылось. Откройте его на устройстве заново.</string>
+    <string name="adb_pair_timeout">Время сопряжения истекло.</string>
+    <string name="adb_pair_failed">Сопряжение не удалось: %1$s</string>
+    <string name="adb_connected">Подключено к %1$s</string>
+    <string name="adb_no_answer">%1$s не ответило. Телевизор или старый телефон может ждать нажатия «Разрешить отладку»; TLS-устройству сначала нужно сопряжение.</string>
+    <string name="adb_connect_failed">Подключение не удалось: %1$s</string>
+    <string name="adb_endpoint_invalid">Адрес должен быть host:port, например 192.168.1.50:5555</string>
+    <string name="adb_endpoint_not_private">Разрешены только частные/LAN-адреса</string>
+    <string name="adb_pairing_port_invalid">Порт сопряжения должен быть числом 1–65535</string>
+    <string name="adb_code_invalid">Код сопряжения — шесть цифр</string>
+    <string name="adb_old_android_hint">Android 10 и старше, а также телевизоры без «Отладки по сети» требуют один раз компьютер: подключите по USB и выполните `adb tcpip 5555`. После этого устройство отвечает по host:5555 до перезагрузки.</string>
+    <string name="adb_pairing_required">Устройство просит сопряжение заново — откройте на нём диалог «Сопряжение с кодом» и введите новый код.</string>
+    <string name="adb_enter_connect_port">Сопряжение найдено. Укажите порт подключения с экрана «Отладка по сети» на устройстве.</string>
+
+    <!-- Инструменты агента ADB -->
+    <string name="tool_adb_name">ADB-устройства</string>
+    <string name="tool_adb_description">Мастер-переключатель ADB-инструментов агента (по умолчанию выключен)</string>
+    <string name="tool_adb_list_devices_name">ADB: список устройств</string>
+    <string name="tool_adb_list_devices_description">Известные устройства и их статус</string>
+    <string name="tool_adb_connect_name">ADB: подключение</string>
+    <string name="tool_adb_connect_description">Подключение к устройству в локальной сети</string>
+    <string name="tool_adb_disconnect_name">ADB: отключение</string>
+    <string name="tool_adb_disconnect_description">Закрыть соединение с устройством</string>
+    <string name="tool_adb_shell_name">ADB: команда</string>
+    <string name="tool_adb_shell_description">Shell-команда от uid 2000, не root</string>
+    <string name="tool_adb_install_name">ADB: установка APK</string>
+    <string name="tool_adb_install_description">Установка APK по ссылке или из файла на устройстве</string>
+    <string name="tool_adb_uninstall_name">ADB: удаление</string>
+    <string name="tool_adb_uninstall_description">Удаление пакета с устройства</string>
 </resources>
