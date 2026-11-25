@@ -575,7 +575,7 @@ class WebPanelRuntime(
      * The command is idempotent — its gateway start is a no-op when the gateway is
      * already up — so a tap is always answered with a live link. When it cannot
      * mint one, the panel says why instead of leaving a dead button behind: the
-     * first non-empty line of the output is the reason, as on a failed start.
+     * last non-empty line of the output is the reason, as on a failed start.
      */
     private suspend fun mintHermesLink(panel: WebPanel, port: Int): String? {
         val output = guest.run(WebPanels.command(panel, port), HERMES_LINK_TIMEOUT_SECONDS, hermesEnv(panel))
@@ -634,9 +634,14 @@ class WebPanelRuntime(
         return WebPanels.address(port)
     }
 
-    /** The first line the guest said, for a failure the owner has to read. */
+    /**
+     * The last line the guest said, for a failure the owner has to read.
+     *
+     * Last, not first: the lines before it are the install's warnings, and the
+     * line that says why the command stopped is the one printed when it does.
+     */
     private fun reasonLine(output: String): String =
-        output.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+        output.lineSequence().lastOrNull { it.isNotBlank() }?.trim().orEmpty()
             .ifEmpty { "no link printed" }
 
     /**
@@ -644,11 +649,12 @@ class WebPanelRuntime(
      *
      * A panel with its own status command is asked first, and a serving address
      * in the answer settles it. Its wording is Hermes' own and moves between
-     * releases, so an answer without a readable address falls through to the
-     * process check instead of reading as "not running": a gateway whose pid is
-     * alive and whose port answers is running whatever its status line says, and
-     * that is the case the owner was left staring at — a panel that opened in the
-     * browser while the row offered to start it again.
+     * releases, so an answer without a readable address — including one that only
+     * quotes a link, which [HermesWebappOutput.servingUrl] refuses — falls through
+     * to the process check instead of reading as "not running": a gateway whose
+     * pid is alive and whose port answers is running whatever its status line
+     * says, and that is the case the owner was left staring at — a panel that
+     * opened in the browser while the row offered to start it again.
      */
     private fun probe(panel: WebPanel): WebPanelStatus {
         val statusCommand = WebPanels.statusCommand(panel)

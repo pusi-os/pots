@@ -505,14 +505,20 @@ object HermesWebappOutput {
      * of the prefix. Reading only the strict shape made a serving gateway look
      * stopped, and the row then quoted the launcher at the owner instead of
      * saying "running". What a serving address always carries is a port, which is
-     * what separates it from a link quoted inside a warning, and the first one is
-     * the address the gateway is bound to — where another device dials; with no
-     * such address the last one in the output is the best reading left.
+     * what separates it from a link quoted inside a sentence — the gateway always
+     * serves on one, while "The Webapp is off: see https://…/docs" names a page —
+     * and the first such address is the one the gateway is bound to, where another
+     * device dials.
+     *
+     * A portless address is therefore no answer at all, not a last resort: taking
+     * one would put a documentation link in the row as the panel's address and
+     * hide the start button behind a panel that is not running. Null sends the
+     * caller to the pid and port check, which no wording can steer wrong.
      */
-    fun servingUrl(status: String): String? {
-        val addresses = URL.findAll(status).map { it.value.trimEnd('.', ',', ')', ']') }.toList()
-        return addresses.firstOrNull { PORT.containsMatchIn(it) } ?: addresses.lastOrNull()
-    }
+    fun servingUrl(status: String): String? =
+        URL.findAll(status)
+            .map { it.value.trimEnd('.', ',', ')', ']') }
+            .firstOrNull { PORT.containsMatchIn(it) }
 }
 
 /**

@@ -15,10 +15,11 @@ import kotlin.test.assertNull
  * answer carries no address.
  *
  * The samples are what the launcher really prints: the plain serving line, a bind
- * address with the loopback one in parentheses, and the warnings an out-of-sync
- * install puts in front of the answer. Reading only the strict `Serving at` shape
- * made a serving gateway look stopped, and the row then offered to start a panel
- * that was already open in the browser.
+ * address with the loopback one in parentheses, the sentence a gateway that did
+ * not answer on its control socket is reported with, and the off message whose
+ * reason quotes a page. Reading only the strict `Serving at` shape made a serving
+ * gateway look stopped, and the row then offered to start a panel that was
+ * already open in the browser.
  */
 class HermesWebappStatusTest {
 
@@ -28,8 +29,11 @@ class HermesWebappStatusTest {
     }
 
     @Test
-    fun `warnings ahead of the answer do not hide the address`() {
-        assertEquals("http://127.0.0.1:9449", HermesWebappOutput.servingUrl(STATUS_WITH_WARNINGS))
+    fun `a link in the off message is not the panel's address`() {
+        // The reason a `webapp:` block is unusable can quote a page. Without a
+        // port it is no serving address: reading it as one put a docs link in the
+        // row as the panel and hid the start button behind a stopped panel.
+        assertNull(HermesWebappOutput.servingUrl(OFF_WITH_DOCS))
     }
 
     @Test
@@ -77,6 +81,29 @@ class HermesWebappStatusTest {
     }
 
     @Test
+    fun `a gateway that answers not running while its pid is alive is running`() = runTest {
+        val guest = FakeGuest().apply {
+            status = GATEWAY_UNREACHABLE
+            pid = 4242
+            port = 9120
+            alive += 4242
+            listening += 9120
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.refreshPanels()
+
+        // The answer the owner's panel really gave: the control socket did not
+        // answer, so `--status` reports nothing running — while the gateway process
+        // is alive and listening. The pid and the port are the evidence, and they
+        // say running with the address Pots knows.
+        assertEquals(
+            WebPanelStatus.Running("http://192.168.1.50:9120", WebPanelOpen.DASHBOARD_SIGN_IN),
+            status(WebPanels.HERMES),
+        )
+    }
+
+    @Test
     fun `a start whose launcher prints no address reports the panel running`() = runTest {
         val guest = FakeGuest().apply { launcher = WARNING }
         val runtime = runtime(this, guest)
@@ -103,9 +130,27 @@ class HermesWebappStatusTest {
         runtime.startPanel(WebPanels.HERMES)
 
         // Nothing proves the panel is up — no pid to signal, so nothing Pots could
-        // stop — and the launcher's own first line is the honest reason.
+        // stop — and the launcher's own line is the honest reason.
         val failed = assertIs<WebPanelStatus.Failed>(status(WebPanels.HERMES))
         assertContains(failed.reason, "install out of sync")
+    }
+
+    @Test
+    fun `a failed start quotes the last line the launcher printed`() = runTest {
+        val guest = FakeGuest().apply {
+            launcher = LAUNCHER_FAILURE
+            recordsPid = false
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel(WebPanels.HERMES)
+
+        // The first line is the install warning it printed on the way in; the line
+        // that says why it stopped is the last one, and that is the one to read.
+        assertEquals(
+            "hermes webapp: The gateway did not start (no answer on its control socket).",
+            assertIs<WebPanelStatus.Failed>(status(WebPanels.HERMES)).reason,
+        )
     }
 
     // --- helpers ----------------------------------------------------------
@@ -202,11 +247,19 @@ private const val LAUNCH = "hermes webapp --no-open"
 private const val WARNING =
     "hermes: install out of sync (venv: out of sync with uv.lock) - run `hermes pm install`"
 
-/** What `hermes webapp --status` really printed on such a host, warnings and all. */
-private val STATUS_WITH_WARNINGS = """
-    hermes: running with the previous dependencies after 3 failed syncs; next automatic retry in 3 min, or run `hermes update` to finish it
-    -> Restarting gateway(s) paused by an interrupted `hermes update`...
-      Paused gateway(s) left stopped: dependencies are not current for the updated code yet.
-    install out of sync (venv: out of sync with uv.lock) - run `hermes pm install`
-    Serving at http://127.0.0.1:9449
+/** What `--status` prints when the gateway does not answer on its control socket. */
+private const val GATEWAY_UNREACHABLE = "The gateway is not running. Run hermes webapp to start it."
+
+/**
+ * What `--status` prints when the config asks for the Webapp but cannot use it:
+ * the reason names a page, not an address.
+ */
+private const val OFF_WITH_DOCS =
+    "The Webapp is off: see https://hermes.nousresearch.com/docs for the settings. " +
+        "Fix it, then run hermes webapp."
+
+/** A launcher that gave up after the install warning: the reason is the last line. */
+private val LAUNCHER_FAILURE = """
+    hermes: install out of sync (venv: out of sync with uv.lock) - run `hermes pm install`
+    The gateway did not start (no answer on its control socket).
 """.trimIndent()
