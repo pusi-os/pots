@@ -33,8 +33,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * that is a decision rather than a socket call — timeouts, the read-only classifier, error mapping,
  * the sync framing — lives in commonMain with tests; this class only moves bytes.
  *
- * `close()` is never called on a manager: it destroys the private key it was given, which would
- * break the stored identity for good. [disconnect] and [disconnectAll] use `disconnect()` instead.
+ * `close()` is not called on a manager: it does the same teardown as `disconnect()` and then
+ * destroys the key instance it was handed. Managers stay in the map for the next [connect], so the
+ * minimal call — [disconnect] — is the right one; the destroyed key would be harmless anyway, since
+ * [AdbKeyStore] hands out a fresh instance per call.
  */
 class LibAdbBackend(
     private val context: Context,
@@ -131,6 +133,11 @@ class LibAdbBackend(
 
     override suspend fun uninstall(host: String, port: Int, packageName: String): String =
         withContext(Dispatchers.IO) {
+            // The name is interpolated into a shell command, so it is validated before anything is
+            // opened: `com.x; reboot` must never reach the device shell.
+            if (!isValidAdbPackageName(packageName)) {
+                throw AdbException(AdbErrorKind.IO, "not an Android package name: $packageName")
+            }
             runShell(connectedManager(host, port), "pm uninstall $packageName", AdbTimeouts.SHELL_SEC)
         }
 

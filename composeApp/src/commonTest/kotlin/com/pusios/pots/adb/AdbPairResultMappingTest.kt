@@ -5,12 +5,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The pairing screen has to tell a typo apart from a revoked key, so the mapping from the transport's
- * exceptions to [AdbPairResult] is tested here rather than left to the one place that sees them.
+ * The pairing screen has to tell a typo apart from a closed window, so the mapping from the
+ * transport's exceptions to [AdbPairResult] is tested here.
  *
- * The exceptions are declared locally with the same simple names as the library's and the JDK's: the
- * classifier is deliberately name-based (it lives in commonMain, where the real types do not exist),
- * and this is what proves the names it looks for are the ones the transport actually throws.
+ * The doubles are declared locally with the same simple names as the library's and the JDK's,
+ * because the classifier is name-based and lives in commonMain, where the real types do not exist.
+ * That proves the matcher, not the names: the names the pair path must recognise are pinned by the
+ * desktop test `AdbPairRealExceptionTest`, which uses the JDK's own `javax.net.ssl` types.
  */
 class AdbPairResultMappingTest {
 
@@ -25,13 +26,15 @@ class AdbPairResultMappingTest {
     private class SocketTimeoutException : Exception()
 
     @Test
-    fun `wrong pairing code maps to InvalidCode`() {
+    fun `a rejected key on connect maps to InvalidCode`() {
         assertEquals(AdbPairResult.InvalidCode, adbPairResultOf(AdbAuthenticationFailedException()))
     }
 
     @Test
-    fun `revoked key maps to PairingRequiredAgain`() {
-        assertEquals(AdbPairResult.PairingRequiredAgain, adbPairResultOf(AdbPairingRequiredException("pair again")))
+    fun `pairing required is not an outcome of pair and stays an IoError`() {
+        val result = adbPairResultOf(AdbPairingRequiredException("pair again"))
+        assertTrue(result is AdbPairResult.IoError)
+        assertEquals("pair again", result.message)
     }
 
     @Test

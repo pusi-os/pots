@@ -55,7 +55,13 @@ interface AdbBackend {
      */
     suspend fun installApk(host: String, port: Int, apkPath: String): String
 
-    /** Runs `pm uninstall` for [packageName] and returns the `pm` output. */
+    /**
+     * Runs `pm uninstall` for [packageName] and returns the `pm` output.
+     *
+     * [packageName] is validated as a plain package id first: it is the only argument in this
+     * interface that goes into a shell command verbatim, and `pm uninstall com.x; reboot` would run
+     * two commands.
+     */
     suspend fun uninstall(host: String, port: Int, packageName: String): String
 
     /**

@@ -2,7 +2,11 @@ package com.pusios.pots.adb
 
 /** Why an ADB operation failed, reduced to the cases the UI and the agent can act on. */
 enum class AdbErrorKind {
-    /** The daemon rejected our key: wrong pairing code, or the key was revoked on the device. */
+    /**
+     * The daemon rejected our key on the *connect* path: it was revoked on the device or never
+     * authorized. A wrong pairing code never reaches this kind — it fails the TLS handshake of the
+     * pairing connection, which [adbPairResultOf] turns into [AdbPairResult.InvalidCode].
+     */
     AUTHENTICATION_FAILED,
 
     /** The daemon wants the pairing handshake first — wireless debugging has not been paired yet. */
@@ -31,9 +35,9 @@ class AdbException(
 /**
  * Result of a pairing attempt.
  *
- * Pairing is the one flow where failure is expected and needs different words per case: a wrong code
- * is the user's typo, [PairingRequiredAgain] means the key was revoked on the device (pair again,
- * do not report "no connection"), and [TargetNotFound] means the pairing window closed.
+ * Pairing is the one flow where failure is expected and needs different words per case: [InvalidCode]
+ * is the user's typo (the TLS handshake rejected the key the six digits produced), [TargetNotFound]
+ * means nothing listens on that port any more, i.e. the pairing window closed.
  */
 sealed class AdbPairResult {
     data object Success : AdbPairResult()
@@ -43,8 +47,6 @@ sealed class AdbPairResult {
     data object TargetNotFound : AdbPairResult()
 
     data object Timeout : AdbPairResult()
-
-    data object PairingRequiredAgain : AdbPairResult()
 
     data class IoError(val message: String) : AdbPairResult()
 }
@@ -73,14 +75,40 @@ fun adbErrorKindOf(error: Throwable): AdbErrorKind {
     return AdbErrorKind.IO
 }
 
+/**
+ * True when [error] is a rejected TLS handshake.
+ *
+ * Pairing never reaches the ADB protocol: the six digits seed SPAKE2, both sides derive a PSK from
+ * it, and a wrong code only shows up as `SSLSocket.startHandshake()` failing inside the library.
+ * The library's own `AdbAuthenticationFailedException` is thrown from the *connect* path only, so
+ * without this check a typo would surface as a generic [AdbPairResult.IoError]. A TLS stack without
+ * `exportKeyingMaterial` (which is why Conscrypt is bundled) fails the same way and is reported as a
+ * wrong code too — the exception does not let the two apart.
+ */
+private fun isPairingTlsRejection(error: Throwable): Boolean {
+    var current: Throwable? = error
+    while (current != null) {
+        when (current::class.simpleName) {
+            "SSLHandshakeException", "SSLException", "SSLProtocolException" -> return true
+        }
+        current = current.cause
+    }
+    return false
+}
+
 /** [AdbPairResult] for a failed pairing, so the UI never sees a raw exception from this path. */
-fun adbPairResultOf(error: Throwable): AdbPairResult = when (val kind = adbErrorKindOf(error)) {
-    AdbErrorKind.AUTHENTICATION_FAILED -> AdbPairResult.InvalidCode
-    AdbErrorKind.PAIRING_REQUIRED -> AdbPairResult.PairingRequiredAgain
-    AdbErrorKind.TIMEOUT -> AdbPairResult.Timeout
-    AdbErrorKind.UNREACHABLE -> AdbPairResult.TargetNotFound
-    AdbErrorKind.PERMISSION_DENIED -> AdbPairResult.IoError("local network permission denied")
-    AdbErrorKind.IO -> AdbPairResult.IoError(error.message ?: "pairing failed")
+fun adbPairResultOf(error: Throwable): AdbPairResult {
+    if (isPairingTlsRejection(error)) return AdbPairResult.InvalidCode
+    return when (val kind = adbErrorKindOf(error)) {
+        AdbErrorKind.AUTHENTICATION_FAILED -> AdbPairResult.InvalidCode
+        AdbErrorKind.TIMEOUT -> AdbPairResult.Timeout
+        AdbErrorKind.UNREACHABLE -> AdbPairResult.TargetNotFound
+        AdbErrorKind.PERMISSION_DENIED -> AdbPairResult.IoError("local network permission denied")
+        // PAIRING_REQUIRED belongs to connect(), never to pair(); if a transport raises it here the
+        // pairing did not happen and its message is all we can honestly report.
+        AdbErrorKind.PAIRING_REQUIRED, AdbErrorKind.IO ->
+            AdbPairResult.IoError(error.message ?: "pairing failed")
+    }
 }
 
 /** Wraps [error] into an [AdbException] of the classified kind, keeping the original as the cause. */
