@@ -163,6 +163,15 @@ kotlin {
                 implementation(libs.koin.android)
                 implementation(libs.material)
                 implementation(libs.bouncycastle.provider)
+                // ADB agent: libadb-android is the only JVM client with a real pairing handshake
+                // (SPAKE2 + TLS), and Conscrypt is what that handshake runs on outside the
+                // platform's own provider. libadb declares bcprov-jdk15to18; it is excluded
+                // because the app already ships bcprov-jdk18on and the two jars carry the same
+                // org.bouncycastle classes, which D8 rejects as duplicates.
+                implementation(libs.libadb.android) {
+                    exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
+                }
+                implementation(libs.conscrypt.android)
                 implementation(libs.litert.lm)
                 implementation(libs.sqldelight.android.driver)
                 implementation(libs.nanohttpd)

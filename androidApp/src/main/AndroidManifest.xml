@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
    <uses-permission android:name="android.permission.INTERNET"/>
+   <!-- mDNS discovery of ADB daemons needs a multicast lock to see the
+        _adb-tls-*.local announcements at all. -->
+   <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
    <!-- Android 17+ blocks LAN traffic for apps targeting SDK 37+ without this runtime
         permission; required to reach self-hosted servers (Jan, Ollama, LM Studio, ...). -->

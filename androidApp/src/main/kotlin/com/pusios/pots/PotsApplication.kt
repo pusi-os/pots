@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.pusios.pots.adb.adbModule
 import com.pusios.pots.data.TaskScheduler
 import com.pusios.pots.overlay.PotsAppForeground
 import com.pusios.pots.overlay.PotsOverlayService
@@ -28,7 +29,7 @@ class PotsApplication : Application() {
         com.pusios.pots.PotsAppContext.application = this
         startKoin {
             androidContext(this@PotsApplication)
-            modules(appModule, sandboxModule)
+            modules(appModule, sandboxModule, adbModule)
         }
         // The pet's notification channel is made here, up front, never inside
         // onStartCommand: a channel built late is exactly how a foreground
