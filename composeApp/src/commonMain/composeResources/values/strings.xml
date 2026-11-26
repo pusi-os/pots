@@ -1172,7 +1172,7 @@
     <string name="adb_pair_timeout">Pairing timed out.</string>
     <string name="adb_pair_failed">Pairing failed: %1$s</string>
     <string name="adb_connected">Connected to %1$s</string>
-    <string name="adb_no_answer">%1$s did not answer. A TV or an old phone may be waiting for the «Allow debugging» tap; a TLS device needs pairing first.</string>
+    <string name="adb_no_answer">%1$s is not reachable: the port is closed or there is no route to it.</string>
     <string name="adb_connect_failed">Connection failed: %1$s</string>
     <string name="adb_endpoint_invalid">Address must be host:port, e.g. 192.168.1.50:5555</string>
     <string name="adb_endpoint_not_private">Only private/LAN addresses are allowed</string>
@@ -1181,12 +1181,37 @@
     <string name="adb_old_android_hint">Android 10 and older, and TVs without «Wireless debugging», need a computer once: connect over USB and run `adb tcpip 5555`. After that the device answers at host:5555 until it reboots.</string>
     <string name="adb_pairing_required">The device asks to be paired again — open its «Pair device with pairing code» dialog and enter the new code.</string>
     <string name="adb_enter_connect_port">Pairing found. Enter the connect port from the device\'s «Wireless debugging» screen.</string>
+    <string name="adb_scan_lan">Scan the LAN (5555)</string>
+    <string name="adb_scanning_lan">Scanning the local network…</string>
+    <string name="adb_diagnose">Diagnose</string>
+    <string name="adb_cancel">Cancel</string>
+    <string name="adb_connect_cancelled">%1$s: stopped waiting. If the device still shows its dialog, press «Cancel» on it.</string>
+    <string name="adb_waiting_confirmation">Waiting for confirmation on %1$s — tap «Allow» (and «Always allow from this computer») on the device.</string>
+    <string name="adb_not_confirmed">%1$s did not confirm the connection in time. On the device: tap «Allow», tick «Always allow from this computer», then connect once more. If an old dialog is still on its screen, press «Cancel» first.</string>
+    <string name="adb_not_adb">Port %1$s is open, but nothing on it answers as ADB. Turn on «Network debugging» (or «ADB debugging») on the device, or check the port number.</string>
+    <string name="adb_status_idle">Not connected</string>
+    <string name="adb_status_probing">Checking the port…</string>
+    <string name="adb_status_waiting">Waiting for confirmation on the device</string>
+    <string name="adb_status_connected">Connected</string>
+    <string name="adb_status_error">Error: %1$s</string>
+    <string name="adb_diagnostics_title">ADB log</string>
+    <string name="adb_diagnostics_empty">Nothing logged yet — press «Diagnose» or «Connect».</string>
+    <string name="adb_tv_steps">TV steps: 1) enable «Network debugging» in Developer options (on Android 11 TVs «USB debugging» is enough, the port 5555 is always up); 2) connect once and, when the dialog appears on the TV, tick «Always allow from this computer» and press «Allow» — without the tick the TV asks again after every reconnect; 3) never press «Revoke USB debugging authorizations» unless you want to start over.</string>
+    <string name="adb_diag_auth_required">The port answers as ADB and waits for you to confirm this phone\'s key on the device.</string>
+    <string name="adb_diag_tls_required">The port is a wireless-debugging TLS daemon: pair it with the six-digit code first.</string>
+    <string name="adb_diag_connected">The port answers as ADB and already trusts this phone\'s key.</string>
+    <string name="adb_diag_not_adb">The port accepts TCP but does not answer an ADB handshake — it is not ADB, or a stuck dialog is holding the answer.</string>
+    <string name="adb_diag_port_closed">Nothing listens on that port.</string>
+    <string name="adb_diag_no_route">No route to the host: it is not reachable on this network.</string>
+    <string name="adb_diag_timeout">The TCP connection was not established in time.</string>
 
     <!-- ADB agent tools -->
     <string name="tool_adb_name">ADB devices</string>
     <string name="tool_adb_description">Master switch for the agent\'s ADB tools (off by default)</string>
     <string name="tool_adb_list_devices_name">ADB: list devices</string>
     <string name="tool_adb_list_devices_description">Known devices and their status</string>
+    <string name="tool_adb_diagnose_name">ADB: diagnose</string>
+    <string name="tool_adb_diagnose_description">Probe a device and show the last ADB steps</string>
     <string name="tool_adb_connect_name">ADB: connect</string>
     <string name="tool_adb_connect_description">Connect to a device on the local network</string>
     <string name="tool_adb_disconnect_name">ADB: disconnect</string>

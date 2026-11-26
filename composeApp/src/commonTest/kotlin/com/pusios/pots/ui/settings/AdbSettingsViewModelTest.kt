@@ -4,15 +4,26 @@
 
 package com.pusios.pots.ui.settings
 
+import com.pusios.pots.adb.AdbBackend
+import com.pusios.pots.adb.AdbConnectPhase
+import com.pusios.pots.adb.AdbDeviceState
+import com.pusios.pots.adb.AdbErrorKind
+import com.pusios.pots.adb.AdbException
 import com.pusios.pots.adb.AdbPairResult
+import com.pusios.pots.adb.AdbProbeResult
 import com.pusios.pots.adb.FakeAdbBackend
 import com.pusios.pots.adb.FakeAdbStore
 import com.pusios.pots.adb.TEST_DEVICE
+import com.pusios.pots.adb.adbDeviceId
 import com.pusios.pots.tools.AppPermission
 import com.pusios.pots.tools.PermissionController
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -21,7 +32,7 @@ import kotlin.test.assertTrue
 
 private fun model(
     scope: TestScope,
-    backend: FakeAdbBackend = FakeAdbBackend(),
+    backend: AdbBackend = FakeAdbBackend(),
     store: FakeAdbStore = FakeAdbStore(emptyList()),
 ) = AdbSettingsViewModel(backend, store, PermissionController(AppPermission.LOCAL_NETWORK), scope)
 
@@ -80,6 +91,22 @@ class AdbSettingsViewModelTest {
     }
 
     @Test
+    fun aPublicAddressIsNeverDiagnosed() = runTest {
+        // «Диагностика» takes the same free-text endpoint as a connect; the LAN-only rule has to
+        // hold on this path too, or a probe would leave the phone for an arbitrary address.
+        val backend = FakeAdbBackend()
+        val model = model(this, backend)
+        model.onEndpointChange("203.0.113.7:5555")
+        model.onDiagnose()
+        advanceUntilIdle()
+
+        assertEquals(AdbNotice.EndpointNotPrivate, model.state.value.notice)
+        assertEquals(0, backend.probeCalls)
+        assertTrue(model.state.value.statuses.isEmpty())
+        assertFalse(model.state.value.busy)
+    }
+
+    @Test
     fun connectingAnUnknownDeviceStoresItUntrusted() = runTest {
         val backend = FakeAdbBackend()
         val store = FakeAdbStore(emptyList())
@@ -114,5 +141,178 @@ class AdbSettingsViewModelTest {
         assertEquals(listOf("192.168.1.50:5555"), backend.disconnects)
         assertTrue(store.all().isEmpty())
         assertNull(model.state.value.notice)
+    }
+
+    @Test
+    fun aWaitingDeviceShowsTheWaitingStateAndCancelClosesTheSession() = runTest {
+        val fake = FakeAdbBackend()
+        val backend = object : AdbBackend by fake {
+            override suspend fun connect(
+                host: String,
+                port: Int,
+                tls: Boolean,
+                firstContact: Boolean,
+                onPhase: (AdbConnectPhase) -> Unit,
+            ): Boolean {
+                onPhase(AdbConnectPhase.WAITING_FOR_CONFIRMATION)
+                awaitCancellation()
+            }
+        }
+        val model = model(this, backend)
+        model.onEndpointChange("192.168.1.50:5555")
+        model.onConnect()
+        advanceUntilIdle()
+
+        val id = adbDeviceId("192.168.1.50", 5555)
+        assertEquals(AdbDeviceState.WAITING_FOR_CONFIRMATION, model.state.value.statuses.getValue(id).state)
+        assertTrue(model.state.value.notice is AdbNotice.WaitingForConfirmation)
+        assertTrue(model.state.value.busy)
+
+        model.onCancelConnect()
+        advanceUntilIdle()
+
+        // Closing the transport is what takes the prompt off the device's screen.
+        assertEquals(listOf("192.168.1.50:5555"), fake.disconnects)
+        assertEquals(AdbDeviceState.IDLE, model.state.value.statuses.getValue(id).state)
+        assertTrue(model.state.value.notice is AdbNotice.ConnectCancelled)
+        assertFalse(model.state.value.busy)
+    }
+
+    @Test
+    fun aLateVerdictFromACancelledAttemptDoesNotOverwriteTheCancellation() = runTest {
+        // The real transport blocks on a socket read that no cancellation can interrupt, so after
+        // «Отмена» it still returns its own verdict a moment later. That verdict belongs to an
+        // attempt nobody is waiting for and must not replace the cancellation on screen.
+        val fake = FakeAdbBackend()
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val backend = object : AdbBackend by fake {
+            override suspend fun connect(
+                host: String,
+                port: Int,
+                tls: Boolean,
+                firstContact: Boolean,
+                onPhase: (AdbConnectPhase) -> Unit,
+            ): Boolean {
+                onPhase(AdbConnectPhase.WAITING_FOR_CONFIRMATION)
+                started.complete(Unit)
+                withContext(NonCancellable) { release.await() }
+                throw AdbException(AdbErrorKind.TIMEOUT, "the device did not confirm the connection within 120s")
+            }
+        }
+        val model = model(this, backend)
+        model.onEndpointChange("192.168.1.50:5555")
+        model.onConnect()
+        advanceUntilIdle()
+        started.await()
+
+        val id = adbDeviceId("192.168.1.50", 5555)
+        assertEquals(AdbDeviceState.WAITING_FOR_CONFIRMATION, model.state.value.statuses.getValue(id).state)
+        assertTrue(model.state.value.connectInFlight)
+
+        model.onCancelConnect()
+        release.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("192.168.1.50:5555"), fake.disconnects)
+        assertTrue(model.state.value.notice is AdbNotice.ConnectCancelled)
+        assertEquals(AdbDeviceState.IDLE, model.state.value.statuses.getValue(id).state)
+        assertFalse(model.state.value.busy)
+        assertFalse(model.state.value.connectInFlight)
+    }
+
+    @Test
+    fun aDiagnosisThatFindsAKeyRequestDoesNotOfferCancel() = runTest {
+        // A bare CNXN made the daemon ask for a key, but the app is not waiting for anything: the
+        // screen must not show «Отмена» for a wait that does not exist.
+        val backend = FakeAdbBackend().apply { probeResult = AdbProbeResult.AuthRequired }
+        val model = model(this, backend)
+        model.onEndpointChange("192.168.1.50:5555")
+        model.onDiagnose()
+        advanceUntilIdle()
+
+        val id = adbDeviceId("192.168.1.50", 5555)
+        assertEquals(AdbDeviceState.WAITING_FOR_CONFIRMATION, model.state.value.statuses.getValue(id).state)
+        assertFalse(model.state.value.connectInFlight)
+        assertFalse(model.state.value.busy)
+
+        model.onCancelConnect()
+        advanceUntilIdle()
+
+        assertTrue(backend.disconnects.isEmpty())
+        assertTrue(model.state.value.notice is AdbNotice.Diagnosis)
+    }
+
+    @Test
+    fun cancelIsOfferedOnlyForTheLiveAttemptsOwnDevice() = runTest {
+        // «Диагностика» of A leaves A in the waiting state without anything waiting for the owner;
+        // a connect to B must not show «Отмена» just because A still says «waiting».
+        val fake = FakeAdbBackend().apply { probeResult = AdbProbeResult.AuthRequired }
+        val backend = object : AdbBackend by fake {
+            override suspend fun connect(
+                host: String,
+                port: Int,
+                tls: Boolean,
+                firstContact: Boolean,
+                onPhase: (AdbConnectPhase) -> Unit,
+            ): Boolean {
+                onPhase(AdbConnectPhase.WAITING_FOR_CONFIRMATION)
+                awaitCancellation()
+            }
+        }
+        val model = model(this, backend)
+
+        model.onEndpointChange("192.168.1.50:5555")
+        model.onDiagnose()
+        advanceUntilIdle()
+        val first = adbDeviceId("192.168.1.50", 5555)
+        assertEquals(AdbDeviceState.WAITING_FOR_CONFIRMATION, model.state.value.statuses.getValue(first).state)
+        assertFalse(model.state.value.canCancelConnect)
+
+        model.onEndpointChange("192.168.1.60:5555")
+        model.onConnect()
+        // Started, but the attempt has not reached B's dialog yet.
+        assertFalse(model.state.value.canCancelConnect)
+        advanceUntilIdle()
+        assertTrue(model.state.value.canCancelConnect)
+
+        model.onCancelConnect()
+        advanceUntilIdle()
+        assertFalse(model.state.value.canCancelConnect)
+    }
+
+    @Test
+    fun aConnectFailureWithoutAMessageStillSaysWhatFailed() = runTest {
+        // The status line must never fall back to «не подключено» for a real failure: an
+        // AdbException can carry a blank message, and the transport also throws message-less ones.
+        val blank = FakeAdbBackend().apply { connectFailure = AdbException(AdbErrorKind.TIMEOUT, "") }
+        val blankModel = model(this, blank)
+        blankModel.onEndpointChange("192.168.1.50:5555")
+        blankModel.onConnect()
+        advanceUntilIdle()
+
+        val id = adbDeviceId("192.168.1.50", 5555)
+        val blankStatus = blankModel.state.value.statuses.getValue(id)
+        assertEquals(AdbDeviceState.ERROR, blankStatus.state)
+        assertTrue(!blankStatus.detail.isNullOrBlank(), "detail was ${blankStatus.detail}")
+        assertTrue(blankModel.state.value.notice is AdbNotice.DeviceDidNotConfirm)
+
+        val silent = object : AdbBackend by FakeAdbBackend() {
+            override suspend fun connect(
+                host: String,
+                port: Int,
+                tls: Boolean,
+                firstContact: Boolean,
+                onPhase: (AdbConnectPhase) -> Unit,
+            ): Boolean = throw RuntimeException()
+        }
+        val silentModel = model(this, silent)
+        silentModel.onEndpointChange("192.168.1.50:5555")
+        silentModel.onConnect()
+        advanceUntilIdle()
+
+        val silentStatus = silentModel.state.value.statuses.getValue(id)
+        assertEquals(AdbDeviceState.ERROR, silentStatus.state)
+        assertTrue(!silentStatus.detail.isNullOrBlank(), "detail was ${silentStatus.detail}")
     }
 }

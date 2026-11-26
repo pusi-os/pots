@@ -1,6 +1,8 @@
-// The «ADB devices» settings tab: known devices, the mDNS search behind the local-network
-// permission, and the only pairing UI in the app. The agent has no pairing tool and no scan: a
-// six-digit code is typed here by the owner.
+// The «ADB devices» settings tab: known devices with their live state, the mDNS search and the
+// 5555 subnet scan behind the local-network permission, the only pairing UI in the app, and the
+// step log that turns "the TV does not connect" into a line the owner can act on.
+//
+// The agent has no pairing tool and no scan: a six-digit code is typed here by the owner.
 //
 // Android-only. The tab itself is hidden on other platforms (SettingsScreen filters it).
 
@@ -35,9 +37,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.adb.AdbBackend
 import com.pusios.pots.adb.AdbDevice
+import com.pusios.pots.adb.AdbDeviceState
 import com.pusios.pots.adb.AdbDeviceStore
 import com.pusios.pots.adb.AdbDiscovery
 import com.pusios.pots.adb.AdbDiscoveryServiceType
+import com.pusios.pots.adb.AdbProbeResult
+import com.pusios.pots.adb.PotsAdbLog
 import com.pusios.pots.permissionQualifier
 import com.pusios.pots.tools.AppPermission
 import com.pusios.pots.tools.PermissionController
@@ -46,6 +51,9 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import pots.composeapp.generated.resources.*
+
+/** How many ADB log lines the screen shows; the buffer keeps more, the screen stays readable. */
+private const val VISIBLE_LOG_LINES = 20
 
 @Composable
 fun AdbSettingsScreen(
@@ -59,6 +67,9 @@ fun AdbSettingsScreen(
         AdbSettingsViewModel(backend, store, localNetworkPermission, scope)
     }
     val state by model.state.collectAsState()
+    // The step log is a process-wide singleton by design (the backend writes to it from a socket
+    // thread), so the screen reads it directly instead of copying it through the view model.
+    val adbLog by PotsAdbLog.lines.collectAsState()
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -103,6 +114,7 @@ fun AdbSettingsScreen(
             state.devices.forEach { device ->
                 DeviceRow(
                     device = device,
+                    status = state.statuses[device.id],
                     onTrustChange = { trusted -> model.onTrustChange(device, trusted) },
                     onRemove = { model.onRemove(device) },
                 )
@@ -136,7 +148,7 @@ fun AdbSettingsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = { model.onScan() },
-                    enabled = !state.isScanning,
+                    enabled = !state.isScanning && !state.isScanningLan,
                     modifier = Modifier.handCursor(),
                 ) {
                     Icon(
@@ -147,14 +159,21 @@ fun AdbSettingsScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(Res.string.adb_scan))
                 }
-                if (state.isScanning) {
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = stringResource(Res.string.adb_scanning),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Spacer(Modifier.width(12.dp))
+                TextButton(
+                    onClick = { model.onScanLan() },
+                    enabled = !state.isScanning && !state.isScanningLan,
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.adb_scan_lan))
                 }
+            }
+            if (state.isScanning || state.isScanningLan) {
+                Text(
+                    text = stringResource(if (state.isScanningLan) Res.string.adb_scanning_lan else Res.string.adb_scanning),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Text(
                 text = stringResource(Res.string.adb_discovery_note),
@@ -164,7 +183,9 @@ fun AdbSettingsScreen(
             state.discovered.forEach { discovery ->
                 DiscoveryRow(discovery = discovery, onClick = { model.onDiscoveredSelected(discovery) })
             }
-            if (state.hasScanned && !state.isScanning && state.discovered.isEmpty() && !state.scanPermissionDenied) {
+            if (state.hasScanned && !state.isScanning && !state.isScanningLan && state.discovered.isEmpty() &&
+                !state.scanPermissionDenied
+            ) {
                 // Silence is not an answer: after a scan that found nothing, say so.
                 Text(
                     text = stringResource(Res.string.adb_scan_empty),
@@ -217,6 +238,28 @@ fun AdbSettingsScreen(
                 ) {
                     Text(stringResource(Res.string.adb_connect_action))
                 }
+                Spacer(Modifier.width(12.dp))
+                TextButton(
+                    onClick = { model.onDiagnose() },
+                    enabled = !state.busy,
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.adb_diagnose))
+                }
+                // Only while a device is actually showing its dialog: that is the one wait that can
+                // last minutes, and the one the owner may want to abort (for example after walking
+                // away from the TV). A «Диагностика» can leave a device in the waiting state too, so
+                // the model decides this in `canCancelConnect` — from the live attempt and its own
+                // target's status, never from any device's status.
+                if (state.canCancelConnect) {
+                    Spacer(Modifier.width(12.dp))
+                    TextButton(
+                        onClick = { model.onCancelConnect() },
+                        modifier = Modifier.handCursor(),
+                    ) {
+                        Text(stringResource(Res.string.adb_cancel))
+                    }
+                }
             }
 
             state.notice?.let { notice ->
@@ -229,10 +272,38 @@ fun AdbSettingsScreen(
 
             Spacer(Modifier.height(8.dp))
             Text(
+                text = stringResource(Res.string.adb_tv_steps),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
                 text = stringResource(Res.string.adb_old_android_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+
+        SettingsCard {
+            Text(
+                text = stringResource(Res.string.adb_diagnostics_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.height(8.dp))
+            if (adbLog.isEmpty()) {
+                Text(
+                    text = stringResource(Res.string.adb_diagnostics_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = adbLog.takeLast(VISIBLE_LOG_LINES).joinToString("\n") { line -> line.toString() },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -240,6 +311,7 @@ fun AdbSettingsScreen(
 @Composable
 private fun DeviceRow(
     device: AdbDevice,
+    status: AdbDeviceStatus?,
     onTrustChange: (Boolean) -> Unit,
     onRemove: () -> Unit,
 ) {
@@ -265,6 +337,7 @@ private fun DeviceRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = if (device.trusted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            status?.let { current -> statusLine(current, statusText(current)) }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
@@ -282,6 +355,31 @@ private fun DeviceRow(
             )
         }
     }
+}
+
+/** The state line under a device: «не подключено» until an attempt says otherwise. */
+@Composable
+private fun statusText(status: AdbDeviceStatus): String = when (status.state) {
+    AdbDeviceState.IDLE -> stringResource(Res.string.adb_status_idle)
+    AdbDeviceState.PROBING -> stringResource(Res.string.adb_status_probing)
+    AdbDeviceState.WAITING_FOR_CONFIRMATION -> stringResource(Res.string.adb_status_waiting)
+    AdbDeviceState.CONNECTED -> stringResource(Res.string.adb_status_connected)
+    AdbDeviceState.ERROR -> status.detail?.let { detail ->
+        stringResource(Res.string.adb_status_error, detail)
+    } ?: stringResource(Res.string.adb_status_error, stringResource(Res.string.adb_status_idle))
+}
+
+@Composable
+private fun statusLine(status: AdbDeviceStatus, text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = if (status.state == AdbDeviceState.ERROR) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.primary
+        },
+    )
 }
 
 @Composable
@@ -324,9 +422,26 @@ private fun noticeText(notice: AdbNotice): String = when (notice) {
     AdbNotice.PairingPortInvalid -> stringResource(Res.string.adb_pairing_port_invalid)
     AdbNotice.CodeInvalid -> stringResource(Res.string.adb_code_invalid)
     AdbNotice.EnterConnectPort -> stringResource(Res.string.adb_enter_connect_port)
+    is AdbNotice.WaitingForConfirmation -> stringResource(Res.string.adb_waiting_confirmation, notice.address)
+    is AdbNotice.DeviceDidNotConfirm -> stringResource(Res.string.adb_not_confirmed, notice.address)
+    is AdbNotice.NotAdb -> stringResource(Res.string.adb_not_adb, notice.address)
+    is AdbNotice.ConnectCancelled -> stringResource(Res.string.adb_connect_cancelled, notice.address)
+    is AdbNotice.Diagnosis -> diagnosisText(notice.result)
+}
+
+@Composable
+private fun diagnosisText(result: AdbProbeResult): String = when (result) {
+    AdbProbeResult.AuthRequired -> stringResource(Res.string.adb_diag_auth_required)
+    AdbProbeResult.TlsRequired -> stringResource(Res.string.adb_diag_tls_required)
+    AdbProbeResult.Connected -> stringResource(Res.string.adb_diag_connected)
+    AdbProbeResult.Silent, is AdbProbeResult.NotAdb -> stringResource(Res.string.adb_diag_not_adb)
+    AdbProbeResult.PortClosed -> stringResource(Res.string.adb_diag_port_closed)
+    AdbProbeResult.NoRoute -> stringResource(Res.string.adb_diag_no_route)
+    AdbProbeResult.Timeout -> stringResource(Res.string.adb_diag_timeout)
+    is AdbProbeResult.Failed -> stringResource(Res.string.adb_connect_failed, result.detail)
 }
 
 private fun isError(notice: AdbNotice): Boolean = when (notice) {
-    AdbNotice.Paired, is AdbNotice.Connected -> false
+    AdbNotice.Paired, is AdbNotice.Connected, is AdbNotice.ConnectCancelled -> false
     else -> true
 }

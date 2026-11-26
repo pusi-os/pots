@@ -1,4 +1,4 @@
-// The six ADB tools the agent may call on devices in the owner's local network. Everything that
+// The seven ADB tools the agent may call on devices in the owner's local network. Everything that
 // is a decision lives here or in the helpers next to it (read-only classifier, LAN address check,
 // output truncation, secret masking), so it is testable without a device; the transport is
 // AdbBackend, which only moves bytes.
@@ -30,7 +30,7 @@ data class AdbToolDependencies(
 )
 
 /**
- * The six ADB tools, registered in `buildAgentToolSet` behind one master toggle ([MASTER_ID], off
+ * The seven ADB tools, registered in `buildAgentToolSet` behind one master toggle ([MASTER_ID], off
  * by default). Changing a device — a non-read-only shell command, an install, an uninstall — asks
  * the owner first; a device that was never paired only accepts read-only commands at all.
  */
@@ -41,22 +41,23 @@ object AdbTools {
     /** How much of a command's output a tool result may carry. */
     const val SHELL_OUTPUT_LIMIT_BYTES = 8 * 1024
 
+    /** How many ADB log lines `adb_diagnose` hands the model: enough for one attempt, small enough. */
+    const val DIAGNOSE_LOG_LINES = 20
+
     /**
-     * Budget for a tool whose call may wait in the owner confirmation gate: the gate's window plus
-     * the backend's own deadline and slack. `ToolExecutor` wraps `execute` in
-     * `withTimeout(tool.timeout)`, so a shorter budget would kill the call while the owner is still
-     * deciding and the answer would have nowhere to go. `adb_install` is longer (it also downloads
-     * and pushes); AdbToolsTest keeps every gated budget above the window.
+     * Budget for a tool whose call may wait in the owner confirmation gate or on a device dialog:
+     * the gate's window, the longest connect deadline (a device waiting for its owner to tap
+     * «Allow») and a shell command. `ToolExecutor` wraps `execute` in `withTimeout(tool.timeout)`,
+     * so a shorter budget would kill the call while the owner or the device is still deciding and
+     * the answer would have nowhere to go. AdbToolsTest keeps every gated budget above the window.
      */
     private val GATED_TOOL_TIMEOUT =
-        (AdbGate.DEFAULT_CONFIRM_TIMEOUT_SECONDS + AdbTimeouts.SHELL_SEC + 30).seconds
-
-    /** Ports below this on a plain-TCP daemon are the legacy `adb tcpip 5555` setup. */
-    private const val LEGACY_ADB_PORT = 5555
+        (AdbGate.DEFAULT_CONFIRM_TIMEOUT_SECONDS + AdbTimeouts.CONNECT_FIRST_SEC + AdbTimeouts.SHELL_SEC + 30).seconds
 
     /** Names of the tool schemas [create] registers — the prompt builder keys its section on these. */
     val TOOL_NAMES = listOf(
         "adb_list_devices",
+        "adb_diagnose",
         "adb_connect",
         "adb_disconnect",
         "adb_shell",
@@ -85,6 +86,14 @@ object AdbTools {
             "Known devices and their status",
             nameRes = Res.string.tool_adb_list_devices_name,
             descriptionRes = Res.string.tool_adb_list_devices_description,
+            userToggleable = false,
+        ),
+        ToolInfo(
+            "adb_diagnose",
+            "ADB: diagnose",
+            "Probe a device and show the last ADB steps",
+            nameRes = Res.string.tool_adb_diagnose_name,
+            descriptionRes = Res.string.tool_adb_diagnose_description,
             userToggleable = false,
         ),
         ToolInfo(
@@ -131,6 +140,7 @@ object AdbTools {
 
     fun create(deps: AdbToolDependencies): List<Tool> = listOf(
         listDevicesTool(deps),
+        diagnoseTool(deps),
         connectTool(deps),
         disconnectTool(deps),
         shellTool(deps),
@@ -157,6 +167,8 @@ object AdbTools {
         AdbErrorKind.TIMEOUT -> "the operation timed out"
 
         AdbErrorKind.UNREACHABLE -> "nothing answers on that address"
+
+        AdbErrorKind.NOT_ADB -> "the port is open, but nothing on it answers as ADB"
 
         AdbErrorKind.PERMISSION_DENIED -> "Android blocked local network access — grant the local network permission"
 
@@ -224,6 +236,76 @@ object AdbTools {
         }
     }
 
+    // --- adb_diagnose -----------------------------------------------------------
+
+    /**
+     * One probe plus the tail of the step log: the answer to "why does this device not connect"
+     * without a logcat session.
+     *
+     * It sends a bare `CNXN`, which cannot put a dialog on the device's screen (a prompt appears
+     * only after a public key is presented), so it is safe to call before `adb_connect` and after a
+     * failed one. No confirmation is asked: it changes nothing on the device.
+     */
+    private fun diagnoseTool(deps: AdbToolDependencies) = object : Tool {
+        override val schema = ToolSchema(
+            name = "adb_diagnose",
+            description = "Check what an ADB endpoint actually answers: one CNXN probe that tells " +
+                "«nothing listens», «not an ADB daemon», «waits for the owner's confirmation on the " +
+                "device» and «already trusted» apart, plus the last ADB steps from the app log. Use it " +
+                "after a failed adb_connect, and report its words to the owner instead of «no connection».",
+            parameters = mapOf(
+                "device_id" to ParameterSchema("string", "Device id from adb_list_devices", required = false),
+                "endpoint" to ParameterSchema(
+                    "string",
+                    "host:port of any LAN address, e.g. 192.168.1.50:5555",
+                    required = false,
+                ),
+            ),
+        )
+
+        override suspend fun execute(args: Map<String, Any>): Any {
+            val deviceId = str(args, "device_id")
+            val endpointText = str(args, "endpoint")
+            if (deviceId == null && endpointText == null) {
+                return error("device_id or endpoint is required", "call adb_list_devices to see the known devices")
+            }
+            val device = deviceId?.let { id -> deps.store.byId(id) }
+            if (deviceId != null && device == null) return missingDevice(args)
+            val host: String
+            val port: Int
+            if (device != null) {
+                host = device.host
+                port = device.port
+            } else {
+                val endpoint = parseAdbEndpoint(endpointText!!)
+                    ?: return error("endpoint must be host:port, e.g. 192.168.1.50:5555")
+                if (!isPrivateAdbHost(endpoint.host)) {
+                    return error("only private/LAN addresses are allowed: ${endpoint.host}")
+                }
+                host = endpoint.host
+                port = endpoint.port
+            }
+            return try {
+                val probe = deps.backend.probe(host, port)
+                buildMap<String, Any> {
+                    put("success", true)
+                    put("address", "$host:$port")
+                    put("reachable", adbProbeTcpReachable(probe))
+                    put("daemon", adbProbeIsDaemon(probe))
+                    put("probe", adbProbeSummary(probe))
+                    put("connected", deps.backend.isConnected(host, port))
+                    put("log", PotsAdbLog.tail(DIAGNOSE_LOG_LINES).map { line -> line.toString() })
+                    adbProbeHint(probe)?.let { hint -> put("hint", hint) }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                // An Error (StackOverflowError, OutOfMemoryError) must not kill the process either.
+                error("diagnosis failed", failure.message ?: failure::class.simpleName.orEmpty())
+            }
+        }
+    }
+
     // --- adb_connect ------------------------------------------------------------
 
     private fun connectTool(deps: AdbToolDependencies) = object : Tool {
@@ -275,7 +357,7 @@ object AdbTools {
                     port = endpoint.port,
                     // The legacy TCP daemon lives on 5555; wireless debugging advertises its own port
                     // and speaks TLS. The flag is a label, not a wire switch.
-                    tls = endpoint.port != LEGACY_ADB_PORT,
+                    tls = endpoint.port != ADB_LEGACY_PORT,
                     trusted = false,
                 )
             }
@@ -286,12 +368,22 @@ object AdbTools {
                 deps.store.upsert(device)
             }
             return try {
-                val connected = deps.backend.connect(device.host, device.port, device.tls)
+                // firstContact widens the window for a device that does not hold our key: a TV on
+                // 5555 shows its dialog every time (it never persists the key), and the owner needs
+                // more than fifteen seconds to reach the remote.
+                val connected = deps.backend.connect(
+                    device.host,
+                    device.port,
+                    device.tls,
+                    firstContact = !device.trusted,
+                )
                 if (!connected) {
+                    // Should not happen — a failed connect throws with the probe's verdict — but a
+                    // bare false must still carry the reason instead of "no connection".
+                    val probe = deps.backend.probe(device.host, device.port)
                     error(
-                        "${device.endpoint} did not answer within ${AdbTimeouts.CONNECT_SEC}s",
-                        "a TV or an old phone may still be showing its «Allow debugging» dialog; " +
-                            "a wireless-debugging device must be paired first",
+                        "${device.endpoint} did not confirm the connection",
+                        adbProbeSummary(probe),
                     )
                 } else {
                     deps.store.touch(
@@ -508,14 +600,4 @@ object AdbTools {
             }
         }
     }
-}
-
-/**
- * Best-effort product model for the registry's `lastModel`. A device that answers `connect` but not
- * `getprop` still connects, so a failed read is null, not an error.
- */
-internal suspend fun AdbBackend.readProductModelOrNull(host: String, port: Int): String? = try {
-    shell(host, port, "getprop ro.product.model", AdbTimeouts.SHELL_SEC).trim().ifEmpty { null }
-} catch (failure: AdbException) {
-    null
 }
