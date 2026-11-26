@@ -43,9 +43,7 @@ internal val META_TOOL_NAMES: Set<String> = setOf(
  * "Unknown tool" — the whole lazy path was unusable. Building both from this one function is
  * what keeps them from drifting again.
  */
-internal fun callableTools(available: List<Tool>): List<Tool> =
-    if (available.isEmpty()) available else available + metaTools(ToolCatalog(available))
-
+internal fun callableTools(available: List<Tool>): List<Tool> = if (available.isEmpty()) available else available + metaTools(ToolCatalog(available))
 
 internal class ListToolsTool(private val catalog: ToolCatalog) : Tool {
 
