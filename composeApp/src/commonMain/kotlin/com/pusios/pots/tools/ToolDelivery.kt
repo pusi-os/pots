@@ -50,14 +50,27 @@ internal object ToolDelivery {
     /** Ceiling on eagerly re-delivered activated tools, so a chatty turn cannot undo the saving. */
     private const val EAGER_ACTIVATED_MAX = 20
 
-    /** Size the hot set is filled to when nothing has been activated yet. */
-    private const val HOT_SET_SIZE = 8
-
     /**
      * Tools sent with a full schema even in lazy mode: cheap, parameter-light and used in
      * ordinary conversation far more often than anything else.
      */
     val HOT_TOOL_NAMES = listOf("web_search", "fetch_url", "get_local_time", "memory_store", "open_url")
+
+    /**
+     * The six `mcp_*` administration tools, which are the only way to fix a server that needs
+     * authorization — and exactly the tools a user asks for when a server is not working. They
+     * were hidden by lazy delivery in 3.21.1: the model could see the MCP category in the index,
+     * had no schema to call, and answered "Unknown tool". They ride along whenever the set
+     * contains them at all, i.e. when MCP administration is compiled in for this platform.
+     */
+    val MCP_ADMIN_TOOL_NAMES = setOf(
+        "mcp_list_servers",
+        "mcp_add_server",
+        "mcp_remove_server",
+        "mcp_set_enabled",
+        "mcp_refresh",
+        "mcp_authorize",
+    )
 
     fun plan(available: List<Tool>, activatedNames: Set<String> = emptySet()): ToolDeliveryPlan {
         val catalog = ToolCatalog(available)
@@ -66,13 +79,10 @@ internal object ToolDelivery {
             return ToolDeliveryPlan(ToolDeliveryMode.EAGER, available, catalog, fullTokens, fullTokens)
         }
 
-        val wanted = LinkedHashSet<String>()
-        available.filter { it.schema.name in activatedNames }.forEach { wanted.add(it.schema.name) }
-        for (name in HOT_TOOL_NAMES) {
-            if (wanted.size >= HOT_SET_SIZE) break
-            if (available.any { it.schema.name == name }) wanted.add(name)
-        }
-        val extras = available.filter { it.schema.name in wanted }.take(EAGER_ACTIVATED_MAX)
+        val activated = available.filter { it.schema.name in activatedNames }.take(EAGER_ACTIVATED_MAX)
+        val admin = available.filter { it.schema.name in MCP_ADMIN_TOOL_NAMES }
+        val hot = available.filter { it.schema.name in HOT_TOOL_NAMES }
+        val extras = (activated + admin + hot).distinctBy { it.schema.name }
         val delivered = metaTools(catalog) + extras
         return ToolDeliveryPlan(
             mode = ToolDeliveryMode.LAZY,
