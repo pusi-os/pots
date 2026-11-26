@@ -90,7 +90,7 @@ object McpTools {
         ToolInfo(
             "mcp_set_enabled",
             "MCP: enable/disable server",
-            "Turn a configured server on or off for the agent",
+            "Turn a configured server on or off for the agent (owner confirms)",
             nameRes = Res.string.tool_mcp_set_enabled_name,
             descriptionRes = Res.string.tool_mcp_set_enabled_description,
             userToggleable = false,
@@ -254,13 +254,13 @@ object McpTools {
         override val schema = ToolSchema(
             name = "mcp_set_enabled",
             description = "Enable or disable a configured MCP server for the agent. Disabling " +
-                "closes its connection and hides its tools; the configuration is kept.",
+                "closes its connection and hides its tools; the configuration is kept. The owner confirms.",
             parameters = mapOf(
                 "server" to ParameterSchema("string", "Server id or name from mcp_list_servers", true),
                 "enabled" to ParameterSchema("boolean", "true to enable, false to disable", true),
             ),
         )
-        override val timeout: Duration = PLAIN_TIMEOUT
+        override val timeout: Duration = GATED_TIMEOUT
 
         override suspend fun execute(args: Map<String, Any>): Any {
             val server = resolveServer(deps.manager, args["server"] as? String)
@@ -269,6 +269,11 @@ object McpTools {
                 is Boolean -> raw
                 is String -> raw.equals("true", ignoreCase = true)
                 else -> return err("The `enabled` argument must be true or false.")
+            }
+            // Turning a server back on re-exposes every tool it has; turning it off hides them.
+            // Both are the owner's decision, not the model's.
+            if (!deps.gate.confirm("mcp_set_enabled", "Включить/выключить MCP-сервер «${server.name}»")) {
+                return err("The owner did not confirm changing this server.")
             }
             deps.manager.setServerEnabled(server.id, enabled)
             if (enabled) deps.manager.connect(server.id)

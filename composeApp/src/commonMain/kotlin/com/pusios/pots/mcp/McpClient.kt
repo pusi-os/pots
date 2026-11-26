@@ -19,6 +19,29 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 
+/**
+ * The headers of one request: `Accept`, the session id once the server issued one, the server's
+ * configured static headers, and the OAuth token last.
+ *
+ * A configured `Authorization` header (the API key typed into the server card) is dropped when a
+ * token is present: `header()` appends rather than replaces, so keeping both would send two
+ * `Authorization` headers and the server would take the stale first one.
+ */
+internal fun mcpRequestHeaders(
+    sessionId: String?,
+    staticHeaders: Map<String, String>,
+    token: String?,
+): List<Pair<String, String>> = buildList {
+    add("Accept" to "application/json, text/event-stream")
+    if (sessionId != null) add("Mcp-Session-Id" to sessionId)
+    staticHeaders.forEach { (key, value) ->
+        if (token == null || !key.equals(HttpHeaders.Authorization, ignoreCase = true)) {
+            add(key to value)
+        }
+    }
+    if (token != null) add(HttpHeaders.Authorization to "Bearer $token")
+}
+
 /** What the manager needs from a live connection; tests fake it, production uses [McpClient]. */
 interface McpSession {
     suspend fun initialize()
@@ -65,10 +88,9 @@ class McpClient(
 
     private fun HttpRequestBuilder.applyHeaders() {
         contentType(ContentType.Application.Json)
-        header("Accept", "application/json, text/event-stream")
-        sessionId?.let { header("Mcp-Session-Id", it) }
-        tokenProvider()?.let { header(HttpHeaders.Authorization, "Bearer $it") }
-        this@McpClient.headers.forEach { (key, value) -> header(key, value) }
+        mcpRequestHeaders(sessionId, this@McpClient.headers, tokenProvider()).forEach { (key, value) ->
+            header(key, value)
+        }
     }
 
     private suspend fun sendRequest(method: String, params: JsonElement? = null): JsonRpcResponse {
