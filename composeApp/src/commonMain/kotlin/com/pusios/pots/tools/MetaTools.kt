@@ -15,12 +15,37 @@ import kotlinx.serialization.json.put
  * Only `describe_tool` changes state — it enables the described tool for the rest of the
  * conversation ([ToolActivation]), which is what lets the model call it on the next step even
  * though the tool was not in the request that produced the call.
+ *
+ * They are built per call over whatever the enabled set holds, so they are never part of
+ * `getAvailableTools()`. Every place that answers "can this name be called?" has to add them
+ * explicitly — [META_TOOL_NAMES] and [callableTools] exist for that.
  */
 internal fun metaTools(catalog: ToolCatalog): List<Tool> = listOf(
     ListToolsTool(catalog),
     FindToolsTool(catalog),
     DescribeToolTool(catalog),
 )
+
+/** Names of [metaTools], for the callers that need the set without building the tools. */
+internal val META_TOOL_NAMES: Set<String> = setOf(
+    ListToolsTool.NAME,
+    FindToolsTool.NAME,
+    DescribeToolTool.NAME,
+)
+
+/**
+ * Everything a tool call may resolve against: the enabled tools plus the three meta-tools built
+ * over them.
+ *
+ * The request and the executor must agree on this universe. They did not once: the request
+ * carried `list_tools` / `find_tools` / `describe_tool` while the executor looked names up in
+ * `getAvailableTools()` only, so the model was told to use three tools that answered
+ * "Unknown tool" — the whole lazy path was unusable. Building both from this one function is
+ * what keeps them from drifting again.
+ */
+internal fun callableTools(available: List<Tool>): List<Tool> =
+    if (available.isEmpty()) available else available + metaTools(ToolCatalog(available))
+
 
 internal class ListToolsTool(private val catalog: ToolCatalog) : Tool {
 

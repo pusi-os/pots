@@ -32,7 +32,7 @@ internal enum class ToolCategory(val id: String, val summary: String) {
     VAULT("vault", "password vault entries and secret placeholders"),
     ADB("adb", "Android devices over the local network"),
     SYSTEM("system", "shell, sandbox and SSH access"),
-    MCP("mcp", "tools exposed by connected MCP servers"),
+    MCP("mcp", "MCP servers: list, add, authorize — and the tools they expose"),
     OTHER("other", "everything else"),
 }
 
@@ -67,6 +67,9 @@ internal fun categoryOf(tool: Tool): ToolCategory {
     return when {
         name.startsWith("vault_") -> ToolCategory.VAULT
         name.startsWith("adb_") -> ToolCategory.ADB
+        // Administration (mcp_list_servers, mcp_authorize, …) and server tools both belong here:
+        // the user thinks of them as one thing, and the index reads better that way.
+        name.startsWith("mcp_") -> ToolCategory.MCP
         name.startsWith("memory_") || name == "promote_learning" -> ToolCategory.MEMORY
         name.endsWith("_email") -> ToolCategory.EMAIL
         name.endsWith("_sms") -> ToolCategory.SMS

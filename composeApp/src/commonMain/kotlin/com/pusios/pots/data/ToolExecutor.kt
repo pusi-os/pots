@@ -4,7 +4,9 @@ import com.pusios.pots.getAvailableTools
 import com.pusios.pots.getPlatformToolDefinitions
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.smartTruncate
+import com.pusios.pots.tools.META_TOOL_NAMES
 import com.pusios.pots.tools.ToolActivation
+import com.pusios.pots.tools.callableTools
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -38,7 +40,11 @@ internal fun toolErrorJson(message: String): String = buildJsonObject {
 }.toString()
 
 class ToolExecutor(
-    private val toolsProvider: () -> List<Tool> = { getAvailableTools() },
+    // The universe of callable names, not just `getAvailableTools()`: the three meta-tools
+    // (`list_tools`, `find_tools`, `describe_tool`) are built over that list rather than being in
+    // it, and a request in lazy mode carries them. Looking them up in the raw list is what made
+    // 3.21.1 answer "Unknown tool" to the very tools it told the model to use.
+    private val toolsProvider: () -> List<Tool> = { callableTools(getAvailableTools()) },
 ) {
 
     private val jsonParser = Json { ignoreUnknownKeys = true }
@@ -50,12 +56,18 @@ class ToolExecutor(
     ): String {
         val tools = toolsProvider()
         val tool = tools.find { it.schema.name == name }
-            ?: return toolErrorJson("Unknown tool: $name")
+            ?: return toolErrorJson(
+                "Unknown tool: $name. Call find_tools to search the enabled tools, " +
+                    "or list_tools for the whole index.",
+            )
 
         // Lazy delivery ships an index, not every schema: a tool the model never saw must be
         // described first. Without this gate a hallucinated call would run a tool the user's
         // request never exposed — and the model would never learn it needs the schema.
-        if (!ToolActivation.canExecute(conversationId, name)) {
+        //
+        // Meta-tools are exempt: they are the way out of this state, they cost three small
+        // schemas, and in eager mode no delivery record mentions them.
+        if (name !in META_TOOL_NAMES && !ToolActivation.canExecute(conversationId, name)) {
             // Refusing alone would never reach the model: the refusal is a `tool` message paired
             // with the model's own call, and every round re-plans the declared set — a name that
             // is neither delivered nor activated is stripped by `sanitizeToolMessages`, so the
