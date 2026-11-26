@@ -169,13 +169,23 @@ class McpServerManager(
         }
     }
 
-    /** Drop sessions of servers the newly active agent profile no longer selects. */
-    suspend fun closeDisabledProfileServers() {
+    /**
+     * Closes the sessions of servers that the current profile (or the owner) has switched off.
+     *
+     * Not suspending on purpose: profile deletion and activation are plain callbacks in
+     * [com.pusios.pots.data.DataRepository], and a `suspend` here forced a coroutine where the
+     * caller has none. A contended lock means a connect pass is already reconciling the same map,
+     * so skipping this pass is safe — the pass in progress re-reads the enabled set itself.
+     */
+    fun closeDisabledProfileServers() {
         val enabled = getServers().filter { it.isEnabled }.map { it.id }.toSet()
-        mutex.withLock {
+        if (!mutex.tryLock()) return
+        try {
             clients.keys.filterNot { it in enabled }.forEach { serverId ->
                 clients.remove(serverId)?.close()
             }
+        } finally {
+            mutex.unlock()
         }
     }
 
