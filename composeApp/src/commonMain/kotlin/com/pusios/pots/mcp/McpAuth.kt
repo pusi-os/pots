@@ -669,25 +669,38 @@ internal fun isPrivateAddress(url: String): Boolean {
 }
 
 private fun isPrivateIpv4(host: String): Boolean {
-    val parts = host.split('.').mapNotNull { it.toIntOrNull() }
-    if (parts.size != 4) return false
+    val parts = host.split('.')
+    if (parts.size != 4 || !parts.all(::isCanonicalIpv4Octet)) {
+        // The JVM resolver behind ktor CIO also accepts the one-number (`2130706433`) and the
+        // shortened (`127.1`) spelling of an address, so a host made only of digits and dots that
+        // is not a canonical dotted quad is refused instead of trusted.
+        return host.isNotEmpty() && host.all { it in '0'..'9' || it == '.' }
+    }
+    val octets = parts.map { it.toInt() }
     return when {
-        parts[0] == 127 -> true
+        octets[0] == 127 -> true
 
-        parts[0] == 10 -> true
+        octets[0] == 10 -> true
 
-        parts[0] == 192 && parts[1] == 168 -> true
+        octets[0] == 192 && octets[1] == 168 -> true
 
-        parts[0] == 172 && parts[1] in 16..31 -> true
+        octets[0] == 172 && octets[1] in 16..31 -> true
 
-        parts[0] == 169 && parts[1] == 254 -> true
+        octets[0] == 169 && octets[1] == 254 -> true
 
-        parts[0] == 100 && parts[1] in 64..127 -> true
+        octets[0] == 100 && octets[1] in 64..127 -> true
 
         // carrier-grade NAT
         else -> false
     }
 }
+
+/** One dotted-quad part as the canonical spelling writes it: 0..255, no leading zeros. */
+private fun isCanonicalIpv4Octet(part: String): Boolean =
+    part.length in 1..3 &&
+        part.all { it in '0'..'9' } &&
+        (part.length == 1 || part[0] != '0') &&
+        part.toInt() <= 255
 
 /**
  * Loopback (`::1`), unspecified (`::`), IPv4-mapped (`::ffff:127.0.0.1`, `::ffff:7f00:1`),

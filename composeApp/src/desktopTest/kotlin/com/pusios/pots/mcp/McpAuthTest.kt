@@ -175,6 +175,11 @@ class McpAuthTest {
         assertTrue(isPrivateAddress("http://[::ffff:192.168.1.5]/mcp"), "IPv4-mapped private")
         assertTrue(isPrivateAddress("http://[0:0:0:0:0:0:0:1]/mcp"), "uncompressed loopback")
         assertTrue(isPrivateAddress("http://fe80::1/mcp"), "unbracketed link-local")
+        // The JVM resolver also accepts these spellings of 127.0.0.1; a non-canonical quad is refused.
+        assertTrue(isPrivateAddress("http://2130706433/mcp"), "one-number IPv4 spelling is loopback")
+        assertTrue(isPrivateAddress("http://127.1/mcp"), "shortened IPv4 spelling is loopback")
+        assertTrue(isPrivateAddress("http://127.0.1/mcp"), "three-part IPv4 spelling is loopback")
+        assertTrue(isPrivateAddress("http://0177.0.0.1/mcp"), "leading-zero octet is not a canonical quad")
         assertFalse(isPrivateAddress("https://mcp.sentry.io/mcp"))
         assertFalse(isPrivateAddress("https://172.32.0.1/mcp"), "172.32 is public")
         assertFalse(isPrivateAddress("https://8.8.8.8/mcp"))
