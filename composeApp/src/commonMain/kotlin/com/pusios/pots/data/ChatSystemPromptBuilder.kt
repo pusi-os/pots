@@ -224,12 +224,17 @@ internal const val DEFAULT_AUTOMATION_SECTION =
  * are gated on it instead of on [variant]: the on-device model's tool set is
  * user-configurable, so a local model handed `schedule_task` gets the same automation
  * guidance as a remote one, and a remote model with scheduling off gets none.
+ *
+ * [toolCatalogue] is the compact index rendered when the tool set is too large to send with
+ * full schemas (see `ToolDelivery`). Null — the usual case — means the request carries the
+ * schemas themselves and needs no index.
  */
 internal fun buildChatSystemPrompt(
     variant: SystemPromptVariant,
     soul: String,
     hasTools: Boolean,
     toolNames: Set<String>,
+    toolCatalogue: String? = null,
     memoryEnabled: Boolean,
     schedulingEnabled: Boolean,
     memoryInstructions: String?,
@@ -259,6 +264,13 @@ internal fun buildChatSystemPrompt(
     if (hasTools) {
         if (isNotEmpty()) append("\n\n")
         append(DEFAULT_TOOL_USE_SECTION)
+    }
+    // The index replaces the schemas the request does not carry. It renders right after the
+    // tool-use policy so the model learns how to reach a tool before it considers using one.
+    if (hasTools && !toolCatalogue.isNullOrEmpty()) {
+        if (isNotEmpty()) append("\n\n")
+        append("## Tool catalogue\n")
+        append(toolCatalogue)
     }
     if (isNotEmpty()) append("\n\n")
     append(DEFAULT_ACTING_SECTION)
