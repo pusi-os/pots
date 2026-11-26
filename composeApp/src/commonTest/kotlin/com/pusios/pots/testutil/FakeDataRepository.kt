@@ -31,7 +31,9 @@ import com.pusios.pots.inference.LocalModel
 import com.pusios.pots.inference.ModelImportError
 import com.pusios.pots.inference.ModelImportResult
 import com.pusios.pots.linux.LinuxDistro
+import com.pusios.pots.mcp.McpConfirmRequest
 import com.pusios.pots.mcp.McpServerConfig
+import com.pusios.pots.mcp.McpServerStatus
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.tools.CommonTools
 import com.pusios.pots.ui.chat.History
@@ -40,6 +42,7 @@ import com.pusios.pots.ui.settings.SettingsModel
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -362,6 +365,10 @@ class FakeDataRepository : DataRepository {
     private val mcpServers = mutableListOf<McpServerConfig>()
     private val mcpConnected = mutableSetOf<String>()
     private val mcpTools = mutableMapOf<String, List<ToolInfo>>()
+    private val mcpStatuses: Map<String, McpServerStatus> = emptyMap()
+    private val mcpStatusesFlow = kotlinx.coroutines.flow.MutableStateFlow(mcpStatuses)
+    private val mcpConfirmation = kotlinx.coroutines.flow.MutableStateFlow<McpConfirmRequest?>(null)
+    private val mcpTokens = mutableSetOf<String>()
 
     override fun getMcpServers(): List<McpServerConfig> = mcpServers.toList()
 
@@ -372,13 +379,13 @@ class FakeDataRepository : DataRepository {
         return config
     }
 
-    override fun removeMcpServer(serverId: String) {
+    override suspend fun removeMcpServer(serverId: String) {
         mcpServers.removeAll { it.id == serverId }
         mcpConnected.remove(serverId)
         mcpTools.remove(serverId)
     }
 
-    override fun setMcpServerEnabled(serverId: String, enabled: Boolean) {
+    override suspend fun setMcpServerEnabled(serverId: String, enabled: Boolean) {
         val index = mcpServers.indexOfFirst { it.id == serverId }
         if (index >= 0) {
             mcpServers[index] = mcpServers[index].copy(isEnabled = enabled)
@@ -397,6 +404,30 @@ class FakeDataRepository : DataRepository {
     override fun getMcpToolsForServer(serverId: String): List<ToolInfo> = mcpTools[serverId] ?: emptyList()
 
     override fun isMcpServerConnected(serverId: String): Boolean = serverId in mcpConnected
+
+    override fun getMcpServerStatuses(): Map<String, McpServerStatus> = mcpStatuses.toMap()
+
+    override fun observeMcpStatuses(): Flow<Map<String, McpServerStatus>> = mcpStatusesFlow
+
+    override fun observeMcpConfirmation(): Flow<McpConfirmRequest?> = mcpConfirmation
+
+    override fun respondMcpConfirmation(requestId: String, allowed: Boolean) {
+        if (mcpConfirmation.value?.id == requestId) mcpConfirmation.value = null
+    }
+
+    override fun hasMcpToken(serverId: String): Boolean = serverId in mcpTokens
+
+    override suspend fun authorizeMcpServer(serverId: String): Result<String> = Result.success("https://example.test/authorize")
+
+    override fun getMcpPendingAuthorizationUrl(serverId: String): String? = null
+
+    override suspend fun setMcpManualToken(serverId: String, token: String) {
+        mcpTokens.add(serverId)
+    }
+
+    override suspend fun clearMcpToken(serverId: String) {
+        mcpTokens.remove(serverId)
+    }
 
     var lastActiveSkillId: String? = null
     var skills: List<com.pusios.pots.skills.SkillManifest> = emptyList()

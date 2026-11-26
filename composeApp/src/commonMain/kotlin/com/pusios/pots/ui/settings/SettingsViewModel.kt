@@ -25,6 +25,7 @@ import com.pusios.pots.inference.ModelImportResult
 import com.pusios.pots.isEmailSupported
 import com.pusios.pots.isNotificationsSupported
 import com.pusios.pots.isSmsSupported
+import com.pusios.pots.mcp.McpServerStateKind
 import com.pusios.pots.mcp.PopularMcpServer
 import com.pusios.pots.network.AnthropicInsufficientCreditsException
 import com.pusios.pots.network.AnthropicInvalidApiKeyException
@@ -256,6 +257,10 @@ class SettingsViewModel(
         onRemoveMcpServer = ::onRemoveMcpServer,
         onToggleMcpServer = ::onToggleMcpServer,
         onRefreshMcpServer = ::onRefreshMcpServer,
+        onAuthorizeMcpServer = ::onAuthorizeMcpServer,
+        onSetMcpManualToken = ::onSetMcpManualToken,
+        onSignOutMcpServer = ::onSignOutMcpServer,
+        onRespondMcpConfirmation = ::onRespondMcpConfirmation,
         onShowAddMcpServerDialog = ::onShowAddMcpServerDialog,
         onAddPopularMcpServer = ::onAddPopularMcpServer,
         onUninstallSkill = ::onUninstallSkill,
@@ -302,6 +307,17 @@ class SettingsViewModel(
         viewModelScope.launch {
             dataRepository.scheduledTasksFlow.collect { tasks ->
                 _state.update { it.copy(scheduledTasks = tasks.toImmutableList()) }
+            }
+        }
+        // MCP state changes behind the user's back: a background reconnect, a sign-in that
+        // finished in the browser, an agent that added a server. Following the status flow is
+        // what makes the list self-updating instead of "press Refresh and hope".
+        viewModelScope.launch {
+            dataRepository.observeMcpStatuses().collect { refreshMcpServers() }
+        }
+        viewModelScope.launch {
+            dataRepository.observeMcpConfirmation().collect { request ->
+                _state.update { it.copy(mcpPendingConfirm = request) }
             }
         }
         // Observe download state from the engine singleton (survives activity recreation)
@@ -1240,33 +1256,49 @@ class SettingsViewModel(
     }
 
     // MCP server management
-    private fun buildMcpServerEntries(): List<McpServerUiState> = dataRepository.getMcpServers().map { config ->
-        McpServerUiState(
-            id = config.id,
-            name = config.name,
-            url = config.url,
-            isEnabled = config.isEnabled,
-            connectionStatus = if (dataRepository.isMcpServerConnected(config.id)) {
-                McpConnectionStatus.Connected
-            } else {
-                McpConnectionStatus.Unknown
-            },
-            tools = dataRepository.getMcpToolsForServer(config.id).toImmutableList(),
-        )
+    private fun buildMcpServerEntries(): List<McpServerUiState> {
+        val statuses = dataRepository.getMcpServerStatuses()
+        return dataRepository.getMcpServers().map { config ->
+            val status = statuses[config.id]
+            val connected = dataRepository.isMcpServerConnected(config.id)
+            val tools = dataRepository.getMcpToolsForServer(config.id)
+            McpServerUiState(
+                id = config.id,
+                name = config.name,
+                url = config.url,
+                isEnabled = config.isEnabled,
+                // The status record is the source of truth, not "did the client map have an entry":
+                // a server that was never connected still has a state, and it must not read as Unknown.
+                connectionStatus = when {
+                    !config.isEnabled -> McpConnectionStatus.Disabled
+                    connected -> McpConnectionStatus.Connected
+                    status?.state == McpServerStateKind.NeedsAuth -> McpConnectionStatus.NeedsAuth
+                    status?.state == McpServerStateKind.Failed -> McpConnectionStatus.Failed
+                    status?.state == McpServerStateKind.Connecting -> McpConnectionStatus.Connecting
+                    else -> McpConnectionStatus.Unknown
+                },
+                tools = tools.toImmutableList(),
+                failureKind = status?.failure?.kind,
+                failureDetail = status?.failure?.detail.orEmpty(),
+                hasStoredToken = dataRepository.hasMcpToken(config.id),
+                addedByAgent = config.addedByAgent,
+                authorizeUrl = dataRepository.getMcpPendingAuthorizationUrl(config.id),
+                toolsFromCache = tools.isNotEmpty() && !connected,
+            )
+        }
     }
 
     private fun refreshMcpServers() {
         _state.update { current ->
-            val existingStatuses = current.mcpServers.associate { it.id to it.connectionStatus }
+            // Only "Connecting" is ours to preserve: it is a transient the manager does not
+            // persist. Everything else is derived from the persisted status on purpose, so a
+            // stale local guess cannot outlive a real answer from the server.
+            val connecting = current.mcpServers
+                .filter { it.connectionStatus == McpConnectionStatus.Connecting }
+                .mapTo(HashSet()) { it.id }
             current.copy(
                 mcpServers = buildMcpServerEntries().map { entry ->
-                    val preservedStatus = existingStatuses[entry.id]
-                    // Only preserve transient statuses (Connecting/Error) — derive Connected/Unknown from actual state
-                    if (preservedStatus == McpConnectionStatus.Connecting || preservedStatus == McpConnectionStatus.Error) {
-                        entry.copy(connectionStatus = preservedStatus)
-                    } else {
-                        entry
-                    }
+                    if (entry.id in connecting) entry.copy(connectionStatus = McpConnectionStatus.Connecting) else entry
                 }.toImmutableList(),
             )
         }
@@ -1291,12 +1323,10 @@ class SettingsViewModel(
     }
 
     private fun onToggleMcpServer(serverId: String, enabled: Boolean) {
-        dataRepository.setMcpServerEnabled(serverId, enabled)
-        refreshMcpServers()
-        if (enabled) {
-            viewModelScope.launch(backgroundDispatcher) {
-                connectMcpServerWithStatus(serverId)
-            }
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.setMcpServerEnabled(serverId, enabled)
+            refreshMcpServers()
+            if (enabled) connectMcpServerWithStatus(serverId)
         }
     }
 
@@ -1396,13 +1426,10 @@ class SettingsViewModel(
 
     private suspend fun connectMcpServerWithStatus(serverId: String) {
         updateMcpConnectionStatus(serverId, McpConnectionStatus.Connecting)
-        val result = dataRepository.connectMcpServer(serverId)
-        if (result.isSuccess) {
-            updateMcpConnectionStatus(serverId, McpConnectionStatus.Connected)
-            refreshMcpServers()
-        } else {
-            updateMcpConnectionStatus(serverId, McpConnectionStatus.Error)
-        }
+        dataRepository.connectMcpServer(serverId)
+        // Whatever the outcome, the manager has already written the real state (Connected,
+        // NeedsAuth, Failed) — read it back instead of guessing from a boolean.
+        refreshMcpServers()
     }
 
     private fun updateMcpConnectionStatus(serverId: String, status: McpConnectionStatus) {
@@ -1413,6 +1440,40 @@ class SettingsViewModel(
                 }.toImmutableList(),
             )
         }
+    }
+
+    /**
+     * Starts the browser sign-in. The redirect is awaited by the manager, which stores the token
+     * and reconnects on its own; the status flow then flips this entry to Connected.
+     */
+    private fun onAuthorizeMcpServer(serverId: String) {
+        viewModelScope.launch(backgroundDispatcher) {
+            updateMcpConnectionStatus(serverId, McpConnectionStatus.Connecting)
+            dataRepository.authorizeMcpServer(serverId)
+            refreshMcpServers()
+        }
+    }
+
+    private fun onSetMcpManualToken(serverId: String, token: String) {
+        if (token.isBlank()) return
+        viewModelScope.launch(backgroundDispatcher) {
+            updateMcpConnectionStatus(serverId, McpConnectionStatus.Connecting)
+            dataRepository.setMcpManualToken(serverId, token.trim())
+            refreshMcpServers()
+        }
+    }
+
+    private fun onSignOutMcpServer(serverId: String) {
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.clearMcpToken(serverId)
+            refreshMcpServers()
+        }
+    }
+
+    private fun onRespondMcpConfirmation(allowed: Boolean) {
+        val request = _state.value.mcpPendingConfirm ?: return
+        _state.update { it.copy(mcpPendingConfirm = null) }
+        dataRepository.respondMcpConfirmation(request.id, allowed)
     }
 
     private fun connectEnabledMcpServers() {

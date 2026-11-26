@@ -18,6 +18,8 @@ import com.pusios.pots.data.ThemeMode
 import com.pusios.pots.inference.DownloadError
 import com.pusios.pots.inference.LocalModel
 import com.pusios.pots.inference.ModelImportError
+import com.pusios.pots.mcp.McpConfirmRequest
+import com.pusios.pots.mcp.McpFailureKind
 import com.pusios.pots.network.dtos.SponsorsResponseDto
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.skills.RegistrySkillEntry
@@ -140,6 +142,8 @@ data class SettingsUiState(
     val sttVoskModel: String = com.pusios.pots.data.AppSettings.DEFAULT_STT_VOSK_MODEL,
     val mcpServers: ImmutableList<McpServerUiState> = persistentListOf(),
     val showAddMcpServerDialog: Boolean = false,
+    /** A pending confirmation the agent asked for through one of the mcp_* tools. */
+    val mcpPendingConfirm: McpConfirmRequest? = null,
     /** Tools and MCP servers the on-device model may call, already resolved to the effective set. */
     val localToolSelection: LocalToolSelection = LocalToolSelection(),
     /** True when the user configured the selection themselves (false means "use the defaults"). */
@@ -177,13 +181,28 @@ data class McpServerUiState(
     val isEnabled: Boolean,
     val connectionStatus: McpConnectionStatus,
     val tools: ImmutableList<ToolInfo>,
-)
+    /** Why the last connect failed, as the server reported it — the "red dot" needs a reason. */
+    val failureKind: McpFailureKind? = null,
+    val failureDetail: String = "",
+    /** True when an OAuth/manual token is stored for this server. */
+    val hasStoredToken: Boolean = false,
+    /** True when the agent added the server through `mcp_add_server`. */
+    val addedByAgent: Boolean = false,
+    /** Set while a browser sign-in is waiting for the redirect. */
+    val authorizeUrl: String? = null,
+    /** Tools above come from the persisted cache, not from a live connection. */
+    val toolsFromCache: Boolean = false,
+) {
+    val toolCount: Int get() = tools.size
+}
 
 enum class McpConnectionStatus {
     Unknown,
+    Disabled,
     Connecting,
     Connected,
-    Error,
+    NeedsAuth,
+    Failed,
 }
 
 sealed interface PendingDeletion {
