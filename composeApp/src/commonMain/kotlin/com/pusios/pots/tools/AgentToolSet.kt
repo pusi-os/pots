@@ -121,5 +121,9 @@ fun buildAgentToolSet(
 
     platformExtras()
 
+    // MCP administration (list/add/remove/enable/refresh/authorize). Before the MCP tools so the
+    // model can discover a server it does not see yet; every mutation is gated on the owner.
+    addAll(mcpServerManager.adminTools())
+
     addAll(mcpServerManager.getEnabledMcpTools(reservedNames = mapTo(HashSet()) { it.schema.name }))
 }

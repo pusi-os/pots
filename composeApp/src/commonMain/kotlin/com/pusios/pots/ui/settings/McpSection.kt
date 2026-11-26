@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -41,11 +42,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.mcp.McpConfirmRequest
 import com.pusios.pots.mcp.PopularMcpServer
 import com.pusios.pots.mcp.authorizationHeaderValue
 import com.pusios.pots.mcp.popularMcpServers
+import com.pusios.pots.openUrl
 import com.pusios.pots.ui.PotsOutlinedTextField
 import com.pusios.pots.ui.components.VerticalScrollbarForScroll
 import com.pusios.pots.ui.handCursor
@@ -60,21 +65,41 @@ import pots.composeapp.generated.resources.ic_arrow_drop_down
 import pots.composeapp.generated.resources.settings_mcp_add
 import pots.composeapp.generated.resources.settings_mcp_add_header
 import pots.composeapp.generated.resources.settings_mcp_add_server
+import pots.composeapp.generated.resources.settings_mcp_added_by_agent
+import pots.composeapp.generated.resources.settings_mcp_allow
 import pots.composeapp.generated.resources.settings_mcp_api_key
 import pots.composeapp.generated.resources.settings_mcp_api_key_help
+import pots.composeapp.generated.resources.settings_mcp_auth_required_help
+import pots.composeapp.generated.resources.settings_mcp_authorize
+import pots.composeapp.generated.resources.settings_mcp_copy_link
+import pots.composeapp.generated.resources.settings_mcp_deny
 import pots.composeapp.generated.resources.settings_mcp_header_key
 import pots.composeapp.generated.resources.settings_mcp_header_value
+import pots.composeapp.generated.resources.settings_mcp_link_copied
+import pots.composeapp.generated.resources.settings_mcp_manual_token
+import pots.composeapp.generated.resources.settings_mcp_manual_token_help
+import pots.composeapp.generated.resources.settings_mcp_manual_token_label
 import pots.composeapp.generated.resources.settings_mcp_no_tools
+import pots.composeapp.generated.resources.settings_mcp_open_link
 import pots.composeapp.generated.resources.settings_mcp_popular_servers
 import pots.composeapp.generated.resources.settings_mcp_refresh
 import pots.composeapp.generated.resources.settings_mcp_remove
+import pots.composeapp.generated.resources.settings_mcp_retry
+import pots.composeapp.generated.resources.settings_mcp_save
 import pots.composeapp.generated.resources.settings_mcp_server_name
 import pots.composeapp.generated.resources.settings_mcp_server_url
 import pots.composeapp.generated.resources.settings_mcp_servers
 import pots.composeapp.generated.resources.settings_mcp_servers_description
+import pots.composeapp.generated.resources.settings_mcp_sign_out
 import pots.composeapp.generated.resources.settings_mcp_status_connected
 import pots.composeapp.generated.resources.settings_mcp_status_connecting
+import pots.composeapp.generated.resources.settings_mcp_status_disabled
 import pots.composeapp.generated.resources.settings_mcp_status_error
+import pots.composeapp.generated.resources.settings_mcp_status_needs_auth
+import pots.composeapp.generated.resources.settings_mcp_status_unknown
+import pots.composeapp.generated.resources.settings_mcp_tool_count
+import pots.composeapp.generated.resources.settings_mcp_tools_cached
+import pots.composeapp.generated.resources.settings_mcp_waiting_browser
 
 @Composable
 internal fun McpServersSection(
@@ -83,10 +108,15 @@ internal fun McpServersSection(
     onRemoveMcpServer: (String) -> Unit,
     onToggleMcpServer: (String, Boolean) -> Unit,
     onRefreshMcpServer: (String) -> Unit,
+    onAuthorizeMcpServer: (String) -> Unit,
+    onSetMcpManualToken: (String, String) -> Unit,
+    onSignOutMcpServer: (String) -> Unit,
     onToggleTool: (String, Boolean) -> Unit,
     showAddDialog: Boolean,
     onShowAddDialog: (Boolean) -> Unit,
     onAddPopularMcpServer: (PopularMcpServer) -> Unit,
+    pendingConfirm: McpConfirmRequest? = null,
+    onRespondConfirm: (Boolean) -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -103,12 +133,22 @@ internal fun McpServersSection(
 
         Spacer(Modifier.height(12.dp))
 
+        // The agent can only change MCP configuration with the owner's word, and the word is
+        // given here because this is the screen that shows the result.
+        if (pendingConfirm != null) {
+            McpConfirmCard(request = pendingConfirm, onRespond = onRespondConfirm)
+            Spacer(Modifier.height(8.dp))
+        }
+
         for (server in mcpServers) {
             McpServerCard(
                 server = server,
                 onToggle = { enabled -> onToggleMcpServer(server.id, enabled) },
                 onRemove = { onRemoveMcpServer(server.id) },
                 onRefresh = { onRefreshMcpServer(server.id) },
+                onAuthorize = { onAuthorizeMcpServer(server.id) },
+                onSetManualToken = { token -> onSetMcpManualToken(server.id, token) },
+                onSignOut = { onSignOutMcpServer(server.id) },
                 onToggleTool = onToggleTool,
             )
             Spacer(Modifier.height(8.dp))
@@ -132,14 +172,46 @@ internal fun McpServersSection(
 }
 
 @Composable
+private fun McpConfirmCard(request: McpConfirmRequest, onRespond: (Boolean) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = request.summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { onRespond(true) }, modifier = Modifier.handCursor()) {
+                    Text(stringResource(Res.string.settings_mcp_allow))
+                }
+                TextButton(onClick = { onRespond(false) }, modifier = Modifier.handCursor()) {
+                    Text(stringResource(Res.string.settings_mcp_deny))
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun McpServerCard(
     server: McpServerUiState,
     onToggle: (Boolean) -> Unit,
     onRemove: () -> Unit,
     onRefresh: () -> Unit,
+    onAuthorize: () -> Unit,
+    onSetManualToken: (String) -> Unit,
+    onSignOut: () -> Unit,
     onToggleTool: (String, Boolean) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var showTokenDialog by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
 
     Card(
         onClick = { expanded = !expanded },
@@ -156,7 +228,9 @@ private fun McpServerCard(
                 val statusColor = when (server.connectionStatus) {
                     McpConnectionStatus.Connected -> StatusColorConnected
                     McpConnectionStatus.Connecting -> StatusColorChecking
-                    McpConnectionStatus.Error -> StatusColorError
+                    McpConnectionStatus.NeedsAuth -> StatusColorChecking
+                    McpConnectionStatus.Failed -> StatusColorError
+                    McpConnectionStatus.Disabled -> StatusColorUnknown
                     McpConnectionStatus.Unknown -> StatusColorUnknown
                 }
                 Box(
@@ -180,6 +254,13 @@ private fun McpServerCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    if (server.addedByAgent) {
+                        Text(
+                            text = stringResource(Res.string.settings_mcp_added_by_agent),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
 
                 Switch(
@@ -199,27 +280,135 @@ private fun McpServerCard(
             if (expanded) {
                 Spacer(Modifier.height(12.dp))
 
-                // Status text
+                // Status line: the reason, not just a colour. A server that needs a sign-in and a
+                // server that is down used to look identical here.
                 val statusText = when (server.connectionStatus) {
                     McpConnectionStatus.Connected -> stringResource(Res.string.settings_mcp_status_connected)
                     McpConnectionStatus.Connecting -> stringResource(Res.string.settings_mcp_status_connecting)
-                    McpConnectionStatus.Error -> stringResource(Res.string.settings_mcp_status_error)
-                    McpConnectionStatus.Unknown -> ""
+                    McpConnectionStatus.NeedsAuth -> stringResource(Res.string.settings_mcp_status_needs_auth)
+                    McpConnectionStatus.Failed -> stringResource(Res.string.settings_mcp_status_error)
+                    McpConnectionStatus.Disabled -> stringResource(Res.string.settings_mcp_status_disabled)
+                    McpConnectionStatus.Unknown -> stringResource(Res.string.settings_mcp_status_unknown)
                 }
-                if (statusText.isNotEmpty()) {
+                Text(
+                    text = if (server.tools.isNotEmpty()) {
+                        "$statusText · ${stringResource(Res.string.settings_mcp_tool_count, server.toolCount)}"
+                    } else {
+                        statusText
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = when (server.connectionStatus) {
+                        McpConnectionStatus.Failed -> MaterialTheme.colorScheme.error
+                        McpConnectionStatus.NeedsAuth -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                if (server.failureDetail.isNotBlank()) {
                     Text(
-                        text = statusText,
+                        text = server.failureDetail,
                         style = MaterialTheme.typography.bodySmall,
-                        color = when (server.connectionStatus) {
-                            McpConnectionStatus.Error -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        },
+                        color = MaterialTheme.colorScheme.error,
                     )
+                }
+                if (server.connectionStatus == McpConnectionStatus.NeedsAuth) {
+                    Text(
+                        text = stringResource(Res.string.settings_mcp_auth_required_help),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                // A flow that is waiting for the browser: the URL is shown so it can be opened by
+                // hand when the system browser did not come up (or the server wants a specific one).
+                val authorizeUrl = server.authorizeUrl
+                if (authorizeUrl != null) {
                     Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(Res.string.settings_mcp_waiting_browser),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                    SelectionContainer {
+                        Text(
+                            text = authorizeUrl,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    TextButton(
+                        onClick = { openUrl(authorizeUrl) },
+                        modifier = Modifier.handCursor(),
+                    ) {
+                        Text(stringResource(Res.string.settings_mcp_open_link))
+                    }
+                    // Opening the link is not always possible (a custom scheme the platform does
+                    // not route, or a browser that never comes to the foreground), so the owner can
+                    // also take the URL to another device or app.
+                    var copied by remember(authorizeUrl) { mutableStateOf(false) }
+                    TextButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(authorizeUrl))
+                            copied = true
+                        },
+                        modifier = Modifier.handCursor(),
+                    ) {
+                        Text(
+                            stringResource(
+                                if (copied) Res.string.settings_mcp_link_copied else Res.string.settings_mcp_copy_link,
+                            ),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (server.connectionStatus == McpConnectionStatus.NeedsAuth) {
+                        TextButton(onClick = onAuthorize, modifier = Modifier.handCursor()) {
+                            Text(stringResource(Res.string.settings_mcp_authorize))
+                        }
+                    }
+                    if (server.connectionStatus == McpConnectionStatus.Failed ||
+                        server.connectionStatus == McpConnectionStatus.Unknown
+                    ) {
+                        TextButton(onClick = onRefresh, modifier = Modifier.handCursor()) {
+                            Text(stringResource(Res.string.settings_mcp_retry))
+                        }
+                    }
+                    TextButton(onClick = onRefresh, modifier = Modifier.handCursor()) {
+                        Text(stringResource(Res.string.settings_mcp_refresh))
+                    }
+                    if (server.hasStoredToken) {
+                        TextButton(onClick = onSignOut, modifier = Modifier.handCursor()) {
+                            Text(stringResource(Res.string.settings_mcp_sign_out))
+                        }
+                    }
+                    TextButton(onClick = onRemove, modifier = Modifier.handCursor()) {
+                        Text(
+                            text = stringResource(Res.string.settings_mcp_remove),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+
+                // Manual token: the escape hatch for servers whose discovery fails or that only
+                // accept a personal access token. Entered here, never in the chat.
+                TextButton(
+                    onClick = { showTokenDialog = true },
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_mcp_manual_token))
                 }
 
                 // Tools list
                 if (server.tools.isNotEmpty()) {
+                    if (server.toolsFromCache) {
+                        Text(
+                            text = stringResource(Res.string.settings_mcp_tools_cached),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     for (tool in server.tools) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -252,21 +441,71 @@ private fun McpServerCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+        }
+    }
 
-                Spacer(Modifier.height(8.dp))
+    if (showTokenDialog) {
+        McpManualTokenDialog(
+            serverName = server.name,
+            onDismiss = { showTokenDialog = false },
+            onSave = { token ->
+                showTokenDialog = false
+                onSetManualToken(token)
+            },
+        )
+    }
+}
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onRefresh, modifier = Modifier.handCursor()) {
-                        Text(stringResource(Res.string.settings_mcp_refresh))
-                    }
-                    TextButton(onClick = onRemove, modifier = Modifier.handCursor()) {
-                        Text(
-                            text = stringResource(Res.string.settings_mcp_remove),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun McpManualTokenDialog(
+    serverName: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var token by remember { mutableStateOf("") }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = serverName,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(12.dp))
+            PotsOutlinedTextField(
+                value = token,
+                onValueChange = { token = it },
+                label = { Text(stringResource(Res.string.settings_mcp_manual_token_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(Res.string.settings_mcp_manual_token_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
+                    Text(stringResource(Res.string.settings_mcp_deny))
+                }
+                TextButton(
+                    onClick = { onSave(token) },
+                    enabled = token.isNotBlank(),
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_mcp_save))
                 }
             }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }

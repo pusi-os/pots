@@ -985,6 +985,29 @@ class AppSettings(internal val settings: Settings) {
         settings.putString(KEY_MCP_SERVERS, json)
     }
 
+    /**
+     * Last known state and cached tool list of every MCP server, one JSON map keyed by server id.
+     * Persisted so a server stays visible to the agent and the UI while it is down or waiting for
+     * authorization — a live connection is not a prerequisite for knowing what a server offers.
+     */
+    fun getMcpStatusJson(): String = settings.getString(KEY_MCP_STATUS, "")
+
+    fun setMcpStatusJson(json: String) {
+        settings.putString(KEY_MCP_STATUS, json)
+    }
+
+    /**
+     * OAuth access/refresh tokens and client registrations, keyed by server id.
+     *
+     * Deliberately in the secure settings (Keystore / Keychain / encrypted file) and not in
+     * [McpServerConfig.headers], so a settings export or a backup never carries a bearer token.
+     */
+    fun getMcpTokensJson(): String = settings.getString(KEY_MCP_TOKENS, "")
+
+    fun setMcpTokensJson(json: String) {
+        settings.putString(KEY_MCP_TOKENS, json)
+    }
+
     // Tools available to the on-device (local) model
 
     /**
@@ -1264,6 +1287,8 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_POTSIK_PINNED_X = "potsik_pinned_x"
         const val KEY_POTSIK_PINNED_Y = "potsik_pinned_y"
         const val KEY_MCP_SERVERS = "mcp_servers"
+        const val KEY_MCP_STATUS = "mcp_server_status"
+        const val KEY_MCP_TOKENS = "mcp_tokens"
         const val KEY_LOCAL_TOOL_SELECTION = "local_tool_selection"
         const val KEY_INSTANCE_MIGRATION_COMPLETE = "instance_migration_complete_v1"
         const val KEY_BASE_URL_V1_MIGRATION_COMPLETE = "base_url_v1_migration_complete"

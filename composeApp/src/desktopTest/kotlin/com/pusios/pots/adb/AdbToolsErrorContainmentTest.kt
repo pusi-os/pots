@@ -14,7 +14,13 @@ import kotlin.test.assertTrue
 
 /** A backend whose every transport call fails with the same [failure]. */
 private class ErroringAdbBackend(private val failure: Throwable) : AdbBackend by FakeAdbBackend() {
-    override suspend fun connect(host: String, port: Int, tls: Boolean): Boolean = throw failure
+    override suspend fun connect(
+        host: String,
+        port: Int,
+        tls: Boolean,
+        firstContact: Boolean,
+        onPhase: (AdbConnectPhase) -> Unit,
+    ): Boolean = throw failure
 
     override suspend fun disconnect(host: String, port: Int): Unit = throw failure
 

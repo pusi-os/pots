@@ -1,6 +1,6 @@
 # Tools
 
-**Last verified:** 2026-11-19
+**Last verified:** 2026-11-25
 
 Pots's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -255,10 +255,32 @@ Tool availability is controlled at multiple levels:
 - **Sandbox install gate (Android)** — `execute_shell_command`, `ask_sandbox_agent`, `manage_process`, and `ssh_configure_host` are surfaced only when the Linux sandbox is actually installed (Ready) *and* the sandbox toggle is on. Until the sandbox is installed these tools are not sent to the model at all; the sandbox toggle itself is hidden until install completes, so there is no state in which they ride along without a working sandbox behind them
 - **Per-tool toggles** — individual tools can be enabled or disabled in settings, persisted with a `tool_enabled_` key prefix
 - **Default state** — most tools default to enabled; desktop's `execute_shell_command` defaults to disabled, and so does `potsik` — the character is the app's own, and letting the model move it around uninvited is not its business. On Android the shell has no per-tool switch — it follows the sandbox switch, which is on by default once the sandbox is installed
-- **Master-toggle-only** — memory, scheduling, heartbeat, email, SMS, and notification tools have no individual per-tool toggle; they are on whenever their master switch in Settings → Agent is on (heartbeat is bundled with the scheduling switch). The Android sandbox tools and desktop's `manage_process` are gated the same way — by the sandbox switch and the shell switch respectively — and likewise carry no switch of their own
+- **Master-toggle-only** — memory, scheduling, heartbeat, email, SMS, and notification tools have no individual per-tool toggle; they are on whenever their master switch in Settings → Agent is on (heartbeat is bundled with the scheduling switch). The Android sandbox tools and desktop's `manage_process` are gated the same way — by the sandbox switch and the shell switch respectively — and likewise carry no switch of their own. The six MCP management tools (`mcp_list_servers`, `mcp_add_server`, `mcp_remove_server`, `mcp_set_enabled`, `mcp_refresh`, `mcp_authorize`) are a master-only group behind `mcp_admin_tools`: they let the agent manage the owner's MCP servers, so every mutating call still goes through a confirmation dialog and headless runs are refused
 - **On-device (LiteRT) tool selection** — when the active model is an on-device LiteRT model, the exposed tools come from the user's *local tool selection* (Settings → Local Model). Out of the box this is a small default set: `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, and `execute_shell_command` (when the shell tool is enabled). The user can widen it to any tool — calendar, email, scheduling, `mini_app_data`, and MCP server tools included — or switch everything off for a tool-free model; only a selection whose ids match no known tool falls back to the defaults. All normal gates still apply, so a tool can only be selected for the local model if its feature/per-tool switches already let it through. See [on-device-inference.md](on-device-inference.md).
 
 The platform layer assembles the final list of available tools by checking all gates and per-tool settings, and only enabled tools are sent to the AI provider.
+
+## Lazy Tool Delivery
+
+Every enabled tool used to be sent with its full schema on every request: with 60 tools that was ~10K tokens of tool definitions before the first word, whether or not the request needed a tool at all. Above a threshold — more than 8 tools, or more than ~8K estimated tokens — a remote request now carries a compact index instead of the schemas.
+
+What the model gets in that mode:
+
+- **Three meta-tools.** `list_tools` prints the categories, each with a one-line summary and the tool names inside (or one category expanded with parameter signatures). `find_tools` searches names and descriptions and returns the best matches with their signatures. `describe_tool` returns one tool's full JSON schema, wrapped with its `category` and `enabled: true`.
+- **The hot set.** `web_search`, `fetch_url`, `get_local_time`, `memory_store` and `open_url` are always sent with full schemas, plus anything already activated in this conversation. The set is capped, so a chatty turn cannot undo the saving.
+- **A `## Tool catalogue` section in the system prompt.** One line per category (id, count, summary, names) and the instruction to search and describe before calling. Feature sections (vault, ADB, media, automation) still render from the full enabled set — they describe capabilities that remain reachable through the catalogue, so hiding them would make the prompt lie.
+
+`describe_tool` activates the tool for the rest of the conversation: the executor then accepts the call, and the tool is re-sent with its schema from the next round on. The tool set is re-resolved on every round of the tool loop for exactly this reason — a tool activated mid-turn has to be declared on the very next request, otherwise the message sanitizer strips the model's own call and its result.
+
+A call to a tool that was neither delivered nor described does not run. It comes back as `success: false` with a "was not loaded when this call was made" message, and the refusal also activates the tool: the next round declares it with its schema, so the refusal is not stripped by the message sanitizer and the model can retry successfully instead of seeing its call vanish. That keeps a hallucinated call from reaching a tool the user's request never exposed, while still telling the model what to do next.
+
+Below the threshold nothing changes: the full set goes out exactly as before. The on-device (LiteRT) path always stays eager — the native engine owns its own tool loop and cannot extend the tool list mid-turn, and the user's local tool selection is already the filter there. Tools behind an off master toggle (vault, ADB, media, scheduling, email) are absent from the catalogue entirely, so they cannot be found, described or called.
+
+The token estimate is a plain `characters / 4` over the schema JSON, logged on debug builds as `[Tools] delivery=… enabled=… sent=… tokens≈sent/full`.
+
+### Adding a tool to a category
+
+Categories are derived from the tool's schema name in `composeApp/.../tools/ToolCatalog.kt` (`categoryOf`), not declared per tool: MCP tools are recognised by type, everything else by name family (`vault_*`, `adb_*`, `memory_*`, `*_email`, `*_sms`, anything containing `notification`, and the explicit sets for calendar, media, files, tasks, web and system tools). A new tool lands in the right category automatically when its name follows its family prefix; otherwise it falls into `other` and stays reachable through `find_tools`. Add it to the matching set in that file when the name does not follow a prefix, and cover the discovery path in `ToolDeliveryTest` when the category matters.
 
 ## Settings UI
 
@@ -315,6 +337,11 @@ The interactive-mode top bar shows only the static title — loading is surfaced
 | `composeApp/src/commonMain/.../data/providers/OpenAIMessages.kt` | OpenAI-compatible message building + tool-call pairing sanitization |
 | `composeApp/src/commonMain/.../tools/CommonTools.kt` | Common tool implementations and the cross-platform definition list |
 | `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Shared gating every platform's available-tools list is built from |
+| `composeApp/src/commonMain/.../tools/ToolDelivery.kt` | Eager/lazy decision, hot set, token estimate logging |
+| `composeApp/src/commonMain/.../tools/ToolCatalog.kt` | Tool categories, `find_tools` ranking, compact catalogue rendering, token estimate |
+| `composeApp/src/commonMain/.../tools/MetaTools.kt` | `list_tools`, `find_tools`, `describe_tool` |
+| `composeApp/src/commonMain/.../tools/ToolActivation.kt` | Per-conversation delivered/activated sets behind the executor gate |
+| `composeApp/src/commonMain/.../data/ChatSystemPromptBuilder.kt` | System prompt sections, including the `## Tool catalogue` index |
 | `composeApp/src/commonMain/.../tools/WebSearchTool.kt` | `web_search` |
 | `composeApp/src/commonMain/.../tools/FetchUrlTool.kt` | `fetch_url` with private-address and redirect checks |
 | `composeApp/src/commonMain/.../tools/MediaTools.kt` | `generate_image`, `generate_video`, `list_media_models`, `enhance_prompt` |

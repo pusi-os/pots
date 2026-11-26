@@ -4,6 +4,7 @@ import com.pusios.pots.getAvailableTools
 import com.pusios.pots.getPlatformToolDefinitions
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.smartTruncate
+import com.pusios.pots.tools.ToolActivation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -50,6 +51,25 @@ class ToolExecutor(
         val tools = toolsProvider()
         val tool = tools.find { it.schema.name == name }
             ?: return toolErrorJson("Unknown tool: $name")
+
+        // Lazy delivery ships an index, not every schema: a tool the model never saw must be
+        // described first. Without this gate a hallucinated call would run a tool the user's
+        // request never exposed — and the model would never learn it needs the schema.
+        if (!ToolActivation.canExecute(conversationId, name)) {
+            // Refusing alone would never reach the model: the refusal is a `tool` message paired
+            // with the model's own call, and every round re-plans the declared set — a name that
+            // is neither delivered nor activated is stripped by `sanitizeToolMessages`, so the
+            // model sees its call vanish, repeats it, and hits the REPEATING bailout. Activating
+            // on refusal keeps the pair alive on the next round and ships the schema with it, so
+            // the model reads the error and can retry successfully. A parallel batch that also
+            // carries `describe_tool` for the same tool is harmless: both paths activate.
+            ToolActivation.activate(conversationId, name)
+            return toolErrorJson(
+                "Tool '$name' was not loaded when this call was made, so it did not run. " +
+                    "It is enabled for this conversation now: call it again, or call " +
+                    "describe_tool with name=\"$name\" to see its schema first.",
+            )
+        }
 
         val args = try {
             parseJsonToMap(arguments)

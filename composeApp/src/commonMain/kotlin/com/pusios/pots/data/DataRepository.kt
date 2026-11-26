@@ -8,7 +8,9 @@ import com.pusios.pots.inference.LocalModel
 import com.pusios.pots.inference.ModelImportError
 import com.pusios.pots.inference.ModelImportResult
 import com.pusios.pots.linux.LinuxDistro
+import com.pusios.pots.mcp.McpConfirmRequest
 import com.pusios.pots.mcp.McpServerConfig
+import com.pusios.pots.mcp.McpServerStatus
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.skills.RegistrySkillEntry
 import com.pusios.pots.skills.SkillManifest
@@ -16,6 +18,7 @@ import com.pusios.pots.ui.chat.History
 import com.pusios.pots.ui.potsik.PotsikLook
 import com.pusios.pots.ui.settings.SettingsModel
 import io.github.vinceglb.filekit.PlatformFile
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 interface DataRepository {
@@ -89,12 +92,39 @@ interface DataRepository {
     // MCP servers
     fun getMcpServers(): List<McpServerConfig>
     suspend fun addMcpServer(name: String, url: String, headers: Map<String, String>): McpServerConfig
-    fun removeMcpServer(serverId: String)
-    fun setMcpServerEnabled(serverId: String, enabled: Boolean)
+    suspend fun removeMcpServer(serverId: String)
+    suspend fun setMcpServerEnabled(serverId: String, enabled: Boolean)
     suspend fun connectMcpServer(serverId: String): Result<List<ToolInfo>>
     fun getMcpToolsForServer(serverId: String): List<ToolInfo>
     fun isMcpServerConnected(serverId: String): Boolean
     suspend fun connectEnabledMcpServers()
+
+    /** Last known state and cached tool count of every server, keyed by server id. */
+    fun getMcpServerStatuses(): Map<String, McpServerStatus>
+
+    /** Live statuses, so the settings list updates itself when a sign-in finishes. */
+    fun observeMcpStatuses(): Flow<Map<String, McpServerStatus>>
+
+    /** A confirmation the agent asked for through an mcp_* tool, if one is pending. */
+    fun observeMcpConfirmation(): Flow<McpConfirmRequest?>
+
+    /** Answers the pending confirmation; a no-op when [requestId] is stale. */
+    fun respondMcpConfirmation(requestId: String, allowed: Boolean)
+
+    /** True when an OAuth or pasted token is stored for this server. */
+    fun hasMcpToken(serverId: String): Boolean
+
+    /** Starts the browser sign-in flow; returns the authorize URL that is now being awaited. */
+    suspend fun authorizeMcpServer(serverId: String): Result<String>
+
+    /** The authorize URL of a flow already waiting for the browser, if any. */
+    fun getMcpPendingAuthorizationUrl(serverId: String): String?
+
+    /** Stores a pasted personal access token and reconnects. */
+    suspend fun setMcpManualToken(serverId: String, token: String)
+
+    /** Forgets the stored token; the server switches to "needs authorization". */
+    suspend fun clearMcpToken(serverId: String)
 
     // Agent profiles
     fun getAgentProfiles(): List<AgentProfile>

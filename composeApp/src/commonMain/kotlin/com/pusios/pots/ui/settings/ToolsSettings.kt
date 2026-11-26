@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.DataRepository
 import com.pusios.pots.data.VectorizationManager
+import com.pusios.pots.mcp.McpConfirmRequest
 import com.pusios.pots.mcp.PopularMcpServer
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.skills.RegistrySkillEntry
@@ -65,9 +66,14 @@ internal fun ToolsContent(
     onRemoveMcpServer: (String) -> Unit,
     onToggleMcpServer: (String, Boolean) -> Unit,
     onRefreshMcpServer: (String) -> Unit,
+    onAuthorizeMcpServer: (String) -> Unit,
+    onSetMcpManualToken: (String, String) -> Unit,
+    onSignOutMcpServer: (String) -> Unit,
+    onRespondMcpConfirmation: (Boolean) -> Unit,
     showAddMcpServerDialog: Boolean,
     onShowAddMcpServerDialog: (Boolean) -> Unit,
     onAddPopularMcpServer: (PopularMcpServer) -> Unit,
+    mcpPendingConfirm: McpConfirmRequest? = null,
     skills: ImmutableList<SkillManifest>,
     onUninstallSkill: (String) -> Unit,
     showAddSkillDialog: Boolean,
@@ -147,10 +153,15 @@ internal fun ToolsContent(
             onRemoveMcpServer = onRemoveMcpServer,
             onToggleMcpServer = onToggleMcpServer,
             onRefreshMcpServer = onRefreshMcpServer,
+            onAuthorizeMcpServer = onAuthorizeMcpServer,
+            onSetMcpManualToken = onSetMcpManualToken,
+            onSignOutMcpServer = onSignOutMcpServer,
             onToggleTool = onToggleTool,
             showAddDialog = showAddMcpServerDialog,
             onShowAddDialog = onShowAddMcpServerDialog,
             onAddPopularMcpServer = onAddPopularMcpServer,
+            pendingConfirm = mcpPendingConfirm,
+            onRespondConfirm = onRespondMcpConfirmation,
         )
 
         // Skills section — sandbox-backed, so Android only.

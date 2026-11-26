@@ -18,6 +18,15 @@ enum class AdbErrorKind {
     /** Nothing listens on that host and port, or the host does not resolve. */
     UNREACHABLE,
 
+    /**
+     * The port accepted TCP but did not answer as an ADB daemon.
+     *
+     * This is the case the 3.21.0 TV report could not tell apart from "no connection": something was
+     * listening on 5555, the socket stayed open, and no `CNXN` answer ever arrived. The owner needs
+     * different words for it ("the port is open but it is not ADB") than for a closed port.
+     */
+    NOT_ADB,
+
     /** Android blocked the call: the local-network permission was never granted. */
     PERMISSION_DENIED,
 
@@ -109,8 +118,9 @@ fun adbPairResultOf(error: Throwable): AdbPairResult {
         AdbErrorKind.PERMISSION_DENIED -> AdbPairResult.IoError("local network permission denied")
 
         // PAIRING_REQUIRED belongs to connect(), never to pair(); if a transport raises it here the
-        // pairing did not happen and its message is all we can honestly report.
-        AdbErrorKind.PAIRING_REQUIRED, AdbErrorKind.IO ->
+        // pairing did not happen and its message is all we can honestly report. NOT_ADB cannot come
+        // out of pairing either — a wrong code fails the TLS handshake, which is handled above.
+        AdbErrorKind.PAIRING_REQUIRED, AdbErrorKind.NOT_ADB, AdbErrorKind.IO ->
             AdbPairResult.IoError(error.message ?: "pairing failed")
     }
 }

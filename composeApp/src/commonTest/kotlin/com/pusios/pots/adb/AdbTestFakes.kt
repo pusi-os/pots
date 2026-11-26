@@ -49,28 +49,58 @@ internal class FakeAdbBackend : AdbBackend {
     val connects = mutableListOf<String>()
     val pairs = mutableListOf<String>()
     val disconnects = mutableListOf<String>()
+    val firstContacts = mutableListOf<Boolean>()
     var discoverCalls = 0
+    var scanCalls = 0
+    var probeCalls = 0
     var connectResult = true
+    var connectFailure: AdbException? = null
     var pairResult: AdbPairResult = AdbPairResult.Success
     var shellOutput = ""
     var shellFailure: AdbException? = null
     var discoverFailure: AdbException? = null
+    var probeResult: AdbProbeResult = AdbProbeResult.AuthRequired
+    var scanResult: List<AdbDiscovery> = emptyList()
+    var connected = false
 
     override suspend fun pair(host: String, port: Int, code: String): AdbPairResult {
         pairs += "$host:$port"
         return pairResult
     }
 
-    override suspend fun connect(host: String, port: Int, tls: Boolean): Boolean {
+    override suspend fun connect(
+        host: String,
+        port: Int,
+        tls: Boolean,
+        firstContact: Boolean,
+        onPhase: (AdbConnectPhase) -> Unit,
+    ): Boolean {
         connects += "$host:$port"
+        firstContacts += firstContact
+        onPhase(AdbConnectPhase.PROBING)
+        connectFailure?.let { throw it }
+        if (connectResult) {
+            connected = true
+            onPhase(AdbConnectPhase.CONNECTED)
+        }
         return connectResult
     }
 
-    override suspend fun disconnect(host: String, port: Int) {
-        disconnects += "$host:$port"
+    override suspend fun probe(host: String, port: Int): AdbProbeResult {
+        probeCalls++
+        return probeResult
     }
 
-    override suspend fun disconnectAll() = Unit
+    override fun isConnected(host: String, port: Int): Boolean = connected
+
+    override suspend fun disconnect(host: String, port: Int) {
+        disconnects += "$host:$port"
+        connected = false
+    }
+
+    override suspend fun disconnectAll() {
+        connected = false
+    }
 
     override suspend fun shell(host: String, port: Int, command: String, timeoutSec: Int): String {
         shellCalls += command
@@ -92,6 +122,11 @@ internal class FakeAdbBackend : AdbBackend {
         discoverCalls++
         discoverFailure?.let { throw it }
         return emptyList()
+    }
+
+    override suspend fun scanLan(port: Int): List<AdbDiscovery> {
+        scanCalls++
+        return scanResult
     }
 }
 

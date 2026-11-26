@@ -26,8 +26,10 @@ import com.pusios.pots.inference.ModelImportResult
 import com.pusios.pots.inference.NoModelDownloadedException
 import com.pusios.pots.inference.getTotalMemoryBytes
 import com.pusios.pots.linux.LinuxDistro
+import com.pusios.pots.mcp.McpConfirmRequest
 import com.pusios.pots.mcp.McpServerConfig
 import com.pusios.pots.mcp.McpServerManager
+import com.pusios.pots.mcp.McpServerStatus
 import com.pusios.pots.mcp.McpTool
 import com.pusios.pots.network.AllServicesFailedException
 import com.pusios.pots.network.AnthropicInsufficientCreditsException
@@ -67,6 +69,9 @@ import com.pusios.pots.sms.SmsSendResult
 import com.pusios.pots.sms.SmsSender
 import com.pusios.pots.tools.NotificationListenerController
 import com.pusios.pots.tools.PermissionController
+import com.pusios.pots.tools.ToolActivation
+import com.pusios.pots.tools.ToolDelivery
+import com.pusios.pots.tools.ToolDeliveryMode
 import com.pusios.pots.ui.chat.History
 import com.pusios.pots.ui.chat.ToolCallInfo
 import com.pusios.pots.ui.chat.toGeminiMessageDto
@@ -83,6 +88,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -588,6 +594,13 @@ class RemoteDataRepository(
             emptyList()
         }
 
+        // The executor refuses calls to tools this request did not carry; the on-device engine
+        // has its own allowlist, so record it too or a tool the user selected would look "not
+        // loaded" after a cloud turn in the same conversation.
+        if (localTools.isNotEmpty()) {
+            ToolActivation.recordDelivered(activeConversationId(), localTools.mapTo(mutableSetOf()) { it.name })
+        }
+
         val inferenceMessages = messages.mapNotNull { msg ->
             when (msg.role) {
                 History.Role.USER -> InferenceMessage(role = "user", content = msg.content, attachments = msg.attachments)
@@ -777,13 +790,31 @@ class RemoteDataRepository(
         }
 
         val creds = instanceCredentials(instanceId, service, modelIdOverride)
-        val tools = if (supportsTools(creds.modelId)) getAvailableTools() else emptyList()
+        val tools = if (supportsTools(creds.modelId)) toolsForRequest() else emptyList()
 
         if (tools.isEmpty()) {
             return plainChat(service, creds, messages, systemPrompt, strictEmptyResponse = true)
         }
 
-        return handleOpenAICompatibleChatWithTools(service, creds, messages, tools, systemPrompt, history)
+        return handleOpenAICompatibleChatWithTools(service, creds, messages, ::toolsForRequest, systemPrompt, history)
+    }
+
+    /**
+     * The tools one remote request carries, plus the delivery record the executor gates on.
+     *
+     * Every enabled tool used to go on the wire, so a fresh chat paid ~10K tokens for schemas
+     * before the first word. [ToolDelivery] keeps a small set eager and, above the threshold,
+     * sends three meta-tools and the hottest few: the model pulls the rest in with
+     * `find_tools` / `describe_tool`, and a described tool is delivered in full from then on.
+     */
+    private suspend fun toolsForRequest(): List<Tool> {
+        val available = getAvailableTools()
+        if (available.isEmpty()) return available
+        val conversationId = activeConversationId()
+        val plan = ToolDelivery.plan(available, ToolActivation.activatedNames(conversationId))
+        ToolDelivery.log(plan)
+        ToolActivation.recordDelivered(conversationId, plan.delivered.mapTo(mutableSetOf()) { it.schema.name })
+        return plan.delivered
     }
 
     /**
@@ -1096,19 +1127,23 @@ class RemoteDataRepository(
         service: Service,
         credentials: ServiceCredentials,
         @Suppress("UNUSED_PARAMETER") messages: List<History>,
-        tools: List<Tool>,
+        toolsProvider: suspend () -> List<Tool>,
         systemPrompt: String? = null,
         history: MutableStateFlow<List<History>> = chatHistory,
     ): AssistantTurn {
         val contextWindowTokens = ModelCatalog.estimateContextWindow(credentials.modelId)
         val reasoningEffort = appSettings.getAgentTuning().reasoningEffort.apiValue
-        val declaredToolNames = tools.map { it.schema.name }.toSet()
         // GPT-5.6 and friends reject function tools on chat completions; the same messages are
         // translated to Responses API items instead. Everything before the wire call — prompt
         // assembly, tool-call pairing, context trimming — is shared.
         val useResponsesApi = requiresResponsesApi(service, credentials.modelId, credentials.baseUrl)
         val strategy = object : ToolLoopStrategy {
             override suspend fun chat(history: List<History>, systemPrompt: String?): LoopChatResult {
+                // Re-resolve the tool set on every round. `describe_tool` activates a tool in the
+                // middle of a turn, and the sanitizer strips a call to a tool the request does not
+                // declare — so the newly activated tool has to reach the very next request.
+                val tools = toolsProvider()
+                val declaredToolNames = tools.map { it.schema.name }.toSet()
                 val msgs = trimMessagesForContext(buildOpenAIMessages(service, history, systemPrompt, credentials.modelId, declaredToolNames), contextWindowTokens)
                 if (useResponsesApi) {
                     val response = retryApiCall {
@@ -1392,6 +1427,9 @@ class RemoteDataRepository(
                 tuning.maxParallelToolCalls
             }.coerceAtLeast(1)
             val results = mutableListOf<Triple<String, String, String>>()
+            // A batch runs in parallel, so `describe_tool` and the call it was meant to unlock can
+            // execute in either order. That is fine: a refused call activates its tool as well, so
+            // the tool ends up enabled either way and the next round declares it.
             for (batch in toolCalls.chunked(batchSize)) {
                 awaitToolCallBudget(batch.size, tuning.toolCallsPerMinute, toolCallTimestamps)
                 results += coroutineScope {
@@ -1890,16 +1928,16 @@ class RemoteDataRepository(
 
     override suspend fun addMcpServer(name: String, url: String, headers: Map<String, String>): McpServerConfig = mcpServerManager.addServer(name, url, headers)
 
-    override fun removeMcpServer(serverId: String) {
+    override suspend fun removeMcpServer(serverId: String) {
         mcpServerManager.removeServer(serverId)
     }
 
-    override fun setMcpServerEnabled(serverId: String, enabled: Boolean) {
+    override suspend fun setMcpServerEnabled(serverId: String, enabled: Boolean) {
         mcpServerManager.setServerEnabled(serverId, enabled)
     }
 
     override suspend fun connectMcpServer(serverId: String): Result<List<ToolInfo>> {
-        val result = mcpServerManager.connectAndDiscoverTools(serverId)
+        val result = mcpServerManager.connect(serverId)
         return result.map { mcpServerManager.getToolsForServer(serverId) }
     }
 
@@ -1909,6 +1947,30 @@ class RemoteDataRepository(
 
     override suspend fun connectEnabledMcpServers() {
         mcpServerManager.connectEnabledServers()
+    }
+
+    override fun getMcpServerStatuses(): Map<String, McpServerStatus> = mcpServerManager.statuses.value
+
+    override fun observeMcpStatuses(): Flow<Map<String, McpServerStatus>> = mcpServerManager.statuses
+
+    override fun observeMcpConfirmation(): Flow<McpConfirmRequest?> = mcpServerManager.gate.pending
+
+    override fun respondMcpConfirmation(requestId: String, allowed: Boolean) {
+        mcpServerManager.gate.respond(requestId, allowed)
+    }
+
+    override fun hasMcpToken(serverId: String): Boolean = mcpServerManager.hasStoredToken(serverId)
+
+    override suspend fun authorizeMcpServer(serverId: String): Result<String> = mcpServerManager.beginAuthorization(serverId)
+
+    override fun getMcpPendingAuthorizationUrl(serverId: String): String? = mcpServerManager.pendingAuthorizationUrl(serverId)
+
+    override suspend fun setMcpManualToken(serverId: String, token: String) {
+        mcpServerManager.setManualToken(serverId, token)
+    }
+
+    override suspend fun clearMcpToken(serverId: String) {
+        mcpServerManager.clearToken(serverId)
     }
 
     override fun getAgentProfiles(): List<AgentProfile> = appSettings.getAgentProfiles()
@@ -2050,11 +2112,21 @@ class RemoteDataRepository(
         // actually carry, so mirror the exact tool set here: remote uses the full set
         // (when the model supports tools), local uses the user's selection (when the
         // model can declare tools at all).
+        val remoteTools = if (variant == SystemPromptVariant.CHAT_REMOTE && !isLimited) getAvailableTools() else emptyList()
         val toolNames: Set<String> = when (variant) {
-            SystemPromptVariant.CHAT_REMOTE -> if (isLimited) emptySet() else getAvailableTools().mapTo(mutableSetOf()) { it.schema.name }
+            SystemPromptVariant.CHAT_REMOTE -> remoteTools.mapTo(mutableSetOf()) { it.schema.name }
             SystemPromptVariant.CHAT_LOCAL -> if (localModelDeclaresTools(modelId)) getLocalSafeTools().mapTo(mutableSetOf()) { it.schema.name } else emptySet()
         }
         val hasTools = toolNames.isNotEmpty()
+        // Gating stays on the full set on purpose: a feature section (vault, ADB, media) describes
+        // a capability the model can still reach through the catalogue, so dropping it would make
+        // the prompt lie. What lazy delivery cuts is the schemas, replaced by this compact index.
+        val toolCatalogue = if (remoteTools.isNotEmpty()) {
+            val plan = ToolDelivery.plan(remoteTools, ToolActivation.activatedNames(activeConversationId()))
+            if (plan.mode == ToolDeliveryMode.LAZY) plan.catalog.promptBlock() else null
+        } else {
+            null
+        }
 
         val activeSkill = pendingActiveSkillId?.let { skillManager.getSkill(it) }
 
@@ -2063,6 +2135,7 @@ class RemoteDataRepository(
             soul = soul,
             hasTools = hasTools,
             toolNames = toolNames,
+            toolCatalogue = toolCatalogue,
             memoryEnabled = memoryEnabled,
             schedulingEnabled = schedulingEnabled,
             memoryInstructions = memoryInstructions,
