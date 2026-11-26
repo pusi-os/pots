@@ -69,8 +69,7 @@ class McpServerStateTest {
         authListenerFactory = { null },
     )
 
-    private suspend fun addServer(manager: McpServerManager) =
-        manager.addServer(name = "Sentry", url = "https://mcp.sentry.io/mcp", headers = emptyMap())
+    private suspend fun addServer(manager: McpServerManager) = manager.addServer(name = "Sentry", url = "https://mcp.sentry.io/mcp", headers = emptyMap())
 
     @Test
     fun successfulConnectCachesToolsAndAdvertisesThem() = runTest {

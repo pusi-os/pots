@@ -1961,11 +1961,9 @@ class RemoteDataRepository(
 
     override fun hasMcpToken(serverId: String): Boolean = mcpServerManager.hasStoredToken(serverId)
 
-    override suspend fun authorizeMcpServer(serverId: String): Result<String> =
-        mcpServerManager.beginAuthorization(serverId)
+    override suspend fun authorizeMcpServer(serverId: String): Result<String> = mcpServerManager.beginAuthorization(serverId)
 
-    override fun getMcpPendingAuthorizationUrl(serverId: String): String? =
-        mcpServerManager.pendingAuthorizationUrl(serverId)
+    override fun getMcpPendingAuthorizationUrl(serverId: String): String? = mcpServerManager.pendingAuthorizationUrl(serverId)
 
     override suspend fun setMcpManualToken(serverId: String, token: String) {
         mcpServerManager.setManualToken(serverId, token)

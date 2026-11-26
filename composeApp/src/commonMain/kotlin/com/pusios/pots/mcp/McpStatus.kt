@@ -75,6 +75,7 @@ enum class McpServerStateKind {
     Unknown,
     Disabled,
     Connecting,
+
     /** Reachable but refuses us until the owner authorizes. */
     NeedsAuth,
     Connected,
@@ -84,10 +85,15 @@ enum class McpServerStateKind {
 /** Turns an HTTP failure into the kind the UI shows. */
 internal fun classifyHttpFailure(status: Int, wwwAuthenticate: String?): McpFailureKind = when {
     status == 401 -> McpFailureKind.NeedsAuth
+
     status == 403 && wwwAuthenticate?.contains("insufficient_scope", ignoreCase = true) == true ->
         McpFailureKind.NeedsScope
+
     status == 403 -> McpFailureKind.Forbidden
+
     status == 404 || status == 405 -> McpFailureKind.WrongEndpoint
+
     status in 500..599 -> McpFailureKind.ServerError
+
     else -> McpFailureKind.Unknown
 }

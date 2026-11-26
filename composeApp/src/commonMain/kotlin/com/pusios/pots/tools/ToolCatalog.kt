@@ -129,8 +129,7 @@ internal fun toolSchemaJsonObject(tool: Tool): JsonObject = buildJsonObject {
 
 internal fun toolSchemaJson(tool: Tool): String = toolSchemaJsonObject(tool).toString()
 
-internal fun estimateToolSetTokens(tools: List<Tool>): Int =
-    estimateTokens(tools.joinToString(",") { toolSchemaJson(it) })
+internal fun estimateToolSetTokens(tools: List<Tool>): Int = estimateTokens(tools.joinToString(",") { toolSchemaJson(it) })
 
 internal data class ToolGroup(val category: ToolCategory, val tools: List<Tool>)
 

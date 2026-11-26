@@ -476,13 +476,9 @@ class AdbSettingsViewModel(
             setStatus(device.id, AdbDeviceStatus(AdbDeviceState.ERROR, detail))
             when (kind) {
                 AdbErrorKind.AUTHENTICATION_FAILED, AdbErrorKind.PAIRING_REQUIRED -> AdbNotice.PairingRequiredAgain
-
                 AdbErrorKind.TIMEOUT -> AdbNotice.DeviceDidNotConfirm(device.endpoint)
-
                 AdbErrorKind.NOT_ADB -> AdbNotice.NotAdb(device.endpoint)
-
                 AdbErrorKind.UNREACHABLE -> AdbNotice.NoAnswer(device.endpoint)
-
                 else -> AdbNotice.ConnectFailed(failure.message ?: failure::class.simpleName.orEmpty())
             }
         }

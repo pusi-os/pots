@@ -361,9 +361,13 @@ private fun DeviceRow(
 @Composable
 private fun statusText(status: AdbDeviceStatus): String = when (status.state) {
     AdbDeviceState.IDLE -> stringResource(Res.string.adb_status_idle)
+
     AdbDeviceState.PROBING -> stringResource(Res.string.adb_status_probing)
+
     AdbDeviceState.WAITING_FOR_CONFIRMATION -> stringResource(Res.string.adb_status_waiting)
+
     AdbDeviceState.CONNECTED -> stringResource(Res.string.adb_status_connected)
+
     AdbDeviceState.ERROR -> status.detail?.let { detail ->
         stringResource(Res.string.adb_status_error, detail)
     } ?: stringResource(Res.string.adb_status_error, stringResource(Res.string.adb_status_idle))

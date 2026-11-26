@@ -181,7 +181,14 @@ private val SHA256_K = intArrayOf(
 
 internal fun sha256(input: ByteArray): ByteArray {
     val h = intArrayOf(
-        1779033703, -1150833019, 1013904242, -1521486534, 1359893119, -1694144372, 528734635, 1541459225,
+        1779033703,
+        -1150833019,
+        1013904242,
+        -1521486534,
+        1359893119,
+        -1694144372,
+        528734635,
+        1541459225,
     )
     val bitLength = input.size.toLong() * 8
     val paddedSize = ((input.size + 9 + 63) / 64) * 64
@@ -296,8 +303,7 @@ data class McpStoredToken(
     /** 0 = the server did not say; treat the token as long-lived and re-check on 401. */
     val expiresAtEpochMs: Long = 0,
 ) {
-    fun isExpired(nowMs: Long = Clock.System.now().toEpochMilliseconds(), skewMs: Long = 60_000): Boolean =
-        expiresAtEpochMs != 0L && nowMs + skewMs >= expiresAtEpochMs
+    fun isExpired(nowMs: Long = Clock.System.now().toEpochMilliseconds(), skewMs: Long = 60_000): Boolean = expiresAtEpochMs != 0L && nowMs + skewMs >= expiresAtEpochMs
 }
 
 /**
@@ -306,7 +312,11 @@ data class McpStoredToken(
  * export of the settings never carries a bearer token.
  */
 class McpTokenStore(private val appSettings: AppSettings) {
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+        explicitNulls = false
+    }
 
     fun load(serverId: String): McpStoredToken? = readAll()[serverId]
 
@@ -403,7 +413,13 @@ class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
         val body = buildJsonObject {
             put("client_name", "Pots")
             put("application_type", "native")
-            put("grant_types", buildJsonArray { add(JsonPrimitive("authorization_code")); add(JsonPrimitive("refresh_token")) })
+            put(
+                "grant_types",
+                buildJsonArray {
+                    add(JsonPrimitive("authorization_code"))
+                    add(JsonPrimitive("refresh_token"))
+                },
+            )
             put("response_types", buildJsonArray { add(JsonPrimitive("code")) })
             put("token_endpoint_auth_method", "none")
             put("redirect_uris", buildJsonArray { add(JsonPrimitive(redirectUri)) })
@@ -512,7 +528,10 @@ class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
         }.distinct()
         var lastError: String = "no Protected Resource Metadata found"
         for (url in candidates) {
-            val doc = fetchJson(url).getOrElse { lastError = it.message ?: lastError; continue }
+            val doc = fetchJson(url).getOrElse {
+                lastError = it.message ?: lastError
+                continue
+            }
             if (doc["authorization_servers"] != null) return Result.success(doc)
             lastError = "$url has no authorization_servers"
         }
@@ -522,7 +541,10 @@ class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
     private suspend fun fetchAuthServerMetadata(issuer: String): Result<JsonObject> {
         var lastError: String = "no authorization server metadata found"
         for (url in authServerMetadataCandidates(issuer)) {
-            val doc = fetchJson(url).getOrElse { lastError = it.message ?: lastError; continue }
+            val doc = fetchJson(url).getOrElse {
+                lastError = it.message ?: lastError
+                continue
+            }
             val advertised = doc["issuer"]?.jsonPrimitive?.content
             // RFC 8414: the document must be for the issuer we asked about. A trailing slash is
             // the one difference real servers make and clients tolerate.
@@ -545,7 +567,6 @@ class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
     } catch (e: Exception) {
         Result.failure(McpAuthException("$url failed: ${e.message ?: "network error"}"))
     }
-
 }
 
 /** Shared HTTP client for discovery, registration and token requests. */
@@ -645,11 +666,18 @@ internal fun isPrivateAddress(url: String): Boolean {
     if (parts.size != 4) return false
     return when {
         parts[0] == 127 -> true
+
         parts[0] == 10 -> true
+
         parts[0] == 192 && parts[1] == 168 -> true
+
         parts[0] == 172 && parts[1] in 16..31 -> true
+
         parts[0] == 169 && parts[1] == 254 -> true
-        parts[0] == 100 && parts[1] in 64..127 -> true // carrier-grade NAT
+
+        parts[0] == 100 && parts[1] in 64..127 -> true
+
+        // carrier-grade NAT
         else -> false
     }
 }

@@ -344,8 +344,7 @@ class McpServerManager(
         return updated
     }
 
-    private fun expiresAt(response: McpTokenResponse): Long =
-        if (response.expiresInSeconds > 0) nowMs() + response.expiresInSeconds * 1000 else 0
+    private fun expiresAt(response: McpTokenResponse): Long = if (response.expiresInSeconds > 0) nowMs() + response.expiresInSeconds * 1000 else 0
 
     private suspend fun fail(
         serverId: String,
@@ -661,8 +660,11 @@ class McpServerManager(
                 "requires authorization — open Settings → Tools → ${server.name} and press Authorize"
 
             McpFailureKind.Unreachable -> "is unreachable"
+
             McpFailureKind.WrongEndpoint -> "answered on the wrong endpoint (SSE vs Streamable HTTP)"
+
             McpFailureKind.ServerError -> "is failing on its side"
+
             else -> result.exceptionOrNull()?.message ?: "is not connected"
         }
         throw McpException("MCP server \"${server.name}\" $reason")
@@ -695,8 +697,7 @@ class McpServerManager(
     )
 
     /** One connect at a time per server; different servers connect in parallel. */
-    private suspend fun lockFor(serverId: String): Mutex =
-        mutex.withLock { connectLocks.getOrPut(serverId) { Mutex() } }
+    private suspend fun lockFor(serverId: String): Mutex = mutex.withLock { connectLocks.getOrPut(serverId) { Mutex() } }
 
     private fun cancelPendingAuthLocked(serverId: String) {
         pendingAuth.remove(serverId)?.listener?.close()

@@ -213,10 +213,12 @@ object McpTools {
             }
             val config = deps.manager.addServer(name = name, url = url, headers = emptyMap(), addedByAgent = true)
             val result = deps.manager.connect(config.id)
-            return ok(buildString {
-                append("Added MCP server id=").append(config.id).append(" name=").append(config.name).append(". ")
-                append(describeOutcome(config, result.isSuccess, deps.manager))
-            })
+            return ok(
+                buildString {
+                    append("Added MCP server id=").append(config.id).append(" name=").append(config.name).append(". ")
+                    append(describeOutcome(config, result.isSuccess, deps.manager))
+                },
+            )
         }
     }
 
@@ -271,8 +273,10 @@ object McpTools {
             deps.manager.setServerEnabled(server.id, enabled)
             if (enabled) deps.manager.connect(server.id)
             val status = deps.manager.status(server.id)
-            return ok("MCP server \"${server.name}\" is now ${if (enabled) "enabled" else "disabled"} " +
-                "(state=${status.state.name.lowercase()}, tools=${status.toolCount}).")
+            return ok(
+                "MCP server \"${server.name}\" is now ${if (enabled) "enabled" else "disabled"} " +
+                    "(state=${status.state.name.lowercase()}, tools=${status.toolCount}).",
+            )
         }
     }
 
@@ -346,11 +350,13 @@ object McpTools {
                 "The server needs authorization. Ask the owner to press Authorize for \"${server.name}\" " +
                     "in Settings → Tools (or call mcp_authorize), then call mcp_refresh."
 
-            McpFailureKind.Unreachable -> "The server is unreachable right now; it stays configured " +
-                "and its cached tools remain visible."
+            McpFailureKind.Unreachable ->
+                "The server is unreachable right now; it stays configured " +
+                    "and its cached tools remain visible."
 
-            McpFailureKind.WrongEndpoint -> "The server answered on the wrong endpoint — check whether " +
-                "the URL is its Streamable HTTP endpoint."
+            McpFailureKind.WrongEndpoint ->
+                "The server answered on the wrong endpoint — check whether " +
+                    "the URL is its Streamable HTTP endpoint."
 
             else -> "Could not connect: ${status.failure?.detail?.takeIf { it.isNotBlank() } ?: "unknown error"}."
         }

@@ -129,11 +129,10 @@ object AdbProbeProtocol {
         target[offset + 3] = ((value ushr 24) and 0xFF).toByte()
     }
 
-    private fun intLe(source: ByteArray, offset: Int): Int =
-        (source[offset].toInt() and 0xFF) or
-            ((source[offset + 1].toInt() and 0xFF) shl 8) or
-            ((source[offset + 2].toInt() and 0xFF) shl 16) or
-            ((source[offset + 3].toInt() and 0xFF) shl 24)
+    private fun intLe(source: ByteArray, offset: Int): Int = (source[offset].toInt() and 0xFF) or
+        ((source[offset + 1].toInt() and 0xFF) shl 8) or
+        ((source[offset + 2].toInt() and 0xFF) shl 16) or
+        ((source[offset + 3].toInt() and 0xFF) shl 24)
 }
 
 /**
