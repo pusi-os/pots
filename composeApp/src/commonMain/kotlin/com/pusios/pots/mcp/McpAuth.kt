@@ -670,29 +670,32 @@ internal fun isPrivateAddress(url: String): Boolean {
 
 private fun isPrivateIpv4(host: String): Boolean {
     val parts = host.split('.')
-    if (parts.size != 4 || !parts.all(::isCanonicalIpv4Octet)) {
-        // The JVM resolver behind ktor CIO also accepts the one-number (`2130706433`) and the
-        // shortened (`127.1`) spelling of an address, so a host made only of digits and dots that
-        // is not a canonical dotted quad is refused instead of trusted.
-        return host.isNotEmpty() && host.all { it in '0'..'9' || it == '.' }
-    }
-    val octets = parts.map { it.toInt() }
-    return when {
-        octets[0] == 127 -> true
+    if (parts.size == 4 && parts.all(::isCanonicalIpv4Octet)) return isPrivateQuad(parts.map { it.toInt() })
+    // The JVM resolver behind ktor CIO also accepts the one-number (`2130706433`) and the
+    // shortened (`127.1`) spelling of an address, so a host made only of digits and dots that
+    // is not a canonical dotted quad is refused instead of trusted.
+    if (host.isNotEmpty() && host.all { it in '0'..'9' || it == '.' }) return true
+    // A DNS name is judged by its leading numeric quad, as before: `127.0.0.1.nip.io` resolves to
+    // loopback and must not slip through just because the host also carries letters.
+    val numeric = host.split('.').mapNotNull { it.toIntOrNull() }
+    return numeric.size == 4 && isPrivateQuad(numeric)
+}
 
-        octets[0] == 10 -> true
+/** Loopback, link-local, RFC 1918 and carrier-grade NAT quads. */
+private fun isPrivateQuad(octets: List<Int>): Boolean = when {
+    octets[0] == 127 -> true
 
-        octets[0] == 192 && octets[1] == 168 -> true
+    octets[0] == 10 -> true
 
-        octets[0] == 172 && octets[1] in 16..31 -> true
+    octets[0] == 192 && octets[1] == 168 -> true
 
-        octets[0] == 169 && octets[1] == 254 -> true
+    octets[0] == 172 && octets[1] in 16..31 -> true
 
-        octets[0] == 100 && octets[1] in 64..127 -> true
+    octets[0] == 169 && octets[1] == 254 -> true
 
-        // carrier-grade NAT
-        else -> false
-    }
+    octets[0] == 100 && octets[1] in 64..127 -> true
+
+    else -> false
 }
 
 /** One dotted-quad part as the canonical spelling writes it: 0..255, no leading zeros. */

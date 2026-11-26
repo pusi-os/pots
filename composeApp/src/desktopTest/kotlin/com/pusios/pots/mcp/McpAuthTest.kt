@@ -180,6 +180,13 @@ class McpAuthTest {
         assertTrue(isPrivateAddress("http://127.1/mcp"), "shortened IPv4 spelling is loopback")
         assertTrue(isPrivateAddress("http://127.0.1/mcp"), "three-part IPv4 spelling is loopback")
         assertTrue(isPrivateAddress("http://0177.0.0.1/mcp"), "leading-zero octet is not a canonical quad")
+        // A DNS name whose leading labels spell a private quad still resolves inside the network.
+        assertTrue(isPrivateAddress("http://127.0.0.1.nip.io/mcp"), "DNS name with a loopback quad")
+        assertTrue(
+            isPrivateAddress("http://169.254.169.254.nip.io/latest/meta-data"),
+            "DNS name with a link-local metadata quad",
+        )
+        assertFalse(isPrivateAddress("https://8.8.8.8.nip.io/mcp"), "DNS name with a public quad stays allowed")
         assertFalse(isPrivateAddress("https://mcp.sentry.io/mcp"))
         assertFalse(isPrivateAddress("https://172.32.0.1/mcp"), "172.32 is public")
         assertFalse(isPrivateAddress("https://8.8.8.8/mcp"))
