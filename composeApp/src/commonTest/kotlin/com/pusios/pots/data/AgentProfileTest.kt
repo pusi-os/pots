@@ -2,6 +2,7 @@ package com.pusios.pots.data
 
 import com.pusios.pots.mcp.McpServerManager
 import com.russhwolf.settings.MapSettings
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -83,7 +84,7 @@ class AgentProfileTest {
     }
 
     @Test
-    fun `MCP server enablement is isolated per profile`() {
+    fun `MCP server enablement is isolated per profile`() = runTest {
         val settings = AppSettings(MapSettings())
         val manager = McpServerManager(settings)
         val server = manager.addServer("Search", "https://example.test/mcp", emptyMap())
