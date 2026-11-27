@@ -140,6 +140,12 @@ data class History(
     // Token and timing metrics of the request that produced this reply. Null for
     // user, tool and status entries, and for replies from before the metrics existed.
     val turnMetrics: TurnMetrics? = null,
+    /**
+     * Note about a degraded on-device turn — currently "tools were dropped because the runtime
+     * rejected the tool-call output". Shown under the reply so a silent fallback is visible.
+     * Transient: it describes this turn only and is not persisted with the conversation.
+     */
+    val localFallbackNote: String? = null,
 ) {
     enum class Role {
         USER,

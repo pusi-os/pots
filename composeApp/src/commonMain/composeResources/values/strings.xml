@@ -457,6 +457,10 @@
     <string name="litert_error_download_incomplete">Download incomplete. Please try again.</string>
     <string name="litert_error_checksum_mismatch">The download failed its integrity check and was discarded. Please try again.</string>
     <string name="litert_error_model_integrity">This model failed its integrity check and was not loaded. Delete it in Settings and download it again.</string>
+    <string name="litert_error_context_overflow">This message does not fit the local model's context. Shorten it, raise the context in the model settings, or start a new chat.</string>
+    <string name="litert_error_empty_response">The local model returned an empty answer. Try a shorter message, turn tools off, or pick a smaller model.</string>
+    <string name="litert_error_inference_failed">The local model could not process this request. Lower the context in the model settings, turn tools off, or pick a smaller model.</string>
+    <string name="local_tools_fallback_note">Tools were off for this answer: the model could not call them.</string>
     <string name="litert_error_import_invalid">Only .litertlm model files can be imported.</string>
     <string name="litert_error_import_too_small">The selected file is too small to be a valid model.</string>
     <string name="litert_error_import_failed">Import failed. Please try again.</string>
@@ -488,7 +492,7 @@
     <string name="settings_mcp_status_unknown">Not connected yet</string>
     <string name="settings_mcp_authorize">Sign in</string>
     <string name="settings_mcp_retry">Retry</string>
-    <string name="settings_mcp_sign_out">Sign out</string>
+    <string name="settings_mcp_sign_out">Forget token</string>
     <string name="settings_mcp_open_link">Open link</string>
     <string name="settings_mcp_copy_link">Copy link</string>
     <string name="settings_mcp_link_copied">Link copied</string>
@@ -499,7 +503,7 @@
     <string name="settings_mcp_added_by_agent">Added by agent</string>
     <string name="settings_mcp_allow">Allow</string>
     <string name="settings_mcp_deny">Cancel</string>
-    <string name="settings_mcp_tools_cached">Tools (last known list)</string>
+    <string name="settings_mcp_tools_cached">Tools from cache (last known list)</string>
     <string name="settings_mcp_auth_required_help">This server requires sign-in. Its tools appear after you authorize.</string>
     <string name="settings_mcp_tool_count">Tools: %1$d</string>
     <string name="settings_mcp_save">Save</string>
@@ -952,6 +956,12 @@
     <string name="pots_build_web_panel_stop">Stop</string>
     <string name="pots_build_web_panel_retry">Retry</string>
     <string name="pots_build_web_panel_starting">Starting…</string>
+    <string name="pots_build_web_panel_building_renderer">Building the renderer…</string>
+    <string name="pots_build_web_panel_building_renderer_left">~%1$d min left of the build budget. The panel opens by itself when it is done.</string>
+    <string name="pots_build_web_panel_building_renderer_left_no_start">~%1$d min left of the build budget. The panel stays off — it was not running.</string>
+    <string name="pots_build_web_panel_rebuild_renderer">Rebuild renderer</string>
+    <string name="pots_build_web_panel_rollback_checkout">Roll Hermes back</string>
+    <string name="pots_build_web_panel_rollback_hint">Moves Hermes back to the version this panel was built for. The newer Hermes is what it gives up.</string>
     <string name="pots_build_web_panel_autostart">Start with the sandbox</string>
     <string name="pots_build_web_panel_password_show">Show password</string>
     <string name="pots_build_web_panel_password_hide">Hide password</string>
@@ -998,6 +1008,10 @@
     <string name="sandbox_status_copying_files_progress">Copying files… %1$d/%2$d</string>
     <string name="sandbox_status_ready">Ready</string>
     <string name="sandbox_status_setup_failed">Setup failed: %1$s</string>
+    <string name="sandbox_status_clock_skew">The phone's clock is off: %1$s. Turn on automatic date and time in Android settings, then retry.</string>
+    <string name="sandbox_status_expired_metadata">The package index is outside its validity window: %1$s. Check the date on the phone, then retry.</string>
+    <string name="sandbox_status_mirror_failed">The Debian mirror is not serving a usable index: %1$s. Try again later.</string>
+    <string name="sandbox_status_network_failed">Cannot reach the Debian mirror: %1$s. Check the connection, then retry.</string>
     <string name="sandbox_status_copy_failed">Copy failed: %1$s</string>
     <string name="sandbox_status_install_failed">Install failed: %1$s</string>
     <string name="sandbox_status_package_failed">Failed to install %1$s: %2$s</string>

@@ -760,12 +760,14 @@ class McpServerManager(
 private val toolNameInvalidChars = Regex("[^A-Za-z0-9_-]")
 
 /**
- * [toolName] itself when free; otherwise `<serverId>_<toolName>` (then `_2`, `_3`, …), restricted
- * to the characters and 64-char length providers accept for function names.
+ * [toolName] restricted to `A-Z a-z 0-9 _ -` and at most 64 characters, always — an MCP server may
+ * name a tool `filesystem.read_file`, and providers reject anything outside that set. When the
+ * sanitized name is already taken, `<serverId>_<toolName>` (then `_2`, `_3`, …) is used instead.
  */
 internal fun uniqueMcpToolName(serverId: String, toolName: String, taken: Set<String>): String {
-    if (toolName !in taken) return toolName
-    val base = "${serverId}_$toolName".replace(toolNameInvalidChars, "_").take(64)
+    val sanitized = toolName.replace(toolNameInvalidChars, "_").take(64).ifEmpty { "tool" }
+    if (sanitized !in taken) return sanitized
+    val base = "${serverId}_$sanitized".replace(toolNameInvalidChars, "_").take(64)
     if (base !in taken) return base
     var n = 2
     while (true) {

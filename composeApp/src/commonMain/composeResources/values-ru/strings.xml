@@ -413,9 +413,9 @@
     <string name="settings_mcp_status_needs_auth">Нужен вход</string>
     <string name="settings_mcp_status_disabled">Выключен</string>
     <string name="settings_mcp_status_unknown">Ещё не подключался</string>
-    <string name="settings_mcp_authorize">Войти</string>
+    <string name="settings_mcp_authorize">Авторизоваться</string>
     <string name="settings_mcp_retry">Повторить</string>
-    <string name="settings_mcp_sign_out">Выйти</string>
+    <string name="settings_mcp_sign_out">Забыть токен</string>
     <string name="settings_mcp_open_link">Открыть ссылку</string>
     <string name="settings_mcp_copy_link">Скопировать ссылку</string>
     <string name="settings_mcp_link_copied">Ссылка скопирована</string>
@@ -426,7 +426,7 @@
     <string name="settings_mcp_added_by_agent">Добавлен агентом</string>
     <string name="settings_mcp_allow">Разрешить</string>
     <string name="settings_mcp_deny">Отмена</string>
-    <string name="settings_mcp_tools_cached">Инструменты (последний известный список)</string>
+    <string name="settings_mcp_tools_cached">Инструменты из кеша — последний известный список</string>
     <string name="settings_mcp_auth_required_help">Серверу нужен вход. Инструменты появятся после авторизации.</string>
     <string name="settings_mcp_tool_count">Инструментов: %1$d</string>
     <string name="settings_mcp_save">Сохранить</string>
@@ -610,6 +610,10 @@
     <string name="litert_error_download_incomplete">Загрузка не завершена. Попробуйте ещё раз.</string>
     <string name="litert_error_checksum_mismatch">Загрузка не прошла проверку целостности и была отклонена. Пожалуйста, попробуйте ещё раз.</string>
     <string name="litert_error_model_integrity">Эта модель не прошла проверку целостности и не была загружена. Удалите её в настройках и скачайте заново.</string>
+    <string name="litert_error_context_overflow">Сообщение не помещается в контекст локальной модели. Сократите его, увеличьте контекст в настройках модели или начните новый чат.</string>
+    <string name="litert_error_empty_response">Локальная модель вернула пустой ответ. Попробуйте более короткое сообщение, отключите инструменты или выберите модель поменьше.</string>
+    <string name="litert_error_inference_failed">Локальная модель не смогла обработать запрос. Уменьшите контекст в настройках модели, отключите инструменты или выберите модель поменьше.</string>
+    <string name="local_tools_fallback_note">Инструменты были отключены для этого ответа: модель не смогла их вызвать.</string>
     <string name="litert_error_network">Загрузка не удалась. Проверьте подключение к сети и повторите попытку.</string>
     <string name="settings_task_details_consecutive_failures">Сбоев подряд</string>
     <string name="settings_task_details_created">Создано</string>
@@ -817,6 +821,12 @@
     <string name="pots_build_web_panel_stop">Остановить</string>
     <string name="pots_build_web_panel_retry">Повторить</string>
     <string name="pots_build_web_panel_starting">Поднимается…</string>
+    <string name="pots_build_web_panel_building_renderer">Собираю рендерер…</string>
+    <string name="pots_build_web_panel_building_renderer_left">Осталось ~%1$d мин из бюджета сборки. Панель откроется сама, когда сборка закончится.</string>
+    <string name="pots_build_web_panel_building_renderer_left_no_start">Осталось ~%1$d мин из бюджета сборки. Панель останется выключенной — её не запускали.</string>
+    <string name="pots_build_web_panel_rebuild_renderer">Пересобрать рендерер</string>
+    <string name="pots_build_web_panel_rollback_checkout">Откатить Hermes</string>
+    <string name="pots_build_web_panel_rollback_hint">Вернёт Hermes к версии, под которую собрана панель. Новее Hermes при этом теряется.</string>
     <string name="pots_build_web_panel_autostart">Поднимать при старте песочницы</string>
     <string name="pots_build_web_panel_password_show">Показать пароль</string>
     <string name="pots_build_web_panel_password_hide">Скрыть пароль</string>
@@ -877,6 +887,10 @@
     <string name="sandbox_status_copying_files_progress">Копирование файлов… %1$d/%2$d</string>
     <string name="sandbox_status_ready">Готово</string>
     <string name="sandbox_status_setup_failed">Не удалось выполнить настройку: %1$s</string>
+    <string name="sandbox_status_clock_skew">Время на телефоне сбито: %1$s. Включите автоматическую дату и время в настройках Android и повторите установку.</string>
+    <string name="sandbox_status_expired_metadata">Срок действия индекса пакетов истёк: %1$s. Проверьте дату на телефоне и повторите установку.</string>
+    <string name="sandbox_status_mirror_failed">Зеркало Debian отдаёт непригодный индекс: %1$s. Повторите установку позже.</string>
+    <string name="sandbox_status_network_failed">Нет связи с зеркалом Debian: %1$s. Проверьте интернет и повторите установку.</string>
     <string name="sandbox_status_copy_failed">Не удалось скопировать: %1$s</string>
     <string name="sandbox_status_install_failed">Не удалось установить: %1$s</string>
     <string name="sandbox_status_package_failed">Не удалось установить %1$s: %2$s</string>

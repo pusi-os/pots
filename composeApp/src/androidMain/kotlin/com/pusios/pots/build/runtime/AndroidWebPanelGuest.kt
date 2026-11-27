@@ -2,6 +2,7 @@ package com.pusios.pots.build.runtime
 
 import android.content.res.AssetManager
 import android.util.Log
+import com.pusios.pots.build.HermesWebapp
 import com.pusios.pots.build.SandboxAgentConfig
 import com.pusios.pots.build.WebPanel
 import com.pusios.pots.build.WebPanelGuest
@@ -28,12 +29,37 @@ class AndroidWebPanelGuest(
     private val paths: LinuxPaths,
     /** This app's own assets, where CI leaves the Hermes panel bundle. */
     private val assets: AssetManager,
-    private val executor: (Map<String, String>) -> BuildProotExecutor,
+    /**
+     * A proot call in the guest: its extra environment, and whether it may run
+     * under the hardlink emulation. Panels never do (see
+     * [WebPanels.PANEL_HARDLINK_EMULATION]); a renderer build attempt asks for
+     * what it was written to ask for.
+     */
+    private val executor: (Map<String, String>, Boolean) -> BuildProotExecutor,
 ) : WebPanelGuest {
 
     override fun run(command: String, timeoutSeconds: Long, env: Map<String, String>): WebPanelGuest.Output {
-        val result = executor(env).execute(command, timeoutSeconds)
+        val result = executor(env, WebPanels.PANEL_HARDLINK_EMULATION).execute(command, timeoutSeconds)
         return WebPanelGuest.Output(result.success, (result.stdout + result.stderr).trim())
+    }
+
+    /**
+     * One attempt of the renderer chain, in the proot call that attempt describes:
+     * the pnpm settings travel in the environment (the only channel pnpm 12 reads),
+     * and the emulation flag is the only difference between two of the attempts.
+     */
+    override fun buildRenderer(
+        attempt: HermesWebapp.BuildAttempt,
+        timeoutSeconds: Long,
+    ): WebPanelGuest.Output {
+        val result = executor(attempt.env, attempt.hardlinkEmulation)
+            .execute(HermesWebapp.BUILD_COMMAND, timeoutSeconds)
+        return WebPanelGuest.Output(result.success, (result.stdout + result.stderr).trim())
+    }
+
+    /** Host-side append: the row's log section is where a failed chain explains itself. */
+    override fun appendLog(panel: WebPanel, line: String) {
+        runCatching { logFile(panel).appendText(line + "\n") }
     }
 
     /**
@@ -52,7 +78,7 @@ class AndroidWebPanelGuest(
     override fun launch(panel: WebPanel, port: Int, command: String, env: Map<String, String>): Boolean = runCatching {
         paths.tmpDir.mkdirs()
         cleanStaleInstallDebris(panel)
-        executor(env).startBackground(
+        executor(env, WebPanels.PANEL_HARDLINK_EMULATION).startBackground(
             command = command,
             pidFileName = panel.pidFile,
             logFile = logFile(panel),
@@ -141,7 +167,8 @@ class AndroidWebPanelGuest(
      * fails loudly instead of handing out a port someone else is on.
      */
     override fun portFree(port: Int): Boolean {
-        val result = executor(emptyMap()).execute(portProbeCommand(port), timeoutSeconds = 20)
+        val result = executor(emptyMap(), WebPanels.PANEL_HARDLINK_EMULATION)
+            .execute(portProbeCommand(port), timeoutSeconds = 20)
         if (result.exitCode != 0 && result.exitCode != 3) {
             Log.w(
                 TAG,

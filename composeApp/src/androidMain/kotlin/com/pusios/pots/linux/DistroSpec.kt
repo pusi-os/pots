@@ -164,15 +164,10 @@ object DebianSpec : DistroSpec {
             "tmp",
         ).forEach { File(rootfsDir, it).mkdirs() }
         // dpkg fsyncs every unpacked file by default, which on a phone turns a
-        // base install into a multi-minute affair.
-        File(rootfsDir, "etc/dpkg/dpkg.cfg.d").mkdirs()
-        File(rootfsDir, "etc/dpkg/dpkg.cfg.d/force-unsafe-io").writeText("force-unsafe-io\n")
-        // apt drops to `_apt` via setresuid for downloads. Work profiles and
-        // system clones block that syscall (termux/proot#369), so `apt-get update`
-        // fails and every package then looks missing. proot's root is fake anyway,
-        // so staying root costs nothing; the file also covers shell-run apt-get.
-        File(rootfsDir, "etc/apt/apt.conf.d").mkdirs()
-        File(rootfsDir, "etc/apt/apt.conf.d/99pots-nosandbox").writeText("APT::Sandbox::User \"root\";\n")
+        // base install into a multi-minute affair; the apt file next to it is
+        // what lets apt run at all inside a proot rootfs — and, because it lives
+        // in apt.conf.d, it covers every later apt call, Pots Build's included.
+        RootfsConfig.write(rootfsDir)
     }
 
     /**

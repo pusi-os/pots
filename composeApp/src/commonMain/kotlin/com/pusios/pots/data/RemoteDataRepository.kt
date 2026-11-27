@@ -18,7 +18,9 @@ import com.pusios.pots.inference.DownloadError
 import com.pusios.pots.inference.DownloadedModel
 import com.pusios.pots.inference.EngineState
 import com.pusios.pots.inference.InferenceMessage
+import com.pusios.pots.inference.LocalEmptyResponseException
 import com.pusios.pots.inference.LocalInferenceEngine
+import com.pusios.pots.inference.LocalInferenceException
 import com.pusios.pots.inference.LocalModel
 import com.pusios.pots.inference.LocalTool
 import com.pusios.pots.inference.ModelImportError
@@ -109,6 +111,7 @@ import kotlinx.serialization.json.putJsonObject
 import org.jetbrains.compose.resources.getString
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.default_soul
+import pots.composeapp.generated.resources.local_tools_fallback_note
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.time.Clock
@@ -156,6 +159,12 @@ private data class AssistantTurn(
     val usage: TokenUsage? = null,
     /** On-device models know their real window; remote turns fall back to the catalog. */
     val contextWindowTokens: Int? = null,
+    /**
+     * Human-readable note about a degraded turn (e.g. on-device tools dropped after the
+     * runtime rejected them). Rendered under the reply so the user is never left wondering
+     * why the model "did not use the tool".
+     */
+    val notice: String? = null,
 )
 
 private enum class BailoutReason { LIMIT_REACHED, REPEATING }
@@ -215,56 +224,61 @@ class RemoteDataRepository(
      * the whole point of [LocalToolSelection.configured]. Tools the user has disabled in
      * settings (e.g. shell command, which is gated behind `isToolEnabled("execute_shell_command")`)
      * won't appear in `getAvailableTools()` in the first place, so they're naturally excluded.
+     *
+     * MCP tools are opt-in per server: [LocalToolSelection.effective] hands none until the
+     * owner ticks a server, and a selection whose servers are all gone yields none rather
+     * than every connected server's tools. The final list is capped at
+     * [LocalToolSelection.MAX_TOOLS] with the chat-priority tools kept first.
      */
     private fun getLocalSafeTools(): List<Tool> {
         val available = getAvailableTools()
         val mcpTools = available.filterIsInstance<McpTool>()
         val builtInTools = available.filterNot { it is McpTool }
-        val selection = appSettings.getLocalToolSelection()
+        val selection = LocalToolSelection.effective(appSettings.getLocalToolSelection())
 
-        val selectedBuiltIn = if (selection.configured) {
-            if (selection.toolIds.isEmpty()) {
-                emptyList()
-            } else {
-                val filtered = builtInTools.filter { tool -> selection.toolIds.any { id -> id.equals(tool.schema.name, ignoreCase = true) } }
-                if (filtered.isEmpty()) {
+        val selectedBuiltIn = if (selection.toolIds.isEmpty()) {
+            emptyList()
+        } else {
+            builtInTools.filter { tool -> selection.toolIds.any { id -> id.equals(tool.schema.name, ignoreCase = true) } }
+                .ifEmpty {
                     // Guard against a stale/mismatched selection (every id unknown after a
                     // rename): keep the built-in defaults rather than silently handing the
                     // model no tools at all.
                     builtInTools.filter { it.schema.name in LOCAL_TOOL_ALLOWLIST }
-                } else {
-                    filtered
                 }
-            }
-        } else {
-            builtInTools.filter { it.schema.name in LOCAL_TOOL_ALLOWLIST }
         }
 
-        val selectedMcp = if (selection.configured) {
-            if (selection.mcpServerIds.isEmpty()) {
-                emptyList()
-            } else {
-                val filtered = mcpTools.filter { it.serverId in selection.mcpServerIds }
-                // Every selected server is gone (uninstalled/renamed) — fall back to all
-                // enabled servers instead of a silently empty set.
-                filtered.ifEmpty { mcpTools }
-            }
-        } else {
-            mcpTools
-        }
+        val selectedMcp = mcpTools.filter { it.serverId in selection.mcpServerIds }
 
-        return selectedBuiltIn + selectedMcp
+        val candidates = selectedBuiltIn + selectedMcp
+        val keptNames = LocalToolSelection.capToolNames(candidates.map { it.schema.name }).toSet()
+        return candidates.filter { it.schema.name in keptNames }
     }
 
     /**
-     * LiquidAI's LFM3 bundles declare template-level (XML) tool calling rather than the
-     * LiteRT `ModelInfo.supportsFunctionCalling` flag, so the auto-tools gate would otherwise
-     * drop them. Opt those ids in by name until the bundles advertise the capability in their
-     * metadata.
+     * Whether the on-device model may be handed tools at all.
+     *
+     * Metadata first: the bundle's own `supportsFunctionCalling` decides, with the LFM ids
+     * that do template-level tool calling as the only exception (see
+     * [LocalToolSelection.TEMPLATE_LEVEL_TOOL_CALLING_MODEL_IDS]). A model whose chat template
+     * has no tool section does not ignore tools — it fabricates their output, which is the
+     * "local model answers with errors" report this gate exists for.
      */
     private suspend fun localModelDeclaresTools(modelId: String): Boolean {
-        if (getLocalSafeTools().isNotEmpty()) return true
-        return localInferenceEngine?.modelCapabilities(modelId)?.supportsFunctionCalling != false
+        if (getLocalSafeTools().isEmpty()) return false
+        val supportsFunctionCalling = localInferenceEngine?.modelCapabilities(modelId)?.supportsFunctionCalling
+        return LocalToolSelection.modelSupportsToolCalling(supportsFunctionCalling, modelId)
+    }
+
+    /**
+     * Context window in tokens for the on-device model [modelId]: the per-model value the user
+     * set in the context slider, else the catalog default. Zero means "unknown" — the prompt and
+     * history budgets then fall back to their own defaults instead of guessing a window.
+     */
+    private fun localModelContextTokens(modelId: String): Int {
+        val stored = appSettings.getModelContextTokens(modelId)
+        if (stored > 0) return stored
+        return localInferenceEngine?.getAvailableModels()?.firstOrNull { it.id == modelId }?.defaultContextTokens ?: 0
     }
 
     // Per-instance model storage: instanceId -> models flow
@@ -555,9 +569,7 @@ class RemoteDataRepository(
             ?: downloadedModels.firstOrNull()
             ?: throw NoModelDownloadedException()
 
-        val catalogModel = engine.getAvailableModels().find { it.id == model.id }
-        val storedContext = appSettings.getModelContextTokens(model.id)
-        val contextTokens = if (storedContext > 0) storedContext else catalogModel?.defaultContextTokens ?: 0
+        val contextTokens = localModelContextTokens(model.id)
 
         val needsInit = engine.engineState.value != EngineState.READY || engine.currentModelId != model.id
         if (needsInit) {
@@ -582,12 +594,32 @@ class RemoteDataRepository(
         // prompt shape). We hand whichever one through to the engine unchanged.
         // Native litert-lm `automaticToolCalling` owns the tool loop — our allowlisted
         // tools are passed once via [localToolDescriptionJson] and the engine drives them.
+        //
+        // A small model can get stuck re-issuing the same call (the native loop has no
+        // repetition guard, only the 120 s timeout), so every identical attempt past
+        // maxRepeatedCalls gets an error result — with the default of 3 the first three calls
+        // run and the fourth is refused; the model then has nothing new to wait for and
+        // answers with what it has. The cap follows the same tuning the remote loop uses.
+        val maxRepeatedCalls = appSettings.getAgentTuning().maxRepeatedToolCalls
+        val callCounts = mutableMapOf<String, Int>()
         val localTools: List<LocalTool> = if (localModelDeclaresTools(model.id)) {
             getLocalSafeTools().map { tool ->
                 LocalTool(
                     name = tool.schema.name,
                     descriptionJsonString = localToolDescriptionJson(tool),
-                    execute = { jsonArgs -> runLocalToolWithUiFeedback(tool.schema.name, jsonArgs, history) },
+                    execute = { jsonArgs ->
+                        val signature = "${tool.schema.name}:${jsonArgs.take(200)}"
+                        val attempt = (callCounts[signature] ?: 0) + 1
+                        callCounts[signature] = attempt
+                        if (attempt > maxRepeatedCalls) {
+                            toolErrorJson(
+                                "Repeated call to '${tool.schema.name}' with the same arguments was blocked. " +
+                                    "Do not call it again — answer with the information you already have.",
+                            )
+                        } else {
+                            runLocalToolWithUiFeedback(tool.schema.name, jsonArgs, history)
+                        }
+                    },
                 )
             }
         } else {
@@ -601,7 +633,18 @@ class RemoteDataRepository(
             ToolActivation.recordDelivered(activeConversationId(), localTools.mapTo(mutableSetOf()) { it.name })
         }
 
-        val inferenceMessages = messages.mapNotNull { msg ->
+        // The on-device window is real and small (4 096 tokens is the catalog default) and
+        // litert-lm trims nothing for us: a request that does not fit fails the whole call with
+        // an opaque INVALID_ARGUMENT. Cut the history down to the budget before the call; the
+        // tool descriptions go into the same window, so their size comes out of that budget too.
+        val trimmedMessages = trimLocalChatHistory(
+            messages = messages,
+            contextTokens = contextTokens,
+            systemPromptChars = systemPrompt?.length ?: 0,
+            toolSchemaChars = localTools.sumOf { it.descriptionJsonString.length },
+        )
+
+        val inferenceMessages = trimmedMessages.mapNotNull { msg ->
             when (msg.role) {
                 History.Role.USER -> InferenceMessage(role = "user", content = msg.content, attachments = msg.attachments)
                 History.Role.ASSISTANT -> InferenceMessage(role = "assistant", content = msg.content)
@@ -609,18 +652,32 @@ class RemoteDataRepository(
             }
         }
 
+        var toolsDropped = false
         val result = try {
             engine.chat(messages = inferenceMessages, systemPrompt = systemPrompt, tools = localTools)
         } catch (e: RuntimeException) {
             if (e is kotlinx.coroutines.CancellationException) throw e
+            if (localTools.isEmpty()) {
+                println("LiteRT: chat failed with no tools attached: ${e.message?.take(300)}")
+                throw LocalInferenceException(e.message)
+            }
             // litert-lm's strict ANTLR function-call parser sometimes rejects malformed
             // tool-call output from small Gemma models, throwing INVALID_ARGUMENT from JNI.
             // Retry once without tools so the user gets *some* answer rather than a hard
             // error in the UI. With an empty tool list, LiteRTInferenceEngine sets
             // automaticToolCalling = false, so the parser is bypassed entirely on the retry.
-            println("LiteRT: tool-call parser failed (${e.message?.take(200)}). Falling back to plain chat.")
-            engine.chat(messages = inferenceMessages, systemPrompt = systemPrompt, tools = emptyList())
+            println("LiteRT: tool-call parser failed (${e.message?.take(200)}). Retrying without tools.")
+            toolsDropped = true
+            try {
+                engine.chat(messages = inferenceMessages, systemPrompt = systemPrompt, tools = emptyList())
+            } catch (retryFailure: RuntimeException) {
+                if (retryFailure is kotlinx.coroutines.CancellationException) throw retryFailure
+                println("LiteRT: retry without tools failed: ${retryFailure.message?.take(300)}")
+                throw LocalInferenceException(retryFailure.message)
+            }
         }
+        // An empty turn used to be stored as an empty bubble with no explanation.
+        if (result.text.isBlank()) throw LocalEmptyResponseException()
         val usage = if (result.promptTokens > 0 || result.completionTokens > 0) {
             TokenUsage(
                 promptTokens = result.promptTokens,
@@ -634,6 +691,7 @@ class RemoteDataRepository(
             content = result.text,
             usage = usage,
             contextWindowTokens = contextTokens,
+            notice = if (toolsDropped) getString(Res.string.local_tools_fallback_note) else null,
         )
     }
 
@@ -1104,6 +1162,7 @@ class RemoteDataRepository(
                                 content = turn.content,
                                 reasoningContent = turn.reasoningContent,
                                 fallbackServiceName = fallbackServiceName,
+                                localFallbackNote = turn.notice,
                                 turnMetrics = turnMetrics,
                             ),
                         )
@@ -2149,6 +2208,13 @@ class RemoteDataRepository(
             runtime = runtime,
             uiMode = uiMode,
             activeSkill = activeSkill,
+            // The on-device prompt has to fit the model's own window: litert-lm rejects the
+            // whole turn when it does not, and there is no provider to fall back to.
+            localPromptBudgetChars = if (variant == SystemPromptVariant.CHAT_LOCAL) {
+                localPromptBudgetCharsFor(localModelContextTokens(modelId))
+            } else {
+                LOCAL_PROMPT_BUDGET_CHARS
+            },
         )
         val authoring = if (uiMode == ChatPromptUiMode.INTERACTIVE_UI && activeSkill?.id != "mini-app-authoring") {
             skillManager.getSkill("mini-app-authoring")

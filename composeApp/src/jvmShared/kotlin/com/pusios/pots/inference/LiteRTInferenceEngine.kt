@@ -207,7 +207,9 @@ class LiteRTInferenceEngine : LocalInferenceEngine {
      * it is still a native open of a multi-gigabyte file, so callers go through the cache.
      *
      * Every field is best-effort: a bundle whose metadata predates the declaration, or a
-     * runtime that throws reading it, yields null so callers keep their own assumptions.
+     * runtime that throws reading it, yields null — *unknown*, not "incapable". The chat tool
+     * gate then hands such a model no tools (see `LocalToolSelection.modelSupportsToolCalling`),
+     * while the sampler falls back to its own fixed defaults.
      */
     private fun readModelCapabilities(modelPath: String): LocalModelCapabilities? = runCatching {
         ModelInfo.from(modelPath).use { info ->

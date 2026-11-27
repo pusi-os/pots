@@ -73,6 +73,14 @@ internal data class EmailAccountSummary(
 private const val LOCAL_MEMORY_BUDGET_CHARS = 2_000
 
 /**
+ * Characters kept free for the `## Context` block that always closes the prompt (local time,
+ * UTC, platform, model, provider). It renders unconditionally because a model that does not
+ * know the current time invents one; every budget check below reserves this much so the
+ * closing block can never be the thing that overflows the window.
+ */
+private const val LOCAL_CONTEXT_SECTION_RESERVE_CHARS = 260
+
+/**
  * One-line honesty guard composed into every chat variant. Targets the two observed
  * failure modes: (1) the model inventing tool outputs / file contents instead of
  * admitting a tool returned nothing readable, and (2) pots-ui buttons whose labels
@@ -130,6 +138,17 @@ internal const val DEFAULT_VOICE_OUTPUT_SECTION =
         "or a short sequence or loop is fine. " +
         "When the user says they are done, goodbye, disconnect or hang up, end the " +
         "HandsFree dialogue after answering."
+
+/**
+ * On-device voice guidance: the one rule that still applies when the full section does not.
+ *
+ * The long form spends most of its bytes on `potsik` animations, a tool the on-device model
+ * never receives — 620 characters of instructions about a tool it cannot call, in a window
+ * that holds about 4 000 tokens in total.
+ */
+internal const val DEFAULT_VOICE_OUTPUT_SECTION_LOCAL =
+    "## Voice Output\n" +
+        "When a reply will be spoken aloud, write only speakable text: no emojis, markdown or URLs."
 
 /**
  * Advanced memory guidance — references `memory_learn` (not in `LOCAL_TOOL_ALLOWLIST`)
@@ -228,6 +247,12 @@ internal const val DEFAULT_AUTOMATION_SECTION =
  * [toolCatalogue] is the compact index rendered when the tool set is too large to send with
  * full schemas (see `ToolDelivery`). Null — the usual case — means the request carries the
  * schemas themselves and needs no index.
+ *
+ * [localPromptBudgetChars] caps the `CHAT_LOCAL` prompt in characters; the caller derives it
+ * from the model's real window (see `localPromptBudgetCharsFor` in `LocalChatContext.kt`). Once the
+ * budget is spent, optional feature sections are dropped rather than truncated: a request that
+ * does not fit makes litert-lm reject the whole turn, so a missing section is the cheaper loss.
+ * `CHAT_REMOTE` ignores it — cloud providers charge by the token, not by a hard window.
  */
 internal fun buildChatSystemPrompt(
     variant: SystemPromptVariant,
@@ -248,6 +273,7 @@ internal fun buildChatSystemPrompt(
     runtime: ChatPromptRuntimeContext,
     uiMode: ChatPromptUiMode,
     activeSkill: SkillManifest? = null,
+    localPromptBudgetChars: Int = LOCAL_PROMPT_BUDGET_CHARS,
 ): String = buildString {
     append(soul)
 
@@ -276,7 +302,7 @@ internal fun buildChatSystemPrompt(
     append(DEFAULT_ACTING_SECTION)
 
     if (isNotEmpty()) append("\n\n")
-    append(DEFAULT_VOICE_OUTPUT_SECTION)
+    append(if (variant == SystemPromptVariant.CHAT_LOCAL) DEFAULT_VOICE_OUTPUT_SECTION_LOCAL else DEFAULT_VOICE_OUTPUT_SECTION)
 
     if (!memoryInstructions.isNullOrEmpty()) {
         if (isNotEmpty()) append("\n\n")
@@ -298,13 +324,23 @@ internal fun buildChatSystemPrompt(
     // on small on-device context windows.
     val memoryBudget = when (variant) {
         SystemPromptVariant.CHAT_REMOTE -> Int.MAX_VALUE
-        SystemPromptVariant.CHAT_LOCAL -> LOCAL_MEMORY_BUDGET_CHARS
+
+        // Leftover of the local budget at this point, capped by the local memory ceiling: the
+        // sections appended after this one (automation, vault, ADB) carry safety policy and
+        // must not be starved by a user with a hundred stored memories.
+        SystemPromptVariant.CHAT_LOCAL -> (localPromptBudgetChars - length - LOCAL_CONTEXT_SECTION_RESERVE_CHARS)
+            .coerceIn(0, LOCAL_MEMORY_BUDGET_CHARS)
     }
     var remaining = memoryBudget
     remaining = appendMemoryCategorySection("Your Memories", generalMemories, withHitCount = false, remaining)
     remaining = appendMemoryCategorySection("User Preferences", preferenceMemories, withHitCount = false, remaining)
     remaining = appendMemoryCategorySection("Learnings", learningMemories, withHitCount = true, remaining)
     appendMemoryCategorySection("Known Issues & Resolutions", errorMemories, withHitCount = false, remaining)
+
+    // Everything below is optional: on the on-device variant it renders only while the
+    // remaining budget allows it. An over-long request is rejected outright by the local
+    // runtime (see `LocalChatContext.kt`), so a dropped section beats a failed turn.
+    val optionalBudget = if (variant == SystemPromptVariant.CHAT_LOCAL) localPromptBudgetChars else Int.MAX_VALUE
 
     // Automation guidance, Email Accounts and the task dumps render whenever the model
     // is actually handed the matching tools — for remote models that is the full set,
@@ -314,39 +350,47 @@ internal fun buildChatSystemPrompt(
     // independent of scheduling; the data dumps only render when non-empty.
     val seesSchedulingTools = "schedule_task" in toolNames || "list_tasks" in toolNames || "cancel_task" in toolNames
     if ("generate_image" in toolNames || "generate_video" in toolNames) {
-        if (isNotEmpty()) append("\n\n")
-        append(DEFAULT_MEDIA_SECTION)
+        appendOptional(optionalBudget) {
+            append("\n\n")
+            append(DEFAULT_MEDIA_SECTION)
+        }
     }
     if (schedulingEnabled && "schedule_task" in toolNames) {
-        if (isNotEmpty()) append("\n\n")
-        append(DEFAULT_AUTOMATION_SECTION)
+        appendOptional(optionalBudget) {
+            append("\n\n")
+            append(DEFAULT_AUTOMATION_SECTION)
+        }
     }
     if (emailAccounts.isNotEmpty() && "check_email" in toolNames) {
-        appendEmailAccountsSection(emailAccounts)
+        appendOptional(optionalBudget) { appendEmailAccountsSection(emailAccounts) }
     }
     if (pendingTasks.isNotEmpty() && seesSchedulingTools) {
-        appendScheduledTasksSection(pendingTasks)
+        appendOptional(optionalBudget) { appendScheduledTasksSection(pendingTasks) }
     }
     if (heartbeatAdditions.isNotEmpty() && seesSchedulingTools) {
-        appendHeartbeatAdditionsSection(heartbeatAdditions)
+        appendOptional(optionalBudget) { appendHeartbeatAdditionsSection(heartbeatAdditions) }
     }
 
     // The vault section teaches placeholder-only handling of secrets; it renders when the
     // model is actually handed any vault tool (the master toggle gates the whole set).
     if (VaultTools.TOOL_NAMES.any { it in toolNames }) {
-        if (isNotEmpty()) append("\n\n")
-        append(DEFAULT_VAULT_SECTION)
+        appendOptional(optionalBudget) {
+            append("\n\n")
+            append(DEFAULT_VAULT_SECTION)
+        }
     }
 
     // The ADB section describes tools that reach another device; it renders only when the model is
     // actually handed one of them (the master toggle gates the whole set, off by default).
     if (AdbTools.TOOL_NAMES.any { it in toolNames }) {
-        if (isNotEmpty()) append("\n\n")
-        append(DEFAULT_ADB_SECTION)
+        appendOptional(optionalBudget) {
+            append("\n\n")
+            append(DEFAULT_ADB_SECTION)
+        }
     }
 
     if (activeSkill != null) {
-        appendActiveSkillSection(activeSkill)
+        appendOptional(optionalBudget) { appendActiveSkillSection(activeSkill) }
     }
 
     appendContextSection(runtime)
@@ -357,11 +401,28 @@ internal fun buildChatSystemPrompt(
     // wastes its small context window.
     if ("mini_app_data" in toolNames) {
         when (uiMode) {
-            ChatPromptUiMode.DYNAMIC_UI -> appendDynamicUiSection()
-            ChatPromptUiMode.INTERACTIVE_UI -> appendInteractiveUiSection()
+            ChatPromptUiMode.DYNAMIC_UI -> appendOptional(optionalBudget) { appendDynamicUiSection() }
+            ChatPromptUiMode.INTERACTIVE_UI -> appendOptional(optionalBudget) { appendInteractiveUiSection() }
             ChatPromptUiMode.NONE -> {}
         }
     }
+}
+
+/**
+ * Appends the block only while it still fits [budget] (plus the context block reserve).
+ *
+ * Sections are never cut mid-sentence: a prompt that ends inside a policy paragraph teaches
+ * the model less than a missing section, and the local runtime only cares about the total
+ * length. [Int.MAX_VALUE] means unlimited (every remote prompt).
+ */
+private fun StringBuilder.appendOptional(budget: Int, block: StringBuilder.() -> Unit) {
+    if (budget == Int.MAX_VALUE) {
+        block()
+        return
+    }
+    val candidate = StringBuilder().apply(block)
+    if (length + candidate.length + LOCAL_CONTEXT_SECTION_RESERVE_CHARS > budget) return
+    append(candidate)
 }
 
 /**

@@ -165,8 +165,33 @@ class McpAuthTest {
         assertTrue(isPrivateAddress("http://172.16.4.2/mcp"))
         assertTrue(isPrivateAddress("http://169.254.169.254/latest/meta-data"))
         assertTrue(isPrivateAddress("http://[::1]/mcp"))
+        assertTrue(isPrivateAddress("http://[::1]:8080/mcp"))
+        assertTrue(isPrivateAddress("http://[fe80::1]/mcp"), "IPv6 link-local")
+        assertTrue(isPrivateAddress("http://[fe80::1%25eth0]/mcp"), "link-local with a zone id")
+        assertTrue(isPrivateAddress("http://[fd00::1]/mcp"), "IPv6 unique-local (fd00::/7)")
+        assertTrue(isPrivateAddress("http://[fc00::abcd]/mcp"), "IPv6 unique-local (fc00::/7)")
+        assertTrue(isPrivateAddress("http://[::ffff:127.0.0.1]/mcp"), "IPv4-mapped loopback")
+        assertTrue(isPrivateAddress("http://[::ffff:7f00:1]/mcp"), "IPv4-mapped loopback in hex")
+        assertTrue(isPrivateAddress("http://[::ffff:192.168.1.5]/mcp"), "IPv4-mapped private")
+        assertTrue(isPrivateAddress("http://[0:0:0:0:0:0:0:1]/mcp"), "uncompressed loopback")
+        assertTrue(isPrivateAddress("http://fe80::1/mcp"), "unbracketed link-local")
+        // The JVM resolver also accepts these spellings of 127.0.0.1; a non-canonical quad is refused.
+        assertTrue(isPrivateAddress("http://2130706433/mcp"), "one-number IPv4 spelling is loopback")
+        assertTrue(isPrivateAddress("http://127.1/mcp"), "shortened IPv4 spelling is loopback")
+        assertTrue(isPrivateAddress("http://127.0.1/mcp"), "three-part IPv4 spelling is loopback")
+        assertTrue(isPrivateAddress("http://0177.0.0.1/mcp"), "leading-zero octet is not a canonical quad")
+        // A DNS name whose leading labels spell a private quad still resolves inside the network.
+        assertTrue(isPrivateAddress("http://127.0.0.1.nip.io/mcp"), "DNS name with a loopback quad")
+        assertTrue(
+            isPrivateAddress("http://169.254.169.254.nip.io/latest/meta-data"),
+            "DNS name with a link-local metadata quad",
+        )
+        assertFalse(isPrivateAddress("https://8.8.8.8.nip.io/mcp"), "DNS name with a public quad stays allowed")
         assertFalse(isPrivateAddress("https://mcp.sentry.io/mcp"))
         assertFalse(isPrivateAddress("https://172.32.0.1/mcp"), "172.32 is public")
         assertFalse(isPrivateAddress("https://8.8.8.8/mcp"))
+        assertFalse(isPrivateAddress("https://[2001:4860:4860::8888]/mcp"), "public IPv6 stays allowed")
+        assertFalse(isPrivateAddress("https://[::ffff:8.8.8.8]/mcp"), "mapped public IPv4 stays allowed")
+        assertFalse(isPrivateAddress("https://[::ffff:808:808]/mcp"), "mapped public IPv4 in hex stays allowed")
     }
 }

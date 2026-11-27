@@ -84,6 +84,15 @@ class AndroidPotsBuildController : PotsBuildController {
     override fun stopWebPanel(panelId: String) {
         manager.stopWebPanel(panelId)
     }
+
+    override fun rebuildWebPanelRenderer(panelId: String) {
+        manager.rebuildWebPanelRenderer(panelId)
+    }
+
+    override fun rollbackWebPanelCheckout(panelId: String) {
+        manager.rollbackWebPanelCheckout(panelId)
+    }
+
     override fun openWebPanel(panelId: String) = manager.openWebPanel(panelId)
     override fun setWebPanelAutostart(panelId: String, enabled: Boolean) = manager.setWebPanelAutostart(panelId, enabled)
 

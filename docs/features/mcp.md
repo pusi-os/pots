@@ -1,6 +1,6 @@
 # MCP Servers
 
-**Last verified:** 2026-11-25
+**Last verified:** 2026-11-26
 
 Pots supports external tool servers via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP). Users can connect to remote MCP servers using Streamable HTTP transport and use their tools alongside native tools.
 
@@ -115,13 +115,13 @@ The agent can manage servers on the owner's behalf through six tools: `mcp_list_
 
 - `mcp_list_servers` returns every configured server with its state, failure reason and tool count — including servers that are failing or awaiting sign-in.
 - `mcp_add_server` takes a name, URL and transport (Streamable HTTP only). It refuses private, loopback and link-local addresses: an agent that can be talked into a URL by a web page must not be able to point Pots at the router or at a cloud metadata endpoint. The owner adding the same URL by hand is still allowed.
-- Every mutating call (`mcp_add_server`, `mcp_remove_server`, `mcp_authorize`) asks the owner first through the same confirmation dialog the vault uses, and is refused outright in headless runs (background/heartbeat chats have nobody to ask).
+- Every mutating call (`mcp_add_server`, `mcp_remove_server`, `mcp_set_enabled`, `mcp_authorize`) asks the owner first through the same confirmation dialog the vault uses, and is refused outright in headless runs (background/heartbeat chats have nobody to ask).
 - The agent never sees or types a secret: headers, API keys and tokens are entered by the human in Settings → Tools. `mcp_authorize` only opens the browser and returns "waiting for the owner".
 - Servers added this way appear in Settings → Tools like hand-added ones, with an "added by agent" badge.
 
 ## Integration with Tools
 
-MCP tools are automatically available to the AI — no changes needed to the tool executor or request serialization. The platform's list of available tools includes every enabled tool of every configured server: from the live session when connected, from the persisted cache when the last connect failed. A server whose connect failed therefore keeps contributing its tools, and a call against it returns the reason (press Authorize / server unreachable) instead of a bare HTTP error. MCP tools have a 90-second timeout (vs 30s default for native tools), which also covers a confirmation dialog and the network round-trip. MCP tools are only shown within their server's expanded card in settings, not in the native tools list; the six `mcp_*` admin tools are listed with the other native tools.
+MCP tools are automatically available to the AI — no changes needed to the tool executor or request serialization. The platform's list of available tools includes every enabled tool of every configured server: from the live session when connected, from the persisted cache when the last connect failed. A server whose connect failed therefore keeps contributing its tools, and a call against it returns the reason (press Authorize / server unreachable) instead of a bare HTTP error. A server tool gets a 90-second timeout (vs 30s default for native tools) for its network round-trip; it never shows a confirmation dialog, so the window is all it needs. The gated `mcp_*` admin tools get 240 seconds, which covers the 120-second confirmation window plus the connect or authorization work that follows it. MCP tools are only shown within their server's expanded card in settings, not in the native tools list; the six `mcp_*` admin tools are listed with the other native tools.
 
 Tool calls to MCP servers go through the same execution pipeline as native tools: the tool executor finds the tool by name, the MCP tool wrapper sends a `tools/call` JSON-RPC request to the server, and the result is returned to the AI.
 

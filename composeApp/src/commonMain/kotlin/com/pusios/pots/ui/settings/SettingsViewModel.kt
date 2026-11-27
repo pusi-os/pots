@@ -25,7 +25,6 @@ import com.pusios.pots.inference.ModelImportResult
 import com.pusios.pots.isEmailSupported
 import com.pusios.pots.isNotificationsSupported
 import com.pusios.pots.isSmsSupported
-import com.pusios.pots.mcp.McpServerStateKind
 import com.pusios.pots.mcp.PopularMcpServer
 import com.pusios.pots.network.AnthropicInsufficientCreditsException
 import com.pusios.pots.network.AnthropicInvalidApiKeyException
@@ -170,7 +169,6 @@ class SettingsViewModel(
             mcpServers = buildMcpServerEntries().toImmutableList(),
             localToolSelection = LocalToolSelection.effective(
                 selection = dataRepository.getLocalToolSelection(),
-                enabledMcpServerIds = dataRepository.getMcpServers().filter { it.isEnabled }.map { it.id }.toSet(),
             ),
             isLocalToolSelectionConfigured = dataRepository.getLocalToolSelection().configured,
             skills = dataRepository.getInstalledSkills().toImmutableList(),
@@ -763,7 +761,6 @@ class SettingsViewModel(
                 mcpServers = buildMcpServerEntries().toImmutableList(),
                 localToolSelection = LocalToolSelection.effective(
                     selection = dataRepository.getLocalToolSelection(),
-                    enabledMcpServerIds = servers.filter { it.isEnabled }.map { it.id }.toSet(),
                 ),
                 isLocalToolSelectionConfigured = dataRepository.getLocalToolSelection().configured,
             )
@@ -1210,7 +1207,6 @@ class SettingsViewModel(
         val stored = dataRepository.getLocalToolSelection()
         val effective = LocalToolSelection.effective(
             selection = stored,
-            enabledMcpServerIds = dataRepository.getMcpServers().filter { it.isEnabled }.map { it.id }.toSet(),
         )
         _state.update { state ->
             state.copy(
@@ -1223,7 +1219,6 @@ class SettingsViewModel(
     /** The selection currently in force, with the defaults already resolved in. */
     private fun effectiveLocalToolSelection(): LocalToolSelection = LocalToolSelection.effective(
         selection = dataRepository.getLocalToolSelection(),
-        enabledMcpServerIds = dataRepository.getMcpServers().filter { it.isEnabled }.map { it.id }.toSet(),
     )
 
     private fun persistLocalToolSelection(toolIds: List<String>, mcpServerIds: List<String>) {
@@ -1259,48 +1254,26 @@ class SettingsViewModel(
     private fun buildMcpServerEntries(): List<McpServerUiState> {
         val statuses = dataRepository.getMcpServerStatuses()
         return dataRepository.getMcpServers().map { config ->
-            val status = statuses[config.id]
-            val connected = dataRepository.isMcpServerConnected(config.id)
-            val tools = dataRepository.getMcpToolsForServer(config.id)
-            McpServerUiState(
-                id = config.id,
-                name = config.name,
-                url = config.url,
-                isEnabled = config.isEnabled,
-                // The status record is the source of truth, not "did the client map have an entry":
-                // a server that was never connected still has a state, and it must not read as Unknown.
-                connectionStatus = when {
-                    !config.isEnabled -> McpConnectionStatus.Disabled
-                    connected -> McpConnectionStatus.Connected
-                    status?.state == McpServerStateKind.NeedsAuth -> McpConnectionStatus.NeedsAuth
-                    status?.state == McpServerStateKind.Failed -> McpConnectionStatus.Failed
-                    status?.state == McpServerStateKind.Connecting -> McpConnectionStatus.Connecting
-                    else -> McpConnectionStatus.Unknown
-                },
-                tools = tools.toImmutableList(),
-                failureKind = status?.failure?.kind,
-                failureDetail = status?.failure?.detail.orEmpty(),
+            mcpServerUiState(
+                config = config,
+                status = statuses[config.id],
+                tools = dataRepository.getMcpToolsForServer(config.id),
                 hasStoredToken = dataRepository.hasMcpToken(config.id),
-                addedByAgent = config.addedByAgent,
-                authorizeUrl = dataRepository.getMcpPendingAuthorizationUrl(config.id),
-                toolsFromCache = tools.isNotEmpty() && !connected,
+                pendingAuthorizationUrl = dataRepository.getMcpPendingAuthorizationUrl(config.id),
             )
         }
     }
 
+    /**
+     * Rebuilds every card from the manager's status. Nothing local is carried over on purpose: a
+     * "connecting" flag remembered here outlived the answer that had already arrived and left the
+     * card stuck on "connecting" — the sign-in button then never appeared, which is the defect the
+     * owner reported. The manager publishes "connecting" itself while it works, so the card still
+     * shows it.
+     */
     private fun refreshMcpServers() {
         _state.update { current ->
-            // Only "Connecting" is ours to preserve: it is a transient the manager does not
-            // persist. Everything else is derived from the persisted status on purpose, so a
-            // stale local guess cannot outlive a real answer from the server.
-            val connecting = current.mcpServers
-                .filter { it.connectionStatus == McpConnectionStatus.Connecting }
-                .mapTo(HashSet()) { it.id }
-            current.copy(
-                mcpServers = buildMcpServerEntries().map { entry ->
-                    if (entry.id in connecting) entry.copy(connectionStatus = McpConnectionStatus.Connecting) else entry
-                }.toImmutableList(),
-            )
+            current.copy(mcpServers = buildMcpServerEntries().toImmutableList())
         }
     }
 

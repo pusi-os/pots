@@ -5,16 +5,20 @@ import com.pusios.pots.SandboxStatusLabel
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.sandbox_status_base_packages
+import pots.composeapp.generated.resources.sandbox_status_clock_skew
 import pots.composeapp.generated.resources.sandbox_status_configuring
 import pots.composeapp.generated.resources.sandbox_status_copy_failed
 import pots.composeapp.generated.resources.sandbox_status_copying_files
 import pots.composeapp.generated.resources.sandbox_status_copying_files_progress
 import pots.composeapp.generated.resources.sandbox_status_downloading
 import pots.composeapp.generated.resources.sandbox_status_error
+import pots.composeapp.generated.resources.sandbox_status_expired_metadata
 import pots.composeapp.generated.resources.sandbox_status_extracting
 import pots.composeapp.generated.resources.sandbox_status_install_failed
 import pots.composeapp.generated.resources.sandbox_status_installing
 import pots.composeapp.generated.resources.sandbox_status_installing_package
+import pots.composeapp.generated.resources.sandbox_status_mirror_failed
+import pots.composeapp.generated.resources.sandbox_status_network_failed
 import pots.composeapp.generated.resources.sandbox_status_not_installed
 import pots.composeapp.generated.resources.sandbox_status_package_failed
 import pots.composeapp.generated.resources.sandbox_status_ready
@@ -67,6 +71,18 @@ internal fun sandboxStatusText(label: SandboxStatusLabel?): String = when (label
 
             is SandboxStatusLabel.Failure.Package ->
                 stringResource(Res.string.sandbox_status_package_failed, label.packageName, detail)
+
+            // Each of these ends with what the user can do about it: a package
+            // index that cannot be refreshed is otherwise an install that just
+            // stops, and apt's own output does not say what to fix.
+            is SandboxStatusLabel.Failure.ClockSkew -> stringResource(Res.string.sandbox_status_clock_skew, detail)
+
+            is SandboxStatusLabel.Failure.ExpiredMetadata ->
+                stringResource(Res.string.sandbox_status_expired_metadata, detail)
+
+            is SandboxStatusLabel.Failure.Mirror -> stringResource(Res.string.sandbox_status_mirror_failed, detail)
+
+            is SandboxStatusLabel.Failure.Network -> stringResource(Res.string.sandbox_status_network_failed, detail)
         }
     }
 }
