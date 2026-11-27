@@ -145,6 +145,27 @@ class NoModelDownloadedException : Exception()
 /** A model file on disk did not match the digest pinned in the catalog and was removed. */
 class ModelIntegrityException : Exception()
 
+/**
+ * The on-device runtime rejected the request.
+ *
+ * [detail] is the runtime's own message. litert-lm reports its function-call parser failures
+ * (and a request that overflows the window) as a bare INVALID_ARGUMENT string, which the UI
+ * cannot act on — the mapped error text explains what to change, and [detail] keeps the native
+ * wording available for the debug log.
+ */
+class LocalInferenceException(val detail: String? = null) : Exception(detail)
+
+/**
+ * The turn does not fit the model's window even after the history was trimmed.
+ *
+ * Raised before the native call: litert-lm answers an over-long request with an opaque JNI
+ * failure, and the user needs to hear "the message is longer than this model can read".
+ */
+class LocalContextOverflowException(val contextTokens: Int) : Exception("Request does not fit a $contextTokens-token window")
+
+/** The model finished the turn without producing any text. */
+class LocalEmptyResponseException : Exception("On-device model returned an empty answer")
+
 enum class DownloadError {
     NOT_ENOUGH_DISK_SPACE,
     NETWORK_ERROR,

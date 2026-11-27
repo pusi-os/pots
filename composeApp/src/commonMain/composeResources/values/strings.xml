@@ -457,6 +457,10 @@
     <string name="litert_error_download_incomplete">Download incomplete. Please try again.</string>
     <string name="litert_error_checksum_mismatch">The download failed its integrity check and was discarded. Please try again.</string>
     <string name="litert_error_model_integrity">This model failed its integrity check and was not loaded. Delete it in Settings and download it again.</string>
+    <string name="litert_error_context_overflow">This message does not fit the local model's context. Shorten it, raise the context in the model settings, or start a new chat.</string>
+    <string name="litert_error_empty_response">The local model returned an empty answer. Try a shorter message, turn tools off, or pick a smaller model.</string>
+    <string name="litert_error_inference_failed">The local model could not process this request. Lower the context in the model settings, turn tools off, or pick a smaller model.</string>
+    <string name="local_tools_fallback_note">Tools were off for this answer: the model could not call them.</string>
     <string name="litert_error_import_invalid">Only .litertlm model files can be imported.</string>
     <string name="litert_error_import_too_small">The selected file is too small to be a valid model.</string>
     <string name="litert_error_import_failed">Import failed. Please try again.</string>

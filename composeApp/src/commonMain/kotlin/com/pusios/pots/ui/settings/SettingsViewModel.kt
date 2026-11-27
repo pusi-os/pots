@@ -170,7 +170,6 @@ class SettingsViewModel(
             mcpServers = buildMcpServerEntries().toImmutableList(),
             localToolSelection = LocalToolSelection.effective(
                 selection = dataRepository.getLocalToolSelection(),
-                enabledMcpServerIds = dataRepository.getMcpServers().filter { it.isEnabled }.map { it.id }.toSet(),
             ),
             isLocalToolSelectionConfigured = dataRepository.getLocalToolSelection().configured,
             skills = dataRepository.getInstalledSkills().toImmutableList(),
@@ -763,7 +762,6 @@ class SettingsViewModel(
                 mcpServers = buildMcpServerEntries().toImmutableList(),
                 localToolSelection = LocalToolSelection.effective(
                     selection = dataRepository.getLocalToolSelection(),
-                    enabledMcpServerIds = servers.filter { it.isEnabled }.map { it.id }.toSet(),
                 ),
                 isLocalToolSelectionConfigured = dataRepository.getLocalToolSelection().configured,
             )
@@ -1210,7 +1208,6 @@ class SettingsViewModel(
         val stored = dataRepository.getLocalToolSelection()
         val effective = LocalToolSelection.effective(
             selection = stored,
-            enabledMcpServerIds = dataRepository.getMcpServers().filter { it.isEnabled }.map { it.id }.toSet(),
         )
         _state.update { state ->
             state.copy(
@@ -1223,7 +1220,6 @@ class SettingsViewModel(
     /** The selection currently in force, with the defaults already resolved in. */
     private fun effectiveLocalToolSelection(): LocalToolSelection = LocalToolSelection.effective(
         selection = dataRepository.getLocalToolSelection(),
-        enabledMcpServerIds = dataRepository.getMcpServers().filter { it.isEnabled }.map { it.id }.toSet(),
     )
 
     private fun persistLocalToolSelection(toolIds: List<String>, mcpServerIds: List<String>) {

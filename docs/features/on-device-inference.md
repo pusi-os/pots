@@ -42,11 +42,15 @@ The application uses **litert-lm's native function calling**: each exposed Pots 
 
 Two filters decide what the model actually receives.
 
-**The model file decides whether it gets tools at all.** Before building the tool list, Pots asks the `.litertlm` bundle what it declares about itself — a metadata read that needs no engine and no loaded weights. A bundle that declares no function-calling support carries no tool section in its chat template, and such a model does not politely ignore tools it was handed: it answers *instead* of calling them, inventing whatever the tool would have returned. Those models are given no tools and no tool guidance in the system prompt, which makes them plain chat models — which is what they are. A bundle that cannot answer (older metadata, or the iOS bridge, whose LiteRT-LM release predates the capability API) reports *unknown*, and unknown is treated as before: the user's local tool selection is offered.
+**The model file decides whether it gets tools at all.** Before building the tool list, Pots asks the `.litertlm` bundle what it declares about itself — a metadata read that needs no engine and no loaded weights. A bundle that declares no function-calling support carries no tool section in its chat template, and such a model does not politely ignore tools it was handed: it answers *instead* of calling them, inventing whatever the tool would have returned. Those models are given no tools and no tool guidance in the system prompt, which makes them plain chat models — which is what they are. A bundle that cannot answer (older metadata, or the iOS bridge, whose LiteRT-LM release predates the capability API) reports *unknown*, and **unknown is treated as "no tools"**: handing tools to a model on a guess is what produced fabricated tool output. The only ids that bypass the metadata are the LiquidAI bundles that do template-level (XML) tool calling without setting the flag — `lfm2.5-1.2b-instruct`, `lfm3-1.7b-int4`, `lfm3-omni-2b-int8` — listed in `LocalToolSelection.TEMPLATE_LEVEL_TOOL_CALLING_MODEL_IDS`.
 
 **That selection then narrows what a tool-capable model sees**, because small Gemma models (2-4B params) struggle to emit valid function-call syntax for tools with many parameters or complex value types, and litert-lm's strict ANTLR parser crashes the call when the syntax is malformed.
 
 **What the model sees is the user's choice.** The *Local Model* section in Settings lists the built-in tools and the MCP servers, each with a switch, and the selection is stored in the app settings. Out of the box the selection is the built-in default allowlist — `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, and `execute_shell_command` (when the user has enabled the shell tool in Settings) — but the user can widen it to any tool, and to the tools of any enabled MCP server. The first change to a switch replaces the default with an explicit selection; "Use the default tool set" goes back to the defaults. An explicit selection with every switch off means no tools at all — the only case that silently falls back to the defaults is a selection whose ids no longer match any known tool (e.g. after a rename). Email tools, task scheduling (`schedule_task` / `list_tasks` / `cancel_task`), structured `memory_learn`, heartbeat-config tools, and `promote_learning` are not in the default set because a 2-4B model handles them poorly, but nothing prevents the user from enabling them.
+
+**MCP servers are opt-in per server.** An untouched selection hands the model **no** MCP tools: a connected server can add dozens of deeply nested schemas, which is exactly what a 4K window and the strict parser cannot carry. Tick a server in Settings → Tools → Local Model to hand its tools over. A selection whose servers were all removed yields no tools rather than every connected server's tools.
+
+**At most eight tools per request.** `LocalToolSelection.MAX_TOOLS` caps the list, keeping the chat-priority built-ins (`get_local_time`, `web_search`, `open_url`, the `memory_*` pair, …) ahead of opt-in extras, so enabling a large MCP server trims itself instead of pushing the everyday tools out.
 
 MCP server tools work on-device the same way built-in tools do: the engine drives the tool loop, and an MCP call is executed through the server client. Their schemas are richer than the built-in ones, so a small model is more likely to produce a malformed call — litert-lm's strict parser then rejects it and the run falls back to a plain chat, as described below.
 
@@ -64,7 +68,18 @@ Each conversation is configured with the sampling defaults the model's own bundl
 
 ## Tool-call failures
 
-If the engine throws (e.g. the model does emit malformed tool-call syntax that the ANTLR parser rejects), the application catches the failure, logs it, and retries the call **once** with no tools — the user gets a plain-chat answer instead of a hard error.
+If the engine throws (e.g. the model does emit malformed tool-call syntax that the ANTLR parser rejects), the application catches the failure, logs it, and retries the call **once** with no tools — the user gets a plain-chat answer instead of a hard error. The reply carries a note ("Инструменты были отключены для этого ответа") and the reason goes to the debug log, because a silent downgrade reads as "the model ignored my request". If the retry fails too, the turn ends with a readable error instead of a native `INVALID_ARGUMENT` string.
+
+A model that keeps re-issuing the same call with the same arguments gets an error result instead of another execution after `maxRepeatedToolCalls` attempts (Settings → Agent), which breaks the loop the native runtime has no guard for.
+
+## Context budget
+
+The on-device window is small (4 096 tokens on the catalog default) and litert-lm trims nothing: a request that does not fit fails the whole turn with an opaque `INVALID_ARGUMENT`, and there is no provider to fall back to. Pots therefore budgets before the call (`data/LocalChatContext.kt`):
+
+- **System prompt** — 35% of the window, clamped to 2 000–12 000 characters (≈1 430 for a 4K model). Optional feature sections (Automation, Vault, ADB, Email, pots-ui catalogue) are composed only while the budget allows; a section that does not fit is dropped whole rather than cut mid-sentence. The pots-ui catalogue (~4.7 KB) never fits a 4K model, which is another reason interactive UI is a remote-only feature.
+- **History** — everything above the 512-token answer reserve, newest turns first. The last user message is never dropped or rewritten: if it does not fit on its own the turn ends with "сообщение не помещается в контекст" and the advice to shorten it, raise the context or start a new chat.
+
+With the default tool set the composed local prompt is ~3.5 KB (~880 tokens) including ten memory entries — measured by `ChatSystemPromptBuilderTest`.
 
 ## Other limitations
 
