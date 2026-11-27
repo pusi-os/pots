@@ -79,6 +79,10 @@ data class PotsBuildActions(
     val resizeTerminal: (columns: Int, rows: Int) -> Unit,
     val startWebPanel: (String) -> Unit,
     val stopWebPanel: (String) -> Unit,
+    /** Builds Hermes' renderer from the sandbox's checkout — the row's own button. */
+    val rebuildWebPanelRenderer: (String) -> Unit,
+    /** Moves Hermes back to the shipped renderer's commit — the row's other button. */
+    val rollbackWebPanelCheckout: (String) -> Unit,
     val openWebPanel: (String) -> Unit,
     val setWebPanelAutostart: (String, Boolean) -> Unit,
     val webPanelPassword: suspend (String) -> String?,
@@ -126,6 +130,8 @@ fun PotsBuildScreen(
             resizeTerminal = viewModel::resizeTerminal,
             startWebPanel = viewModel::startWebPanel,
             stopWebPanel = viewModel::stopWebPanel,
+            rebuildWebPanelRenderer = viewModel::rebuildWebPanelRenderer,
+            rollbackWebPanelCheckout = viewModel::rollbackWebPanelCheckout,
             openWebPanel = viewModel::openWebPanel,
             setWebPanelAutostart = viewModel::setWebPanelAutostart,
             webPanelPassword = viewModel::webPanelPassword,
@@ -259,6 +265,8 @@ internal fun PotsBuildScreenContent(
                         onUninstall = actions.uninstall,
                         onStartWebPanel = actions.startWebPanel,
                         onStopWebPanel = actions.stopWebPanel,
+                        onRebuildWebPanelRenderer = actions.rebuildWebPanelRenderer,
+                        onRollbackWebPanelCheckout = actions.rollbackWebPanelCheckout,
                         onOpenWebPanel = actions.openWebPanel,
                         onSetWebPanelAutostart = actions.setWebPanelAutostart,
                         onWebPanelPassword = actions.webPanelPassword,

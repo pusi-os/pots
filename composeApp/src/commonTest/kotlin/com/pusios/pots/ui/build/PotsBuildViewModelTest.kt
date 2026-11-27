@@ -72,6 +72,8 @@ class PotsBuildViewModelTest {
         override fun resizeTerminal(columns: Int, rows: Int) {}
         override fun startWebPanel(panelId: String) {}
         override fun stopWebPanel(panelId: String) {}
+        override fun rebuildWebPanelRenderer(panelId: String) {}
+        override fun rollbackWebPanelCheckout(panelId: String) {}
         override fun openWebPanel(panelId: String) {}
         override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
         override suspend fun webPanelPassword(panelId: String): String? = null

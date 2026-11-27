@@ -168,6 +168,9 @@ class HermesWebappStatusTest {
         lanAddress = { LAN_IP },
         publish = { panels -> published = panels },
         scope = scope,
+        // A clock that never moves: nothing in this file builds a renderer, and a
+        // budget that expires mid-test would only hide the failure being tested.
+        nowMillis = { 0L },
         startTimeoutSeconds = 5,
     )
 
@@ -226,6 +229,13 @@ class HermesWebappStatusTest {
         }
 
         override fun logText(panel: WebPanel): String = ""
+
+        override fun buildRenderer(
+            attempt: HermesWebapp.BuildAttempt,
+            timeoutSeconds: Long,
+        ): WebPanelGuest.Output = WebPanelGuest.Output(true)
+
+        override fun appendLog(panel: WebPanel, line: String) {}
 
         override fun stageHermesBundle(): String? = null
 

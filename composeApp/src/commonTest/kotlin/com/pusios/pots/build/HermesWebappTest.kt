@@ -162,7 +162,10 @@ class HermesWebappTest {
         )
         assertContains(stale.reason, HEAD.take(8))
         assertContains(stale.reason, OTHER.take(8))
-        assertContains(stale.reason, "reinstall Hermes")
+        // A reinstall is a fresh five-gigabyte checkout; one build fixes this pair,
+        // and the row has to say so instead of sending the owner to the long road.
+        assertContains(stale.reason, "rebuild the renderer")
+        assertFalse(stale.reason.contains("reinstall"), stale.reason)
     }
 
     @Test
@@ -324,6 +327,64 @@ class HermesWebappTest {
         val budget = HermesWebapp.BuildBudget(nowMillis = { now })
         now = HermesWebapp.BUILD_BUDGET_SECONDS * 1000 - 1000
         assertEquals(1L, budget.leftMinutes())
+    }
+
+    @Test
+    fun `an update is the one case a start has to build for`() {
+        // What `hermes update` leaves: the checkout moved, both stamps behind it.
+        val afterUpdate = facts(head = OTHER, builtFrom = PIN, built = true)
+        assertTrue(HermesWebapp.rebuildNeeded(afterUpdate))
+        assertTrue(HermesWebapp.shouldRebuild(afterUpdate, rebuilt = emptySet()))
+
+        // The ordinary case — the renderer is the checkout's own — is never rebuilt.
+        assertFalse(HermesWebapp.rebuildNeeded(facts(builtFrom = HEAD, built = true)))
+        assertFalse(HermesWebapp.shouldRebuild(facts(builtFrom = HEAD, built = true), rebuilt = emptySet()))
+
+        // The shipped bundle already answers for this checkout: unpack it, do not build.
+        assertFalse(HermesWebapp.rebuildNeeded(facts(head = PIN, shipped = true)))
+        assertFalse(HermesWebapp.rebuildNeeded(facts(head = PIN)))
+
+        // A checkout that cannot be read has nothing to build from.
+        assertFalse(HermesWebapp.rebuildNeeded(facts(head = "")))
+
+        // No bundle shipped at all (a developer build): the first start still builds.
+        assertTrue(HermesWebapp.rebuildNeeded(facts(pin = null)))
+    }
+
+    @Test
+    fun `a commit the chain already failed on is built again only on purpose`() {
+        val afterUpdate = facts(head = OTHER, builtFrom = PIN, built = true)
+
+        // The next tap: the owner already waited this commit out, so no second wait.
+        assertFalse(HermesWebapp.shouldRebuild(afterUpdate, rebuilt = setOf(OTHER)))
+        // The row's button says "try again", and that is the only thing that does.
+        assertTrue(HermesWebapp.shouldRebuild(afterUpdate, rebuilt = setOf(OTHER), force = true))
+
+        // The button never builds over a renderer that already matches the checkout.
+        val fine = facts(builtFrom = HEAD, built = true)
+        assertFalse(HermesWebapp.shouldRebuild(fine, rebuilt = emptySet(), force = true))
+    }
+
+    @Test
+    fun `a refusal offers the two ways out that do not need a reinstall`() {
+        // After an update both exist: build from the new checkout, or move the
+        // checkout back to the commit the bundle was built from.
+        assertEquals(
+            setOf(PanelRecovery.REBUILD_RENDERER, PanelRecovery.ROLLBACK_CHECKOUT),
+            HermesWebapp.recoveryActions(facts(head = OTHER, builtFrom = PIN, built = true)),
+        )
+
+        // Nothing to build from: the checkout cannot be read.
+        assertEquals(
+            setOf(PanelRecovery.ROLLBACK_CHECKOUT),
+            HermesWebapp.recoveryActions(facts(head = "")),
+        )
+
+        // No bundle shipped: there is nothing to roll back to.
+        assertEquals(
+            setOf(PanelRecovery.REBUILD_RENDERER),
+            HermesWebapp.recoveryActions(facts(pin = null)),
+        )
     }
 
     /** The facts the start reports, with the ordinary release case as the default. */

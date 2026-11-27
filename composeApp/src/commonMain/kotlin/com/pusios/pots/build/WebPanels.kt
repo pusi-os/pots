@@ -366,6 +366,21 @@ sealed interface WebPanelStatus {
     data object Starting : WebPanelStatus
 
     /**
+     * Hermes' renderer is being built from the checkout the sandbox is on — what
+     * a start does when `hermes update` moved that checkout and left the renderer
+     * on the commit before it.
+     *
+     * Its own state, not [Starting]: the chain spends minutes, the row has to say
+     * so with the budget it is spending, and a second tap must not start a second
+     * build beside it. [minutesLeft] is what the whole chain may still take.
+     *
+     * [startsAfterBuild] says whether a start follows the chain: an update of a
+     * panel that was down rebuilds the renderer and leaves the panel down, so the
+     * row must not promise a panel nobody will open.
+     */
+    data class BuildingRenderer(val minutesLeft: Long, val startsAfterBuild: Boolean) : WebPanelStatus
+
+    /**
      * [url] is the panel's address as the row shows it — no credentials in it,
      * even for the panel that takes them (see [WebPanels.url] and
      * [WebPanelRuntime.link]) — and [open] says what the browser needs beyond it.
@@ -377,8 +392,29 @@ sealed interface WebPanelStatus {
      * [reason] is shown to the user as it is — a busy port, a missing binary, a
      * process that died. Wording is the runtime's own (English), like the
      * sandbox's other failure lines.
+     *
+     * [actions] is what the row offers besides "retry": a failure the owner can
+     * act on says what to press instead of only what went wrong. Empty for the
+     * failures whose only answer is to try again.
      */
-    data class Failed(val reason: String) : WebPanelStatus
+    data class Failed(
+        val reason: String,
+        val actions: Set<PanelRecovery> = emptySet(),
+    ) : WebPanelStatus
+}
+
+/**
+ * A way out of a panel failure that is not "reinstall the agent".
+ *
+ * Both are buttons in the panel's own row, and both are the owner's decision:
+ * one costs the build budget, the other moves Hermes back to an older commit.
+ */
+enum class PanelRecovery {
+    /** Build the renderer from the checkout the sandbox is on — the chain the install runs. */
+    REBUILD_RENDERER,
+
+    /** Move Hermes back to the commit the shipped renderer was built from, and serve that one. */
+    ROLLBACK_CHECKOUT,
 }
 
 /**

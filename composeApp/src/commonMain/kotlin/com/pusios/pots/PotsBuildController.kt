@@ -102,6 +102,22 @@ interface PotsBuildController {
     /** Stops it with a real SIGTERM → wait → SIGKILL, and reports the port it freed. */
     fun stopWebPanel(panelId: String)
 
+    /**
+     * Builds Hermes' panel renderer from the checkout the sandbox is on.
+     *
+     * The row's own button, offered when the panel refuses to serve because its
+     * renderer was built from another commit — what `hermes update` leaves behind.
+     * The same chain the install runs, and it spends the same budget.
+     */
+    fun rebuildWebPanelRenderer(panelId: String)
+
+    /**
+     * Moves the sandbox's Hermes back to the commit the shipped renderer was built
+     * from, and serves that bundle. The row's own button, and a deliberate choice:
+     * a newer Hermes is what it gives up.
+     */
+    fun rollbackWebPanelCheckout(panelId: String)
+
     /** Opens the panel in the device's own browser, minting a fresh Hermes link when needed. */
     fun openWebPanel(panelId: String)
 
@@ -151,6 +167,8 @@ class NoOpPotsBuildController : PotsBuildController {
     override fun resizeTerminal(columns: Int, rows: Int) {}
     override fun startWebPanel(panelId: String) {}
     override fun stopWebPanel(panelId: String) {}
+    override fun rebuildWebPanelRenderer(panelId: String) {}
+    override fun rollbackWebPanelCheckout(panelId: String) {}
     override fun openWebPanel(panelId: String) {}
     override fun setWebPanelAutostart(panelId: String, enabled: Boolean) {}
     override suspend fun webPanelPassword(panelId: String): String? = null

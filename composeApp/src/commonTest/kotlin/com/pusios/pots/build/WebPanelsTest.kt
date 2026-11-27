@@ -1162,7 +1162,13 @@ class WebPanelsTest {
         val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
         assertContains(failed.reason, BUNDLE_PIN.take(8))
         assertContains(failed.reason, OTHER_HERMES.take(8))
-        assertContains(failed.reason, "reinstall Hermes")
+        // The row does not send the owner back to the installer for a pair one
+        // build fixes; it offers the build, and the rollback for when it cannot.
+        assertContains(failed.reason, "rebuild the renderer")
+        assertEquals(
+            setOf(PanelRecovery.REBUILD_RENDERER, PanelRecovery.ROLLBACK_CHECKOUT),
+            failed.actions,
+        )
         // Nothing is served mismatched — and nothing is unpacked for a backend it
         // was not built for either.
         assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, "no panel on a version it was not built for")
@@ -1430,6 +1436,227 @@ class WebPanelsTest {
         assertEquals(fixed, SandboxAgentConfig.withBasicAuthPluginEnabled(fixed), "idempotent")
     }
 
+    // --- the renderer after an update -------------------------------------
+
+    // `hermes update` moves the checkout and leaves both stamps on the commit
+    // before it, so every start after an update used to end in a refusal. These
+    // are the paths that replaced it: build from the checkout, or move the
+    // checkout back to the bundle — both as the owner's own choice.
+
+    @Test
+    fun `a start after an update builds the renderer and serves the panel`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+            hermesBuilt = true
+            hermesStamp = BUNDLE_PIN
+            hermesBuilds = true
+            hermesLinks += listOf(SIGN_IN_LINK)
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        assertEquals(1, guest.buildAttempts, "the checkout the update moved to")
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+        // The build is the checkout's own renderer, so no bundle is named: a panel
+        // pinned to HERMES_WEBAPP_DIST would never see another update.
+        assertFalse(guest.env.containsKey(HermesWebapp.DIST_ENV), "a built renderer needs no bundle")
+        assertEquals(OTHER_HERMES, guest.hermesStamp)
+    }
+
+    @Test
+    fun `a renderer that cannot be built leaves the reason and the two ways out`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+            hermesBuilt = true
+            hermesStamp = BUNDLE_PIN
+            hermesBuilds = false
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+
+        val failed = assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertContains(failed.reason, "rebuild the renderer")
+        assertEquals(
+            setOf(PanelRecovery.REBUILD_RENDERER, PanelRecovery.ROLLBACK_CHECKOUT),
+            failed.actions,
+        )
+        // The whole chain was tried before the row gave up, and the log says why.
+        assertEquals(HermesWebapp.buildAttempts.size, guest.buildAttempts)
+        assertContains(guest.logLines, "renderer: attempt 1 failed")
+    }
+
+    @Test
+    fun `a second tap does not spend the budget on a commit the chain already failed on`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+            hermesBuilt = true
+            hermesStamp = BUNDLE_PIN
+            hermesBuilds = false
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.startPanel("hermes")
+        val paid = guest.buildAttempts
+        runtime.startPanel("hermes")
+
+        assertEquals(paid, guest.buildAttempts, "the owner already waited this out")
+
+        // The row's own button is the deliberate retry, and only it repeats a commit.
+        runtime.rebuild("hermes").join()
+        assertEquals(paid * 2, guest.buildAttempts)
+    }
+
+    @Test
+    fun `the rollback button moves Hermes to the bundle's commit and serves it`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+            hermesUnpacks = true
+            hermesLinks += listOf(SIGN_IN_LINK)
+        }
+        val runtime = runtime(this, guest)
+
+        runtime.rollback("hermes").join()
+
+        assertEquals(BUNDLE_PIN, guest.hermesHead, "the bundle is from that commit and nothing else")
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertEquals(HermesWebapp.DIST_DIR, guest.env[HermesWebapp.DIST_ENV])
+    }
+
+    @Test
+    fun `an agent update rebuilds the renderer and brings the panel back up`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            hermesBuilt = true
+            hermesStamp = BUNDLE_PIN
+            hermesLinks += listOf(SIGN_IN_LINK)
+        }
+        val runtime = runtime(this, guest)
+        runtime.startPanel("hermes")
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+
+        // What the update does to the sandbox, after the manager stopped the panel.
+        runtime.stopPanel("hermes")
+        guest.hermesHead = OTHER_HERMES
+        guest.hermesBuilds = true
+        runtime.onAgentUpdated("hermes", restart = true).join()
+
+        assertEquals(1, guest.buildAttempts, "an update moves the checkout, so the renderer moves")
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+    }
+
+    @Test
+    fun `an update rebuilds the renderer even when the panel was down`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = BUNDLE_PIN
+            hermesBuilt = true
+            hermesStamp = BUNDLE_PIN
+        }
+        val runtime = runtime(this, guest)
+
+        guest.hermesHead = OTHER_HERMES
+        guest.hermesBuilds = true
+        runtime.onAgentUpdated("hermes", restart = false).join()
+
+        // The next tap must not have to wait seven minutes for a build the update
+        // could have paid for.
+        assertEquals(1, guest.buildAttempts)
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, "a panel that was down stays down")
+        assertIs<WebPanelStatus.NotRunning>(status("hermes"))
+    }
+
+    @Test
+    fun `the rebuild button brings the panel up once the build lands`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+            hermesBuilt = true
+            hermesStamp = BUNDLE_PIN
+            hermesBuilds = false
+            hermesLinks += listOf(SIGN_IN_LINK)
+        }
+        val runtime = runtime(this, guest)
+
+        // The start that found the update spent the chain and left the refusal.
+        runtime.startPanel("hermes")
+        assertIs<WebPanelStatus.Failed>(status("hermes"))
+        assertFalse(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, "no panel on a refused renderer")
+        val paid = guest.buildAttempts
+
+        // The row's own button is the way out of it: a build that lands opens the
+        // panel, or the owner waits seven minutes to stare at the same failed row.
+        guest.hermesBuilds = true
+        runtime.rebuild("hermes").join()
+
+        assertEquals(paid + 1, guest.buildAttempts, "the button retries the commit the start gave up on")
+        assertIs<WebPanelStatus.Running>(status("hermes"))
+        assertTrue(guest.runs.any { it.startsWith(LAUNCH_ONE_USE) }, guest.runs.toString())
+    }
+
+    @Test
+    fun `a build a start waits for promises the panel, one an update left down does not`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+            hermesBuilt = true
+            hermesStamp = BUNDLE_PIN
+            hermesBuilds = true
+        }
+        val seen = mutableListOf<WebPanelStatus>()
+        val runtime = runtime(this, guest, seen = seen)
+
+        // A start follows this chain, so the row may say the panel opens by itself.
+        runtime.startPanel("hermes")
+        val started = seen.filterIsInstance<WebPanelStatus.BuildingRenderer>()
+        assertTrue(started.isNotEmpty(), seen.toString())
+        assertTrue(started.all { it.startsAfterBuild }, "a start is waiting on this build")
+
+        // An update of a panel that was down rebuilds and leaves it down: the same
+        // row must not promise a panel nobody asked to open.
+        seen.clear()
+        guest.hermesHead = THIRD_HERMES
+        runtime.onAgentUpdated("hermes", restart = false).join()
+        val updated = seen.filterIsInstance<WebPanelStatus.BuildingRenderer>()
+        assertTrue(updated.isNotEmpty(), seen.toString())
+        assertTrue(updated.none { it.startsAfterBuild }, "nothing will open this panel")
+    }
+
+    @Test
+    fun `a chain that spends the budget stops and says the budget is gone`() = runTest {
+        val guest = FakeGuest().apply {
+            hermesPin = BUNDLE_PIN
+            hermesHead = OTHER_HERMES
+            hermesBuilt = true
+            hermesStamp = BUNDLE_PIN
+            hermesBuilds = false
+            // Each attempt burns its whole deadline: the first spends its 25
+            // minutes, the second gets only the ten the budget has left and is
+            // killed there, so the chain ends on the budget and the third attempt
+            // never starts.
+        }
+        val runtime = runtime(this, guest, nowMillis = { guest.now })
+
+        runtime.startPanel("hermes")
+
+        assertEquals(2, guest.buildAttempts, "the budget bounds the chain, not one attempt")
+        assertTrue(
+            guest.now / 1000 <= HermesWebapp.BUILD_BUDGET_SECONDS,
+            "the chain spent ${guest.now / 1000}s of a ${HermesWebapp.BUILD_BUDGET_SECONDS}s budget",
+        )
+        // No bundle is served on this path — the row is the refusal — so the log
+        // must not say one is.
+        assertContains(guest.logLines, HermesWebapp.BUDGET_SPENT_NOTHING_BUILT)
+        assertFalse(guest.logLines.contains(HermesWebapp.BUDGET_SPENT), guest.logLines)
+        assertIs<WebPanelStatus.Failed>(status("hermes"))
+    }
+
     // --- helpers ----------------------------------------------------------
 
     /** What the runtime last published; one runtime per test, so one map is enough. */
@@ -1446,18 +1673,26 @@ class WebPanelsTest {
         saved: MutableMap<String, WebPanelPreferences> = mutableMapOf(),
         /** The phone's own address in the local network, or null when it is on none. */
         lanIp: String? = null,
+        /** The clock the renderer budget is measured on; a budget test moves it. */
+        nowMillis: () -> Long = { 0L },
+        /** Every status the runtime publishes, in order — what the row is told while it waits. */
+        seen: MutableList<WebPanelStatus> = mutableListOf(),
     ): WebPanelRuntime {
         // Settings live here, the way they live in the app: a password written on
-        // one start has to be readable on the next read, or "generated once"
-        // cannot be told from "generated every time".
+        // one start has to be readable on the next read, or "generated once" cannot
+        // be told from "generated every time".
         return WebPanelRuntime(
             guest = guest,
             prefs = { id -> prefs?.invoke(id) ?: saved[id] ?: WebPanelPreferences() },
             savePrefs = { id, preferences -> saved[id] = preferences },
             installed = { installed },
             lanAddress = { lanIp },
-            publish = { panels -> published = panels },
+            publish = { panels ->
+                published = panels
+                panels.values.forEach { seen += it.status }
+            },
             scope = scope,
+            nowMillis = nowMillis,
             startTimeoutSeconds = 5,
         )
     }
@@ -1503,6 +1738,24 @@ class WebPanelsTest {
         var hermesBuilt = false
 
         /**
+         * Whether a renderer build attempt produces a bundle. False is a device the
+         * chain cannot finish on: every attempt runs and none of them stamps.
+         */
+        var hermesBuilds = false
+
+        /** How many build attempts ran — the chain's own count, not a command string. */
+        var buildAttempts = 0
+
+        /** What one attempt costs the budget; the clock a budget test passes in. */
+        var buildCostMillis = HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS * 1000
+
+        /** The clock, moved by [buildCostMillis] per attempt. */
+        var now = 0L
+
+        /** The lines the runtime appended to the panel's log. */
+        var logLines = ""
+
+        /**
          * The commit that build stamped. Defaults to [hermesHead] — the ordinary
          * case, a build made from the checkout it sits in.
          */
@@ -1546,7 +1799,19 @@ class WebPanelsTest {
                 command == HermesWebapp.stampCommand() ->
                     WebPanelGuest.Output(hermesBuilt, hermesStamp ?: hermesHead.orEmpty())
                 command == HermesWebapp.BUILT_CHECK -> WebPanelGuest.Output(hermesBuilt)
+                command == HermesWebapp.stampBuilt() -> {
+                    // The app writes the stamp after a build it watched succeed; the
+                    // stamp is what a later start reads to decide.
+                    if (hermesBuilt) hermesStamp = hermesHead
+                    WebPanelGuest.Output(hermesBuilt)
+                }
                 command == HermesWebapp.shipped(hermesPin.orEmpty()) -> WebPanelGuest.Output(hermesUnpacked)
+                command == HermesWebapp.pinCheckout(hermesPin.orEmpty()) -> {
+                    // The one path that moves the sandbox's Hermes back: after it the
+                    // checkout is the commit the shipped bundle was built from.
+                    if (hermesPin != null) hermesHead = hermesPin
+                    WebPanelGuest.Output(hermesPin != null, if (hermesPin == null) "fatal: bad revision" else "")
+                }
                 command == HermesWebapp.unpack(hermesPin.orEmpty()) -> {
                     if (hermesUnpacks) hermesUnpacked = true
                     WebPanelGuest.Output(hermesUnpacks, if (hermesUnpacks) "" else "tar: xz: Cannot exec")
@@ -1607,6 +1872,29 @@ class WebPanelsTest {
 
         override fun logText(panel: WebPanel): String = log
 
+        /**
+         * One attempt of the renderer chain: costs [buildCostMillis], or the
+         * deadline it was handed, whichever is less — a build killed by its
+         * timeout cannot spend more than that timeout. When [hermesBuilds] it
+         * leaves a stamped bundle from the commit the checkout is on, exactly as
+         * a real build and the app's stamp do.
+         */
+        override fun buildRenderer(
+            attempt: HermesWebapp.BuildAttempt,
+            timeoutSeconds: Long,
+        ): WebPanelGuest.Output {
+            buildAttempts++
+            now += minOf(buildCostMillis, timeoutSeconds * 1000)
+            if (!hermesBuilds) return WebPanelGuest.Output(false, "pnpm: ERR_PNPM_LINKING_FAILED cannot link")
+            hermesBuilt = true
+            hermesStamp = hermesHead
+            return WebPanelGuest.Output(true, "✓ Hermes Webapp renderer built")
+        }
+
+        override fun appendLog(panel: WebPanel, line: String) {
+            logLines += line + "\n"
+        }
+
         override fun stageHermesBundle(): String? = hermesPin
 
         override fun authPluginDisabled(panel: WebPanel): Boolean = authPluginOff
@@ -1626,6 +1914,9 @@ private const val BUNDLE_PIN = "caafe5389ae585ef77387a962aee05b1bcf17029"
 
 /** Another commit — a sandbox whose Hermes moved on after the panel was built. */
 private const val OTHER_HERMES = "0123456789abcdef0123456789abcdef01234567"
+
+/** A third one — a checkout that moves again after a renderer was built for [OTHER_HERMES]. */
+private const val THIRD_HERMES = "fedcba9876543210fedcba9876543210fedcba98"
 
 /** What `hermes webapp --no-open` prints behind the dashboard's sign-in, verbatim from `webapp_launcher`. */
 private const val SIGN_IN_LINK =

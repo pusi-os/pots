@@ -1,6 +1,6 @@
 # Linux Sandbox
 
-**Last verified:** 2026-11-23
+**Last verified:** 2026-11-27
 
 Pots ships a self-contained Linux environment on Android so the assistant — and the user, via the in-app Terminal — can run real shell commands. The agent can install packages, write and run scripts, hit the network, and reach external servers over SSH/SFTP/FTP. The sandbox runs the user-space `proot` runtime against a rootfs extracted into the app's private storage; no root or system access is required.
 
@@ -227,14 +227,31 @@ as this checkout's own — and is served while `git rev-parse HEAD` in the sandb
 still names that commit. The bundle CI ships is stamped with its pin when it is
 unpacked and served while the checkout is that commit. Both can be on disk, and
 then the device's own build wins, because that one *is* the sandbox's Hermes. A
-mismatch — `hermes update` in the sandbox is the usual way — is a sentence on
-the row naming both commits and saying to reinstall Hermes, never a silently
-mismatched panel. When every on-device build failed, the pin is used once, as
-the fallback's address: the checkout is moved to it (`git fetch --depth 1 origin
-<pin>`, then `git checkout --force --detach <pin>`) and the bundle CI built from
-that commit is unpacked and served, so the panel comes up on a version its
-renderer matches. A developer build ships no bundle, and then the row falls back
-to the checkout's own renderer and says it is missing when it was never built.
+mismatch — `hermes update` in the sandbox is the usual way — is what a panel
+start builds for, not a reason to reinstall: the renderer is rebuilt from the
+checkout the update moved to, with the same three attempts, the same wipe before
+each and the same thirty-five-minute budget the install uses: an attempt still
+running when the budget ends is killed there, not handed its full twenty-five
+minutes (a build is about seven minutes on the reference phone). The row says
+"Building the renderer…" and the minutes the budget has left, so seven minutes
+do not read as a hang, and the panel comes up by itself when the build lands —
+the row says that only when a start follows the chain. The renderer it then
+serves is the new checkout's own, so `HERMES_WEBAPP_DIST` is not named for it.
+Pots Build's own update does this without a tap: the panel the update stopped is rebuilt and
+brought back, and a panel that was down gets its renderer rebuilt too, so the next
+tap does not wait — that row says the panel stays off instead of promising a
+start nobody asked for. A chain that cannot finish — the budget is gone, or every
+attempt failed — leaves the row with the reason naming both commits and two
+buttons: **Rebuild renderer**, a deliberate retry of the same commit (the only
+thing that repeats a chain that already failed on it) that starts the panel when
+it succeeds, and **Roll Hermes back**,
+which moves the checkout to the pin (`git fetch --depth 1 origin <pin>`, then
+`git checkout --force --detach <pin>`), unpacks the bundle CI built from that
+commit and serves it. The rollback is the owner's decision, never automatic: a
+newer Hermes is what it gives up, and the row says so under the button. A
+developer build ships no bundle, so its first start runs the same chain against
+the checkout; a chain that cannot finish leaves the row saying the renderer is
+not built and offering the rebuild.
 
 **The panel's own proot calls run without the hardlink emulation.** Every panel
 command — the gateway session, the status probe, the port probe — goes through
@@ -508,7 +525,7 @@ ready, and a live pid with a listening port means nothing is started twice.
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/linux/ProotLauncher.kt` | proot argv, binds and environment, plus the shared `ProotHandle` and one-shot `execute`. Both this sandbox and Pots Build's PTY executor start their processes here. `cancel()` ends the guest recorded in the pid file, not just proot. |
 | `composeApp/src/jvmShared/kotlin/com/pusios/pots/linux/GuestPath.kt` | Guest path → host file, following the binds, for both file browsers. Rejects traversal and anything resolving outside its root. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanels.kt` | The three agent web panels as declarations: preferred ports, the login each one asks for (`username`, none for pi-web), the one command line each is started with, port choice, the password generator, the two URLs each panel has (`address` for the row, `url` for the browser — credentials for OpenCode only, `percentEncode` for the userinfo), and the parser for `hermes webapp`'s output (one-use link vs sign-in address). |
-| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanelRuntime.kt` | Panel state machine, free of Android: start/stop/refresh/autostart over a `WebPanelGuest`, with the "start at most once", "report the port it got" and "stopped means the port is free" rules unit-tested against a fake guest. `password()` resolves the panel's password on the first ask — generated in one place under its own lock and stored on the background dispatcher, so the row can show it before the panel has ever started — while `panelLog()` masks only the stored value. |
+| `composeApp/src/commonMain/kotlin/com/pusios/pots/build/WebPanelRuntime.kt` | Panel state machine, free of Android: start/stop/refresh/autostart over a `WebPanelGuest`, with the "start at most once", "report the port it got" and "stopped means the port is free" rules unit-tested against a fake guest, plus the renderer step a start runs first — the install's own build chain when the checkout and the stamp disagree, and the row's two recovery buttons — under its own lock, so a build never holds the panel lock. `password()` resolves the panel's password on the first ask — generated in one place under its own lock and stored on the background dispatcher, so the row can show it before the panel has ever started — while `panelLog()` masks only the stored value. |
 | `composeApp/src/androidMain/kotlin/com/pusios/pots/build/runtime/AndroidWebPanelGuest.kt` | The guest side of the above: shell calls and pid/port/log files under the bind-mounted `/tmp`, the `/dev/tcp` port probe, the Hermes `webapp.port` rewrite, staging the Hermes panel bundle the APK carries, and the host-side sweep of stale `.install-*` debris before each Hermes start. |
 | `composeApp/src/jvmShared/kotlin/com/pusios/pots/build/StaleInstallCleanup.kt` | The debris sweep itself, host side and off-device testable: deletes only directories named `.install-` plus exactly 8 tempfile characters, never the `.install-metadata.json*` pin files, and returns how many went. |
 | `composeApp/src/commonMain/kotlin/com/pusios/pots/build/HermesWebapp.kt` | The renderer: the three on-device build attempts and what each may carry, the bundle CI built as the fallback, the stamp each source is checked against (the device build's `.pots-built-from`, the shipped bundle's pin), and where `HERMES_WEBAPP_DIST` is set. |
