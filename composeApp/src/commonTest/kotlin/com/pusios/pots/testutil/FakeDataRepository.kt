@@ -32,7 +32,10 @@ import com.pusios.pots.inference.ModelImportError
 import com.pusios.pots.inference.ModelImportResult
 import com.pusios.pots.linux.LinuxDistro
 import com.pusios.pots.mcp.McpConfirmRequest
+import com.pusios.pots.mcp.McpFailure
+import com.pusios.pots.mcp.McpFailureKind
 import com.pusios.pots.mcp.McpServerConfig
+import com.pusios.pots.mcp.McpServerStateKind
 import com.pusios.pots.mcp.McpServerStatus
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.tools.CommonTools
@@ -365,10 +368,18 @@ class FakeDataRepository : DataRepository {
     private val mcpServers = mutableListOf<McpServerConfig>()
     private val mcpConnected = mutableSetOf<String>()
     private val mcpTools = mutableMapOf<String, List<ToolInfo>>()
-    private val mcpStatuses: Map<String, McpServerStatus> = emptyMap()
-    private val mcpStatusesFlow = kotlinx.coroutines.flow.MutableStateFlow(mcpStatuses)
-    private val mcpConfirmation = kotlinx.coroutines.flow.MutableStateFlow<McpConfirmRequest?>(null)
+    private val mcpStatuses = MutableStateFlow<Map<String, McpServerStatus>>(emptyMap())
+    private val mcpPendingAuthorization = mutableMapOf<String, String>()
+    private val mcpConfirmation = MutableStateFlow<McpConfirmRequest?>(null)
     private val mcpTokens = mutableSetOf<String>()
+
+    /** Server ids passed to [authorizeMcpServer], so a test can see the button reach the manager. */
+    val authorizeMcpCalls = mutableListOf<String>()
+
+    /** Presets the state the manager would have published — e.g. a 401 before the card is shown. */
+    fun setMcpServerStatus(serverId: String, status: McpServerStatus) {
+        mcpStatuses.update { it + (serverId to status) }
+    }
 
     override fun getMcpServers(): List<McpServerConfig> = mcpServers.toList()
 
@@ -398,6 +409,12 @@ class FakeDataRepository : DataRepository {
 
     override suspend fun connectMcpServer(serverId: String): Result<List<ToolInfo>> {
         mcpConnected.add(serverId)
+        // A preset refusal (401, 5xx) is what the real manager would meet again, so a test can
+        // describe a broken server; only a server without a verdict yet becomes connected.
+        val preset = mcpStatuses.value[serverId]?.state
+        if (preset == null || preset == McpServerStateKind.Unknown) {
+            setMcpServerStatus(serverId, McpServerStatus(state = McpServerStateKind.Connected))
+        }
         return Result.success(mcpTools[serverId] ?: emptyList())
     }
 
@@ -405,9 +422,9 @@ class FakeDataRepository : DataRepository {
 
     override fun isMcpServerConnected(serverId: String): Boolean = serverId in mcpConnected
 
-    override fun getMcpServerStatuses(): Map<String, McpServerStatus> = mcpStatuses.toMap()
+    override fun getMcpServerStatuses(): Map<String, McpServerStatus> = mcpStatuses.value
 
-    override fun observeMcpStatuses(): Flow<Map<String, McpServerStatus>> = mcpStatusesFlow
+    override fun observeMcpStatuses(): Flow<Map<String, McpServerStatus>> = mcpStatuses
 
     override fun observeMcpConfirmation(): Flow<McpConfirmRequest?> = mcpConfirmation
 
@@ -417,9 +434,23 @@ class FakeDataRepository : DataRepository {
 
     override fun hasMcpToken(serverId: String): Boolean = serverId in mcpTokens
 
-    override suspend fun authorizeMcpServer(serverId: String): Result<String> = Result.success("https://example.test/authorize")
+    override suspend fun authorizeMcpServer(serverId: String): Result<String> {
+        authorizeMcpCalls += serverId
+        // Mirrors McpServerManager.beginAuthorization: the flow is kept, the state becomes
+        // needs-auth with a "waiting for the browser" reason, and the URL is published for the UI.
+        val url = "https://example.test/authorize?server=$serverId"
+        mcpPendingAuthorization[serverId] = url
+        setMcpServerStatus(
+            serverId,
+            McpServerStatus(
+                state = McpServerStateKind.NeedsAuth,
+                failure = McpFailure(McpFailureKind.NeedsAuth, null, "Ожидаем подтверждение в браузере", 1L),
+            ),
+        )
+        return Result.success(url)
+    }
 
-    override fun getMcpPendingAuthorizationUrl(serverId: String): String? = null
+    override fun getMcpPendingAuthorizationUrl(serverId: String): String? = mcpPendingAuthorization[serverId]
 
     override suspend fun setMcpManualToken(serverId: String, token: String) {
         mcpTokens.add(serverId)
