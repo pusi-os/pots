@@ -18,6 +18,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 class McpServerStateTest {
 
@@ -163,6 +164,29 @@ class McpServerStateTest {
         assertEquals(McpServerStateKind.Disabled, manager.status(server.id).state)
         assertTrue(manager.getEnabledMcpTools().isEmpty(), "a disabled server contributes no tools")
         assertEquals(2, manager.status(server.id).toolCount, "the cache is kept for when it is re-enabled")
+    }
+
+    @Test
+    fun setEnabledToolChangesNothingWhenTheOwnerDoesNotConfirm() = runTest {
+        val settings = AppSettings(MapSettings())
+        val manager = manager(settings) { FakeMode.Ok }
+        val server = addServer(manager)
+        assertTrue(manager.connect(server.id).isSuccess)
+        val setEnabled = manager.adminTools().first { it.schema.name == "mcp_set_enabled" }
+        assertTrue(
+            setEnabled.timeout > McpGate.DEFAULT_CONFIRM_TIMEOUT_SECONDS.seconds,
+            "the tool timeout must outlive the confirmation window: ${setEnabled.timeout}",
+        )
+
+        // Headless runs have nobody to ask, so the gate refuses and the server keeps its state.
+        val result = withContext(HeadlessRunElement()) {
+            setEnabled.execute(mapOf("server" to server.id, "enabled" to false)) as Map<*, *>
+        }
+
+        assertEquals(false, result["success"])
+        assertTrue((result["error"] as String).contains("did not confirm"))
+        assertTrue(manager.getServers().single().isEnabled, "the server stays enabled")
+        assertEquals(2, manager.getEnabledMcpTools().size, "its tools stay available to the agent")
     }
 
     @Test

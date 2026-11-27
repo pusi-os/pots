@@ -645,23 +645,30 @@ internal fun buildAuthorizeUrl(
 }
 
 /**
- * True for loopback, link-local and RFC 1918 hosts. The agent may not add a server pointing at
- * one: that is how an injected prompt reaches the owner's router or cloud metadata service.
+ * True for loopback, link-local and RFC 1918 hosts — IPv4 and IPv6 alike (ULA, link-local,
+ * IPv4-mapped). The agent may not add a server pointing at one: that is how an injected prompt
+ * reaches the owner's router or cloud metadata service.
  * A human adding the same URL by hand is a deliberate act and stays allowed.
  */
 internal fun isPrivateAddress(url: String): Boolean {
     val authority = url.substringAfter("://", "").substringBefore('/')
     val hostPort = authority.substringAfterLast('@')
     // Bracketed IPv6 (`[::1]:8080`) keeps its colons inside the brackets, so the port split has
-    // to happen after the closing bracket.
-    val host = if (hostPort.startsWith("[")) {
-        hostPort.substringBefore(']').removePrefix("[")
-    } else {
-        hostPort.substringBefore(':')
+    // to happen after the closing bracket. A host with more than one colon and no brackets is a
+    // bare IPv6 address (`fe80::1`), not a host:port pair.
+    val host = when {
+        hostPort.startsWith("[") -> hostPort.substringBefore(']').removePrefix("[")
+        hostPort.count { it == ':' } > 1 -> hostPort
+        else -> hostPort.substringBefore(':')
     }.lowercase()
     if (host.isEmpty()) return true
     if (host == "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return true
-    if (host == "[::1]" || host == "::1" || host == "0.0.0.0") return true
+    if (host.contains(':')) return isPrivateIpv6(host)
+    if (host == "0.0.0.0") return true
+    return isPrivateIpv4(host)
+}
+
+private fun isPrivateIpv4(host: String): Boolean {
     val parts = host.split('.').mapNotNull { it.toIntOrNull() }
     if (parts.size != 4) return false
     return when {
@@ -680,4 +687,46 @@ internal fun isPrivateAddress(url: String): Boolean {
         // carrier-grade NAT
         else -> false
     }
+}
+
+/**
+ * Loopback (`::1`), unspecified (`::`), IPv4-mapped (`::ffff:127.0.0.1`, `::ffff:7f00:1`),
+ * unique-local `fc00::/7` and link-local `fe80::/10` are all "inside the owner's network" for
+ * this guard.
+ */
+private fun isPrivateIpv6(host: String): Boolean {
+    val address = host.substringBefore('%') // a zone id (`fe80::1%eth0`) does not change the scope
+    if (address.contains('.')) {
+        // Dotted IPv4-mapped or IPv4-compatible form: judge the embedded IPv4 address.
+        return isPrivateIpv4(address.substringAfterLast(':'))
+    }
+    val groups = expandIpv6(address) ?: return false
+    if (groups.all { it == 0 }) return true
+    if (groups.take(7).all { it == 0 } && groups[7] == 1) return true
+    // The high 80 bits zero: IPv4-mapped (ffff) or the deprecated IPv4-compatible form.
+    if (groups.take(5).all { it == 0 } && (groups[5] == 0 || groups[5] == 0xffff)) {
+        return isPrivateIpv4("${groups[6] shr 8}.${groups[6] and 0xff}.${groups[7] shr 8}.${groups[7] and 0xff}")
+    }
+    val first = groups[0] shr 8
+    val second = groups[0] and 0xff
+    return when {
+        first == 0xfe && (second and 0xc0) == 0x80 -> true // link-local fe80::/10
+        (first and 0xfe) == 0xfc -> true // unique-local fc00::/7
+        else -> false
+    }
+}
+
+/** The eight 16-bit groups of an IPv6 literal, expanding a `::` run; null when it is not one. */
+private fun expandIpv6(address: String): List<Int>? {
+    val halves = address.split("::")
+    if (halves.size > 2) return null
+    fun groups(text: String): List<Int>? {
+        val parts = text.split(':').filter { it.isNotEmpty() }
+        return parts.map { it.toIntOrNull(16) ?: return null }
+    }
+    val head = groups(halves[0]) ?: return null
+    val tail = if (halves.size == 2) groups(halves[1]) ?: return null else emptyList()
+    val missing = 8 - head.size - tail.size
+    if (missing < 0 || (halves.size == 1 && missing != 0)) return null
+    return head + List(missing) { 0 } + tail
 }
