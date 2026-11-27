@@ -8,11 +8,15 @@ import kotlin.test.assertTrue
 
 class AptUpdateFailureTest {
 
-    /** The line from the report: a phone 2d 21h behind the mirror's Release file. */
+    /**
+     * apt's own line, verbatim — libapt-pkg's format string is
+     * `Release file for %s is not valid yet (invalid for another %s)`. This is
+     * a phone 2d 21h 19min 43s behind the mirror's Release file.
+     */
     private val notValidYet = """
         Get:1 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
         Reading package lists...
-        E: Release file for http://deb.debian.org/debian-security/dists/bookworm-security/InRelease is not valid yet (invalid for 2d 21h 19min 43s). Updates for this repository will not be applied.
+        E: Release file for http://deb.debian.org/debian-security/dists/bookworm-security/InRelease is not valid yet (invalid for another 2d 21h 19min 43s). Updates for this repository will not be applied.
         E: Some index files failed to download. They have been ignored, or old ones used instead.
     """.trimIndent()
 
@@ -23,7 +27,7 @@ class AptUpdateFailureTest {
         assertTrue(failure is InstallFailure.ClockSkew, "expected ClockSkew, got $failure")
         assertEquals(
             "Release file for http://deb.debian.org/debian-security/dists/bookworm-security/InRelease " +
-                "is not valid yet (invalid for 2d 21h 19min 43s). Updates for this repository will not be applied.",
+                "is not valid yet (invalid for another 2d 21h 19min 43s). Updates for this repository will not be applied.",
             failure.detail,
         )
     }
@@ -93,11 +97,13 @@ class AptUpdateFailureTest {
     fun `the gap parses with leading units dropped`() {
         assertEquals(
             -43L,
-            AptPackageManager.clockSkewSeconds("E: Release file for http://x/InRelease is not valid yet (invalid for 43s)"),
+            AptPackageManager.clockSkewSeconds("E: Release file for http://x/InRelease is not valid yet (invalid for another 43s)"),
         )
         assertEquals(
             -(3 * 3_600L + 19 * 60L + 43L),
-            AptPackageManager.clockSkewSeconds("E: Release file for http://x/InRelease is not valid yet (invalid for 3h 19min 43s)"),
+            AptPackageManager.clockSkewSeconds(
+                "E: Release file for http://x/InRelease is not valid yet (invalid for another 3h 19min 43s)",
+            ),
         )
     }
 
@@ -153,7 +159,14 @@ class AptUpdateFailureTest {
         assertEquals("-2d 21h 19m", AptPackageManager.formatClockOffset(twoDaysBehind))
         assertEquals("+1h 5m", AptPackageManager.formatClockOffset(3_900))
         assertEquals("+45m", AptPackageManager.formatClockOffset(2_700))
-        assertEquals("+0m", AptPackageManager.formatClockOffset(0))
+    }
+
+    @Test
+    fun `a gap under a minute reads as seconds`() {
+        // apt's shortest real print is `invalid for another 43s`; without the
+        // seconds the owner would be told their clock is off by "-0m".
+        assertEquals("-43s", AptPackageManager.formatClockOffset(-43))
+        assertEquals("+0s", AptPackageManager.formatClockOffset(0))
     }
 
     @Test

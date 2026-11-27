@@ -29,12 +29,13 @@ private val DATE_CHECK_FAILURE = Regex("not valid yet|is expired|invalid for")
 private val RELEASE_NOT_VALID_YET = Regex("not valid yet|invalid for \\d")
 
 /**
- * apt's own measurement of that gap: `invalid for 2d 21h 19min 43s`. Units are
- * printed largest-first and leading zero units are dropped, so every part but
- * the trailing seconds is optional.
+ * apt's own measurement of that gap: `invalid for another 2d 21h 19min 43s`.
+ * Units are printed largest-first and leading zero units are dropped, so every
+ * part but the trailing seconds is optional. `another` is what apt's own format
+ * string says; it stays optional only so a hand-quoted line still parses.
  */
 private val FUTURE_DATE_DELTA = Regex(
-    """invalid for\s+(?:(\d+)d\s*)?(?:(\d+)h\s*)?(?:(\d+)min\s*)?(?:(\d+)s)?""",
+    """invalid for\s+(?:another\s+)?(?:(\d+)d\s*)?(?:(\d+)h\s*)?(?:(\d+)min\s*)?(?:(\d+)s)?""",
 )
 
 /** The Release file is older than its own `Valid-Until`. */
@@ -119,7 +120,7 @@ object AptPackageManager : PackageManagerSpec {
     /**
      * How far this device's clock sits from the mirror's Release file, in
      * seconds, negative when the device is behind — read out of apt's own
-     * `invalid for 2d 21h 19min 43s`.
+     * `invalid for another 2d 21h 19min 43s`.
      *
      * This is the only honest measurement available inside the sandbox: proot
      * does not virtualize time, so `date -u` in the guest reads the same
@@ -142,9 +143,9 @@ object AptPackageManager : PackageManagerSpec {
     }
 
     /**
-     * A signed, unit-tagged rendering of [seconds] — `-2d 21h 19m`. Language
-     * free on purpose: this is the measurement, the sentence around it is the
-     * UI's.
+     * A signed, unit-tagged rendering of [seconds] — `-2d 21h 19m`, or `-43s`
+     * when the whole gap is under a minute. Language free on purpose: this is
+     * the measurement, the sentence around it is the UI's.
      */
     fun formatClockOffset(seconds: Long): String {
         var rest = abs(seconds)
@@ -153,11 +154,16 @@ object AptPackageManager : PackageManagerSpec {
         val hours = rest / 3_600
         rest %= 3_600
         val minutes = rest / 60
+        val secs = rest % 60
         return buildString {
             append(if (seconds < 0) "-" else "+")
             if (days > 0) append("${days}d ")
             if (days > 0 || hours > 0) append("${hours}h ")
-            append("${minutes}m")
+            if (days > 0 || hours > 0 || minutes > 0) {
+                append("${minutes}m")
+            } else {
+                append("${secs}s")
+            }
         }
     }
 
