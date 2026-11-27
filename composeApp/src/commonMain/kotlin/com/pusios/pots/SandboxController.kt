@@ -3,6 +3,7 @@ package com.pusios.pots
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import com.pusios.pots.linux.InstallFailure
 import com.pusios.pots.linux.LinuxDistro
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,7 +73,36 @@ sealed interface SandboxStatusLabel {
         data class Install(override val detail: String = "") : Failure
         data class Status(override val detail: String = "") : Failure
         data class Package(val packageName: String, override val detail: String = "") : Failure
+
+        /**
+         * The device clock is behind the package mirror. [detail] is the measured
+         * offset, e.g. `-2d 21h 19m` — the card's sentence tells the user to turn
+         * automatic date on, which is the only fix available to them.
+         */
+        data class ClockSkew(override val detail: String = "") : Failure
+
+        /** The mirror's index is outside its own validity window. */
+        data class ExpiredMetadata(override val detail: String = "") : Failure
+
+        /** The mirror answered with an error instead of an index. */
+        data class Mirror(override val detail: String = "") : Failure
+
+        /** No usable connection to the mirror. */
+        data class Network(override val detail: String = "") : Failure
     }
+}
+
+/**
+ * The card's wording for a classified package-index failure. The installer
+ * reports the class because it runs outside composition; picking the sentence
+ * that tells the user what to do next is this layer's job.
+ */
+fun InstallFailure.toSandboxLabel(): SandboxStatusLabel.Failure = when (this) {
+    is InstallFailure.ClockSkew -> SandboxStatusLabel.Failure.ClockSkew(detail)
+    is InstallFailure.ExpiredMetadata -> SandboxStatusLabel.Failure.ExpiredMetadata(detail)
+    is InstallFailure.Mirror -> SandboxStatusLabel.Failure.Mirror(detail)
+    is InstallFailure.Network -> SandboxStatusLabel.Failure.Network(detail)
+    is InstallFailure.Other -> SandboxStatusLabel.Failure.Setup(detail)
 }
 
 /** What switching distribution would leave behind, and how much of it there is. */

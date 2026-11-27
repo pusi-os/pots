@@ -998,6 +998,10 @@
     <string name="sandbox_status_copying_files_progress">Copying files… %1$d/%2$d</string>
     <string name="sandbox_status_ready">Ready</string>
     <string name="sandbox_status_setup_failed">Setup failed: %1$s</string>
+    <string name="sandbox_status_clock_skew">The phone's clock is off: %1$s. Turn on automatic date and time in Android settings, then retry.</string>
+    <string name="sandbox_status_expired_metadata">The package index is outside its validity window: %1$s. Check the date on the phone, then retry.</string>
+    <string name="sandbox_status_mirror_failed">The Debian mirror is not serving a usable index: %1$s. Try again later.</string>
+    <string name="sandbox_status_network_failed">Cannot reach the Debian mirror: %1$s. Check the connection, then retry.</string>
     <string name="sandbox_status_copy_failed">Copy failed: %1$s</string>
     <string name="sandbox_status_install_failed">Install failed: %1$s</string>
     <string name="sandbox_status_package_failed">Failed to install %1$s: %2$s</string>
