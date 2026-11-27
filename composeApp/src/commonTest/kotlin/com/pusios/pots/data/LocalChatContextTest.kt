@@ -99,6 +99,31 @@ class LocalChatContextTest {
     }
 
     @Test
+    fun `tool schemas come out of the history budget`() {
+        val long = "x".repeat(6_000)
+        val messages = listOf(user(long), assistant(long), user("q"))
+
+        // 4 096 window - 512 reserve = 14 336 chars. The conversation is 12 001 of them, so with
+        // no tool descriptions attached every turn fits.
+        val withoutTools = trimLocalChatHistory(messages, contextTokens = 4_096, systemPromptChars = 0)
+        assertEquals(3, withoutTools.size)
+
+        // The descriptions go into the same window (8 schemas of ~375 chars here), so one turn
+        // fewer fits — and it is dropped, instead of the request overflowing the window and
+        // going into the retry that answers without tools.
+        val withTools = trimLocalChatHistory(
+            messages = messages,
+            contextTokens = 4_096,
+            systemPromptChars = 0,
+            toolSchemaChars = 3_000,
+        )
+
+        assertEquals(2, withTools.size)
+        assertEquals(History.Role.ASSISTANT, withTools.first().role)
+        assertEquals("q", withTools.last().content)
+    }
+
+    @Test
     fun `unknown window keeps the conversational turns untouched`() {
         val messages = listOf(user("q1"), assistant("a1"), user("q2"))
 

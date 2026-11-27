@@ -77,9 +77,9 @@ A model that keeps re-issuing the same call with the same arguments gets an erro
 The on-device window is small (4 096 tokens on the catalog default) and litert-lm trims nothing: a request that does not fit fails the whole turn with an opaque `INVALID_ARGUMENT`, and there is no provider to fall back to. Pots therefore budgets before the call (`data/LocalChatContext.kt`):
 
 - **System prompt** — 35% of the window, clamped to 2 000–12 000 characters (≈1 430 for a 4K model). Optional feature sections (Automation, Vault, ADB, Email, pots-ui catalogue) are composed only while the budget allows; a section that does not fit is dropped whole rather than cut mid-sentence. The pots-ui catalogue (~4.7 KB) never fits a 4K model, which is another reason interactive UI is a remote-only feature.
-- **History** — everything above the 512-token answer reserve, newest turns first. The last user message is never dropped or rewritten: if it does not fit on its own the turn ends with "сообщение не помещается в контекст" and the advice to shorten it, raise the context or start a new chat.
+- **History** — everything above the 512-token answer reserve, minus the system prompt and the tool descriptions that ride in the same window, newest turns first. The last user message is never dropped or rewritten: if it does not fit on its own the turn ends with "сообщение не помещается в контекст" and the advice to shorten it, raise the context or start a new chat.
 
-With the default tool set the composed local prompt is ~3.5 KB (~880 tokens) including ten memory entries — measured by `ChatSystemPromptBuilderTest`.
+With the default tool set the composed local prompt comes to roughly 3.5 KB (~880 tokens) including ten memory entries — a hand measurement, not a pinned constant; `ChatSystemPromptBuilderTest` only asserts that this shape stays inside the 4K budget.
 
 ## Other limitations
 

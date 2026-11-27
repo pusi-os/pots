@@ -57,11 +57,18 @@ fun localPromptBudgetCharsFor(contextTokens: Int): Int = if (contextTokens <= 0)
  *
  * Tool rows are filtered out rather than trimmed: the local engine sends only user and assistant
  * turns anyway, so a partially kept tool round could never be replayed.
+ *
+ * The budget is `(contextTokens - LOCAL_RESPONSE_RESERVE_TOKENS) * LOCAL_CHARS_PER_TOKEN` minus
+ * everything else that rides in the same window: [systemPromptChars] and [toolSchemaChars]. The
+ * tool descriptions are the ones the engine sends in `ConversationConfig.tools`; on a 4K model a
+ * prompt at its ceiling plus the reserve fills the window exactly, so a history budget that
+ * ignored them sent a long conversation back over the limit and into the retry without tools.
  */
 internal fun trimLocalChatHistory(
     messages: List<History>,
     contextTokens: Int,
     systemPromptChars: Int,
+    toolSchemaChars: Int = 0,
 ): List<History> {
     val conversational = messages.filter { it.role == History.Role.USER || it.role == History.Role.ASSISTANT }
     if (contextTokens <= 0) return conversational
@@ -69,7 +76,8 @@ internal fun trimLocalChatHistory(
     val lastUserIndex = conversational.indexOfLast { it.role == History.Role.USER }
     if (lastUserIndex < 0) return conversational
 
-    val budgetChars = (contextTokens - LOCAL_RESPONSE_RESERVE_TOKENS) * LOCAL_CHARS_PER_TOKEN - systemPromptChars
+    val budgetChars =
+        (contextTokens - LOCAL_RESPONSE_RESERVE_TOKENS) * LOCAL_CHARS_PER_TOKEN - systemPromptChars - toolSchemaChars
     val lastUser = conversational[lastUserIndex]
     if (lastUser.content.length > budgetChars) throw LocalContextOverflowException(contextTokens)
 

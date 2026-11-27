@@ -193,8 +193,17 @@ interface LocalInferenceEngine {
      *
      * Null means *unknown*, not *incapable* — the id may not be downloaded, the bundle's
      * metadata may predate the declaration, or the platform may not implement the probe at
-     * all (the iOS bridge predates it). Callers that get null must fall back to their own
-     * assumptions rather than treat the model as supporting nothing.
+     * all (the iOS bridge predates it). Each reader decides for itself what "unknown" means,
+     * and they do not all answer the same way:
+     *
+     * - the chat tool gate (`LocalToolSelection.modelSupportsToolCalling`) hands *no* tools to
+     *   a model whose capabilities are unknown; the only exception is the ids in
+     *   `LocalToolSelection.TEMPLATE_LEVEL_TOOL_CALLING_MODEL_IDS`, which do template-level
+     *   tool calling without declaring it. That is deliberate: a bundle whose chat template has
+     *   no tool section does not ignore tools, it fabricates their output, so unknown must not
+     *   be read as "probably capable";
+     * - the sampler keeps its own fixed defaults on null (top-k 40, top-p 0.95, temperature
+     *   0.8), because a missing sampler block means "no opinion", not "decode greedily".
      */
     suspend fun modelCapabilities(modelId: String): LocalModelCapabilities? = null
 

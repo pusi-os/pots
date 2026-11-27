@@ -596,8 +596,9 @@ class RemoteDataRepository(
         // tools are passed once via [localToolDescriptionJson] and the engine drives them.
         //
         // A small model can get stuck re-issuing the same call (the native loop has no
-        // repetition guard, only the 120 s timeout), so the bridge refuses the third identical
-        // attempt with an error result — the model then has nothing new to wait for and
+        // repetition guard, only the 120 s timeout), so every identical attempt past
+        // maxRepeatedCalls gets an error result — with the default of 3 the first three calls
+        // run and the fourth is refused; the model then has nothing new to wait for and
         // answers with what it has. The cap follows the same tuning the remote loop uses.
         val maxRepeatedCalls = appSettings.getAgentTuning().maxRepeatedToolCalls
         val callCounts = mutableMapOf<String, Int>()
@@ -634,8 +635,14 @@ class RemoteDataRepository(
 
         // The on-device window is real and small (4 096 tokens is the catalog default) and
         // litert-lm trims nothing for us: a request that does not fit fails the whole call with
-        // an opaque INVALID_ARGUMENT. Cut the history down to the budget before the call.
-        val trimmedMessages = trimLocalChatHistory(messages, contextTokens, systemPrompt?.length ?: 0)
+        // an opaque INVALID_ARGUMENT. Cut the history down to the budget before the call; the
+        // tool descriptions go into the same window, so their size comes out of that budget too.
+        val trimmedMessages = trimLocalChatHistory(
+            messages = messages,
+            contextTokens = contextTokens,
+            systemPromptChars = systemPrompt?.length ?: 0,
+            toolSchemaChars = localTools.sumOf { it.descriptionJsonString.length },
+        )
 
         val inferenceMessages = trimmedMessages.mapNotNull { msg ->
             when (msg.role) {
