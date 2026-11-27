@@ -152,7 +152,7 @@ class LinuxInstaller(private val paths: LinuxPaths) {
      * (what every proot distribution does), and only a failure after that is
      * reported, as a class the card has a sentence for.
      */
-    private fun refreshAptIndex(launcher: ProotLauncher, updateCommand: String) {
+    private suspend fun refreshAptIndex(launcher: ProotLauncher, updateCommand: String) {
         val clockOffset = measureClockOffset(launcher)
         val first = launcher.execute(updateCommand, timeoutSeconds = UPDATE_TIMEOUT_SECONDS)
         if (first.success) {
@@ -170,6 +170,8 @@ class LinuxInstaller(private val paths: LinuxPaths) {
         if (!AptPackageManager.isDateCheckFailure(firstOutput)) {
             throw InstallFailureException(AptPackageManager.classifyFailure(firstOutput))
         }
+        // A cancel during the first attempt must not buy a second full index pass.
+        currentCoroutineContext().ensureActive()
         val retryCommand = AptPackageManager.updateWithoutDateCheckCommand
         val retry = launcher.execute(retryCommand, timeoutSeconds = UPDATE_TIMEOUT_SECONDS)
         val retryOutput = retry.fullOutput()
