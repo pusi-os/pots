@@ -324,6 +324,7 @@ internal fun buildChatSystemPrompt(
     // on small on-device context windows.
     val memoryBudget = when (variant) {
         SystemPromptVariant.CHAT_REMOTE -> Int.MAX_VALUE
+
         // Leftover of the local budget at this point, capped by the local memory ceiling: the
         // sections appended after this one (automation, vault, ADB) carry safety policy and
         // must not be starved by a user with a hundred stored memories.

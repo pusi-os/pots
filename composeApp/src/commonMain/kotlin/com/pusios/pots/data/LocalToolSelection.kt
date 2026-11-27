@@ -100,8 +100,7 @@ data class LocalToolSelection(
          * The previous rule ("hand tools whenever any are selected") is what put tool schemas
          * in front of models that could only fabricate their output.
          */
-        fun modelSupportsToolCalling(supportsFunctionCalling: Boolean?, modelId: String): Boolean =
-            supportsFunctionCalling == true || modelId in TEMPLATE_LEVEL_TOOL_CALLING_MODEL_IDS
+        fun modelSupportsToolCalling(supportsFunctionCalling: Boolean?, modelId: String): Boolean = supportsFunctionCalling == true || modelId in TEMPLATE_LEVEL_TOOL_CALLING_MODEL_IDS
 
         /**
          * Trims [names] to at most [MAX_TOOLS] entries, keeping the chat-priority tools first.
