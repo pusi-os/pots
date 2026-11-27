@@ -3,7 +3,7 @@ package com.pusios.pots.data
 import com.pusios.pots.inference.LocalContextOverflowException
 import com.pusios.pots.ui.chat.History
 
-/**
+/*
  * Sizing rules for an on-device request.
  *
  * A local model has a real, small window (4 096 tokens is the catalog default) and litert-lm
