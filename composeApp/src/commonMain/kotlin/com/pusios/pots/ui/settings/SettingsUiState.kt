@@ -20,6 +20,9 @@ import com.pusios.pots.inference.LocalModel
 import com.pusios.pots.inference.ModelImportError
 import com.pusios.pots.mcp.McpConfirmRequest
 import com.pusios.pots.mcp.McpFailureKind
+import com.pusios.pots.mcp.McpServerConfig
+import com.pusios.pots.mcp.McpServerStateKind
+import com.pusios.pots.mcp.McpServerStatus
 import com.pusios.pots.network.dtos.SponsorsResponseDto
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.skills.RegistrySkillEntry
@@ -31,6 +34,7 @@ import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toImmutableList
 import org.jetbrains.compose.resources.StringResource
 
 @Immutable
@@ -189,11 +193,68 @@ data class McpServerUiState(
     /** True when the agent added the server through `mcp_add_server`. */
     val addedByAgent: Boolean = false,
     /** Set while a browser sign-in is waiting for the redirect. */
-    val authorizeUrl: String? = null,
+    val pendingAuthorizationUrl: String? = null,
     /** Tools above come from the persisted cache, not from a live connection. */
     val toolsFromCache: Boolean = false,
 ) {
     val toolCount: Int get() = tools.size
+
+    /**
+     * True when the server itself asked for a token (401, or a scope challenge). A server that is
+     * merely down must not be pushed through a browser flow: that is what [canRetry] is for.
+     */
+    val canAuthorize: Boolean
+        get() = connectionStatus != McpConnectionStatus.Connected &&
+            (
+                connectionStatus == McpConnectionStatus.NeedsAuth ||
+                    failureKind == McpFailureKind.NeedsAuth ||
+                    failureKind == McpFailureKind.NeedsScope
+                )
+
+    /** A plain reconnect is the fix when the server is down or was never reached at all. */
+    val canRetry: Boolean
+        get() = connectionStatus == McpConnectionStatus.Failed || connectionStatus == McpConnectionStatus.Unknown
+
+    /** A sign-in was started and the manager is waiting for the browser to come back. */
+    val isWaitingForBrowser: Boolean get() = pendingAuthorizationUrl != null
+}
+
+/**
+ * Builds one card from the manager's status record.
+ *
+ * The status is the only place that knows the difference between "this server wants a sign-in" and
+ * "this server is down", so the card is derived from it and never from a local guess. The tool cache
+ * rides along: a server that is currently unreachable still shows what it offered last time.
+ */
+internal fun mcpServerUiState(
+    config: McpServerConfig,
+    status: McpServerStatus?,
+    tools: List<ToolInfo>,
+    hasStoredToken: Boolean,
+    pendingAuthorizationUrl: String?,
+): McpServerUiState {
+    val connected = status?.state == McpServerStateKind.Connected
+    return McpServerUiState(
+        id = config.id,
+        name = config.name,
+        url = config.url,
+        isEnabled = config.isEnabled,
+        connectionStatus = when {
+            !config.isEnabled -> McpConnectionStatus.Disabled
+            connected -> McpConnectionStatus.Connected
+            status?.state == McpServerStateKind.NeedsAuth -> McpConnectionStatus.NeedsAuth
+            status?.state == McpServerStateKind.Failed -> McpConnectionStatus.Failed
+            status?.state == McpServerStateKind.Connecting -> McpConnectionStatus.Connecting
+            else -> McpConnectionStatus.Unknown
+        },
+        tools = tools.toImmutableList(),
+        failureKind = status?.failure?.kind,
+        failureDetail = status?.failure?.detail.orEmpty(),
+        hasStoredToken = hasStoredToken,
+        addedByAgent = config.addedByAgent,
+        pendingAuthorizationUrl = pendingAuthorizationUrl,
+        toolsFromCache = tools.isNotEmpty() && !connected,
+    )
 }
 
 enum class McpConnectionStatus {

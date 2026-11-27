@@ -413,9 +413,9 @@
     <string name="settings_mcp_status_needs_auth">Нужен вход</string>
     <string name="settings_mcp_status_disabled">Выключен</string>
     <string name="settings_mcp_status_unknown">Ещё не подключался</string>
-    <string name="settings_mcp_authorize">Войти</string>
+    <string name="settings_mcp_authorize">Авторизоваться</string>
     <string name="settings_mcp_retry">Повторить</string>
-    <string name="settings_mcp_sign_out">Выйти</string>
+    <string name="settings_mcp_sign_out">Забыть токен</string>
     <string name="settings_mcp_open_link">Открыть ссылку</string>
     <string name="settings_mcp_copy_link">Скопировать ссылку</string>
     <string name="settings_mcp_link_copied">Ссылка скопирована</string>
@@ -426,7 +426,7 @@
     <string name="settings_mcp_added_by_agent">Добавлен агентом</string>
     <string name="settings_mcp_allow">Разрешить</string>
     <string name="settings_mcp_deny">Отмена</string>
-    <string name="settings_mcp_tools_cached">Инструменты (последний известный список)</string>
+    <string name="settings_mcp_tools_cached">Инструменты из кеша — последний известный список</string>
     <string name="settings_mcp_auth_required_help">Серверу нужен вход. Инструменты появятся после авторизации.</string>
     <string name="settings_mcp_tool_count">Инструментов: %1$d</string>
     <string name="settings_mcp_save">Сохранить</string>

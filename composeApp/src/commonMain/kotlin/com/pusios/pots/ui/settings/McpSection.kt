@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -20,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -198,6 +201,7 @@ private fun McpConfirmCard(request: McpConfirmRequest, onRespond: (Boolean) -> U
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun McpServerCard(
     server: McpServerUiState,
@@ -209,7 +213,9 @@ private fun McpServerCard(
     onSignOut: () -> Unit,
     onToggleTool: (String, Boolean) -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    // A server that refuses us opens itself: the sign-in button is the only thing that can fix it,
+    // and the owner reported not finding it behind a collapsed card.
+    var expanded by remember(server.id) { mutableStateOf(server.canAuthorize) }
     var showTokenDialog by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
@@ -282,16 +288,20 @@ private fun McpServerCard(
 
                 // Status line: the reason, not just a colour. A server that needs a sign-in and a
                 // server that is down used to look identical here.
-                val statusText = when (server.connectionStatus) {
-                    McpConnectionStatus.Connected -> stringResource(Res.string.settings_mcp_status_connected)
-                    McpConnectionStatus.Connecting -> stringResource(Res.string.settings_mcp_status_connecting)
-                    McpConnectionStatus.NeedsAuth -> stringResource(Res.string.settings_mcp_status_needs_auth)
-                    McpConnectionStatus.Failed -> stringResource(Res.string.settings_mcp_status_error)
-                    McpConnectionStatus.Disabled -> stringResource(Res.string.settings_mcp_status_disabled)
-                    McpConnectionStatus.Unknown -> stringResource(Res.string.settings_mcp_status_unknown)
+                val statusText = if (server.isWaitingForBrowser) {
+                    stringResource(Res.string.settings_mcp_waiting_browser)
+                } else {
+                    when (server.connectionStatus) {
+                        McpConnectionStatus.Connected -> stringResource(Res.string.settings_mcp_status_connected)
+                        McpConnectionStatus.Connecting -> stringResource(Res.string.settings_mcp_status_connecting)
+                        McpConnectionStatus.NeedsAuth -> stringResource(Res.string.settings_mcp_status_needs_auth)
+                        McpConnectionStatus.Failed -> stringResource(Res.string.settings_mcp_status_error)
+                        McpConnectionStatus.Disabled -> stringResource(Res.string.settings_mcp_status_disabled)
+                        McpConnectionStatus.Unknown -> stringResource(Res.string.settings_mcp_status_unknown)
+                    }
                 }
                 Text(
-                    text = if (server.tools.isNotEmpty()) {
+                    text = if (server.toolCount > 0) {
                         "$statusText · ${stringResource(Res.string.settings_mcp_tool_count, server.toolCount)}"
                     } else {
                         statusText
@@ -304,10 +314,20 @@ private fun McpServerCard(
                     },
                 )
                 if (server.failureDetail.isNotBlank()) {
+                    // Two lines are enough to name the cause; the whole text (a server's own error
+                    // body can be a paragraph) stays one tap away.
+                    var showFullFailure by remember(server.failureDetail) { mutableStateOf(false) }
                     Text(
                         text = server.failureDetail,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                        color = if (server.canAuthorize) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                        maxLines = if (showFullFailure) Int.MAX_VALUE else 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clickable { showFullFailure = !showFullFailure },
                     )
                 }
                 if (server.connectionStatus == McpConnectionStatus.NeedsAuth) {
@@ -320,23 +340,18 @@ private fun McpServerCard(
 
                 // A flow that is waiting for the browser: the URL is shown so it can be opened by
                 // hand when the system browser did not come up (or the server wants a specific one).
-                val authorizeUrl = server.authorizeUrl
-                if (authorizeUrl != null) {
+                val pendingAuthorizationUrl = server.pendingAuthorizationUrl
+                if (pendingAuthorizationUrl != null) {
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(Res.string.settings_mcp_waiting_browser),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
                     SelectionContainer {
                         Text(
-                            text = authorizeUrl,
+                            text = pendingAuthorizationUrl,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
                     TextButton(
-                        onClick = { openUrl(authorizeUrl) },
+                        onClick = { openUrl(pendingAuthorizationUrl) },
                         modifier = Modifier.handCursor(),
                     ) {
                         Text(stringResource(Res.string.settings_mcp_open_link))
@@ -344,10 +359,10 @@ private fun McpServerCard(
                     // Opening the link is not always possible (a custom scheme the platform does
                     // not route, or a browser that never comes to the foreground), so the owner can
                     // also take the URL to another device or app.
-                    var copied by remember(authorizeUrl) { mutableStateOf(false) }
+                    var copied by remember(pendingAuthorizationUrl) { mutableStateOf(false) }
                     TextButton(
                         onClick = {
-                            clipboard.setText(AnnotatedString(authorizeUrl))
+                            clipboard.setText(AnnotatedString(pendingAuthorizationUrl))
                             copied = true
                         },
                         modifier = Modifier.handCursor(),
@@ -362,15 +377,17 @@ private fun McpServerCard(
 
                 Spacer(Modifier.height(8.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (server.connectionStatus == McpConnectionStatus.NeedsAuth) {
-                        TextButton(onClick = onAuthorize, modifier = Modifier.handCursor()) {
+                // FlowRow, not Row: five actions do not fit one line on a phone, and a clipped
+                // "Авторизоваться" is the same defect as a missing one.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (server.canAuthorize) {
+                        // The sign-in is the point of this card while the server refuses us, so it
+                        // gets the weight of a primary action instead of blending into the links.
+                        Button(onClick = onAuthorize, modifier = Modifier.handCursor()) {
                             Text(stringResource(Res.string.settings_mcp_authorize))
                         }
                     }
-                    if (server.connectionStatus == McpConnectionStatus.Failed ||
-                        server.connectionStatus == McpConnectionStatus.Unknown
-                    ) {
+                    if (server.canRetry) {
                         TextButton(onClick = onRefresh, modifier = Modifier.handCursor()) {
                             Text(stringResource(Res.string.settings_mcp_retry))
                         }

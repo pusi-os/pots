@@ -488,7 +488,7 @@
     <string name="settings_mcp_status_unknown">Not connected yet</string>
     <string name="settings_mcp_authorize">Sign in</string>
     <string name="settings_mcp_retry">Retry</string>
-    <string name="settings_mcp_sign_out">Sign out</string>
+    <string name="settings_mcp_sign_out">Forget token</string>
     <string name="settings_mcp_open_link">Open link</string>
     <string name="settings_mcp_copy_link">Copy link</string>
     <string name="settings_mcp_link_copied">Link copied</string>
@@ -499,7 +499,7 @@
     <string name="settings_mcp_added_by_agent">Added by agent</string>
     <string name="settings_mcp_allow">Allow</string>
     <string name="settings_mcp_deny">Cancel</string>
-    <string name="settings_mcp_tools_cached">Tools (last known list)</string>
+    <string name="settings_mcp_tools_cached">Tools from cache (last known list)</string>
     <string name="settings_mcp_auth_required_help">This server requires sign-in. Its tools appear after you authorize.</string>
     <string name="settings_mcp_tool_count">Tools: %1$d</string>
     <string name="settings_mcp_save">Save</string>
