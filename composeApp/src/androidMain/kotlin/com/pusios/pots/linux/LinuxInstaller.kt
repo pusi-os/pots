@@ -7,7 +7,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import java.io.File
-import kotlin.math.abs
 
 /** Where an install has got to, in terms both feature UIs can render. */
 sealed interface InstallStep {
@@ -30,7 +29,6 @@ private const val LOG_TAG = "LinuxInstaller"
 
 private const val UPDATE_TIMEOUT_SECONDS = 300L
 private const val PACKAGE_TIMEOUT_SECONDS = 900L
-private const val CLOCK_PROBE_TIMEOUT_SECONDS = 15L
 
 /** Both streams plus the executor's own error, in one string for classification. */
 private fun ProotResult.fullOutput(): String = listOf(stderr, stdout, error.orEmpty())
@@ -147,49 +145,38 @@ class LinuxInstaller(private val paths: LinuxPaths) {
      * apt refuses a Release file dated in the future (`not valid yet`) and one
      * whose `Valid-Until` has passed (`is expired`). On a phone the first is the
      * usual one — the clock is set from the network and can be days behind — and
-     * a wall of apt output is not an answer the user can act on. So the clock is
-     * measured first, a date failure is retried once with the date checks off
-     * (what every proot distribution does), and only a failure after that is
-     * reported, as a class the card has a sentence for.
+     * a wall of apt output is not an answer the user can act on. So a date
+     * failure is retried once with the date checks off (what every proot
+     * distribution does), and only a failure after that is reported, as a class
+     * the card has a sentence for.
+     *
+     * No clock probe runs before the update: proot does not virtualize time, so
+     * a guest `date` reads the same clock as the app and can only confirm it.
+     * The drift is taken from apt's own `invalid for …` instead — see
+     * [AptPackageManager.clockSkewSeconds].
      */
     private suspend fun refreshAptIndex(launcher: ProotLauncher, updateCommand: String) {
-        val clockOffset = measureClockOffset(launcher)
         val first = launcher.execute(updateCommand, timeoutSeconds = UPDATE_TIMEOUT_SECONDS)
-        if (first.success) {
-            // Worth a line even on success: a clock this far off breaks other
-            // things (TLS, package versions) that nobody would connect to it.
-            if (clockOffset != null && abs(clockOffset) > AptPackageManager.clockSkewToleranceSeconds) {
-                val measured = AptPackageManager.formatClockOffset(clockOffset)
-                Log.w(LOG_TAG, "apt index refreshed, but the sandbox clock is off by $measured")
-            }
-            return
-        }
+        if (first.success) return
         val firstOutput = first.fullOutput()
-        val offset = clockOffset?.let { "${it}s" } ?: "unmeasured"
-        Log.w(LOG_TAG, "`$updateCommand` failed (clock offset: $offset):\n$firstOutput")
-        if (!AptPackageManager.isDateCheckFailure(firstOutput)) {
-            throw InstallFailureException(AptPackageManager.classifyFailure(firstOutput))
-        }
+        Log.w(LOG_TAG, "`$updateCommand` failed:\n$firstOutput")
+        val retryCommand = AptPackageManager.retryCommandFor(firstOutput)
+            ?: throw InstallFailureException(AptPackageManager.classifyFailure(firstOutput))
         // A cancel during the first attempt must not buy a second full index pass.
         currentCoroutineContext().ensureActive()
-        val retryCommand = AptPackageManager.updateWithoutDateCheckCommand
         val retry = launcher.execute(retryCommand, timeoutSeconds = UPDATE_TIMEOUT_SECONDS)
         val retryOutput = retry.fullOutput()
         Log.w(LOG_TAG, "`$retryCommand` retry:\n$retryOutput")
-        if (retry.success) return
-        throw InstallFailureException(AptPackageManager.indexFailure(firstOutput, retryOutput, clockOffset))
-    }
-
-    /**
-     * `date -u +%s` inside the sandbox against the host clock, in seconds, or
-     * null when the guest has no `date` or answered something unexpected. A probe
-     * that cannot run must never fail the install — it only sharpens the
-     * diagnosis.
-     */
-    private fun measureClockOffset(launcher: ProotLauncher): Long? {
-        val probe = launcher.execute("date -u +%s", timeoutSeconds = CLOCK_PROBE_TIMEOUT_SECONDS)
-        val guestSeconds = probe.stdout.trim().toLongOrNull() ?: return null
-        return guestSeconds - System.currentTimeMillis() / 1000
+        if (retry.success) {
+            // Worth a line even on success: a clock this far off breaks other
+            // things (TLS, package versions) that nobody would connect to it.
+            AptPackageManager.clockSkewSeconds(firstOutput)?.let {
+                Log.w(LOG_TAG, "index refreshed with the date checks off; the device clock is " +
+                    "${AptPackageManager.formatClockOffset(it)} from the mirror")
+            }
+            return
+        }
+        throw InstallFailureException(AptPackageManager.indexFailure(firstOutput, retryOutput))
     }
 
     private suspend fun installBasePackages(

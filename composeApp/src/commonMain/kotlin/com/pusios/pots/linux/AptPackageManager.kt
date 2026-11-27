@@ -28,6 +28,15 @@ private val DATE_CHECK_FAILURE = Regex("not valid yet|is expired|invalid for")
 /** The Release file is dated in the future: the device clock is behind it. */
 private val RELEASE_NOT_VALID_YET = Regex("not valid yet|invalid for \\d")
 
+/**
+ * apt's own measurement of that gap: `invalid for 2d 21h 19min 43s`. Units are
+ * printed largest-first and leading zero units are dropped, so every part but
+ * the trailing seconds is optional.
+ */
+private val FUTURE_DATE_DELTA = Regex(
+    """invalid for\s+(?:(\d+)d\s*)?(?:(\d+)h\s*)?(?:(\d+)min\s*)?(?:(\d+)s)?""",
+)
+
 /** The Release file is older than its own `Valid-Until`. */
 private val RELEASE_EXPIRED = Regex("is expired|invalid since \\d")
 
@@ -64,7 +73,8 @@ sealed interface InstallFailure {
     /**
      * The Release file is dated in the future relative to the device — apt's
      * `not valid yet`. apt's window is a week wide, so this is not a mirror
-     * being late: the phone's clock is behind.
+     * being late: the phone's clock is behind. [detail] is apt's own measured
+     * gap when it printed one (`-2d 21h 19m`), otherwise apt's line.
      */
     data class ClockSkew(override val detail: String) : InstallFailure {
         override val summary: String get() = "the device clock is off by $detail"
@@ -107,11 +117,29 @@ object AptPackageManager : PackageManagerSpec {
         "$updateCommand -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false"
 
     /**
-     * Beyond this the sandbox's clock is the problem, not the mirror. apt's
-     * `Valid-Until` window is a week, so a day of drift already breaks a fresh
-     * index — and anything larger cannot be the mirror being slow.
+     * How far this device's clock sits from the mirror's Release file, in
+     * seconds, negative when the device is behind — read out of apt's own
+     * `invalid for 2d 21h 19min 43s`.
+     *
+     * This is the only honest measurement available inside the sandbox: proot
+     * does not virtualize time, so `date -u` in the guest reads the same
+     * `CLOCK_REALTIME` the app does and always agrees with it. The mirror's
+     * signed `Date` is the independent side of the comparison, and apt has
+     * already subtracted the two by the time it prints the failure.
+     *
+     * Null when apt printed no gap (`is expired`, a network error, a truncated
+     * line) — an unmeasured failure must never fail the install by itself.
      */
-    val clockSkewToleranceSeconds: Long = 24 * 60 * 60
+    fun clockSkewSeconds(output: String): Long? {
+        val match = FUTURE_DATE_DELTA.find(output) ?: return null
+        val (days, hours, minutes, seconds) = match.destructured
+        if (days.isEmpty() && hours.isEmpty() && minutes.isEmpty() && seconds.isEmpty()) return null
+        val total = (days.toLongOrNull() ?: 0) * 86_400 +
+            (hours.toLongOrNull() ?: 0) * 3_600 +
+            (minutes.toLongOrNull() ?: 0) * 60 +
+            (seconds.toLongOrNull() ?: 0)
+        return -total
+    }
 
     /**
      * A signed, unit-tagged rendering of [seconds] — `-2d 21h 19m`. Language
@@ -137,6 +165,16 @@ object AptPackageManager : PackageManagerSpec {
     fun isDateCheckFailure(output: String): Boolean = DATE_CHECK_FAILURE.containsMatchIn(output)
 
     /**
+     * The refresh to run a second time after [firstOutput], or null when the
+     * failure is not about dates.
+     *
+     * Only a date failure earns a retry: every other failure would repeat
+     * itself, and a second full index pass is not free on a phone.
+     */
+    fun retryCommandFor(firstOutput: String): String? =
+        if (isDateCheckFailure(firstOutput)) updateWithoutDateCheckCommand else null
+
+    /**
      * Names the reason an apt command failed from its own output. The classes
      * follow what the user can do about it — fix the clock, wait for the mirror,
      * fix the connection — so a date failure is checked before anything that a
@@ -160,15 +198,22 @@ object AptPackageManager : PackageManagerSpec {
 
     /**
      * What to report once a refresh has failed both with and without the date
-     * checks: a measured offset past [clockSkewToleranceSeconds] is the cause
-     * whatever apt printed last, and with no measurement to go on the output has
-     * to name it. Both runs are read together because the second one only repeats
-     * the first's date error or replaces it with a later one.
+     * checks. The class comes from apt's own words — `not valid yet` *is* the
+     * mirror saying its Release file is dated ahead of this device, so it needs
+     * no second opinion. When apt also printed the gap, that number replaces
+     * the raw line as the detail: it is the measurement the card can put in a
+     * sentence, and it comes from the mirror's signed metadata rather than from
+     * the device's clock, which under proot only ever agrees with itself.
      */
-    fun indexFailure(firstOutput: String, retryOutput: String, clockOffsetSeconds: Long?): InstallFailure = clockOffsetSeconds
-        ?.takeIf { abs(it) > clockSkewToleranceSeconds }
-        ?.let { InstallFailure.ClockSkew(formatClockOffset(it)) }
-        ?: classifyFailure("$firstOutput\n$retryOutput")
+    fun indexFailure(firstOutput: String, retryOutput: String): InstallFailure {
+        val failure = classifyFailure("$firstOutput\n$retryOutput")
+        val measured = clockSkewSeconds(firstOutput)
+        return if (failure is InstallFailure.ClockSkew && measured != null) {
+            InstallFailure.ClockSkew(formatClockOffset(measured))
+        } else {
+            failure
+        }
+    }
 
     override fun searchCommand(query: String, limit: Int): String = "apt-cache search ${shellQuote(query)} | head -n $limit"
 

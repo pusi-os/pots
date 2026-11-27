@@ -3,6 +3,7 @@ package com.pusios.pots.linux
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class AptUpdateFailureTest {
@@ -79,13 +80,60 @@ class AptUpdateFailureTest {
     }
 
     @Test
-    fun `only the date markers ask for a retry without the date checks`() {
-        assertTrue(AptPackageManager.isDateCheckFailure(notValidYet))
-        assertTrue(AptPackageManager.isDateCheckFailure("E: Release file for http://x/InRelease is expired (invalid since 1d)"))
-        assertTrue(AptPackageManager.isDateCheckFailure("E: Release file for http://x/InRelease is not valid yet (invalid for 3h)"))
+    fun `apt's own gap is the measured clock skew`() {
+        // The mirror's Date is 2d 21h 19min 43s ahead of the phone, so the phone
+        // is behind by exactly that much. This is the only measurement that does
+        // not read the phone's own clock twice.
+        val expected = -(2 * 86_400L + 21 * 3_600L + 19 * 60L + 43L)
 
-        assertFalse(AptPackageManager.isDateCheckFailure("Temporary failure resolving 'deb.debian.org'"))
-        assertFalse(AptPackageManager.isDateCheckFailure("E: The repository 'http://x bookworm Release' does not have a Release file."))
+        assertEquals(expected, AptPackageManager.clockSkewSeconds(notValidYet))
+    }
+
+    @Test
+    fun `the gap parses with leading units dropped`() {
+        assertEquals(
+            -43L,
+            AptPackageManager.clockSkewSeconds("E: Release file for http://x/InRelease is not valid yet (invalid for 43s)"),
+        )
+        assertEquals(
+            -(3 * 3_600L + 19 * 60L + 43L),
+            AptPackageManager.clockSkewSeconds("E: Release file for http://x/InRelease is not valid yet (invalid for 3h 19min 43s)"),
+        )
+    }
+
+    @Test
+    fun `only a future-dated release carries a gap`() {
+        // `invalid since` is the opposite direction: the index has run out of
+        // time, which is not the device clock being behind.
+        assertNull(
+            AptPackageManager.clockSkewSeconds(
+                "E: Release file for http://x/InRelease is expired (invalid since 3d 2h 1min 2s)",
+            ),
+        )
+        assertNull(AptPackageManager.clockSkewSeconds("Temporary failure resolving 'deb.debian.org'"))
+        assertNull(AptPackageManager.clockSkewSeconds("E: Release file for http://x/InRelease is not valid yet"))
+    }
+
+    @Test
+    fun `only a date failure asks for the retry with the date checks off`() {
+        assertEquals(AptPackageManager.updateWithoutDateCheckCommand, AptPackageManager.retryCommandFor(notValidYet))
+        assertEquals(
+            AptPackageManager.updateWithoutDateCheckCommand,
+            AptPackageManager.retryCommandFor(
+                "E: Release file for http://x/InRelease is expired (invalid since 1d 2h)",
+            ),
+        )
+
+        assertNull(
+            AptPackageManager.retryCommandFor(
+                "E: Failed to fetch http://x/dists/bookworm/InRelease  404  Not Found [IP: 1.2.3.4 80]",
+            ),
+        )
+        assertNull(
+            AptPackageManager.retryCommandFor(
+                "W: Failed to fetch http://x/dists/bookworm/InRelease  Temporary failure resolving 'x'",
+            ),
+        )
     }
 
     @Test
@@ -109,11 +157,6 @@ class AptUpdateFailureTest {
     }
 
     @Test
-    fun `a day of drift is where the clock stops being plausible`() {
-        assertEquals(86_400L, AptPackageManager.clockSkewToleranceSeconds)
-    }
-
-    @Test
     fun `a classified failure still has one technical line for the log`() {
         val failure = AptPackageManager.classifyFailure(notValidYet)
 
@@ -122,39 +165,38 @@ class AptUpdateFailureTest {
     }
 
     @Test
-    fun `a measured clock wins over whatever apt printed after the retry`() {
+    fun `a date failure that survives the retry reports apt's measured gap`() {
+        val failure = AptPackageManager.indexFailure(notValidYet, notValidYet)
+
+        assertEquals(InstallFailure.ClockSkew("-2d 21h 19m"), failure)
+    }
+
+    @Test
+    fun `the measured gap outlives a retry that failed for another reason`() {
         // The retry can fail for its own reason (a mirror that went away); the
         // device clock is still the thing the user has to fix.
         val failure = AptPackageManager.indexFailure(
             firstOutput = notValidYet,
             retryOutput = "W: Failed to fetch http://deb.debian.org/debian/InRelease  Temporary failure resolving 'deb.debian.org'",
-            clockOffsetSeconds = -(2 * 86_400L + 21 * 3_600L + 19 * 60L),
         )
 
         assertEquals(InstallFailure.ClockSkew("-2d 21h 19m"), failure)
     }
 
     @Test
-    fun `without a measurement the output names the reason`() {
-        val fromDate = AptPackageManager.indexFailure(notValidYet, notValidYet, clockOffsetSeconds = null)
-        assertTrue(fromDate is InstallFailure.ClockSkew, "expected ClockSkew, got $fromDate")
-        assertTrue(fromDate.detail.contains("is not valid yet"))
+    fun `without a printed gap the release line is the detail`() {
+        val noGap = "E: Release file for http://x/InRelease is not valid yet. Updates for this repository will not be applied."
 
-        val fromRetry = AptPackageManager.indexFailure(
-            firstOutput = notValidYet,
-            retryOutput = "E: Failed to fetch http://deb.debian.org/debian/dists/bookworm/InRelease  404  Not Found [IP: 1.2.3.4 80]",
-            clockOffsetSeconds = null,
-        )
-        // The first run's date error is checked before the retry's mirror error:
-        // it is the failure that made the retry necessary.
-        assertTrue(fromRetry is InstallFailure.ClockSkew, "expected ClockSkew, got $fromRetry")
+        val failure = AptPackageManager.indexFailure(noGap, noGap)
+
+        assertTrue(failure is InstallFailure.ClockSkew, "expected ClockSkew, got $failure")
+        assertTrue(failure.detail.contains("is not valid yet"))
     }
 
     @Test
-    fun `a small offset is not a clock problem`() {
-        val failure = AptPackageManager.indexFailure(notValidYet, notValidYet, clockOffsetSeconds = 90)
+    fun `an expired index stays expired even though the retry ran`() {
+        val expired = "E: Release file for http://x/InRelease is expired (invalid since 3d 2h 1min 2s)."
 
-        assertTrue(failure is InstallFailure.ClockSkew)
-        assertTrue(failure.detail.contains("is not valid yet"), "expected apt's line, got ${failure.detail}")
+        assertTrue(AptPackageManager.indexFailure(expired, expired) is InstallFailure.ExpiredMetadata)
     }
 }
