@@ -230,13 +230,14 @@ then the device's own build wins, because that one *is* the sandbox's Hermes. A
 mismatch — `hermes update` in the sandbox is the usual way — is what a panel
 start builds for, not a reason to reinstall: the renderer is rebuilt from the
 checkout the update moved to, with the same three attempts, the same wipe before
-each and the same thirty-five-minute budget the install uses (a build is about
-seven minutes on the reference phone). The row says "Building the renderer…" and
-the minutes the budget has left, so seven minutes do not read as a hang, and the
-panel comes up by itself when the build lands — the row says that only when a
-start follows the chain. The renderer it then serves is the
-new checkout's own, so `HERMES_WEBAPP_DIST` is not named for it. Pots Build's own
-update does this without a tap: the panel the update stopped is rebuilt and
+each and the same thirty-five-minute budget the install uses: an attempt still
+running when the budget ends is killed there, not handed its full twenty-five
+minutes (a build is about seven minutes on the reference phone). The row says
+"Building the renderer…" and the minutes the budget has left, so seven minutes
+do not read as a hang, and the panel comes up by itself when the build lands —
+the row says that only when a start follows the chain. The renderer it then
+serves is the new checkout's own, so `HERMES_WEBAPP_DIST` is not named for it.
+Pots Build's own update does this without a tap: the panel the update stopped is rebuilt and
 brought back, and a panel that was down gets its renderer rebuilt too, so the next
 tap does not wait — that row says the panel stays off instead of promising a
 start nobody asked for. A chain that cannot finish — the budget is gone, or every

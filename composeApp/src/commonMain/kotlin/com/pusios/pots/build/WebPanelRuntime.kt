@@ -689,10 +689,11 @@ class WebPanelRuntime(
      * leaves behind is made of `.l2s.` symlinks the next build dies on.
      *
      * The budget bounds the chain, not one attempt: an attempt it cannot pay for
-     * is not started, and a build that runs past the deadline ends the chain
-     * rather than starting another. A blocking guest call cannot be cut short, so
-     * the chain overruns by one attempt at most — the same bound the install's
-     * chain has.
+     * is not started, and each attempt's deadline is what the budget has left, so
+     * a build still running when the budget ends is killed there instead of being
+     * given its full timeout. The blocking clean before an attempt cannot be cut
+     * short, so the chain overruns by one clean at most — the same bound the
+     * install's chain has.
      *
      * Every step writes a line into the panel's own log, because a chain that
      * failed has to be readable somewhere after the fact.
@@ -720,7 +721,10 @@ class WebPanelRuntime(
                 setStateOutsideLock(panel, WebPanelStatus.BuildingRenderer(budget.leftMinutes(), startsAfterBuild))
                 note(panel, HermesWebapp.buildingOnDevice(attempt, budget.leftMinutes()))
                 guest.run(HermesWebapp.CLEAN_COMMAND, CLEAN_TIMEOUT_SECONDS)
-                val outcome = guest.buildRenderer(attempt, HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS)
+                val outcome = guest.buildRenderer(
+                    attempt,
+                    minOf(HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS, budget.leftSeconds()).coerceAtLeast(1),
+                )
                 // `--force-build` makes "up to date" impossible, so a line saying it
                 // means the flag never reached Hermes and the bundle on disk is not
                 // this attempt's build — stamping it would be the lie that costs a

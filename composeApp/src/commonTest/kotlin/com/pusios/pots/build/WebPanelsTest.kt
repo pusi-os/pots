@@ -1636,14 +1636,20 @@ class WebPanelsTest {
             hermesBuilt = true
             hermesStamp = BUNDLE_PIN
             hermesBuilds = false
-            // One attempt costs the whole per-attempt timeout: two fit in the
-            // thirty-five minute budget, the third does not start.
+            // Each attempt burns its whole deadline: the first spends its 25
+            // minutes, the second gets only the ten the budget has left and is
+            // killed there, so the chain ends on the budget and the third attempt
+            // never starts.
         }
         val runtime = runtime(this, guest, nowMillis = { guest.now })
 
         runtime.startPanel("hermes")
 
         assertEquals(2, guest.buildAttempts, "the budget bounds the chain, not one attempt")
+        assertTrue(
+            guest.now / 1000 <= HermesWebapp.BUILD_BUDGET_SECONDS,
+            "the chain spent ${guest.now / 1000}s of a ${HermesWebapp.BUILD_BUDGET_SECONDS}s budget",
+        )
         // No bundle is served on this path — the row is the refusal — so the log
         // must not say one is.
         assertContains(guest.logLines, HermesWebapp.BUDGET_SPENT_NOTHING_BUILT)
@@ -1867,16 +1873,18 @@ class WebPanelsTest {
         override fun logText(panel: WebPanel): String = log
 
         /**
-         * One attempt of the renderer chain: costs the budget [buildCostMillis],
-         * and — when [hermesBuilds] — leaves a stamped bundle from the commit the
-         * checkout is on, exactly as a real build and the app's stamp do.
+         * One attempt of the renderer chain: costs [buildCostMillis], or the
+         * deadline it was handed, whichever is less — a build killed by its
+         * timeout cannot spend more than that timeout. When [hermesBuilds] it
+         * leaves a stamped bundle from the commit the checkout is on, exactly as
+         * a real build and the app's stamp do.
          */
         override fun buildRenderer(
             attempt: HermesWebapp.BuildAttempt,
             timeoutSeconds: Long,
         ): WebPanelGuest.Output {
             buildAttempts++
-            now += buildCostMillis
+            now += minOf(buildCostMillis, timeoutSeconds * 1000)
             if (!hermesBuilds) return WebPanelGuest.Output(false, "pnpm: ERR_PNPM_LINKING_FAILED cannot link")
             hermesBuilt = true
             hermesStamp = hermesHead
