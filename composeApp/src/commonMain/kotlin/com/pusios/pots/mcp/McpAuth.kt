@@ -684,26 +684,19 @@ private fun isPrivateIpv4(host: String): Boolean {
 /** Loopback, link-local, RFC 1918 and carrier-grade NAT quads. */
 private fun isPrivateQuad(octets: List<Int>): Boolean = when {
     octets[0] == 127 -> true
-
     octets[0] == 10 -> true
-
     octets[0] == 192 && octets[1] == 168 -> true
-
     octets[0] == 172 && octets[1] in 16..31 -> true
-
     octets[0] == 169 && octets[1] == 254 -> true
-
     octets[0] == 100 && octets[1] in 64..127 -> true
-
     else -> false
 }
 
 /** One dotted-quad part as the canonical spelling writes it: 0..255, no leading zeros. */
-private fun isCanonicalIpv4Octet(part: String): Boolean =
-    part.length in 1..3 &&
-        part.all { it in '0'..'9' } &&
-        (part.length == 1 || part[0] != '0') &&
-        part.toInt() <= 255
+private fun isCanonicalIpv4Octet(part: String): Boolean = part.length in 1..3 &&
+    part.all { it in '0'..'9' } &&
+    (part.length == 1 || part[0] != '0') &&
+    part.toInt() <= 255
 
 /**
  * Loopback (`::1`), unspecified (`::`), IPv4-mapped (`::ffff:127.0.0.1`, `::ffff:7f00:1`),
@@ -726,8 +719,12 @@ private fun isPrivateIpv6(host: String): Boolean {
     val first = groups[0] shr 8
     val second = groups[0] and 0xff
     return when {
-        first == 0xfe && (second and 0xc0) == 0x80 -> true // link-local fe80::/10
-        (first and 0xfe) == 0xfc -> true // unique-local fc00::/7
+        first == 0xfe && (second and 0xc0) == 0x80 -> true
+
+        // link-local fe80::/10
+        (first and 0xfe) == 0xfc -> true
+
+        // unique-local fc00::/7
         else -> false
     }
 }
