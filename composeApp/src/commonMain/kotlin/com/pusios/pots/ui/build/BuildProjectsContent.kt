@@ -105,6 +105,8 @@ internal fun BuildProjectsContent(
     onUninstall: () -> Unit,
     onStartWebPanel: (String) -> Unit,
     onStopWebPanel: (String) -> Unit,
+    onRebuildWebPanelRenderer: (String) -> Unit,
+    onRollbackWebPanelCheckout: (String) -> Unit,
     onOpenWebPanel: (String) -> Unit,
     onSetWebPanelAutostart: (String, Boolean) -> Unit,
     onWebPanelPassword: suspend (String) -> String?,
@@ -243,6 +245,8 @@ internal fun BuildProjectsContent(
                 onSetAutostart = onSetWebPanelAutostart,
                 onPassword = onWebPanelPassword,
                 onLog = onPanelLog,
+                onRebuildRenderer = onRebuildWebPanelRenderer,
+                onRollback = onRollbackWebPanelCheckout,
             )
         }
 

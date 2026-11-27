@@ -194,6 +194,12 @@ class PotsBuildViewModel(
 
     fun stopWebPanel(panelId: String) = controller.stopWebPanel(panelId)
 
+    /** The row's renderer recovery: build one from the sandbox's own Hermes. */
+    fun rebuildWebPanelRenderer(panelId: String) = controller.rebuildWebPanelRenderer(panelId)
+
+    /** The row's other renderer recovery: move Hermes back to the shipped bundle's commit. */
+    fun rollbackWebPanelCheckout(panelId: String) = controller.rollbackWebPanelCheckout(panelId)
+
     /** Hands the panel to the device's own browser; Hermes' link is minted per tap. */
     fun openWebPanel(panelId: String) = controller.openWebPanel(panelId)
 

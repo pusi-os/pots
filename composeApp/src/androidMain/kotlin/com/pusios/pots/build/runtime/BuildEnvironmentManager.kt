@@ -283,8 +283,8 @@ class BuildEnvironmentManager(
      */
     private val webPanels: WebPanelRuntime by lazy {
         WebPanelRuntime(
-            guest = AndroidWebPanelGuest(paths, assets) { extraEnv ->
-                executor(extraEnv = extraEnv, hardlinkEmulation = WebPanels.PANEL_HARDLINK_EMULATION)
+            guest = AndroidWebPanelGuest(paths, assets) { extraEnv, hardlinkEmulation ->
+                executor(extraEnv = extraEnv, hardlinkEmulation = hardlinkEmulation)
             },
             prefs = { webPanelPreferences(it) },
             savePrefs = { id, prefs -> saveWebPanelPreferences(id, prefs) },
@@ -292,6 +292,7 @@ class BuildEnvironmentManager(
             lanAddress = { LanAddress.current() },
             publish = { panels -> _state.update { it.copy(webPanels = panels) } },
             scope = scope,
+            nowMillis = System::currentTimeMillis,
         )
     }
 
@@ -437,6 +438,12 @@ class BuildEnvironmentManager(
      * replaces, so leaving it up would show the old version until the app is
      * restarted. The re-read matters as much — `opencode upgrade` on a current
      * install exits 0 without changing anything, so success is not proof.
+     *
+     * Hermes is the one whose update is not over when the command exits: `hermes
+     * update` moves the checkout, and the panel's renderer was built from the
+     * commit before it, so a panel asked to start then refuses to serve. The
+     * renderer is rebuilt here and the panel the update stopped comes back up —
+     * see [WebPanelRuntime.onAgentUpdated].
      */
     fun updateAgent(agentId: String) {
         val spec = AgentVersions.get(agentId) ?: return
@@ -452,6 +459,10 @@ class BuildEnvironmentManager(
             }
             setAgentUpdate(agentId, AgentUpdate.Updating)
             try {
+                // Before the stop: what the update should bring back afterwards.
+                val panel = WebPanels.forAgent(agentId)
+                val panelWasRunning = panel != null &&
+                    _state.value.webPanels[panel.id]?.status is WebPanelStatus.Running
                 stopPanelsFor(agentId)
                 val log = InstallLog()
                 publishInstallLog(log)
@@ -469,6 +480,7 @@ class BuildEnvironmentManager(
                     setAgentUpdate(agentId, AgentUpdate.UpdateFailed(_state.value.agentVersions[agentId]))
                     return@launch
                 }
+                webPanels.onAgentUpdated(agentId, restart = panelWasRunning)
                 sync()
                 setAgentUpdate(agentId, checkOne(spec))
             } finally {
@@ -567,14 +579,18 @@ class BuildEnvironmentManager(
      * Stops the panels that run [agentId]'s binary. pi-web is Pi's panel, so
      * removing Pi stops the same process: the panel and the agent are one install,
      * and the panel's own record is never removed on its own.
+     *
+     * Every one of them, not only the ones the row calls running: a panel whose
+     * last start failed can still own a live process and a pid file, and an
+     * installer that replaces the binary underneath it leaves both behind. The
+     * stop is what deletes the pid and port records, so a later start cannot
+     * inherit a pid nobody serves.
      */
     private suspend fun stopPanelsFor(agentId: String) {
         val panelIds = WebPanels.all
             .filter { it.agentId == agentId || (agentId == WebPanels.PI_WEB_VERSION_KEY && it.id == WebPanels.PI) }
             .map { it.id }
-        for (panelId in panelIds) {
-            if (_state.value.webPanels[panelId]?.status is WebPanelStatus.Running) webPanels.stopPanel(panelId)
-        }
+        for (panelId in panelIds) webPanels.stopPanel(panelId)
     }
 
     /** Local wall clock, formatted here so the UI needs no date library. */
@@ -779,6 +795,16 @@ class BuildEnvironmentManager(
     fun startWebPanel(panelId: String) = webPanels.start(panelId)
 
     fun stopWebPanel(panelId: String) = webPanels.stop(panelId)
+
+    /** The row's "rebuild the renderer" button — see [WebPanelRuntime.rebuild]. */
+    fun rebuildWebPanelRenderer(panelId: String) {
+        webPanels.rebuild(panelId)
+    }
+
+    /** The row's "roll Hermes back" button — see [WebPanelRuntime.rollback]. */
+    fun rollbackWebPanelCheckout(panelId: String) {
+        webPanels.rollback(panelId)
+    }
 
     fun setWebPanelAutostart(panelId: String, enabled: Boolean) {
         webPanels.setAutostart(panelId, enabled)

@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.vector.group
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.pusios.pots.build.PanelRecovery
 import com.pusios.pots.build.WebPanel
 import com.pusios.pots.build.WebPanelLog
 import com.pusios.pots.build.WebPanelOpen
@@ -58,6 +59,8 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_web_panel_autostart
+import pots.composeapp.generated.resources.pots_build_web_panel_building_renderer
+import pots.composeapp.generated.resources.pots_build_web_panel_building_renderer_left
 import pots.composeapp.generated.resources.pots_build_web_panel_credentials
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_lan_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_link_hint
@@ -73,7 +76,10 @@ import pots.composeapp.generated.resources.pots_build_web_panel_password_copy
 import pots.composeapp.generated.resources.pots_build_web_panel_password_hide
 import pots.composeapp.generated.resources.pots_build_web_panel_password_show
 import pots.composeapp.generated.resources.pots_build_web_panel_pi_login_hint
+import pots.composeapp.generated.resources.pots_build_web_panel_rebuild_renderer
 import pots.composeapp.generated.resources.pots_build_web_panel_retry
+import pots.composeapp.generated.resources.pots_build_web_panel_rollback_checkout
+import pots.composeapp.generated.resources.pots_build_web_panel_rollback_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_start
 import pots.composeapp.generated.resources.pots_build_web_panel_starting
 import pots.composeapp.generated.resources.pots_build_web_panel_stop
@@ -101,6 +107,13 @@ internal fun WebPanelsCard(
     onSetAutostart: (String, Boolean) -> Unit,
     onPassword: suspend (String) -> String?,
     onLog: suspend (String) -> String,
+    /**
+     * The two renderer ways out, offered on Hermes' row when it refuses to serve.
+     * Defaulted so a caller that renders other states — the row's own UI tests —
+     * does not have to name a button it never shows.
+     */
+    onRebuildRenderer: (String) -> Unit = {},
+    onRollback: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Catalog order, not map order: the rows must not shuffle between refreshes.
@@ -142,6 +155,8 @@ internal fun WebPanelsCard(
                 onSetAutostart = onSetAutostart,
                 onPassword = onPassword,
                 onLog = onLog,
+                onRebuildRenderer = onRebuildRenderer,
+                onRollback = onRollback,
             )
         }
     }
@@ -157,6 +172,8 @@ private fun WebPanelRow(
     onSetAutostart: (String, Boolean) -> Unit,
     onPassword: suspend (String) -> String?,
     onLog: suspend (String) -> String,
+    onRebuildRenderer: (String) -> Unit,
+    onRollback: (String) -> Unit,
 ) {
     // The log follows the same rule: read on the row's own actions — the section
     // being opened, a failed start, the refresh button — and never while composing.
@@ -203,6 +220,21 @@ private fun WebPanelRow(
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     Text(
                         text = stringResource(Res.string.pots_build_web_panel_starting),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                // A renderer build is minutes of work the row has to account for:
+                // the same spinner as a start, and its own word, because "starting"
+                // for seven minutes reads as a hang.
+                is WebPanelStatus.BuildingRenderer -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text(
+                        text = stringResource(Res.string.pots_build_web_panel_building_renderer),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -284,12 +316,45 @@ private fun WebPanelRow(
                 // [PanelCredentialsSection].
             }
 
-            // Never an empty screen: the reason, in the words the runtime used.
-            is WebPanelStatus.Failed -> Text(
-                text = status.reason,
+            // A build runs for minutes: the row says how much of the budget is left,
+            // because a spinner with no number reads as a hung app.
+            is WebPanelStatus.BuildingRenderer -> Text(
+                text = stringResource(
+                    Res.string.pots_build_web_panel_building_renderer_left,
+                    status.minutesLeft,
+                ),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // Never an empty screen: the reason, in the words the runtime used —
+            // and, when there is one, the button that answers it.
+            is WebPanelStatus.Failed -> {
+                Text(
+                    text = status.reason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                status.actions.forEach { action ->
+                    when (action) {
+                        PanelRecovery.REBUILD_RENDERER -> PanelActionButton(
+                            icon = PanelRebuildIcon,
+                            label = stringResource(Res.string.pots_build_web_panel_rebuild_renderer),
+                            onClick = { onRebuildRenderer(panel.id) },
+                        )
+                        // The rollback is the only action that gives something up,
+                        // so it says what, next to its button.
+                        PanelRecovery.ROLLBACK_CHECKOUT -> Column {
+                            PanelActionButton(
+                                icon = PanelRollbackIcon,
+                                label = stringResource(Res.string.pots_build_web_panel_rollback_checkout),
+                                onClick = { onRollback(panel.id) },
+                            )
+                            PanelHint(stringResource(Res.string.pots_build_web_panel_rollback_hint))
+                        }
+                    }
+                }
+            }
 
             else -> Unit
         }
@@ -672,9 +737,26 @@ private fun retry(): ImageVector = strokedIcon("PanelRetry") {
     lineTo(17.25f, 15.03f)
 }
 
+/**
+ * An arrow with a curved tail, pointing back to the left: roll the checkout back.
+ *
+ * Deliberately not [retry]'s circle: the two buttons sit in the same row, and one
+ * of them builds while the other gives up a newer Hermes.
+ */
+private fun rollback(): ImageVector = strokedIcon("PanelRollback") {
+    moveTo(8f, 6f)
+    lineTo(4f, 10f)
+    lineTo(8f, 14f)
+    moveTo(4f, 10f)
+    lineTo(14f, 10f)
+    arcTo(5f, 5f, 0f, isMoreThanHalf = false, isPositiveArc = true, x1 = 19f, y1 = 15f)
+}
+
 private val PanelChevronRight: ImageVector by lazy { chevron(expanded = false) }
 private val PanelChevronDown: ImageVector by lazy { chevron(expanded = true) }
 private val PanelOpenIcon: ImageVector by lazy { openInBrowser() }
 private val PanelPlayIcon: ImageVector by lazy { play() }
 private val PanelStopIcon: ImageVector by lazy { stop() }
 private val PanelRetryIcon: ImageVector by lazy { retry() }
+private val PanelRebuildIcon: ImageVector by lazy { retry() }
+private val PanelRollbackIcon: ImageVector by lazy { rollback() }

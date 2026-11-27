@@ -42,6 +42,14 @@ package com.pusios.pots.build
  * on the row instead of a broken page — and when both are there the device's own
  * build wins, because that one *is* the sandbox's Hermes. Nothing is ever served
  * silently mismatched.
+ *
+ * **An update moves the checkout, so the renderer has to move with it.**
+ * `hermes update` advances the checkout to a new commit while both stamps still
+ * name the old one, which is precisely the mismatch the gate refuses — so a
+ * rebuild belongs to updating, not to repair. [rebuildNeeded] is what a start
+ * asks before it spends the budget, and [recoveryActions] is what the row offers
+ * when the chain could not finish: rebuild again, or move Hermes back to the
+ * commit the shipped bundle was built from. Neither happens silently.
  */
 object HermesWebapp {
 
@@ -155,6 +163,50 @@ object HermesWebapp {
         return Renderer.Refused(
             if (builtFrom == null || builtFrom == facts.head) NOT_BUILT_ROW else versionMismatch(builtFrom, facts.head),
         )
+    }
+
+    /**
+     * Whether the panel is refused only because what is on disk was built from
+     * another commit — the state `hermes update` leaves behind, and the one a
+     * rebuild fixes.
+     *
+     * False when the checkout cannot be read: there is nothing to build from.
+     * False when something on disk already matches it: a build from this very
+     * commit is served as it is, and a shipped bundle for it is unpacked instead.
+     * True for everything else, including a stamp with no files behind it — that
+     * is a broken build, and building again is the answer to it.
+     */
+    fun rebuildNeeded(facts: RendererFacts): Boolean {
+        if (facts.head.isBlank()) return false
+        if (facts.built && facts.builtFrom == facts.head) return false
+        return facts.pin != facts.head
+    }
+
+    /**
+     * Whether a start should spend the build budget now.
+     *
+     * Once per checkout: an owner who has already waited out a failed chain for
+     * [RendererFacts.head] is not made to wait it again on the next tap — the row
+     * offers [PanelRecovery.REBUILD_RENDERER] instead. [rebuilt] is the commits a
+     * chain was already tried for in this run of the app, and [force] is that
+     * button: a deliberate retry of the same commit.
+     *
+     * A renderer that already matches the checkout is never rebuilt, however the
+     * question was asked: the button means "try again", not "build a working one
+     * over".
+     */
+    fun shouldRebuild(facts: RendererFacts, rebuilt: Set<String>, force: Boolean = false): Boolean =
+        rebuildNeeded(facts) && (force || facts.head !in rebuilt)
+
+    /**
+     * What the row offers when nothing may be served: the two ways out that do
+     * not need a reinstall. Rebuilding is the cure for the ordinary case; moving
+     * the checkout back to the commit the shipped bundle was built from is the
+     * owner's deliberate choice when the build cannot finish on this device.
+     */
+    fun recoveryActions(facts: RendererFacts): Set<PanelRecovery> = buildSet {
+        if (facts.head.isNotBlank()) add(PanelRecovery.REBUILD_RENDERER)
+        if (facts.pin != null && facts.pin != facts.head) add(PanelRecovery.ROLLBACK_CHECKOUT)
     }
 
     /**
@@ -411,11 +463,13 @@ object HermesWebapp {
      * What the row says when the sandbox and the renderer are not the same Hermes.
      *
      * Both commits are named in short form: the owner cannot act on "the versions
-     * differ", but "reinstall Hermes" is a button in the same card.
+     * differ". The cure is named too — a rebuild is what an update leaves behind,
+     * and it is a button in the same card — because "reinstall Hermes" would cost
+     * a fresh 5 GiB checkout for a mismatch one build fixes.
      */
     fun versionMismatch(expected: String, head: String): String =
         "the panel was built for Hermes ${expected.take(8)} but the sandbox runs ${head.take(8)} " +
-            "— reinstall Hermes in Pots Build to match"
+            "— rebuild the renderer, or roll Hermes back to the panel's version"
 
     /** What the row says when the sandbox's Hermes cannot be read at all. */
     const val UNREADABLE = "the sandbox's Hermes checkout could not be read — reinstall Hermes in Pots Build"

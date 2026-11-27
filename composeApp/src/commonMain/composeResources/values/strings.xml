@@ -952,6 +952,11 @@
     <string name="pots_build_web_panel_stop">Stop</string>
     <string name="pots_build_web_panel_retry">Retry</string>
     <string name="pots_build_web_panel_starting">Starting…</string>
+    <string name="pots_build_web_panel_building_renderer">Building the renderer…</string>
+    <string name="pots_build_web_panel_building_renderer_left">~%1$d min left of the build budget. The panel opens by itself when it is done.</string>
+    <string name="pots_build_web_panel_rebuild_renderer">Rebuild renderer</string>
+    <string name="pots_build_web_panel_rollback_checkout">Roll Hermes back</string>
+    <string name="pots_build_web_panel_rollback_hint">Moves Hermes back to the version this panel was built for. The newer Hermes is what it gives up.</string>
     <string name="pots_build_web_panel_autostart">Start with the sandbox</string>
     <string name="pots_build_web_panel_password_show">Show password</string>
     <string name="pots_build_web_panel_password_hide">Hide password</string>
