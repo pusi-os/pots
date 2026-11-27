@@ -233,20 +233,24 @@ checkout the update moved to, with the same three attempts, the same wipe before
 each and the same thirty-five-minute budget the install uses (a build is about
 seven minutes on the reference phone). The row says "Building the renderer…" and
 the minutes the budget has left, so seven minutes do not read as a hang, and the
-panel comes up by itself when the build lands. The renderer it then serves is the
+panel comes up by itself when the build lands — the row says that only when a
+start follows the chain. The renderer it then serves is the
 new checkout's own, so `HERMES_WEBAPP_DIST` is not named for it. Pots Build's own
 update does this without a tap: the panel the update stopped is rebuilt and
 brought back, and a panel that was down gets its renderer rebuilt too, so the next
-tap does not wait. A chain that cannot finish — the budget is gone, or every
+tap does not wait — that row says the panel stays off instead of promising a
+start nobody asked for. A chain that cannot finish — the budget is gone, or every
 attempt failed — leaves the row with the reason naming both commits and two
 buttons: **Rebuild renderer**, a deliberate retry of the same commit (the only
-thing that repeats a chain that already failed on it), and **Roll Hermes back**,
+thing that repeats a chain that already failed on it) that starts the panel when
+it succeeds, and **Roll Hermes back**,
 which moves the checkout to the pin (`git fetch --depth 1 origin <pin>`, then
 `git checkout --force --detach <pin>`), unpacks the bundle CI built from that
 commit and serves it. The rollback is the owner's decision, never automatic: a
 newer Hermes is what it gives up, and the row says so under the button. A
-developer build ships no bundle, and then the row falls back to the checkout's own
-renderer and says it is missing when it was never built.
+developer build ships no bundle, so its first start runs the same chain against
+the checkout; a chain that cannot finish leaves the row saying the renderer is
+not built and offering the rebuild.
 
 **The panel's own proot calls run without the hardlink emulation.** Every panel
 command — the gateway session, the status probe, the port probe — goes through

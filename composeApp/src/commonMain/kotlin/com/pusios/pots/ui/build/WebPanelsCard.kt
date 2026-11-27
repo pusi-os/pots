@@ -61,6 +61,7 @@ import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.pots_build_web_panel_autostart
 import pots.composeapp.generated.resources.pots_build_web_panel_building_renderer
 import pots.composeapp.generated.resources.pots_build_web_panel_building_renderer_left
+import pots.composeapp.generated.resources.pots_build_web_panel_building_renderer_left_no_start
 import pots.composeapp.generated.resources.pots_build_web_panel_credentials
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_lan_hint
 import pots.composeapp.generated.resources.pots_build_web_panel_hermes_link_hint
@@ -317,10 +318,16 @@ private fun WebPanelRow(
             }
 
             // A build runs for minutes: the row says how much of the budget is left,
-            // because a spinner with no number reads as a hung app.
+            // because a spinner with no number reads as a hung app. The promise that
+            // the panel opens by itself is only made when a start follows the chain —
+            // an update of a panel that was down rebuilds and leaves it down.
             is WebPanelStatus.BuildingRenderer -> Text(
                 text = stringResource(
-                    Res.string.pots_build_web_panel_building_renderer_left,
+                    if (status.startsAfterBuild) {
+                        Res.string.pots_build_web_panel_building_renderer_left
+                    } else {
+                        Res.string.pots_build_web_panel_building_renderer_left_no_start
+                    },
                     status.minutesLeft,
                 ),
                 style = MaterialTheme.typography.bodySmall,

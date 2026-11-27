@@ -210,8 +210,16 @@ class WebPanelRuntime(
     /**
      * Builds the renderer from the checkout the sandbox is on, whether or not a
      * chain was already tried for it — the row's own button.
+     *
+     * The build is the owner's way out of a refusal, so the panel comes up when it
+     * succeeds: a build that only filled the disk would leave the owner looking at
+     * the same failed row after seven minutes.
      */
-    fun rebuild(panelId: String) = scope.launch { rebuildRenderer(panelId, force = true) }
+    fun rebuild(panelId: String) = scope.launch {
+        if (rebuildRenderer(panelId, force = true, startsAfterBuild = true) == RendererStep.PROCEED) {
+            mutex.withLock { startLocked(panelId) }
+        }
+    }
 
     /**
      * Moves Hermes back to the commit the shipped renderer was built from, then
@@ -357,7 +365,7 @@ class WebPanelRuntime(
     suspend fun startPanel(panelId: String) {
         // A chain already in flight owns the row and the start that follows it;
         // starting beside it would serve a renderer that is still half-built.
-        when (rebuildRenderer(panelId, force = false)) {
+        when (rebuildRenderer(panelId, force = false, startsAfterBuild = true)) {
             RendererStep.PROCEED -> Unit
             RendererStep.BUSY, RendererStep.SETTLED -> return
         }
@@ -403,7 +411,9 @@ class WebPanelRuntime(
      */
     fun onAgentUpdated(agentId: String, restart: Boolean) = scope.launch {
         val panel = WebPanels.forAgent(agentId) ?: return@launch
-        val step = rebuildRenderer(panel.id, force = false)
+        // The build's own row wording follows [restart]: a panel that stays down
+        // must not be promised as "opens by itself when the build is done".
+        val step = rebuildRenderer(panel.id, force = false, startsAfterBuild = restart)
         if (!restart || step != RendererStep.PROCEED) return@launch
         mutex.withLock { startLocked(panel.id) }
     }
@@ -617,7 +627,7 @@ class WebPanelRuntime(
      * chain at a time; a second tap while one runs gets [RendererStep.BUSY] and
      * leaves the row to the chain that is already spending the budget.
      */
-    private suspend fun rebuildRenderer(panelId: String, force: Boolean): RendererStep {
+    private suspend fun rebuildRenderer(panelId: String, force: Boolean, startsAfterBuild: Boolean): RendererStep {
         val panel = WebPanels.get(panelId) ?: return RendererStep.PROCEED
         if (panel.id != WebPanels.HERMES || panel.agentId !in installed()) return RendererStep.PROCEED
         if (!rendererMutex.tryLock()) return RendererStep.BUSY
@@ -625,7 +635,7 @@ class WebPanelRuntime(
             val facts = rendererFacts()
             val head = facts.head
             if (!HermesWebapp.shouldRebuild(facts, rebuiltHeads, force)) return RendererStep.PROCEED
-            val outcome = buildChain(panel)
+            val outcome = buildChain(panel, startsAfterBuild)
             if (outcome == HermesWebapp.RendererBuild.BUILT) {
                 rebuiltHeads.remove(head)
                 // The start that follows decides again, and now finds this build.
@@ -635,7 +645,15 @@ class WebPanelRuntime(
             // Nothing was built, and no start may be following: the row has to say
             // what is on disk and offer the two ways out by itself.
             rebuiltHeads += head
-            note(panel, if (outcome == HermesWebapp.RendererBuild.OUT_OF_BUDGET) HermesWebapp.BUDGET_SPENT else null)
+            note(
+                panel,
+                when (outcome) {
+                    // No bundle is served here — [settle] publishes the refusal — so
+                    // the line says that instead of promising the install's fallback.
+                    HermesWebapp.RendererBuild.OUT_OF_BUDGET -> HermesWebapp.BUDGET_SPENT_NOTHING_BUILT
+                    HermesWebapp.RendererBuild.BUILT, HermesWebapp.RendererBuild.FAILED -> null
+                },
+            )
             settle(panel)
             return RendererStep.SETTLED
         } finally {
@@ -678,8 +696,11 @@ class WebPanelRuntime(
      *
      * Every step writes a line into the panel's own log, because a chain that
      * failed has to be readable somewhere after the fact.
+     *
+     * [startsAfterBuild] is carried into the row's own state: it is what the row
+     * needs to know before promising a panel that will open by itself.
      */
-    private suspend fun buildChain(panel: WebPanel): HermesWebapp.RendererBuild {
+    private suspend fun buildChain(panel: WebPanel, startsAfterBuild: Boolean): HermesWebapp.RendererBuild {
         val budget = HermesWebapp.BuildBudget(nowMillis)
         val ticker = scope.launch {
             while (true) {
@@ -688,7 +709,7 @@ class WebPanelRuntime(
                 // refresh that already moved on must not be overwritten.
                 mutex.withLock {
                     if (states[panel.id]?.status is WebPanelStatus.BuildingRenderer) {
-                        setState(panel, WebPanelStatus.BuildingRenderer(budget.leftMinutes()))
+                        setState(panel, WebPanelStatus.BuildingRenderer(budget.leftMinutes(), startsAfterBuild))
                     }
                 }
             }
@@ -696,7 +717,7 @@ class WebPanelRuntime(
         try {
             for (attempt in HermesWebapp.buildAttempts) {
                 if (!budget.attemptFits()) return HermesWebapp.RendererBuild.OUT_OF_BUDGET
-                setStateOutsideLock(panel, WebPanelStatus.BuildingRenderer(budget.leftMinutes()))
+                setStateOutsideLock(panel, WebPanelStatus.BuildingRenderer(budget.leftMinutes(), startsAfterBuild))
                 note(panel, HermesWebapp.buildingOnDevice(attempt, budget.leftMinutes()))
                 guest.run(HermesWebapp.CLEAN_COMMAND, CLEAN_TIMEOUT_SECONDS)
                 val outcome = guest.buildRenderer(attempt, HermesWebapp.BUILD_ATTEMPT_TIMEOUT_SECONDS)

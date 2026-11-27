@@ -373,8 +373,12 @@ sealed interface WebPanelStatus {
      * Its own state, not [Starting]: the chain spends minutes, the row has to say
      * so with the budget it is spending, and a second tap must not start a second
      * build beside it. [minutesLeft] is what the whole chain may still take.
+     *
+     * [startsAfterBuild] says whether a start follows the chain: an update of a
+     * panel that was down rebuilds the renderer and leaves the panel down, so the
+     * row must not promise a panel nobody will open.
      */
-    data class BuildingRenderer(val minutesLeft: Long) : WebPanelStatus
+    data class BuildingRenderer(val minutesLeft: Long, val startsAfterBuild: Boolean) : WebPanelStatus
 
     /**
      * [url] is the panel's address as the row shows it — no credentials in it,

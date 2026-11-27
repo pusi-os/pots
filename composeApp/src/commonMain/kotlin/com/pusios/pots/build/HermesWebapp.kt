@@ -430,6 +430,14 @@ object HermesWebapp {
      */
     const val BUDGET_SPENT = "renderer: device build budget spent, serving the shipped bundle"
 
+    /**
+     * The line for a rebuild chain that ran out of time with nothing to serve:
+     * unlike [BUDGET_SPENT], no shipped bundle follows it here — the row publishes
+     * the refusal — and a line promising one sends the owner looking for a panel
+     * that is not there.
+     */
+    const val BUDGET_SPENT_NOTHING_BUILT = "renderer: device build budget spent, nothing built"
+
     /** The line that says there is no renderer at all — a developer build, every attempt failed. */
     const val NOT_BUILT = "renderer: not built and this app ships no bundle"
 

@@ -819,6 +819,7 @@
     <string name="pots_build_web_panel_starting">Поднимается…</string>
     <string name="pots_build_web_panel_building_renderer">Собираю рендерер…</string>
     <string name="pots_build_web_panel_building_renderer_left">Осталось ~%1$d мин из бюджета сборки. Панель откроется сама, когда сборка закончится.</string>
+    <string name="pots_build_web_panel_building_renderer_left_no_start">Осталось ~%1$d мин из бюджета сборки. Панель останется выключенной — её не запускали.</string>
     <string name="pots_build_web_panel_rebuild_renderer">Пересобрать рендерер</string>
     <string name="pots_build_web_panel_rollback_checkout">Откатить Hermes</string>
     <string name="pots_build_web_panel_rollback_hint">Вернёт Hermes к версии, под которую собрана панель. Новее Hermes при этом теряется.</string>
