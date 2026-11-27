@@ -11,6 +11,7 @@ import com.pusios.pots.data.ConversationStorage
 import com.pusios.pots.linux.DistroSpec
 import com.pusios.pots.linux.GuestFileMap
 import com.pusios.pots.linux.HomeMigration
+import com.pusios.pots.linux.InstallFailureException
 import com.pusios.pots.linux.InstallMarker
 import com.pusios.pots.linux.InstallStep
 import com.pusios.pots.linux.LinuxDistro
@@ -18,6 +19,7 @@ import com.pusios.pots.linux.LinuxInstaller
 import com.pusios.pots.linux.LinuxInstalls
 import com.pusios.pots.linux.LinuxPaths
 import com.pusios.pots.linux.ProotLauncher
+import com.pusios.pots.toSandboxLabel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -239,10 +241,19 @@ class LinuxSandboxManager(
             } catch (e: Exception) {
                 android.util.Log.e("LinuxSandbox", "Setup failed", e)
                 marker = paths.readMarker()
-                _state.value = SandboxState.Error(SandboxStatusLabel.Failure.Setup(e.message.orEmpty()))
+                _state.value = SandboxState.Error(e.toFailureLabel())
             }
         }
     }
+
+    /**
+     * A package-index failure arrives classified, because the installer runs
+     * outside composition and cannot word anything; everything else keeps the
+     * message it came with.
+     */
+    private fun Exception.toFailureLabel(): SandboxStatusLabel.Failure =
+        (this as? InstallFailureException)?.failure?.toSandboxLabel()
+            ?: SandboxStatusLabel.Failure.Setup(message.orEmpty())
 
     private fun InstallStep.toSandboxState(): SandboxState = when (this) {
         is InstallStep.Download -> SandboxState.Downloading(fraction)

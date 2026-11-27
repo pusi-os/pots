@@ -877,6 +877,10 @@
     <string name="sandbox_status_copying_files_progress">Копирование файлов… %1$d/%2$d</string>
     <string name="sandbox_status_ready">Готово</string>
     <string name="sandbox_status_setup_failed">Не удалось выполнить настройку: %1$s</string>
+    <string name="sandbox_status_clock_skew">Время на телефоне сбито: %1$s. Включите автоматическую дату и время в настройках Android и повторите установку.</string>
+    <string name="sandbox_status_expired_metadata">Срок действия индекса пакетов истёк: %1$s. Проверьте дату на телефоне и повторите установку.</string>
+    <string name="sandbox_status_mirror_failed">Зеркало Debian отдаёт непригодный индекс: %1$s. Повторите установку позже.</string>
+    <string name="sandbox_status_network_failed">Нет связи с зеркалом Debian: %1$s. Проверьте интернет и повторите установку.</string>
     <string name="sandbox_status_copy_failed">Не удалось скопировать: %1$s</string>
     <string name="sandbox_status_install_failed">Не удалось установить: %1$s</string>
     <string name="sandbox_status_package_failed">Не удалось установить %1$s: %2$s</string>
