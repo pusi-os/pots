@@ -249,7 +249,7 @@ internal const val DEFAULT_AUTOMATION_SECTION =
  * schemas themselves and needs no index.
  *
  * [localPromptBudgetChars] caps the `CHAT_LOCAL` prompt in characters; the caller derives it
- * from the model's real window (see `localPromptBudgetChars` in `LocalChatContext.kt`). Once the
+ * from the model's real window (see `localPromptBudgetCharsFor` in `LocalChatContext.kt`). Once the
  * budget is spent, optional feature sections are dropped rather than truncated: a request that
  * does not fit makes litert-lm reject the whole turn, so a missing section is the cheaper loss.
  * `CHAT_REMOTE` ignores it — cloud providers charge by the token, not by a hard window.
