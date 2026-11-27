@@ -99,13 +99,9 @@ sealed interface SandboxStatusLabel {
  */
 fun InstallFailure.toSandboxLabel(): SandboxStatusLabel.Failure = when (this) {
     is InstallFailure.ClockSkew -> SandboxStatusLabel.Failure.ClockSkew(detail)
-
     is InstallFailure.ExpiredMetadata -> SandboxStatusLabel.Failure.ExpiredMetadata(detail)
-
     is InstallFailure.Mirror -> SandboxStatusLabel.Failure.Mirror(detail)
-
     is InstallFailure.Network -> SandboxStatusLabel.Failure.Network(detail)
-
     is InstallFailure.Other -> SandboxStatusLabel.Failure.Setup(detail)
 }
 

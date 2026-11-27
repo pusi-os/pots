@@ -251,9 +251,8 @@ class LinuxSandboxManager(
      * outside composition and cannot word anything; everything else keeps the
      * message it came with.
      */
-    private fun Exception.toFailureLabel(): SandboxStatusLabel.Failure =
-        (this as? InstallFailureException)?.failure?.toSandboxLabel()
-            ?: SandboxStatusLabel.Failure.Setup(message.orEmpty())
+    private fun Exception.toFailureLabel(): SandboxStatusLabel.Failure = (this as? InstallFailureException)?.failure?.toSandboxLabel()
+        ?: SandboxStatusLabel.Failure.Setup(message.orEmpty())
 
     private fun InstallStep.toSandboxState(): SandboxState = when (this) {
         is InstallStep.Download -> SandboxState.Downloading(fraction)

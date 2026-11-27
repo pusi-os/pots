@@ -165,11 +165,10 @@ object AptPackageManager : PackageManagerSpec {
      * to name it. Both runs are read together because the second one only repeats
      * the first's date error or replaces it with a later one.
      */
-    fun indexFailure(firstOutput: String, retryOutput: String, clockOffsetSeconds: Long?): InstallFailure =
-        clockOffsetSeconds
-            ?.takeIf { abs(it) > clockSkewToleranceSeconds }
-            ?.let { InstallFailure.ClockSkew(formatClockOffset(it)) }
-            ?: classifyFailure("$firstOutput\n$retryOutput")
+    fun indexFailure(firstOutput: String, retryOutput: String, clockOffsetSeconds: Long?): InstallFailure = clockOffsetSeconds
+        ?.takeIf { abs(it) > clockSkewToleranceSeconds }
+        ?.let { InstallFailure.ClockSkew(formatClockOffset(it)) }
+        ?: classifyFailure("$firstOutput\n$retryOutput")
 
     override fun searchCommand(query: String, limit: Int): String = "apt-cache search ${shellQuote(query)} | head -n $limit"
 
