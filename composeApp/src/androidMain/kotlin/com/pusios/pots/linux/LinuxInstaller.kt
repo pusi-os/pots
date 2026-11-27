@@ -171,8 +171,11 @@ class LinuxInstaller(private val paths: LinuxPaths) {
             // Worth a line even on success: a clock this far off breaks other
             // things (TLS, package versions) that nobody would connect to it.
             AptPackageManager.clockSkewSeconds(firstOutput)?.let {
-                Log.w(LOG_TAG, "index refreshed with the date checks off; the device clock is " +
-                    "${AptPackageManager.formatClockOffset(it)} from the mirror")
+                Log.w(
+                    LOG_TAG,
+                    "index refreshed with the date checks off; the device clock is " +
+                        "${AptPackageManager.formatClockOffset(it)} from the mirror",
+                )
             }
             return
         }

@@ -171,8 +171,7 @@ object AptPackageManager : PackageManagerSpec {
      * Only a date failure earns a retry: every other failure would repeat
      * itself, and a second full index pass is not free on a phone.
      */
-    fun retryCommandFor(firstOutput: String): String? =
-        if (isDateCheckFailure(firstOutput)) updateWithoutDateCheckCommand else null
+    fun retryCommandFor(firstOutput: String): String? = if (isDateCheckFailure(firstOutput)) updateWithoutDateCheckCommand else null
 
     /**
      * Names the reason an apt command failed from its own output. The classes
