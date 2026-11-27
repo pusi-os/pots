@@ -313,7 +313,9 @@ private fun McpServerCard(
                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
                 )
-                if (server.failureDetail.isNotBlank()) {
+                // The waiting state already says why nothing works yet, and the manager reports the
+                // same sentence as the failure detail — showing both reads as two errors.
+                if (server.failureDetail.isNotBlank() && !server.isWaitingForBrowser) {
                     // Two lines are enough to name the cause; the whole text (a server's own error
                     // body can be a paragraph) stays one tap away.
                     var showFullFailure by remember(server.failureDetail) { mutableStateOf(false) }
