@@ -103,6 +103,7 @@ class ChatSystemPromptBuilderTest {
         emailAccounts: List<EmailAccountSummary> = emptyList(),
         uiMode: ChatPromptUiMode = ChatPromptUiMode.NONE,
         activeSkill: com.pusios.pots.skills.SkillManifest? = null,
+        localPromptBudgetChars: Int = LOCAL_PROMPT_BUDGET_CHARS,
     ) = buildChatSystemPrompt(
         variant = variant,
         soul = soul,
@@ -121,6 +122,7 @@ class ChatSystemPromptBuilderTest {
         runtime = runtime,
         uiMode = uiMode,
         activeSkill = activeSkill,
+        localPromptBudgetChars = localPromptBudgetChars,
     )
 
     private fun skill(
@@ -616,10 +618,13 @@ class ChatSystemPromptBuilderTest {
 
     @Test
     fun `CHAT_LOCAL renders Dynamic UI when mini_app_data is selected`() {
+        // The pots-ui catalogue alone is ~4.7 KB — it only fits when the model's window is
+        // big enough to pay for it (the 4K case drops it, see the budget test below).
         val out = build(
             variant = SystemPromptVariant.CHAT_LOCAL,
             toolNames = defaultLocalToolNames + "mini_app_data",
             uiMode = ChatPromptUiMode.DYNAMIC_UI,
+            localPromptBudgetChars = localPromptBudgetCharsFor(32_768),
         )
         assertTrue("## Dynamic UI" in out)
     }
@@ -677,6 +682,65 @@ class ChatSystemPromptBuilderTest {
         assertFalse("## Interactive UI Mode" in out)
     }
 
+    @Test
+    fun `CHAT_LOCAL uses the short voice section and never mentions potsik`() {
+        // The long voice section is mostly `potsik` animation policy, and the on-device model
+        // is never handed that tool — 620 chars about a tool it cannot call.
+        val out = build(SystemPromptVariant.CHAT_LOCAL)
+
+        assertTrue(DEFAULT_VOICE_OUTPUT_SECTION_LOCAL in out)
+        assertFalse("potsik" in out)
+        assertFalse(DEFAULT_VOICE_OUTPUT_SECTION in out)
+    }
+
+    @Test
+    fun `CHAT_LOCAL stays inside the on-device budget for a 4K model`() {
+        val budget = localPromptBudgetCharsFor(4_096)
+        val out = build(
+            variant = SystemPromptVariant.CHAT_LOCAL,
+            soul = "x".repeat(910),
+            memoryInstructions = "Save user preferences with memory_store.",
+            generalMemories = (1..10).map { i -> memory("fact_$i", "y".repeat(90)) },
+            localPromptBudgetChars = budget,
+        )
+
+        assertTrue(out.length <= budget, "CHAT_LOCAL prompt was ${out.length} chars, budget $budget")
+    }
+
+    @Test
+    fun `CHAT_LOCAL drops optional sections rather than overflowing the budget`() {
+        val budget = localPromptBudgetCharsFor(4_096)
+        val out = build(
+            variant = SystemPromptVariant.CHAT_LOCAL,
+            soul = "x".repeat(910),
+            toolNames = defaultLocalToolNames + setOf(
+                "schedule_task",
+                "list_tasks",
+                "cancel_task",
+                "check_email",
+                "vault_list",
+                "adb_shell",
+                "mini_app_data",
+            ),
+            memoryInstructions = "Save user preferences with memory_store.",
+            generalMemories = (1..20).map { i -> memory("fact_$i", "y".repeat(100)) },
+            pendingTasks = listOf(task(description = "Morning check")),
+            emailAccounts = listOf(
+                EmailAccountSummary(email = "alice@example.com", unreadCount = 3, lastSyncEpochMs = 0L),
+            ),
+            uiMode = ChatPromptUiMode.DYNAMIC_UI,
+            localPromptBudgetChars = budget,
+        )
+
+        assertTrue(out.length <= budget, "CHAT_LOCAL prompt was ${out.length} chars, budget $budget")
+        // The core policy and the runtime context survive — they are what keeps the model honest.
+        assertTrue(DEFAULT_HONESTY_RULE in out)
+        assertTrue(DEFAULT_LANGUAGE_SECTION in out)
+        assertTrue("## Context" in out)
+        // The pots-ui catalogue is the largest optional block, so it is the one that goes.
+        assertFalse("pots-ui" in out)
+    }
+
     // endregion
 
     // region Golden snapshots
@@ -698,7 +762,7 @@ class ChatSystemPromptBuilderTest {
             DEFAULT_LANGUAGE_SECTION + "\n\n" +
             DEFAULT_TOOL_USE_SECTION + "\n\n" +
             DEFAULT_ACTING_SECTION + "\n\n" +
-            DEFAULT_VOICE_OUTPUT_SECTION + "\n\n" +
+            DEFAULT_VOICE_OUTPUT_SECTION_LOCAL + "\n\n" +
             "Save user preferences with memory_store.\n\n" +
             "## Context\n" +
             "- Local time: 2026-04-11T02:00:00+02:00 (Europe/Berlin)\n" +

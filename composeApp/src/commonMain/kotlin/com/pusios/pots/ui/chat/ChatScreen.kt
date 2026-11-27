@@ -1423,6 +1423,17 @@ private fun ChatModeScreen(
                                                             modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
                                                         )
                                                     }
+                                                    // A dropped-tools retry is invisible otherwise: the
+                                                    // answer looks complete while the model quietly lost
+                                                    // every capability the user just enabled.
+                                                    if (history.localFallbackNote != null) {
+                                                        androidx.compose.material3.Text(
+                                                            text = history.localFallbackNote,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.tertiary,
+                                                            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+                                                        )
+                                                    }
                                                 } else if (history.isThinking &&
                                                     history.content.isNotEmpty() &&
                                                     history.id !in suppressedThinkingIds

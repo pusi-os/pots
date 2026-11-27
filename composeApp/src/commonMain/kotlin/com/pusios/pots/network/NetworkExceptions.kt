@@ -2,6 +2,9 @@ package com.pusios.pots.network
 
 import com.pusios.pots.inference.InferenceTimeoutException
 import com.pusios.pots.inference.InsufficientMemoryException
+import com.pusios.pots.inference.LocalContextOverflowException
+import com.pusios.pots.inference.LocalEmptyResponseException
+import com.pusios.pots.inference.LocalInferenceException
 import com.pusios.pots.inference.ModelIntegrityException
 import com.pusios.pots.inference.NoModelDownloadedException
 import org.jetbrains.compose.resources.StringResource
@@ -23,6 +26,9 @@ import pots.composeapp.generated.resources.error_rate_limit_exceeded
 import pots.composeapp.generated.resources.error_service_unavailable
 import pots.composeapp.generated.resources.error_unknown
 import pots.composeapp.generated.resources.error_unsupported_file_type
+import pots.composeapp.generated.resources.litert_error_context_overflow
+import pots.composeapp.generated.resources.litert_error_empty_response
+import pots.composeapp.generated.resources.litert_error_inference_failed
 import pots.composeapp.generated.resources.litert_error_inference_timeout
 import pots.composeapp.generated.resources.litert_error_insufficient_memory
 import pots.composeapp.generated.resources.litert_error_model_integrity
@@ -325,6 +331,17 @@ fun Exception.toUiError(): UiError = when (this) {
     is NoModelDownloadedException -> UiError.Resource(Res.string.litert_error_no_model)
 
     is ModelIntegrityException -> UiError.Resource(Res.string.litert_error_model_integrity)
+
+    // The runtime's own wording ("INVALID_ARGUMENT: ...") says nothing a user can act on, so
+    // the mapped text names the three levers (context, tools, model size) and the raw message
+    // rides along as the detail for support and the debug log.
+    is LocalContextOverflowException -> UiError.Resource(Res.string.litert_error_context_overflow)
+
+    is LocalEmptyResponseException -> UiError.Resource(Res.string.litert_error_empty_response)
+
+    is LocalInferenceException -> detail?.takeIf { it.isNotBlank() }
+        ?.let { UiError.ResourceWithDetail(Res.string.litert_error_inference_failed, it) }
+        ?: UiError.Resource(Res.string.litert_error_inference_failed)
 
     is GeminiGenericException, is OpenAICompatibleGenericException, is AnthropicGenericException, is GenericNetworkException ->
         if (!message.isNullOrBlank()) UiError.Text(message!!) else UiError.Resource(Res.string.error_unknown)

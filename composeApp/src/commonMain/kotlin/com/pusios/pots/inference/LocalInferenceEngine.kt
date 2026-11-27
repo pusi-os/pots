@@ -145,6 +145,27 @@ class NoModelDownloadedException : Exception()
 /** A model file on disk did not match the digest pinned in the catalog and was removed. */
 class ModelIntegrityException : Exception()
 
+/**
+ * The on-device runtime rejected the request.
+ *
+ * [detail] is the runtime's own message. litert-lm reports its function-call parser failures
+ * (and a request that overflows the window) as a bare INVALID_ARGUMENT string, which the UI
+ * cannot act on — the mapped error text explains what to change, and [detail] keeps the native
+ * wording available for the debug log.
+ */
+class LocalInferenceException(val detail: String? = null) : Exception(detail)
+
+/**
+ * The turn does not fit the model's window even after the history was trimmed.
+ *
+ * Raised before the native call: litert-lm answers an over-long request with an opaque JNI
+ * failure, and the user needs to hear "the message is longer than this model can read".
+ */
+class LocalContextOverflowException(val contextTokens: Int) : Exception("Request does not fit a $contextTokens-token window")
+
+/** The model finished the turn without producing any text. */
+class LocalEmptyResponseException : Exception("On-device model returned an empty answer")
+
 enum class DownloadError {
     NOT_ENOUGH_DISK_SPACE,
     NETWORK_ERROR,
@@ -172,8 +193,17 @@ interface LocalInferenceEngine {
      *
      * Null means *unknown*, not *incapable* — the id may not be downloaded, the bundle's
      * metadata may predate the declaration, or the platform may not implement the probe at
-     * all (the iOS bridge predates it). Callers that get null must fall back to their own
-     * assumptions rather than treat the model as supporting nothing.
+     * all (the iOS bridge predates it). Each reader decides for itself what "unknown" means,
+     * and they do not all answer the same way:
+     *
+     * - the chat tool gate (`LocalToolSelection.modelSupportsToolCalling`) hands *no* tools to
+     *   a model whose capabilities are unknown; the only exception is the ids in
+     *   `LocalToolSelection.TEMPLATE_LEVEL_TOOL_CALLING_MODEL_IDS`, which do template-level
+     *   tool calling without declaring it. That is deliberate: a bundle whose chat template has
+     *   no tool section does not ignore tools, it fabricates their output, so unknown must not
+     *   be read as "probably capable";
+     * - the sampler keeps its own fixed defaults on null (top-k 40, top-p 0.95, temperature
+     *   0.8), because a missing sampler block means "no opinion", not "decode greedily".
      */
     suspend fun modelCapabilities(modelId: String): LocalModelCapabilities? = null
 
