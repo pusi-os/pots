@@ -314,12 +314,14 @@ private fun HandsFreeButton(
             // x = Res.string.foo_bar
             tint = when (status) {
                 HandsFreeStatus.Idle -> MaterialTheme.colorScheme.onBackground
+
                 // A failure must not look like listening: the two were
                 // indistinguishable in the top bar, so a dead session read as
                 // «слушаю» while the microphone was closed.
                 HandsFreeStatus.Error,
                 HandsFreeStatus.NoMatch,
                 -> MaterialTheme.colorScheme.error
+
                 else -> MaterialTheme.colorScheme.primary.copy(alpha = pulse.value)
             },
         )

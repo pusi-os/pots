@@ -12,9 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import nl.marc_apps.tts.errors.TextToSpeechSynthesisInterruptedError
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
-import nl.marc_apps.tts.errors.TextToSpeechSynthesisInterruptedError
 
 /** What the hands-free loop is currently doing. */
 enum class HandsFreeStatus {
