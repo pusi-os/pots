@@ -843,8 +843,6 @@ class FakeDataRepository : DataRepository {
     /** Ephemeral run sessions the scheduler closed, in order. */
     val closedHeadlessSessions = mutableListOf<String>()
 
-    override fun closeOrphanedHeartbeatSessions() {}
-
     override fun getHeartbeatPromptPreview(): String = ""
 
     override suspend fun clearHeartbeatHistory() {}

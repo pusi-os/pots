@@ -174,8 +174,6 @@ class TaskScheduler(
     fun start() {
         if (!enabled || taskStore == null || appSettings == null) return
         if (activeJob?.isActive == true) return
-        // A previous process may have died mid-run; its ephemeral shells are still on disk.
-        dataRepository.closeOrphanedHeartbeatSessions()
         activeJob = schedulerScope.launch {
             while (isActive) {
                 delay(POLL_INTERVAL_MS.milliseconds)
@@ -483,11 +481,12 @@ class TaskScheduler(
             val decision = classifyHeartbeatReply(
                 content = run.content,
                 toolCalls = run.result.toolCalls,
-                // "Fresh" is what the run was given: mail/SMS/notifications that arrived since the
-                // last run, or a standing instruction the user wrote. Pending tasks and promotion
-                // candidates are always in the prompt, so they cannot make a quiet run report.
+                // "Fresh" is what arrived between runs: mail/SMS/notifications the user has not
+                // been told about yet. Standing instructions (heartbeat additions) are always in
+                // the prompt, so they cannot make a tool-less promise look like a result — the
+                // prompt tells the model to act on them with a tool in this run.
                 hasFreshMaterial = pendingEmails.isNotEmpty() || pendingSms.isNotEmpty() ||
-                    pendingNotifications.isNotEmpty() || manager.hasHeartbeatAdditions(),
+                    pendingNotifications.isNotEmpty(),
                 budgetExhausted = run.result.budgetExhausted,
             )
             when (decision) {
@@ -502,7 +501,11 @@ class TaskScheduler(
                     notified = outcome == HeartbeatOutcome.REPORTED
                 }
             }
-            consumeHeartbeatSnapshot(pendingEmails, pendingSms, pendingNotifications)
+            // A run cut off by its budget never concluded: the mail/SMS/notifications it was shown
+            // stay queued for the next run, otherwise a partial answer would silently eat them.
+            if (outcome != HeartbeatOutcome.BUDGET) {
+                consumeHeartbeatSnapshot(pendingEmails, pendingSms, pendingNotifications)
+            }
             notificationStore?.sweep()
         } catch (e: TimeoutCancellationException) {
             outcome = HeartbeatOutcome.TIMEOUT

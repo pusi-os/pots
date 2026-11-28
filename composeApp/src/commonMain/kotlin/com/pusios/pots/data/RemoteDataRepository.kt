@@ -2682,14 +2682,6 @@ class RemoteDataRepository(
         sandboxController.closeSession(sessionId)
     }
 
-    override fun closeOrphanedHeartbeatSessions() {
-        // The run id is unique per run, so anything still open from a previous process belongs to
-        // a run that ended when the process did. Leaving them would leak a bash process each.
-        for (sessionId in sandboxController.sessions.value) {
-            if (sessionId.startsWith(HEARTBEAT_SESSION_PREFIX)) sandboxController.closeSession(sessionId)
-        }
-    }
-
     override fun getHeartbeatPromptPreview(): String = heartbeatManager.buildHeartbeatPrompt(budget = HEARTBEAT_BUDGET)
 
     override suspend fun clearHeartbeatHistory() {

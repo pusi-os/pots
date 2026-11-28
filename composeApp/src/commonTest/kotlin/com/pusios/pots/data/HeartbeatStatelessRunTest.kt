@@ -24,7 +24,10 @@ import kotlin.test.assertTrue
  */
 class HeartbeatStatelessRunTest {
 
-    private class Harness(dispatcher: kotlin.coroutines.CoroutineContext) {
+    private class Harness(
+        dispatcher: kotlin.coroutines.CoroutineContext,
+        emailStore: EmailStore? = null,
+    ) {
         val repository = FakeDataRepository().apply {
             fakeServiceEntries = listOf(
                 ServiceEntry(
@@ -38,7 +41,7 @@ class HeartbeatStatelessRunTest {
             askWithToolsResponse = "HEARTBEAT_OK"
         }
         private val settings = AppSettings(MapSettings())
-        private val taskStore = TaskStore(settings)
+        val taskStore = TaskStore(settings)
         val manager = HeartbeatManager(settings, MemoryStore(settings), taskStore)
         val scheduler = TaskScheduler(
             dataRepository = repository,
@@ -46,6 +49,7 @@ class HeartbeatStatelessRunTest {
             appSettings = settings,
             heartbeatManager = manager,
             backgroundDispatcher = dispatcher,
+            emailStore = emailStore,
         )
 
         init {
@@ -112,6 +116,28 @@ class HeartbeatStatelessRunTest {
     }
 
     @Test
+    fun `a standing instruction does not turn a promise into a report`() = runTest {
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
+        harness.taskStore.addTask(
+            description = "Check the exchange rate",
+            prompt = "Check the exchange rate and report if it moved.",
+            scheduledAtEpochMs = 0L,
+            trigger = TaskTrigger.HEARTBEAT,
+        )
+        harness.repository.askWithToolsResponse = "I'll check the exchange rate next time."
+
+        harness.scheduler.triggerHeartbeatNow()
+
+        // The addition is in the prompt — that is exactly why it cannot count as "fresh": it is
+        // there on every run, so a promise about it would be delivered on every run too.
+        assertTrue("Check the exchange rate" in harness.repository.askWithToolsPrompts.single())
+        assertTrue(harness.repository.assistantMessages.isEmpty(), "a promise reached the conversation")
+        val entry = harness.latest()
+        assertEquals(HeartbeatOutcome.CHATTER, entry.outcome)
+        assertFalse(entry.notified)
+    }
+
+    @Test
     fun `the token is never written to the conversation`() = runTest {
         val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "HEARTBEAT_OK"
@@ -165,6 +191,34 @@ class HeartbeatStatelessRunTest {
         assertTrue(harness.repository.assistantMessages.isEmpty())
         assertEquals(HeartbeatOutcome.BUDGET, harness.latest().outcome)
         assertTrue(harness.repository.closedHeadlessSessions.isNotEmpty())
+    }
+
+    @Test
+    fun `a budget stop leaves the incoming mail for the next run`() = runTest {
+        val emailStore = EmailStore(AppSettings(MapSettings()))
+        val email = EmailMessage(
+            uid = 7,
+            accountId = "acc",
+            from = "bank@example.com",
+            subject = "Statement ready",
+        )
+        emailStore.addPending(listOf(email))
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler), emailStore)
+        harness.repository.askWithToolsResponse = "Half a thought."
+        harness.repository.askWithToolsTools = listOf("check_email")
+        harness.repository.askWithToolsBudgetExhausted = true
+
+        harness.scheduler.triggerHeartbeatNow()
+
+        assertEquals(HeartbeatOutcome.BUDGET, harness.latest().outcome)
+        assertEquals(listOf(email), emailStore.getPending(), "a budget-cut run ate the incoming mail")
+
+        // The next run gets the same mail and, this time, concludes: only then is it consumed.
+        harness.repository.askWithToolsBudgetExhausted = false
+        harness.scheduler.triggerHeartbeatNow()
+
+        assertEquals(HeartbeatOutcome.REPORTED, harness.latest().outcome)
+        assertTrue(emailStore.getPending().isEmpty(), "a delivered run did not consume what it showed")
     }
 
     @Test

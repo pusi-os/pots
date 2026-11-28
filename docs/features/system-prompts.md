@@ -64,13 +64,15 @@ Interactive UI mode is **not** available on on-device services — the pots-ui c
 |---|---|
 | Opening prompt | `customOrDefaultPrompt` (custom or `DEFAULT_HEARTBEAT_PROMPT`) |
 | `## Heartbeat Additions` | `heartbeatAdditions` non-empty — appended standing instructions from `schedule_task(on_heartbeat=true)` tasks |
-| `## Previous Heartbeat Results` | `recentResponses` non-empty |
 | `## Pending Tasks` (with optional cron annotation) | `pendingTasks` non-empty |
 | `## Email Status` (per-account unread count + last sync) | `emailAccounts` non-empty |
 | `## New Emails` (unread header snapshots awaiting triage) | `pendingEmails` non-empty |
 | `## New SMS` (unread message snapshots awaiting triage) | `pendingSms` non-empty |
 | `## New Notifications` (captured Android notifications awaiting triage, newest first by post time, capped at 20) | `pendingNotifications` non-empty |
 | `## Promotion Candidates` (with hit counts + category) | `promotionCandidates` non-empty |
+| `## Pulse limits` (tool and token ceiling restated) | always |
+
+There is no section carrying previous heartbeat answers: the builder takes no conversation input, and each run is a fresh session.
 
 ## How to add a new section
 

@@ -278,9 +278,6 @@ class HeartbeatManager(
         )
     }
 
-    /** True when the prompt carries a user-authored standing instruction (see the action contract). */
-    fun hasHeartbeatAdditions(): Boolean = taskStore.getPendingTasksPartitioned().heartbeatAdditions.isNotEmpty()
-
     /** Appends one finished run to the journal. */
     suspend fun recordRun(entry: HeartbeatLogEntry) {
         log.update { (listOf(entry) + it).take(MAX_LOG_ENTRIES) }

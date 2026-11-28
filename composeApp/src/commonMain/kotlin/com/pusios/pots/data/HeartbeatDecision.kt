@@ -57,8 +57,10 @@ internal fun parseHeartbeatAck(content: String): Pair<Boolean, String> {
  * Classifies one finished run.
  *
  * @param toolCalls tools the run actually executed — the only proof that an intention was acted on
- * @param hasFreshMaterial the prompt carried something new (unread mail/SMS/notifications) or a
- *   user-authored standing instruction; a summary of it is a result even without a tool call
+ * @param hasFreshMaterial the prompt carried something that arrived since the last run (unread
+ *   mail/SMS/notifications); a summary of it is a result even without a tool call. Standing
+ *   instructions are not fresh material: they are always in the prompt, so a promise to act on
+ *   one must not pass as an answer.
  */
 internal fun classifyHeartbeatReply(
     content: String,

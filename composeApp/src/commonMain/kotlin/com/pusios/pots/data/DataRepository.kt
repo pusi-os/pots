@@ -355,9 +355,6 @@ interface DataRepository {
      */
     fun closeHeadlessSession(sessionId: String)
 
-    /** Closes `hb-run-*` sessions left behind by a previous process. Called once at start-up. */
-    fun closeOrphanedHeartbeatSessions()
-
     /** The exact prompt the next heartbeat run will send, for the "what will be sent" preview. */
     fun getHeartbeatPromptPreview(): String
 
