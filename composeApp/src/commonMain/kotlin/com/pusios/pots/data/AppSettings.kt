@@ -212,6 +212,20 @@ data class ServiceInstance(
     val serviceId: String,
 )
 
+/**
+ * A settings store that can flush one key to disk before returning.
+ *
+ * Only token records use it. OAuth 2.1 makes the authorization server rotate the refresh token and
+ * invalidate the previous one, so a rotated token that only reached an asynchronous `apply()` and
+ * was lost to a process kill costs the owner a full sign-in. Every other setting keeps the async
+ * write — a synchronous flush on the main thread is an ANR waiting to happen.
+ */
+interface DurableSettings {
+    fun putStringDurable(key: String, value: String)
+
+    fun removeDurable(key: String)
+}
+
 class AppSettings(internal val settings: Settings) {
 
     private val profileJson = Json {
@@ -302,6 +316,36 @@ class AppSettings(internal val settings: Settings) {
     }
 
     fun getProfileEnabledMcpServerIds(): Set<String>? = getActiveAgentProfile().enabledMcpServerIds?.toSet()
+
+    /**
+     * Adds [serverIds] to every profile that stores an explicit MCP selection, and reports how many
+     * entries were added.
+     *
+     * Profiles created before 3.21.4 copied the servers enabled *at creation time*, so a server
+     * added earlier (or imported from a backup) is not in that snapshot and `isEnabled` reads
+     * false — the agent never sees it while its token is perfectly valid. A profile that inherits
+     * (`enabledMcpServerIds == null`) needs nothing.
+     */
+    fun addMcpServersToProfileSelections(serverIds: Set<String>): Int {
+        if (serverIds.isEmpty()) return 0
+        var added = 0
+        val updated = _agentProfilesFlow.value.map { profile ->
+            val selection = profile.enabledMcpServerIds ?: return@map profile
+            val missing = serverIds.filterNot { it in selection }
+            if (missing.isEmpty()) return@map profile
+            added += missing.size
+            profile.copy(enabledMcpServerIds = (selection + missing).sorted())
+        }
+        if (added > 0) saveAgentProfiles(updated)
+        return added
+    }
+
+    /** One-shot guard for [addMcpServersToProfileSelections]: a later manual switch must stay off. */
+    fun isMcpProfileSelectionMigrated(): Boolean = settings.getBoolean(KEY_MCP_PROFILE_SELECTION_MIGRATED, false)
+
+    fun setMcpProfileSelectionMigrated() {
+        settings.putBoolean(KEY_MCP_PROFILE_SELECTION_MIGRATED, true)
+    }
 
     fun removeMcpServerFromAgentProfiles(serverId: String) {
         saveAgentProfiles(
@@ -997,15 +1041,34 @@ class AppSettings(internal val settings: Settings) {
     }
 
     /**
-     * OAuth access/refresh tokens and client registrations, keyed by server id.
+     * One token record per server, under its own key.
      *
-     * Deliberately in the secure settings (Keystore / Keychain / encrypted file) and not in
-     * [McpServerConfig.headers], so a settings export or a backup never carries a bearer token.
+     * A single JSON map (`mcp_tokens`, the pre-3.21.4 layout) made one unreadable value wipe the
+     * tokens of *every* server on the next save, because saving was read-all/write-all. One key per
+     * server bounds a broken record to its own server. Writes go through [DurableSettings] where the
+     * platform offers it, so a rotated refresh token is on disk before the app can be killed.
      */
+    fun getMcpTokenJson(serverId: String): String? = settings.getStringOrNull(KEY_MCP_TOKEN_PREFIX + serverId)
+
+    fun setMcpTokenJson(serverId: String, json: String) {
+        val key = KEY_MCP_TOKEN_PREFIX + serverId
+        (settings as? DurableSettings)?.putStringDurable(key, json) ?: settings.putString(key, json)
+    }
+
+    fun removeMcpTokenJson(serverId: String) {
+        val key = KEY_MCP_TOKEN_PREFIX + serverId
+        (settings as? DurableSettings)?.removeDurable(key) ?: settings.remove(key)
+    }
+
+    /** The pre-3.21.4 single-blob token map: read and written only by the token store's migration. */
     fun getMcpTokensJson(): String = settings.getString(KEY_MCP_TOKENS, "")
 
     fun setMcpTokensJson(json: String) {
         settings.putString(KEY_MCP_TOKENS, json)
+    }
+
+    fun removeLegacyMcpTokens() {
+        settings.remove(KEY_MCP_TOKENS)
     }
 
     // Tools available to the on-device (local) model
@@ -1288,7 +1351,11 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_POTSIK_PINNED_Y = "potsik_pinned_y"
         const val KEY_MCP_SERVERS = "mcp_servers"
         const val KEY_MCP_STATUS = "mcp_server_status"
+
+        /** Pre-3.21.4 single-blob token map; migrated to [KEY_MCP_TOKEN_PREFIX] keys once. */
         const val KEY_MCP_TOKENS = "mcp_tokens"
+        const val KEY_MCP_TOKEN_PREFIX = "mcp_token_"
+        const val KEY_MCP_PROFILE_SELECTION_MIGRATED = "mcp_profile_selection_migrated_v1"
         const val KEY_LOCAL_TOOL_SELECTION = "local_tool_selection"
         const val KEY_INSTANCE_MIGRATION_COMPLETE = "instance_migration_complete_v1"
         const val KEY_BASE_URL_V1_MIGRATION_COMPLETE = "base_url_v1_migration_complete"

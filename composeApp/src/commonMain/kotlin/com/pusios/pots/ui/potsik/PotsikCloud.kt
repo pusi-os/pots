@@ -85,6 +85,12 @@ enum class PotsikCloudTrouble {
     /** No recognizer on this device: the voice button is dead, not the cloud. */
     NoRecognizer,
 
+    /**
+     * The recognizer is there but its service could not be reached — no
+     * network, or the vendor's server answered with an error.
+     */
+    ServiceUnavailable,
+
     /** Nothing was heard: not an error, the loop simply listens again. */
     NoMatch,
 
