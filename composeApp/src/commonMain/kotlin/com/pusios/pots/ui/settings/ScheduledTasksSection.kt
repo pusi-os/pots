@@ -307,7 +307,9 @@ private fun ScheduledTaskRowItem(
             stringResource(Res.string.settings_task_row_next_run, formatTaskTimestamp(row.nextRunEpochMs))
 
         row.state == ScheduledTaskState.PAUSED -> stringResource(Res.string.settings_task_state_paused)
+
         row.state == ScheduledTaskState.DONE -> stringResource(Res.string.settings_task_state_done)
+
         else -> typeLabel
     }
 
@@ -748,6 +750,7 @@ private fun TaskEditorDialog(
                         trigger,
                         when (trigger) {
                             TaskTrigger.TIME -> parsedTime ?: 0L
+
                             // An edited cron must keep a future next run: leaving 0 would make
                             // the scheduler fire it on the next poll.
                             TaskTrigger.CRON -> if (existing != null && existing.cron == cronText.trim()) {
