@@ -173,6 +173,7 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
                         activeHoursEnd = uiState.heartbeatActiveHoursEnd,
                         heartbeatPrompt = uiState.heartbeatPrompt,
                         heartbeatLog = uiState.heartbeatLog,
+                        heartbeatRepeatWarning = uiState.heartbeatRepeatWarning,
                         heartbeatServiceEntries = uiState.heartbeatServiceEntries,
                         heartbeatSelectedInstanceId = uiState.heartbeatSelectedInstanceId,
                         heartbeatFallbackInstanceId = uiState.heartbeatFallbackInstanceId,
@@ -184,6 +185,8 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
                         onChangeHeartbeatService = actions.onChangeHeartbeatService,
                         onChangeHeartbeatFallbackService = actions.onChangeHeartbeatFallbackService,
                         onRefresh = actions.onRefreshHeartbeat,
+                        onClearHistory = actions.onClearHeartbeatHistory,
+                        onPreviewPrompt = actions.onPreviewHeartbeatPrompt,
                     )
                 }
                 if (uiState.showEmailToggle) {

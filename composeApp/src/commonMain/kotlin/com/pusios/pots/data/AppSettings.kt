@@ -1015,6 +1015,14 @@ class AppSettings(internal val settings: Settings) {
         settings.putString(KEY_HEARTBEAT_LOG, json)
     }
 
+    // Heartbeat anti-repeat ledger — content fingerprints of delivered reports. Survives restarts
+    // because the alternative is re-delivering the same finding after every app launch.
+    fun getHeartbeatLedgerJson(): String = settings.getString(KEY_HEARTBEAT_LEDGER, "")
+
+    fun setHeartbeatLedgerJson(json: String) {
+        settings.putString(KEY_HEARTBEAT_LEDGER, json)
+    }
+
     // Heartbeat prompt
     fun getHeartbeatPrompt(): String = settings.getString(KEY_HEARTBEAT_PROMPT, "")
 
@@ -1306,6 +1314,7 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_HEARTBEAT_CONFIG = "heartbeat_config"
         const val KEY_HEARTBEAT_PROMPT = "heartbeat_prompt"
         const val KEY_HEARTBEAT_LOG = "heartbeat_log"
+        const val KEY_HEARTBEAT_LEDGER = "heartbeat_ledger"
 
         const val KEY_EMAIL_ENABLED = "email_enabled"
         const val KEY_EMAIL_ACCOUNTS = "email_accounts"

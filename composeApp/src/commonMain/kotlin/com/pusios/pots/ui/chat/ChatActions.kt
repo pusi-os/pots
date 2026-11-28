@@ -21,6 +21,10 @@ data class ChatActions(
     val loadConversation: (String) -> Unit,
     val deleteConversation: (String) -> Unit,
     val clearUnreadHeartbeat: () -> Unit,
+    /** Clears the Pulse conversation, its run journal and the repeat ledger (migration offer). */
+    val clearHeartbeatHistory: () -> Unit,
+    /** Remembers that the one-time history offer was shown, so it never returns. */
+    val dismissHeartbeatHistoryOffer: () -> Unit,
     val clearSnackbar: () -> Unit,
     val undoDeleteConversation: () -> Unit,
     val submitUiCallback: (event: String, data: Map<String, String>) -> Unit,

@@ -336,6 +336,46 @@ interface DataRepository {
         modelIdOverride: String? = null,
     ): String
 
+    /**
+     * Same as [askWithTools], but keeps the run's evidence: the tools it executed, its token
+     * usage, and whether it hit [budget]. A heartbeat needs those facts to tell "did something"
+     * from "only talked" — the reply text cannot.
+     */
+    suspend fun askWithToolsDetailed(
+        prompt: String,
+        instanceId: String? = null,
+        conversationIdOverride: String? = null,
+        modelIdOverride: String? = null,
+        budget: HeadlessBudget? = null,
+    ): HeadlessRunResult
+
+    /**
+     * Closes an ephemeral run session (a `hb-run-*` id) once the run is over, so its shell and
+     * transcript do not outlive the run that created them.
+     */
+    fun closeHeadlessSession(sessionId: String)
+
+    /** Closes `hb-run-*` sessions left behind by a previous process. Called once at start-up. */
+    fun closeOrphanedHeartbeatSessions()
+
+    /** The exact prompt the next heartbeat run will send, for the "what will be sent" preview. */
+    fun getHeartbeatPromptPreview(): String
+
+    /**
+     * Clears everything the Pulse accumulated: the conversation's messages, the run journal, and
+     * the anti-repeat ledger. Tasks, memories and settings are untouched.
+     */
+    suspend fun clearHeartbeatHistory()
+
+    /** Whether the one-time "clear the old Pulse history" offer should be shown. */
+    fun shouldOfferHeartbeatHistoryCleanup(): Boolean
+
+    /** Records that the offer was shown, so it never returns. */
+    fun dismissHeartbeatHistoryCleanup()
+
+    /** The content the pulse keeps repeating, when it repeats enough to say so. */
+    fun getHeartbeatRepeatWarning(): HeartbeatRepeatWarning?
+
     // Silent ask (no tools, no chat history update)
     suspend fun askSilently(question: String): String
     suspend fun askSilentlyWithInstance(instanceId: String, prompt: String, timeoutMs: Long = 0L): String

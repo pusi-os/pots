@@ -781,22 +781,76 @@ class FakeDataRepository : DataRepository {
         instanceId: String?,
         conversationIdOverride: String?,
         modelIdOverride: String?,
-    ): String {
+    ): String = askWithToolsDetailed(prompt, instanceId, conversationIdOverride, modelIdOverride, null).content
+
+    override suspend fun askWithToolsDetailed(
+        prompt: String,
+        instanceId: String?,
+        conversationIdOverride: String?,
+        modelIdOverride: String?,
+        budget: HeadlessBudget?,
+    ): HeadlessRunResult {
         askWithToolsCalls += instanceId
+        askWithToolsPrompts += prompt
+        askWithToolsConversationIds += conversationIdOverride
         askWithToolsFailures[instanceId]?.let { throw it }
-        return askWithToolsResponse
+        if (askWithToolsDelayMs > 0) kotlinx.coroutines.delay(askWithToolsDelayMs)
+        return HeadlessRunResult(
+            content = askWithToolsResponse,
+            toolCalls = askWithToolsTools,
+            budgetExhausted = askWithToolsBudgetExhausted,
+        )
     }
 
     /** Instance ids [askWithTools] was called with, in order — proves who was (not) tried. */
     val askWithToolsCalls = mutableListOf<String?>()
 
+    /** Every prompt a run was sent, in order — proves what the model did (not) see. */
+    val askWithToolsPrompts = mutableListOf<String>()
+
+    /** Every ephemeral session id a run bound its tools to, in order. */
+    val askWithToolsConversationIds = mutableListOf<String?>()
+
     /** Instance id (null = any) → the exception that instance should fail with. */
     var askWithToolsFailures: Map<String?, Exception> = emptyMap()
     var askWithToolsResponse: String = "HEARTBEAT_OK"
+
+    /** Tools the fake run "executed" — the trace the heartbeat classifies on. */
+    var askWithToolsTools: List<String> = emptyList()
+    var askWithToolsBudgetExhausted: Boolean = false
+
+    /** Simulates a slow provider so single-flight and cancellation have something to wait on. */
+    var askWithToolsDelayMs: Long = 0
+
     override suspend fun askSilently(question: String): String = ""
     override suspend fun askSilentlyWithInstance(instanceId: String, prompt: String, timeoutMs: Long): String = ""
-    override suspend fun addAssistantMessage(content: String) {}
+    override suspend fun addAssistantMessage(content: String) {
+        assistantMessages += content
+    }
+
+    /** Reports delivered to the Pulse conversation, in order. */
+    val assistantMessages = mutableListOf<String>()
+
     override suspend fun getOrCreateHeartbeatConversationId(): String = "fake-heartbeat-conversation"
+
+    override fun closeHeadlessSession(sessionId: String) {
+        closedHeadlessSessions += sessionId
+    }
+
+    /** Ephemeral run sessions the scheduler closed, in order. */
+    val closedHeadlessSessions = mutableListOf<String>()
+
+    override fun closeOrphanedHeartbeatSessions() {}
+
+    override fun getHeartbeatPromptPreview(): String = ""
+
+    override suspend fun clearHeartbeatHistory() {}
+
+    override fun shouldOfferHeartbeatHistoryCleanup(): Boolean = false
+
+    override fun dismissHeartbeatHistoryCleanup() {}
+
+    override fun getHeartbeatRepeatWarning(): HeartbeatRepeatWarning? = null
 
     override val hasUnreadHeartbeat: MutableStateFlow<Boolean> = MutableStateFlow(false)
     override fun clearUnreadHeartbeat() {

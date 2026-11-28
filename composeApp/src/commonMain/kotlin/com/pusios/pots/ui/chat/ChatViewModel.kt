@@ -128,6 +128,8 @@ class ChatViewModel(
         loadConversation = ::loadConversation,
         deleteConversation = ::deleteConversation,
         clearUnreadHeartbeat = ::clearUnreadHeartbeat,
+        clearHeartbeatHistory = ::clearHeartbeatHistory,
+        dismissHeartbeatHistoryOffer = ::dismissHeartbeatHistoryOffer,
         clearSnackbar = ::clearSnackbar,
         undoDeleteConversation = ::undoDeleteConversation,
         submitUiCallback = ::submitUiCallback,
@@ -158,6 +160,11 @@ class ChatViewModel(
     )
     private var currentJob: Job? = null
     private var pendingConversationDeleteJob: Job? = null
+
+    /** Pulse state that lives outside the conversation: the one-time history offer and repeats. */
+    private val _heartbeatHistoryOffer = MutableStateFlow(false)
+    private val _heartbeatRepeatCount = MutableStateFlow<Int?>(null)
+
     private val _state = MutableStateFlow(
         ChatUiState(
             actions = actions,
@@ -191,6 +198,14 @@ class ChatViewModel(
 
     init {
         updateAvailableServices()
+
+        viewModelScope.launch(backgroundDispatcher) { refreshHeartbeatPulseState() }
+        viewModelScope.launch {
+            combine(_heartbeatHistoryOffer, _heartbeatRepeatCount) { offer, count -> offer to count }
+                .collect { (offer, count) ->
+                    _state.update { it.copy(heartbeatHistoryOffer = offer, heartbeatRepeatCount = count) }
+                }
+        }
 
         // Keep restoreCurrentConversation off the main thread; see issue #197 (large persisted
         // tool outputs caused ANRs when JSON-decoded synchronously during VM construction).
@@ -992,8 +1007,12 @@ class ChatViewModel(
         currentJob = null
         val conversation = dataRepository.savedConversations.value.find { it.id == id }
         val isInteractive = conversation?.type == Conversation.TYPE_INTERACTIVE
+        val isHeartbeat = conversation?.type == Conversation.TYPE_HEARTBEAT
         dataRepository.setInteractiveMode(isInteractive)
         dataRepository.loadConversation(id)
+        // Opening the Pulse is the moment the owner can act on the history offer and the repeat
+        // warning, so both are recomputed here rather than only at start-up.
+        if (isHeartbeat) refreshHeartbeatPulseState()
         _state.update {
             it.copy(
                 error = null,
@@ -1049,6 +1068,28 @@ class ChatViewModel(
 
     private fun clearUnreadHeartbeat() {
         dataRepository.clearUnreadHeartbeat()
+    }
+
+    /**
+     * The Pulse state that lives outside the conversation itself: whether the pre-3.21.8 history
+     * offer is still unanswered, and whether the pulse keeps repeating the same report.
+     */
+    private fun refreshHeartbeatPulseState() {
+        _heartbeatHistoryOffer.value = dataRepository.shouldOfferHeartbeatHistoryCleanup()
+        _heartbeatRepeatCount.value = dataRepository.getHeartbeatRepeatWarning()?.suppressedCount
+    }
+
+    private fun clearHeartbeatHistory() {
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.clearHeartbeatHistory()
+            dataRepository.dismissHeartbeatHistoryCleanup()
+            refreshHeartbeatPulseState()
+        }
+    }
+
+    private fun dismissHeartbeatHistoryOffer() {
+        dataRepository.dismissHeartbeatHistoryCleanup()
+        _heartbeatHistoryOffer.value = false
     }
 
     private fun sendSmsDraft(draftId: String) {

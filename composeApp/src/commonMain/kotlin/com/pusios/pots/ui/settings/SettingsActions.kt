@@ -60,6 +60,9 @@ data class SettingsActions(
     val onChangeHeartbeatService: (String?) -> Unit,
     val onChangeHeartbeatFallbackService: (String?) -> Unit,
     val onRefreshHeartbeat: () -> Unit,
+    val onClearHeartbeatHistory: () -> Unit,
+    /** The assembled prompt the next run will send — computed on demand, it reads live stores. */
+    val onPreviewHeartbeatPrompt: () -> String,
     val onToggleEmail: (Boolean) -> Unit,
     val onRemoveEmailAccount: (String) -> Unit,
     val onChangeEmailPollInterval: (Int) -> Unit,
@@ -160,6 +163,8 @@ data class SettingsActions(
             onChangeHeartbeatService = {},
             onChangeHeartbeatFallbackService = {},
             onRefreshHeartbeat = {},
+            onClearHeartbeatHistory = {},
+            onPreviewHeartbeatPrompt = { "" },
             onToggleEmail = {},
             onRemoveEmailAccount = {},
             onChangeEmailPollInterval = {},

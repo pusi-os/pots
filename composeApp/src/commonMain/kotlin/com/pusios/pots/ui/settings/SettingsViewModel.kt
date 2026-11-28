@@ -137,6 +137,7 @@ class SettingsViewModel(
             heartbeatActiveHoursEnd = dataRepository.getHeartbeatConfig().activeHoursEnd,
             heartbeatPrompt = dataRepository.getHeartbeatPrompt(),
             heartbeatLog = dataRepository.getHeartbeatLog().toImmutableList(),
+            heartbeatRepeatWarning = dataRepository.getHeartbeatRepeatWarning(),
             heartbeatServiceEntries = heartbeatEntries.toImmutableList(),
             heartbeatSelectedInstanceId = validHeartbeatId,
             heartbeatFallbackInstanceId = validHeartbeatFallbackId,
@@ -236,6 +237,8 @@ class SettingsViewModel(
         onChangeHeartbeatService = ::onChangeHeartbeatService,
         onChangeHeartbeatFallbackService = ::onChangeHeartbeatFallbackService,
         onRefreshHeartbeat = ::onRefreshHeartbeat,
+        onClearHeartbeatHistory = ::onClearHeartbeatHistory,
+        onPreviewHeartbeatPrompt = ::onPreviewHeartbeatPrompt,
         onToggleEmail = ::onToggleEmail,
         onRemoveEmailAccount = ::onRemoveEmailAccount,
         onChangeEmailPollInterval = ::onChangeEmailPollInterval,
@@ -915,6 +918,9 @@ class SettingsViewModel(
 
     private fun onToggleHeartbeat(enabled: Boolean) {
         dataRepository.setHeartbeatEnabled(enabled)
+        // Switching the pulse off has to stop the run that is in flight: its premise just
+        // disappeared, and a report arriving after "off" is a report the owner did not ask for.
+        if (!enabled) taskScheduler.cancelHeartbeatRun()
         _state.update { it.copy(isHeartbeatEnabled = enabled) }
     }
 
@@ -952,10 +958,25 @@ class SettingsViewModel(
                 it.copy(
                     isRefreshingHeartbeat = false,
                     heartbeatLog = dataRepository.getHeartbeatLog().toImmutableList(),
+                    heartbeatRepeatWarning = dataRepository.getHeartbeatRepeatWarning(),
                 )
             }
         }
     }
+
+    private fun onClearHeartbeatHistory() {
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.clearHeartbeatHistory()
+            _state.update {
+                it.copy(
+                    heartbeatLog = dataRepository.getHeartbeatLog().toImmutableList(),
+                    heartbeatRepeatWarning = dataRepository.getHeartbeatRepeatWarning(),
+                )
+            }
+        }
+    }
+
+    private fun onPreviewHeartbeatPrompt(): String = dataRepository.getHeartbeatPromptPreview()
 
     private fun onToggleEmail(enabled: Boolean) {
         dataRepository.setEmailEnabled(enabled)
