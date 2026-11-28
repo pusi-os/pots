@@ -138,7 +138,7 @@ object SchedulingTools {
             name = "list_tasks",
             description = "List all scheduled tasks with their IDs, descriptions, and status. Call this before cancel_task if you need to find a task ID. Optionally filter by status.",
             parameters = mapOf(
-                "status" to ParameterSchema(type = "string", description = "Filter by status: PENDING or COMPLETED", required = false),
+                "status" to ParameterSchema(type = "string", description = "Filter by status: PENDING, PAUSED or COMPLETED", required = false),
             ),
         )
 
@@ -150,7 +150,7 @@ object SchedulingTools {
                 val status = try {
                     TaskStatus.valueOf(statusFilter)
                 } catch (e: Exception) {
-                    return mapOf("success" to false, "error" to "Invalid status: $statusFilter. Use PENDING or COMPLETED")
+                    return mapOf("success" to false, "error" to "Invalid status: $statusFilter. Use PENDING, PAUSED or COMPLETED")
                 }
                 allTasks.filter { it.status == status }
             } else {

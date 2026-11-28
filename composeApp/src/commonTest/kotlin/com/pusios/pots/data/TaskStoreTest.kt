@@ -4,6 +4,7 @@ import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -97,5 +98,53 @@ class TaskStoreTest {
 
         store.removeTask(task.id)
         assertTrue(store.tasksFlow.value.isEmpty())
+    }
+
+    /**
+     * A paused task keeps its row in the list (the user still sees it) but must never be picked
+     * up by the scheduler — [TaskStore.getDueTasks] is the only gate every executor goes through.
+     */
+    @Test
+    fun pausedTaskIsNotDueAndResumeMakesItDueAgain() = runTest {
+        val store = freshStore()
+        val task = store.addTask(description = "Check the rate", prompt = "Check", scheduledAtEpochMs = 1L)
+        assertEquals(listOf(task.id), store.getDueTasks().map { it.id })
+
+        assertTrue(store.pause(task.id))
+        assertEquals(TaskStatus.PAUSED, store.getAllTasks().single().status)
+        assertTrue(store.getDueTasks().isEmpty(), "a paused task must not be due")
+        // The paused task also stops appearing in the heartbeat's pending lists.
+        assertTrue(store.getPendingTasksPartitioned().scheduled.isEmpty())
+
+        assertTrue(store.resume(task.id))
+        assertEquals(TaskStatus.PENDING, store.getAllTasks().single().status)
+        assertEquals(listOf(task.id), store.getDueTasks().map { it.id })
+    }
+
+    @Test
+    fun pauseKeepsTheScheduleAndOnlyTouchesPendingTasks() = runTest {
+        val store = freshStore()
+        val task = store.addTask(description = "Water the flowers", prompt = "Water", scheduledAtEpochMs = 1700000000000)
+
+        assertTrue(store.pause(task.id))
+        val paused = store.getAllTasks().single()
+        assertEquals(task.scheduledAtEpochMs, paused.scheduledAtEpochMs)
+        assertEquals(task.prompt, paused.prompt)
+
+        // Pausing twice is a no-op, and an unknown id is refused rather than inventing a row.
+        assertFalse(store.pause(task.id))
+        assertFalse(store.pause("no-such-task"))
+        assertFalse(store.resume("no-such-task"))
+    }
+
+    @Test
+    fun pauseDoesNotResurrectACompletedTask() = runTest {
+        val store = freshStore()
+        val task = store.addTask(description = "One shot", prompt = "Run", scheduledAtEpochMs = 1L)
+        store.updateTask(task.copy(status = TaskStatus.COMPLETED))
+
+        assertFalse(store.pause(task.id))
+        assertEquals(TaskStatus.COMPLETED, store.getAllTasks().single().status)
+        assertFalse(store.resume(task.id))
     }
 }

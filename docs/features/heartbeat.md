@@ -1,6 +1,6 @@
 # Heartbeat
 
-**Last verified:** 2026-11-19
+**Last verified:** 2026-11-28
 
 > Heartbeat is user-controlled (on/off toggle, interval, active hours live in the settings UI). The AI cannot enable, disable, or reschedule it. To customise *what happens on each heartbeat*, the AI creates heartbeat-triggered scheduled tasks via `schedule_task` with `on_heartbeat: true` — these are `HEARTBEAT`-trigger tasks (see [tasks.md](tasks.md)) and their prompts are appended to every heartbeat run under `## Heartbeat Additions`. Each addition is a first-class task the user can see, edit, and cancel.
 
@@ -106,7 +106,8 @@ When the primary gives up:
 
 ## Heartbeat Log
 
-- Stores up to 5 most recent heartbeat entries
+- Stores up to 50 most recent heartbeat entries; the oldest are evicted first. The settings UI folds the list into a collapsed block, so a longer history costs no screen space
+- The journal can be emptied with `HeartbeatManager.clearLog()`
 - Each entry records success/failure, a timestamp, an optional error line, and an optional note
 - Displayed in the settings UI under the heartbeat section
 - Entries show an OK/FAIL indicator and a formatted local timestamp
@@ -136,8 +137,8 @@ The heartbeat section lives in the Agent tab of settings. The toggle and reset b
 - **Model pickers** — separate primary and fallback dropdowns, always shown. Each lists trial presets, configured remote services whose model supports tool calling, and the downloaded on-device model when one is configured, with icons and model IDs. The primary's "Default" option uses the remote-first default above; the fallback's default option means "same as primary". A removed service is cleared from either slot on the next state load. When Pulse runs on the local model it receives the built-in tools and MCP servers selected in Settings → Local Model, exactly like a normal local chat
 - **Custom prompt editor** — a text field (max 4000 characters) for editing the heartbeat prompt, with a save button that appears when changes are detected. Shows the default prompt text when no custom prompt is set. A character counter (X/4000) is displayed in the editor as the user types
 - **Reset to default** — when a custom heartbeat prompt is set, a reset button appears in the heartbeat section header next to the toggle. Tapping it opens a confirmation dialog; confirming clears the custom prompt and restores the default
-- **Log display** — a "Recent" label, followed by each log entry (if any) with an OK/FAIL indicator and timestamp
-- **Manual refresh** — a refresh icon next to the "Recent" label (always shown while heartbeat is enabled) runs a heartbeat immediately, bypassing the active-hours window and the interval-due check. Only fires while heartbeat is enabled and scheduling is on; the icon shows a progress spinner during the call
+- **Log display** — a "Recent Activity" block, collapsed by default; opening it lists each entry with an OK/FAIL indicator, a timestamp, and the error or fallback note. With an empty journal the block says so instead of disappearing
+- **Manual refresh** — a refresh icon in the "Recent Activity" header (always shown while heartbeat is enabled) runs a heartbeat immediately, bypassing the active-hours window and the interval-due check. Only fires while heartbeat is enabled and scheduling is on; the icon shows a progress spinner during the call
 
 ## AI Tools
 
@@ -146,6 +147,43 @@ The heartbeat section lives in the Agent tab of settings. The toggle and reset b
 | `promote_learning` | Promote a reinforced memory into the soul/system prompt |
 
 Standing additions to heartbeat behaviour are created with `schedule_task(on_heartbeat=true)` — see [tasks.md](tasks.md#heartbeat-triggered-tasks). Those prompts are appended to the main heartbeat self-check, not replaced.
+
+## Managing Scheduled Tasks
+
+Scheduled tasks and heartbeat additions are ordinary app data, not model state — they can be
+inspected and changed without talking to the agent.
+
+**Where they live.** Everything is in the app's plain `SharedPreferences` (not the encrypted
+store), through `AppSettings`:
+
+| Key | Contents |
+|---|---|
+| `scheduled_tasks` (`KEY_SCHEDULED_TASKS`) | The whole task list, JSON-encoded `ScheduledTask` array. `TaskStore` owns it |
+| `heartbeat_log` (`KEY_HEARTBEAT_LOG`) | The heartbeat journal, JSON-encoded `HeartbeatLogEntry` array |
+| `heartbeat_config` (`KEY_HEARTBEAT_CONFIG`) | Interval, active hours, enabled flag, model slots, custom prompt |
+
+**Lifecycle.** `TaskStatus` is `PENDING`, `PAUSED`, or `COMPLETED`. Every executor —
+the time poll loop, the cron advance, and the heartbeat-addition gatherer — filters on
+`PENDING`, so pausing is a pure status flip: the schedule is untouched and nothing can fire
+by accident. Resuming flips it back. Neither needs the schedule recomputed.
+
+**What a heartbeat task is.** `schedule_task(on_heartbeat=true)` creates a task with
+`TaskTrigger.HEARTBEAT`. It has no clock and no cron: its prompt is appended to every
+heartbeat self-check under `## Heartbeat Additions` for as long as the task is `PENDING`.
+Its run history is the heartbeat journal, not `recentExecutions`.
+
+**A past heartbeat answer is not a task.** The durable source of a standing check is a
+`PENDING` task in `## Pending Tasks` / `## Heartbeat Additions`; a previous heartbeat reply is
+only a record of what the model said then. If the task behind a check was deleted or paused,
+nothing is scheduled any more — so deleting or pausing the task, not asking the model in chat,
+is what stops a check that keeps reappearing. The pulse prompt still carries the last few
+replies as context today; dropping chat history from the pulse entirely is a separate change.
+
+**In the UI.** Settings → Agent → Scheduled Tasks lists every task with a type badge, a
+status chip, and the next run. Tapping a row opens the task card with pause/resume, run now,
+edit (description, prompt, time or cron, validated), and delete. Run history and the raw
+prompt sit in collapsed blocks. The list stays visible when scheduling is off, marked
+"schedule is off", so tasks are never invisible just because the switch is down.
 
 ## Key Files
 
@@ -161,6 +199,7 @@ Standing additions to heartbeat behaviour are created with `schedule_task(on_hea
 | `composeApp/src/commonMain/.../ui/chat/composables/HeartbeatBanner.kt` | Dismissable notification banner UI |
 | `composeApp/src/commonMain/.../ui/settings/HeartbeatSection.kt` | Heartbeat settings UI section |
 | `composeApp/src/commonMain/.../ui/settings/AgentSettings.kt` | Agent tab layout that hosts the heartbeat section |
+| `composeApp/src/commonMain/.../ui/settings/ScheduledTasksSection.kt` | Scheduled tasks UI (pause/resume/run now/edit/create) that also shows the pulse journal per task |
 | `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Heartbeat setting changes, eligible model list, manual refresh |
 | `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Exposes `promote_learning` only while scheduling is enabled |
 | `composeApp/src/commonMain/.../data/MemoryStore.kt` | Promotion-candidate query (5+ hits) |

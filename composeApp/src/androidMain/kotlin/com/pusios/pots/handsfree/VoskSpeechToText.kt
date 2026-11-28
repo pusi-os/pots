@@ -11,8 +11,8 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 import com.pusios.pots.speech.vosk.VoskModels
 import org.json.JSONObject
+import org.vosk.Model
 import org.vosk.Recognizer
-import kotlin.concurrent.thread
 import kotlin.math.log10
 import kotlin.math.sqrt
 
@@ -31,6 +31,10 @@ import kotlin.math.sqrt
  * is final": its text is appended to the running transcript and the session
  * keeps listening until [END_OF_SPEECH_SILENCE_MS] of real silence, the
  * [MAX_SESSION_MS] cap, or [stop]/[cancel].
+ *
+ * Session state is per attempt ([VoskSession]), not per engine: a superseded
+ * attempt that is still loading the model when the next one starts keeps its
+ * cancellation and never opens a second microphone.
  */
 class VoskSpeechToText(
     private val context: Context,
@@ -39,14 +43,16 @@ class VoskSpeechToText(
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    @Volatile
-    private var worker: Thread? = null
+    private val runner = VoskSessionRunner(
+        loadModel = { VoskModels.ensure(context, modelId) },
+        runWithModel = ::runWithModel,
+    )
 
-    @Volatile
-    private var stopRequested = false
-
-    @Volatile
-    private var cancelRequested = false
+    private val sessions = VoskSessionHost(
+        joinTimeoutMs = SESSION_JOIN_TIMEOUT_MS,
+        post = { block -> mainHandler.post(block) },
+        body = runner::run,
+    )
 
     /**
      * The model is bundled and the native lib ships with the app, so the
@@ -62,41 +68,22 @@ class VoskSpeechToText(
             listener.onError(SpeechToTextError.PermissionDenied)
             return
         }
-        // A superseded session may still be winding down; wait it out so two
-        // microphones are never open at once.
-        worker?.let { previous ->
-            cancelRequested = true
-            previous.join(SESSION_JOIN_TIMEOUT_MS)
-        }
-        stopRequested = false
-        cancelRequested = false
-        worker = thread(name = "vosk-stt", isDaemon = true) {
-            runSession(listener)
-        }
+        sessions.start(listener)
     }
 
     override fun stop() {
-        stopRequested = true
+        sessions.stop()
     }
 
     override fun cancel() {
-        cancelRequested = true
+        sessions.cancel()
     }
 
     override fun release() {
-        cancelRequested = true
-        worker?.join(SESSION_JOIN_TIMEOUT_MS)
-        worker = null
+        sessions.release()
     }
 
-    private fun runSession(listener: SpeechToTextListener) {
-        val model = VoskModels.ensure(context, modelId)
-        if (model == null) {
-            if (!cancelRequested) post { listener.onError(SpeechToTextError.Failed) }
-            worker = null
-            return
-        }
-
+    private fun runWithModel(session: VoskSession, model: Model) {
         val bufferSize = maxOf(
             AudioRecord.getMinBufferSize(SAMPLE_RATE_HZ, CHANNEL, ENCODING),
             READ_BUFFER_BYTES,
@@ -112,7 +99,7 @@ class VoskSpeechToText(
                 bufferSize,
             )
             if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-                if (!cancelRequested) post { listener.onError(SpeechToTextError.Failed) }
+                session.postError(SpeechToTextError.Failed)
                 return
             }
             recognizer = Recognizer(model, SAMPLE_RATE_HZ.toFloat())
@@ -126,10 +113,10 @@ class VoskSpeechToText(
             var silentBytes = 0L
             var speechStarted = false
             val buffer = ByteArray(READ_BUFFER_BYTES)
-            while (!stopRequested && !cancelRequested) {
+            while (!session.isStopRequested && !session.isCancelRequested) {
                 val n = recorder.read(buffer, 0, buffer.size)
                 if (n < 0) {
-                    if (!cancelRequested) post { listener.onError(SpeechToTextError.Failed) }
+                    session.postError(SpeechToTextError.Failed)
                     return
                 }
                 if (n == 0) continue
@@ -138,12 +125,12 @@ class VoskSpeechToText(
                 val level = levelOf(buffer, n)
                 // The wave is drawn from these values, so they go out as often as
                 // audio arrives (once per read, ≈ 64 ms) instead of on a timer.
-                post { listener.onLevel(level) }
+                session.postLevel(level)
                 if (level >= SPEECH_LEVEL_THRESHOLD) {
                     silentBytes = 0
                     if (!speechStarted) {
                         speechStarted = true
-                        post { listener.onSpeechStart() }
+                        session.postSpeechStart()
                     }
                 } else {
                     silentBytes += n
@@ -157,13 +144,12 @@ class VoskSpeechToText(
                         // transcript grows — this is the fix for the phrase that
                         // used to stop at the first pause.
                         accumulated = combine(accumulated, segment)
-                        val partial = accumulated
-                        post { listener.onPartial(partial) }
+                        session.postPartial(accumulated)
                     }
                 } else {
                     val partial = combine(accumulated, textOf(recognizer.partialResult))
                     if (partial.isNotEmpty()) {
-                        post { listener.onPartial(partial) }
+                        session.postPartial(partial)
                     }
                 }
 
@@ -172,16 +158,16 @@ class VoskSpeechToText(
                 val noSpeech = !speechStarted && silentBytes >= INITIAL_SILENCE_MS * BYTES_PER_MS
                 val capped = sessionBytes >= MAX_SESSION_MS * BYTES_PER_MS
                 if (endOfSpeech || noSpeech || capped) {
-                    finalise(recognizer, accumulated, listener)
+                    finalise(session, recognizer, accumulated)
                     return
                 }
             }
 
-            if (cancelRequested) return
+            if (session.isCancelRequested) return
             // stop(): finalise whatever was said so far.
-            finalise(recognizer, accumulated, listener)
+            finalise(session, recognizer, accumulated)
         } catch (t: Throwable) {
-            if (!cancelRequested) post { listener.onError(SpeechToTextError.Failed) }
+            session.postError(SpeechToTextError.Failed)
         } finally {
             try {
                 recorder?.stop()
@@ -192,7 +178,6 @@ class VoskSpeechToText(
                 recognizer?.close()
             } catch (_: Throwable) {
             }
-            worker = null
         }
     }
 
@@ -202,21 +187,17 @@ class VoskSpeechToText(
      * indicator freezes before the result arrives.
      */
     private fun finalise(
+        session: VoskSession,
         recognizer: Recognizer,
         accumulated: String,
-        listener: SpeechToTextListener,
     ) {
-        post { listener.onFinalising() }
+        session.postFinalising()
         val result = combine(accumulated, textOf(recognizer.finalResult))
         if (result.isEmpty()) {
-            post { listener.onError(SpeechToTextError.NoMatch) }
+            session.postError(SpeechToTextError.NoMatch)
         } else {
-            post { listener.onResult(result) }
+            session.postResult(result)
         }
-    }
-
-    private fun post(block: () -> Unit) {
-        mainHandler.post(block)
     }
 
     private fun hasRecordPermission(): Boolean = ContextCompat.checkSelfPermission(
@@ -251,7 +232,11 @@ class VoskSpeechToText(
         /** Upper bound on one utterance, so the microphone is not held forever. */
         const val MAX_SESSION_MS = 120_000L
 
-        /** Long enough for one buffer read plus cleanup to finish. */
+        /**
+         * How long a superseded session is waited for before the next one starts.
+         * Not a correctness bound: a superseded session keeps its own cancel flag
+         * and ends by itself. This only keeps the usual handover invisible.
+         */
         const val SESSION_JOIN_TIMEOUT_MS = 1500L
     }
 }

@@ -172,8 +172,16 @@ class HeartbeatManager(
 
     fun getHeartbeatLog(): List<HeartbeatLogEntry> = log.get()
 
+    /** Empties the journal. Used by "reset heartbeat history" — see [TaskScheduler]. */
+    fun clearLog() = log.set(emptyList())
+
     companion object {
-        private const val MAX_LOG_ENTRIES = 5
+        /**
+         * How many runs the journal keeps. Five was too few to answer "did the pulse check the
+         * rate an hour ago?"; the settings UI folds the list into a collapsed block, so a longer
+         * history costs nothing on screen.
+         */
+        private const val MAX_LOG_ENTRIES = 50
         private const val MAX_NOTIFICATIONS_IN_PROMPT = 20
         const val DEFAULT_HEARTBEAT_PROMPT =
             "[HEARTBEAT] This is an automatic self-check. Review your memories and pending tasks. " +
