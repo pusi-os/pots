@@ -98,6 +98,7 @@ import pots.composeapp.generated.resources.potsik_cloud_screen_revoked
 import pots.composeapp.generated.resources.potsik_cloud_screen_waiting
 import pots.composeapp.generated.resources.potsik_cloud_screenshot_caption
 import pots.composeapp.generated.resources.potsik_cloud_send
+import pots.composeapp.generated.resources.potsik_cloud_service_unavailable
 import pots.composeapp.generated.resources.potsik_cloud_settings
 import pots.composeapp.generated.resources.potsik_cloud_speak_aloud
 import pots.composeapp.generated.resources.potsik_cloud_stop
