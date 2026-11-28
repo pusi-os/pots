@@ -43,24 +43,58 @@ UI validation rules:
 ## Execution Flow
 
 1. The task scheduler polls every 60 seconds. Heartbeat and due scheduled tasks share one retry policy: up to three attempts against the primary instance, then one attempt against the fallback. Which failures are repeated is decided by class, not by count — see [Retry and fallback policy](#retry-and-fallback-policy).
-2. On each poll, it checks: is the overall scheduling-enabled toggle on (the tasks setting that gates all scheduled work)? Is heartbeat enabled? Is the current hour within active hours? Has the configured interval elapsed since the last heartbeat?
-3. If all conditions are met and no other API call is in progress, a heartbeat prompt is built and sent to the AI with the full tool-calling loop. Tool calls (e.g. shell commands) are bound to the heartbeat conversation's own session, not to whichever chat the user is viewing
-4. The last heartbeat timestamp is updated and a log entry is recorded
-5. After a successful run, the notification store's retention limits are swept
+2. On each poll, it checks: is the overall scheduling-enabled toggle on (the tasks setting that gates all scheduled work)? Is heartbeat enabled? Is the current hour within active hours? Is the backoff gate (`nextAllowedAtEpochMs`) clear? Has the interval, with a deterministic ±10 % jitter, elapsed since the last attempt? A missed interval is not replayed — a device that slept for six hours runs once, not twelve times.
+3. **Single flight.** The tick and the "Run now" button both go through one mutex. A run that finds another in flight does nothing; a *button* press that finds one records a `busy` line in the journal, because the user pressed something and deserves an answer. A tick stays silent in that case — it is not an event.
+4. A heartbeat prompt is built from **external state only** (see [Prompt Building](#prompt-building)) and sent with the full tool-calling loop under a 5-minute wall-clock limit.
+5. **Fresh session per run.** The run gets an ephemeral conversation id `hb-run-<runId>` and binds its tool calls (shell, files) to that session. The id is unique per run, so two runs never share a shell and the model never sees a previous run's transcript. The session is closed when the run ends; anything still open at start-up belongs to a run that died with the previous process and is closed there.
+6. The outcome is classified from the run's **evidence** (see [Outcome contract](#outcome-contract)), the journal entry is written, and — on a failure — the exponential backoff is armed.
+7. After a successful run, the notification store's retention limits are swept.
 
-When the overall scheduling-enabled toggle is off, heartbeats do not run regardless of the heartbeat toggle, interval, or active hours.
+When the overall scheduling-enabled toggle is off, heartbeats do not run regardless of the heartbeat toggle, interval, or active hours. Switching the pulse off mid-run cancels the run: nothing of a half-run lands in the Pulse conversation, the session is closed and a `cancelled` line is journalled.
+
+### Backoff
+
+A failure is not retried on the next 60-second tick. `ERROR` and `TIMEOUT` arm a backoff of `interval × 2^(failures-1)`, capped at one hour; a success clears it. Before 3.21.8 a dead key meant ~1440 provider calls a day.
+
+## Outcome contract
+
+The reply text is not evidence. One run ends in exactly one of these, decided from the tool trace the run produced and from what the prompt actually carried:
+
+| Outcome | Decided by | Reaches the user? |
+|---|---|---|
+| `ok_silent` | the reply is `HEARTBEAT_OK`, optionally with up to 300 characters of trailing/leading text | no |
+| `reported` | at least one tool call was executed, **or** the prompt carried fresh material (new mail/SMS/notification, a heartbeat addition) | yes — conversation entry, and a push when the app is in the background |
+| `chatter` | no tool call and nothing fresh: the model only talked (including "I'll check this next time") | **no** — journal only |
+| `duplicate` | same content fingerprint delivered inside the suppression window | no — counted, see [Anti-repeat](#anti-repeat) |
+| `budget` | the run hit its tool/token ceiling | no — the answer is partial by construction |
+| `timeout` | no answer within 5 minutes | no |
+| `error` | every configured instance failed | no |
+| `cancelled` | the pulse was switched off (or the scheduler stopped) mid-run | no |
+| `busy` | a manual run found another run in flight | no |
+
+The action contract in the prompt matches this: anything the run intends to do is done with a tool **in this run**, filed with `schedule_task` (`execute_at` / `cron` / `on_heartbeat`), or not done. Nothing reads a promise back, so a promise is never delivered.
+
+`HEARTBEAT_OK` is matched by **position** (start or end of the reply) with a 300-character remainder, not as a substring: a report that quotes the token in the middle of a sentence is a report, and the token is stripped from the delivered body.
+
+### Anti-repeat
+
+Every delivered report is fingerprinted (whitespace- and case-normalised content hash) and stored in the `heartbeat_ledger` setting, capped at 40 entries. The same fingerprint inside a **6-hour window** is suppressed as `duplicate` instead of being delivered again. Suppressions are counted per fingerprint; three of them inside 24 hours surface "the pulse keeps repeating the same report (N times in 24 h)" in both the settings journal and the top of the Pulse conversation. Clearing the history clears the ledger too.
+
+### Budget
+
+One run is limited to **12 tool calls and 60 000 tokens**. The ceiling is enforced in the local tool loop (which answers with a `toolErrorJson` telling the model to answer with what it has) and reported back as `budgetExhausted`, which classifies the run as `budget` and keeps the partial answer out of the conversation.
 
 ## Response Handling
 
-- If the AI response contains "HEARTBEAT_OK", nothing is shown to the user
-- Any other non-blank response is appended to a dedicated heartbeat conversation, which keeps its 50 most recent messages, and the unread-heartbeat indicator is set
-- A dismissable banner appears at the top of the chat when the heartbeat has something to report
-- **Android push notification**: when the heartbeat produces a non-OK report *and* the app is not currently in the foreground (tracked at the process level, so any visible activity counts), a push notification titled "Pots heartbeat" fires. Tapping it launches/foregrounds the app and opens the heartbeat conversation. The notification uses a fixed id so a fresh report replaces the previous unread one instead of stacking. The body is the heartbeat response with markdown and dynamic-UI blocks stripped, capped at 240 characters with an ellipsis; the cut lands on a word boundary when one falls within the last 40 characters, otherwise it is a hard cut. Desktop/iOS/web no-op (banner-only).
-- Tapping the banner loads the heartbeat conversation so the user can read the report and reply
+- Nothing from a run that ended `ok_silent`, `chatter`, `duplicate`, `budget`, `timeout`, `error` or `cancelled` is written into the Pulse conversation — those outcomes live in the run journal only
+- A `reported` run is appended to the dedicated Pulse conversation, which keeps its 50 most recent messages, and the unread-heartbeat indicator is set
+- A dismissable banner appears at the top of the chat when the pulse has something to report
+- **Android push notification**: when a report is delivered *and* the app is not currently in the foreground (tracked at the process level, so any visible activity counts), a push notification titled "Pots heartbeat" fires. Tapping it launches/foregrounds the app and opens the Pulse conversation. The notification uses a fixed id so a fresh report replaces the previous unread one instead of stacking. The body is the response with markdown and dynamic-UI blocks stripped, capped at 240 characters with an ellipsis; the cut lands on a word boundary when one falls within the last 40 characters, otherwise it is a hard cut. Desktop/iOS/web no-op (banner-only).
+- Tapping the banner loads the Pulse conversation so the user can read the report and reply
 - The X button dismisses the banner without navigating
-- Heartbeat conversations are included in the chat history list with a "Heartbeat" label badge, and can also be accessed via the banner
-- The heartbeat prompt is sent as a standalone message (not including user chat history as context)
-- If the API call fails, a failure entry is recorded in the heartbeat log and the pending email/SMS/notification queues are left untouched for the next run. A run cut short because the scheduler itself stopped is not logged as a failure
+- Pulse conversations are included in the chat history list with a "Heartbeat" label badge, and can also be accessed via the banner
+- If the API call fails, a failure entry is recorded in the journal and the pending email/SMS/notification queues are left untouched for the next run
+- The Pulse conversation is a **write-only journal** for the scheduler and **read-only** for the model: typing in it does not reach a run, and no run reads it
 
 ## Prompt Building
 
@@ -68,13 +102,15 @@ The heartbeat prompt is assembled by a pure, unit-tested builder; every conditio
 
 1. **Custom prompt** — user-defined text from settings, or the default prompt if empty. The default instructs the AI to review memories and tasks, respond "HEARTBEAT_OK" if nothing needs attention, or address anything that does, and reminds it that it cannot change the heartbeat schedule
 2. **Heartbeat Additions** — the prompts of all pending heartbeat-triggered tasks, each with its description and id, under `## Heartbeat Additions`. The section tells the AI to address each one and to reply with an acknowledgement rather than HEARTBEAT_OK, since the additions themselves are the attention
-3. **Previous heartbeat results** — the last 3 messages in the heartbeat conversation (which can include scheduled-task output), so the AI can track trends, avoid repeating notifications, and detect persistent issues (e.g. "email still unread since last check")
-4. **Pending tasks** — pending time- and cron-triggered tasks are listed with their description, id, scheduled time, and cron expression (if recurring). Heartbeat-triggered tasks appear under Heartbeat Additions instead
-5. **Email status** — if email is enabled and accounts exist, each account's email address, unread count, and last sync time are included
-6. **New emails** — headers (subject, from, preview) for emails polled since the last heartbeat pickup. Emails are fetched in the background by the email poll loop and buffered in a pending queue (capped at 100, FIFO). The heartbeat consumes the queue: everything the heartbeat saw is removed from the queue after a successful run, while emails that arrive during the heartbeat call remain for the next run. After consumption the heartbeat also advances each account's delivery watermark, so a follow-up `check_email` call from the user won't re-surface the same messages — Pots tracks read/unread internally and ignores the provider's `\Seen` flag
-7. **New SMS** — SMS messages received since the last heartbeat (only while SMS is enabled). Consumed analogously to emails: buffered as they arrive, surfaced once under `## New SMS`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
-8. **New notifications** — Android notifications captured since the last heartbeat (only while notification access is enabled), capped at 20 newest-first; any beyond the cap stay queued for later heartbeats. Consumed analogously to emails: buffered as they arrive, surfaced once under `## New Notifications`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
-9. **Promotion candidates** — memories with 5 or more hits are listed with their key, hit count, category, and content, along with a suggestion to use the `promote_learning` tool
+3. **Pending tasks** — pending time- and cron-triggered tasks are listed with their description, id, scheduled time, and cron expression (if recurring). Heartbeat-triggered tasks appear under Heartbeat Additions instead
+4. **Email status** — if email is enabled and accounts exist, each account's email address, unread count, and last sync time are included
+5. **New emails** — headers (subject, from, preview) for emails polled since the last heartbeat pickup, inside an `<untrusted-data source="email">` fence. Emails are fetched in the background by the email poll loop and buffered in a pending queue (capped at 100, FIFO). The heartbeat consumes the queue: everything the heartbeat saw is removed from the queue after a successful run, while emails that arrive during the heartbeat call remain for the next run. After consumption the heartbeat also advances each account's delivery watermark, so a follow-up `check_email` call from the user won't re-surface the same messages — Pots tracks read/unread internally and ignores the provider's `\Seen` flag
+6. **New SMS** — SMS messages received since the last heartbeat (only while SMS is enabled), inside an `<untrusted-data source="sms">` fence. Consumed analogously to emails: buffered as they arrive, surfaced once under `## New SMS`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
+7. **New notifications** — Android notifications captured since the last heartbeat (only while notification access is enabled), capped at 20 newest-first, inside an `<untrusted-data source="notification">` fence; any beyond the cap stay queued for later heartbeats. Consumed analogously to emails: buffered as they arrive, surfaced once under `## New Notifications`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
+8. **Promotion candidates** — memories with 5 or more hits are listed with their key, hit count, category, and content, with a note that promotion into the soul happens in a normal chat (the `promote_learning` tool refuses to run headless)
+9. **Pulse limits** — the run's tool and token ceiling, restated in the prompt so the model budgets itself instead of being cut off
+
+**There is no section carrying previous heartbeat answers.** The builder takes no conversation input at all, so feeding the model its own output is a compile error rather than a matter of discipline; the Pulse conversation is never part of the prompt, and each run starts from external state only. Everything inside an `<untrusted-data>` fence is data from other apps, not instructions.
 
 For the full contract of every prompt variation in Pots (chat remote/local, heartbeat, Splinterlands) see [system-prompts.md](system-prompts.md).
 
@@ -106,18 +142,16 @@ When the primary gives up:
 
 ## Heartbeat Log
 
-- Stores up to 50 most recent heartbeat entries; the oldest are evicted first. The settings UI folds the list into a collapsed block, so a longer history costs no screen space
-- The journal can be emptied with `HeartbeatManager.clearLog()`
-- Each entry records success/failure, a timestamp, an optional error line, and an optional note
-- Displayed in the settings UI under the heartbeat section
-- Entries show an OK/FAIL indicator and a formatted local timestamp
+- Stores up to 50 most recent runs; the oldest are evicted first. The settings UI folds the list into a collapsed block, so a longer history costs no screen space
+- Each entry records the outcome (see [Outcome contract](#outcome-contract)), a timestamp, wall-clock duration, the `provider / model` the run used, how many tools it executed, whether anything was delivered to the user, an optional error line and an optional note (today: a fallback switch)
+- Cleared with "Clear pulse history" in the settings UI, which also empties the Pulse conversation and the anti-repeat ledger — one button for "forget what the pulse did", so the three cannot drift apart
 - Failed entries display `<reason>: <provider detail> (<provider / model>)` (up to 3 lines, ellipsized) below the timestamp in the error color. The reason is a `ProviderFailureReason` name — `Unauthorized`, `ModelNotFound`, `RateLimited`, `Timeout`, `Unreachable`, `BadResponse`, `Unknown` — never a bare exception class name
-- Successful entries with a note (today: a fallback switch) show that note in the muted color, so a run that silently used the reserve is visible
 - Two routing failures are reported verbatim rather than with a reason prefix, because the message is already the whole answer: `configured instance not found: <id>` and `no configured service instances`
+- Rows written by older versions still decode: the added fields default to zero, so an old entry simply has no duration or model
 
 ## Promote Learning
 
-When a memory has been reinforced 5 or more times, it becomes a promotion candidate. The `promote_learning` tool is available to the AI in any conversation — normal chats as well as heartbeat runs — whenever the scheduled-tasks toggle is on (it is hidden when scheduling is off). It:
+When a memory has been reinforced 5 or more times, it becomes a promotion candidate. The `promote_learning` tool is available to the AI in normal chats whenever the scheduled-tasks toggle is on (it is hidden when scheduling is off). **It refuses to run in a headless run**: a heartbeat or scheduled task gets `promote_learning is not available in a background run`, because a prompt-injected email could otherwise ask for a permanent soul instruction while nobody is watching. A background run mentions the candidate in its report instead. In a chat, the tool:
 
 1. Looks up the memory by key
 2. Appends the provided `soul_addition` text to the soul/system prompt
@@ -127,6 +161,14 @@ When a memory has been reinforced 5 or more times, it becomes a promotion candid
 This allows well-established patterns to graduate from ephemeral memory into permanent AI behavior.
 
 ## Settings UI
+
+Settings → Agent → Heartbeat. Beyond the toggle, interval slider, active-hours slider, prompt editor and model pickers:
+
+- **Run now** — starts a run immediately, bypassing the interval, active hours and backoff (the owner is looking at the screen and asked). Still requires the pulse to be on and still goes through the single-flight guard; a press that finds a run in flight writes a `busy` line
+- **Show what the next run will get** — the exact prompt the next run would receive, assembled now, so "does the pulse know about X?" is a question with a visible answer
+- **Clear pulse history** — with a confirmation, empties the Pulse conversation, the run journal and the anti-repeat ledger
+- **Run journal** — collapsed by default; one line per run with outcome, time, duration, model, tool count and whether it notified anyone. A "pulse keeps repeating" warning appears above it when the same report was held back three times
+- The Pulse conversation itself opens with a short explanation of what it is, and shows the one-time offer to clear the history accumulated before 3.21.8 (that history is no longer read by anything, but it is still visible; the offer is asked once and the answer is remembered)
 
 The heartbeat section lives in the Agent tab of settings. The toggle and reset button are always visible; every other control only appears while heartbeat is enabled:
 

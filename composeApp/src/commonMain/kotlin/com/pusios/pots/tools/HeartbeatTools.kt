@@ -2,6 +2,7 @@ package com.pusios.pots.tools
 
 import com.pusios.pots.data.AppSettings
 import com.pusios.pots.data.MemoryStore
+import com.pusios.pots.data.currentIsHeadlessRun
 import com.pusios.pots.network.tools.ParameterSchema
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
@@ -23,6 +24,16 @@ object HeartbeatTools {
         )
 
         override suspend fun execute(args: Map<String, Any>): Any {
+            // A background run may not rewrite the soul. The pulse is the one place where a
+            // prompt-injected mail could ask for a permanent instruction and nobody is watching;
+            // promotion stays a deliberate act in a chat the user is reading.
+            if (currentIsHeadlessRun()) {
+                return mapOf(
+                    "success" to false,
+                    "error" to "promote_learning is not available in a background run. " +
+                        "Mention the candidate in your report instead; promotion happens in a normal chat.",
+                )
+            }
             val memoryKey = args["memory_key"]?.toString()
                 ?: return mapOf("success" to false, "error" to "Missing memory_key")
             val soulAddition = args["soul_addition"]?.toString()
