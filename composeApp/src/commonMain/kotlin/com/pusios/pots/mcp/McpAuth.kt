@@ -357,8 +357,11 @@ class McpTokenStore(private val appSettings: AppSettings) {
         return try {
             McpTokenRead.Loaded(json.decodeFromString(McpStoredToken.serializer(), raw))
         } catch (e: Exception) {
-            mcpLog("tokenStore", serverId, "unreadable record: ${e.describe()}")
-            McpTokenRead.Unreadable(e.describe())
+            // The decoder's message quotes the whole record ("JSON input: …"), and that record is
+            // the bearer token: report the failure class only, never the text.
+            val cause = e.describeDecodeFailure()
+            mcpLog("tokenStore", serverId, "unreadable record: $cause")
+            McpTokenRead.Unreadable(cause)
         }
     }
 
@@ -370,8 +373,10 @@ class McpTokenStore(private val appSettings: AppSettings) {
         return try {
             !appSettings.getMcpTokenJson(serverId).isNullOrBlank()
         } catch (e: Exception) {
+            // The store threw, so the bytes may still be there and only "forget" can clear them.
+            // Answering false would hide that action exactly when the record is broken.
             mcpLog("tokenStore", serverId, "unreadable: ${e.describe()}")
-            false
+            true
         }
     }
 
@@ -415,7 +420,9 @@ class McpTokenStore(private val appSettings: AppSettings) {
         val legacy = try {
             json.decodeFromString(tokensSerializer, legacyRaw)
         } catch (e: Exception) {
-            mcpLog("tokenStore", "legacy", "unreadable map, left in place: ${e.describe()}")
+            // This blob holds every server's token, so its decoder message is the worst possible
+            // thing to log: class name only.
+            mcpLog("tokenStore", "legacy", "unreadable map, left in place: ${e.describeDecodeFailure()}")
             legacyMigrationDone = true
             return
         }
@@ -442,6 +449,16 @@ class McpTokenStore(private val appSettings: AppSettings) {
     }
 
     private fun Throwable.describe(): String = "${this::class.simpleName ?: "error"}: ${message ?: "no message"}"
+
+    /**
+     * For a record that failed to decode, only the class name is safe.
+     *
+     * `kotlinx.serialization` puts the offending JSON into the exception message ("JSON input:
+     * {…accessToken…}"), so logging or returning that text would leak the bearer token into the
+     * logcat, the status card and the persisted `mcp_server_status`. The class name still tells a
+     * broken record apart from a Keystore failure, whose message contains no secret.
+     */
+    private fun Throwable.describeDecodeFailure(): String = this::class.simpleName ?: "SerializationException"
 
     private companion object {
         val tokensSerializer = MapSerializer(String.serializer(), McpStoredToken.serializer())

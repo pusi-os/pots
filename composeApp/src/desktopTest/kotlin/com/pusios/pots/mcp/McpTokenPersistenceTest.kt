@@ -14,6 +14,8 @@ import com.russhwolf.settings.Settings
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -44,10 +46,11 @@ class McpTokenPersistenceTest {
     private fun manager(
         settings: AppSettings,
         authClient: McpAuthClient = McpAuthClient(),
+        sessionFactory: (McpServerConfig) -> McpSession = { OkSession() },
     ) = McpServerManager(
         appSettings = settings,
         authClient = authClient,
-        sessionFactory = { OkSession() },
+        sessionFactory = sessionFactory,
         openBrowser = { true },
         authListenerFactory = { null },
     )
@@ -136,6 +139,118 @@ class McpTokenPersistenceTest {
         assertTrue(store.save("gamma", token(access = "pat-gamma")), "saving a third record must still work")
         assertEquals("pat-alpha", store.load("alpha")?.accessToken, "one unreadable record must not cost the others")
         assertEquals("{this is not a token", settings.getMcpTokenJson("beta"), "the unreadable bytes are left in place")
+    }
+
+    /** Runs [block] with stdout captured, so the MCP log line can be asserted on. */
+    private inline fun captureStdout(block: () -> Unit): String {
+        val out = ByteArrayOutputStream()
+        val original = System.out
+        System.setOut(PrintStream(out, true))
+        try {
+            block()
+        } finally {
+            System.setOut(original)
+        }
+        return out.toString()
+    }
+
+    @Test
+    fun aCorruptRecordDoesNotLeakItsSecretIntoTheLogOrTheStatus() = runTest {
+        val secret = "pat-SECRET-0123456789"
+        val settings = AppSettings(MapSettings())
+        val manager = manager(settings)
+        val server = manager.addServer(name = "Walt", url = "https://mcp.example/mcp", headers = emptyMap())
+        // Right shape, one wrong type: kotlinx.serialization quotes the whole input in the message.
+        settings.setMcpTokenJson(
+            server.id,
+            """{"issuer":"https://auth.example","tokenEndpoint":"https://auth.example/token",""" +
+                """"clientId":"c1","accessToken":"$secret","refreshToken":1,"resource":"https://mcp.example/mcp"}""",
+        )
+
+        var read: McpTokenRead? = null
+        val log = captureStdout {
+            read = McpTokenStore(settings).read(server.id)
+            manager.connect(server.id)
+        }
+
+        assertTrue(read is McpTokenRead.Unreadable, "a record that cannot be decoded is not \"absent\"")
+        val cause = (read as McpTokenRead.Unreadable).cause
+        assertFalse(cause.contains(secret), "the failure reason must not quote the record: $cause")
+        val detail = manager.status(server.id).failure?.detail.orEmpty()
+        assertTrue(detail.contains("Хранилище токенов"), "the owner still learns what failed: $detail")
+        assertFalse(detail.contains(secret), "the card must not quote the record: $detail")
+        assertFalse(log.contains(secret), "the log must not quote the record: $log")
+    }
+
+    @Test
+    fun aCorruptLegacyMapDoesNotLeakAnyTokenIntoTheLog() {
+        val settings = AppSettings(MapSettings())
+        settings.setMcpTokensJson(
+            """{"alpha":{"issuer":"https://auth.example","tokenEndpoint":"https://auth.example/token",""" +
+                """"clientId":"c1","accessToken":"pat-ALPHA-9876543210","refreshToken":1,"resource":"https://mcp.example/mcp"}}""",
+        )
+
+        val log = captureStdout { McpTokenStore(settings) }
+
+        assertFalse(log.contains("pat-ALPHA"), "the legacy map holds every server's token: $log")
+        assertTrue(settings.getMcpTokensJson().contains("pat-ALPHA"), "an undecodable map is left in place, not dropped")
+    }
+
+    @Test
+    fun aRecordThatCannotBeDecryptedIsStillForgettable() {
+        val raw = MapSettings()
+        val settings = AppSettings(raw)
+        settings.setMcpTokenJson("walt", "{}")
+        val broken = AppSettings(BrokenKeySettings(raw, AppSettings.KEY_MCP_TOKEN_PREFIX + "walt"))
+
+        val store = McpTokenStore(broken)
+
+        assertTrue(store.has("walt"), "the card must offer \"forget token\" for bytes it cannot read")
+    }
+
+    @Test
+    fun aToolCallThatGets401RefreshesAndRetriesInsteadOfAskingForASignIn() = runTest {
+        class RotatingAuth : McpAuthClient() {
+            var calls = 0
+
+            override suspend fun refresh(token: McpStoredToken): Result<McpTokenResponse> {
+                calls++
+                return Result.success(McpTokenResponse(accessToken = "access-2", refreshToken = "refresh-2", expiresInSeconds = 3600))
+            }
+        }
+
+        var calls = 0
+        class ExpiringSession : McpSession {
+            override suspend fun initialize() = Unit
+
+            override suspend fun listTools(): List<McpToolDefinition> = listOf(McpToolDefinition(name = "search", description = "Search things"))
+
+            override suspend fun callTool(name: String, arguments: JsonObject): String {
+                calls++
+                if (calls == 1) throw McpHttpException(401, null, "access token expired")
+                return "called $name"
+            }
+
+            override fun close() = Unit
+        }
+
+        val settings = AppSettings(MapSettings())
+        val auth = RotatingAuth()
+        val manager = manager(settings, authClient = auth, sessionFactory = { ExpiringSession() })
+        val server = manager.addServer(name = "Walt", url = "https://mcp.example/mcp", headers = emptyMap())
+        settings.setMcpTokenJson(server.id, json.encodeToString(McpStoredToken.serializer(), token(access = "access-1", refresh = "refresh-1")))
+        assertTrue(manager.connect(server.id).isSuccess)
+
+        val result = manager.getEnabledMcpTools().single().execute(emptyMap()) as Map<*, *>
+
+        assertEquals(true, result["success"], "a 401 on a tool call must be renewed, not reported to the agent: $result")
+        assertEquals("called search", result["result"])
+        assertEquals(1, auth.calls, "exactly one refresh")
+        assertEquals(2, calls, "one 401, then the retry on the fresh session")
+        val after = storedToken(settings, server.id)
+        assertEquals("access-2", after.accessToken)
+        assertEquals("refresh-2", after.refreshToken)
+        assertEquals(McpServerStateKind.Connected, manager.status(server.id).state)
     }
 
     @Test

@@ -1,6 +1,6 @@
 # MCP Servers
 
-**Last verified:** 2026-11-26
+**Last verified:** 2026-11-28
 
 Pots supports external tool servers via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP). Users can connect to remote MCP servers using Streamable HTTP transport and use their tools alongside native tools.
 
@@ -143,8 +143,8 @@ Tokens are the only part of MCP state that is a secret, and they are kept apart 
 | Where is a token stored? | Its own record per server, `mcp_token_<serverId>`, in the platform secure store: `EncryptedSharedPreferences` on Android (Keystore), the Keychain on iOS, an encrypted file on desktop. |
 | Is it in the server config? | No. `McpServerConfig` never holds a token, so `mcp_servers` — and any settings export built from it — carries no bearer token. |
 | Is it in a backup? | No. `pots_secure_prefs.xml` and the Keystore-wrapped prefs file are excluded from Auto Backup and device transfer in `backup_rules.xml` / `data_extraction_rules.xml`. |
-| Is it in the logs? | No. `mcpLog` prints a step, a server id and a reason; never a header, a body or a token. A failed token request reports the OAuth `error` field only. |
-| Written with `apply()` or `commit()`? | `commit()`, and only for tokens. The refresh token rotates on every refresh (OAuth 2.1 §4.3.1), so a rotation that is still in memory when the process dies means the next refresh is `invalid_grant` — a forced re-login. Ordinary settings stay on `apply()`. |
+| Is it in the logs? | No. `mcpLog` prints a step, a server id and a reason; never a header, a body or a token. A failed token request reports the OAuth `error` field only, and a token record that fails to decode is reported by exception class only — its message quotes the record itself. |
+| Written with `apply()` or `commit()`? | Tokens are on disk before the call returns. On Android that is `commit()` via `DurableSettings`; on iOS and desktop the secure store writes synchronously inside `putString` itself (a Keychain item, an AES-GCM file replaced atomically), so there is no async `apply()` to lose. The refresh token rotates on every refresh (OAuth 2.1 §4.3.1), so a rotation still in memory when the process dies means the next refresh is `invalid_grant` — a forced re-login. Ordinary Android settings stay on `apply()`. |
 
 ### What happens on restart, update, or revocation
 
