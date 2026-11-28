@@ -1,6 +1,6 @@
 # Hands-Free Voice Mode
 
-**Last verified:** 2026-11-18
+**Last verified:** 2026-11-28
 
 Hands-Free turns the chat into a spoken dialogue: the app listens, sends what it heard, waits for the agent, speaks the answer and listens again. The user never has to touch the screen for the whole round trip.
 
@@ -14,7 +14,7 @@ On a supported platform, the empty chat offers an animated circular voice button
 
 Settings → General → Speech recognition picks the engine:
 
-- **Vosk (offline)** — the default. The Russian small model ships inside the app, so recognition works with no network at all. Vosk streams the microphone itself and ends a session when it detects the end of an utterance. More models (English small, a large Russian one) can be selected and are installed on first use.
+- **Vosk (offline)** — the default. The Russian small model ships inside the app, so recognition works with no network at all. Vosk streams the microphone itself and reports the end of an utterance through its own endpointer. More models (English small, a large Russian one) can be selected and are installed on first use.
 - **System** — the device's own recognition service. Depending on the device it may need the network or a downloaded language pack.
 
 The chosen engine and model are picked up by the loop the next time the chat opens the recognizer.
@@ -25,16 +25,83 @@ The loop speaks through the same engine the chat uses (Settings → General → 
 
 ### The loop
 
-The loop is a small state machine with four states:
+The loop is a small state machine with six states:
 
 | State | What happens |
 |---|---|
 | Idle | The mode is off. |
-| Listening | The microphone is open; the running transcript is shown under the input field. |
+| Listening | The microphone is open. The running transcript goes into the composer, and the recording indicator above it shows the level, the timer and the state. |
 | Thinking | The transcript was sent; the agent is working on it. |
 | Speaking | The agent's reply is being spoken. |
+| NoMatch | Nothing was recognised. Shown for two seconds, then the microphone reopens by itself. |
+| Error | The session failed (no service, no permission, recognizer stopped answering). The recognised text stays in the composer and the indicator offers «Повторить». |
 
 The cycle is: listen → send → wait → speak → listen. The transition back to *Listening* happens when the speech has finished, so the microphone is open again the moment the agent stops talking. Long replies are split into platform-sized chunks (under 3,000 characters) and spoken in order; this avoids the Android TTS input limit that previously cut long answers short and dropped the loop back to listening mid-reply.
+
+### The recording indicator
+
+A strip sits directly above the composer (in `ChatModeScreen`, above `QuestionInput`) and is composed only while a session is running — *Listening*, *Speech detected*, *Finalising*, *Sending*, or an *Error* the user has not dismissed yet. It exists because the mode must never be silent about what it is doing, and must never drop text it has already recognised.
+
+**What it contains**
+
+| Part | Specification |
+|---|---|
+| Sound wave | 16 bars, 3 dp wide, 2 dp apart, 2–28 dp high, 1.5 dp rounded caps. Heights come from the real microphone level, not from a canned animation: `SpeechToText` publishes RMS (Vosk, computed from the PCM read loop) or `onRmsChanged` dB (system engine). One bar ≈ 64 ms of audio, kept in a 16-slot ring buffer. Attack 80 ms, release 260 ms, so the wave follows the voice and does not strobe on silence. |
+| Timer | `m:ss` (`0:07`, `1:23`), `FontFamily.Monospace`, 20 sp, `potsLed` colour with a 6 px glow shadow — the LED-clock look. Starts when the session opens, freezes in *Finalising*, resets on a new session. |
+| State line | One short word — see the state table below. In *Error* the reason follows on a second line, `bodySmall`, `colorScheme.error`. |
+| Live text | The running transcript, one line, `bodySmall`, `onSurfaceVariant`, ellipsis. The full text lives in the composer: the transcript is written into the field as it is recognised, so the field and the strip never disagree. |
+| Actions | Three icon-only buttons, 48×48 dp targets, 8 dp apart, vector icons only (no emoji). |
+
+**States and what the user sees**
+
+| State | Strip | Wave | Timer | Actions |
+|---|---|---|---|---|
+| Listening | «Слушаю…» | flat, `potsWaveIdle` | runs | restart · stop-and-keep · send |
+| Speech detected | «Записываю…» | live, `potsWave` | runs | restart · stop-and-keep · send |
+| Finalising | «Распознаю…» | flat, `potsWaveIdle` | frozen | — (buttons disabled) |
+| Sending | «Отправляю…» | hidden | frozen | — |
+| Error | «Ошибка записи» + reason | hidden | frozen | retry · restart |
+
+The strip has no *idle* state of its own: when the session ends the strip leaves the composition and the composer returns to normal, with the recognised text already in it.
+
+**Actions** (icon only; the label below is the `contentDescription`)
+
+| Icon | `contentDescription` (ru) | Effect |
+|---|---|---|
+| `ic_refresh`, tinted `colorScheme.error` | «Отменить и начать заново» | Drops the text dictated in this session, restores the draft that was in the field before the session started, and opens a new session at once. |
+| `ic_mic_done` (new vector: mic + check) | «Остановить и вставить текст в поле» | Ends the session, keeps the text in the field, sends nothing. |
+| `ic_send`, tinted `colorScheme.primary` | «Отправить сейчас» | Ends the session and submits the field text immediately. |
+| `ic_refresh`, tinted `colorScheme.primary` (Error only) | «Повторить» | Opens a new session; the text stays in the field. |
+
+**Timing — the rules that make long dictation work**
+
+- **No phrase-length limit.** The inactivity watchdog introduced for the dead-service case stays, but it measures *inactivity*, not phrase length: it fires only when no callback and no above-threshold audio have arrived for `LISTEN_TIMEOUT_MS` (15 s), and every partial result, every `onBeginningOfSpeech` and every audio frame above the speech threshold re-arms it. A session in which the user is talking is never cancelled by a timer.
+- **End of speech is silence, not a clock.** 3.0 s of audio below the speech threshold (RMS < −45 dBFS, 6 dB hysteresis) finalises the utterance. 3.0 s is chosen because both engines end an utterance on their own much earlier: the bundled Vosk model is configured with trailing-silence rules of 0.5 / 1.0 / 2.0 s, so anything at or below 2 s would split a sentence at its first comma; 5 s is where a user assumes the microphone died. 3.0 s survives a normal intra-sentence pause and still feels immediate.
+- **Absolute cap.** 120 s of continuous speech finalise and send the utterance, so the microphone is not held forever. Vosk itself restarts its decoder after 20,000 frames (≈ 600 s), so 120 s is well inside the engine's own limit.
+- **Nothing is dropped.** Every exit path keeps what was recognised: silence, the cap and the stop button leave the text in the field, an error leaves the text in the field, and only the explicit «Отменить и начать заново» discards it — that is the user's stated intent.
+- **Initial silence.** 8 s without a single above-threshold frame ends the session as *NoMatch* («Ничего не расслышал»), the two-second notice is shown and the microphone reopens.
+
+**Colours — tokens, never raw hex in the component**
+
+| Token | Dark | Light | Used for |
+|---|---|---|---|
+| `potsWave` | `#00FF66` | `#00802B` | live wave bars |
+| `potsWaveIdle` | `potsWave` at 30 % | `potsWave` at 30 % | flat wave, Finalising |
+| `potsLed` | `#7CFFB2` | `#00663A` | timer digits |
+| `potsRecordingSurface` | `surfaceVariant` at 55 % | `surfaceVariant` at 70 % | plate fill (glass) |
+| `potsRecordingBorder` | `primary` at 35 % | `primary` at 35 % | 1 dp plate border |
+
+Contrast (WCAG 2.1, measured): wave on `surface` 12.3 : 1 dark / 4.6 : 1 light, LED digits 13.3 : 1 dark / 6.3 : 1 light — above 4.5 : 1 for text and far above 3 : 1 for non-text, so the wave and the digits stay readable without relying on colour alone (the state line is always text).
+
+The plate is glass by fill, border and radius, not by blur: `Modifier.blur` is a no-op below Android 12, so legibility must not depend on it.
+
+**Accessibility**
+
+- Every icon button is a 48×48 dp target with a `contentDescription`; nothing is conveyed by colour only — the state is always a word, the error always a sentence.
+- The state line is a `liveRegion = LiveRegionMode.Polite` node, so a screen reader announces «Слушаю…» → «Записываю…» → «Распознаю…» and any error without stealing focus.
+- The timer carries `contentDescription = «Длительность записи 0:07»` and updates at 5-second granularity — a per-second announcement would flood the screen reader.
+- The wave is decorative for a screen reader (`contentDescription = null`) because the same information is in the state line; it is not the only signal of anything.
+- With reduced motion (motion-duration scale 0) the wave refreshes at 2 Hz instead of ~15 Hz: still real data, no flicker.
 
 ### Barge-in
 
@@ -61,25 +128,45 @@ The same controller drives the capsule that opens on a double tap on Потси�
 - The speech-output toggle keeps working in both modes. Turning it off while the loop is listening means the agent still answers and the microphone still reopens, just without reading the reply out; turning it off while the agent is speaking cuts the sentence and reopens the microphone. Turning it back on lets the next reply be spoken. The top-bar volume icon always shows the real state, whichever mode set it
 - The microphone permission is requested when the user switches the mode on, not at first launch
 - A recognition session that ends without a result («no match») is not an error: the loop announces `HandsFreeStatus.NoMatch` for two seconds and then reopens the microphone on its own. It is a status of its own rather than *Error* on purpose — the chat pauses the loop on *Error*, and a missed phrase must not pause anything; a tap on the button during the notice skips the wait instead of stopping the mode
-- A real failure (no recognition service, denied permission) pauses the loop in the *Error* state; tapping the button resumes it
+- A real failure (no recognition service, denied permission, a recognizer that stops answering) pauses the loop in the *Error* state; the recording indicator shows the reason and «Повторить», and the recognised text stays in the composer
 - Every recognition session carries an id, so a late callback from a session that was already replaced — because the user interrupted, or because a new session started — is ignored and cannot derail the loop
 - Leaving the chat screen cancels the recognition session and releases the recognizer
 - On Android 10+, the system assist gesture (long-press Home or power) and the Quick Settings tile «Pots» start a fresh chat and turn this loop on. The role cannot be requested in code — Settings → General sends the user to default apps. There is no always-on «hey pots» wake word.
+
+## UI strings
+
+| Key | ru | en |
+|---|---|---|
+| `handsfree_state_listening` | Слушаю… | Listening… |
+| `handsfree_state_speech` | Записываю… | Recording… |
+| `handsfree_state_finalising` | Распознаю… | Finishing… |
+| `handsfree_state_sending` | Отправляю… | Sending… |
+| `handsfree_state_error` | Ошибка записи | Recording error |
+| `handsfree_error_no_speech` | Ничего не расслышал | Didn't catch that |
+| `handsfree_error_mic` | Нет доступа к микрофону | No microphone access |
+| `handsfree_error_engine` | Распознавание не отвечает | Speech recognition isn't responding |
+| `handsfree_error_no_service` | На этом устройстве нет распознавания речи | This device has no speech recognition |
+| `handsfree_action_restart` | Отменить и начать заново | Cancel and start over |
+| `handsfree_action_keep_text` | Остановить и вставить текст в поле | Stop and keep the text |
+| `handsfree_action_send_now` | Отправить сейчас | Send now |
+| `handsfree_action_retry` | Повторить | Retry |
+| `handsfree_timer_content_description` | Длительность записи %1$s | Recording length %1$s |
 
 ## Key Files
 
 | File | Purpose |
 |---|---|
-| `composeApp/src/commonMain/.../handsfree/HandsFreeController.kt` | The listen → send → speak state machine, barge-in handling and session bookkeeping |
-| `composeApp/src/commonMain/.../handsfree/SpeechToText.kt` | Platform-independent speech recognition interface and the platform factory |
+| `composeApp/src/commonMain/.../handsfree/HandsFreeController.kt` | The listen → send → speak state machine, inactivity watchdog, silence-based end of utterance, barge-in handling and session bookkeeping |
+| `composeApp/src/commonMain/.../handsfree/SpeechToText.kt` | Platform-independent speech recognition interface (including the microphone level) and the platform factory |
 | `composeApp/src/androidMain/.../handsfree/AndroidSpeechToText.kt` | Android implementation on top of `SpeechRecognizer` |
-| `composeApp/src/androidMain/.../handsfree/VoskSpeechToText.kt` | Offline Vosk implementation (bundled Russian model) |
+| `composeApp/src/androidMain/.../handsfree/VoskSpeechToText.kt` | Offline Vosk implementation (bundled Russian model), own end-of-speech detection and level metering |
 | `composeApp/src/androidMain/.../speech/vosk/VoskModels.kt` | Shared Vosk model install/load (assets first, download fallback) |
 | `composeApp/src/androidMain/.../handsfree/SpeechToText.android.kt` | Android factory (picks the engine from settings) |
 | `composeApp/src/desktopMain/.../handsfree/SpeechToText.desktopMain.kt` | No recognizer on desktop — the button is hidden |
 | `composeApp/src/iosMain/.../handsfree/SpeechToText.iosMain.kt` | No recognizer on iOS — the button is hidden |
 | `composeApp/src/wasmJsMain/.../handsfree/SpeechToText.wasmJsMain.kt` | No recognizer on the web — the button is hidden |
-| `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Creates the controller, feeds assistant replies into it, wires the top-bar button |
+| `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Creates the controller, feeds assistant replies into it, wires the top-bar button and the recording strip to the composer |
+| `composeApp/src/commonMain/.../ui/chat/composables/HandsFreeRecordingBar.kt` | The recording indicator: level wave, LED timer, state line and the three actions |
 | `composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt` | The same loop in the desktop capsule's overlay window (the voice pill) |
 | `composeApp/src/androidMain/.../overlay/PotsikTextInputActivity.kt` | The capsule's text field; the second owner of «Озвучить», which defers to the pill |
 | `composeApp/src/commonMain/.../ui/tts/PotsTextToSpeech.kt` | Engine-independent speaking interface the loop talks to |
