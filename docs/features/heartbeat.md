@@ -56,6 +56,12 @@ When the overall scheduling-enabled toggle is off, heartbeats do not run regardl
 
 A failure is not retried on the next 60-second tick. `ERROR` and `TIMEOUT` arm a backoff of `interval × 2^(failures-1)`, capped at one hour; a success clears it. Before 3.21.8 a dead key meant ~1440 provider calls a day.
 
+### A run that seems stuck
+
+Every run is bounded twice: the provider call is cut at 5 minutes wall clock (`timeout`), and the tool loop stops itself at its budget (`budget`). Neither outcome writes into the Pulse. To stop a run *now*, switch the pulse off — `Settings → Agent → Heartbeat` cancels the in-flight job, closes its `hb-run-*` session and journals `cancelled`; nothing half-finished survives. Killing the app does the same thing less politely: the next start-up closes every `hb-run-*` session the dead process left behind.
+
+The scheduler runs on the process scope, so on Android it only ticks while `DaemonService` keeps the process alive. In Doze the OS suspends that process and the timer with it; when the device wakes, the interval check sees a single missed window and runs **once** — the missed intervals are not replayed.
+
 ## Outcome contract
 
 The reply text is not evidence. One run ends in exactly one of these, decided from the tool trace the run produced and from what the prompt actually carried:

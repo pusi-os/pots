@@ -24,7 +24,7 @@ import kotlin.test.assertTrue
  */
 class HeartbeatStatelessRunTest {
 
-    private class Harness {
+    private class Harness(dispatcher: kotlin.coroutines.CoroutineContext) {
         val repository = FakeDataRepository().apply {
             fakeServiceEntries = listOf(
                 ServiceEntry(
@@ -45,7 +45,7 @@ class HeartbeatStatelessRunTest {
             taskStore = taskStore,
             appSettings = settings,
             heartbeatManager = manager,
-            backgroundDispatcher = UnconfinedTestDispatcher(),
+            backgroundDispatcher = dispatcher,
         )
 
         init {
@@ -66,7 +66,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `a second run does not receive the first run's answer`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "Rate is 92.4 rubles."
         harness.repository.askWithToolsTools = listOf("execute_shell_command")
         harness.scheduler.triggerHeartbeatNow()
@@ -83,7 +83,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `each run gets its own ephemeral session and closes it`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "HEARTBEAT_OK"
         harness.scheduler.triggerHeartbeatNow()
         harness.scheduler.triggerHeartbeatNow()
@@ -100,7 +100,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `a run without a tool call and without the token is journal-only`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "I'll check the exchange rate next time."
 
         harness.scheduler.triggerHeartbeatNow()
@@ -113,7 +113,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `the token is never written to the conversation`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "HEARTBEAT_OK"
 
         harness.scheduler.triggerHeartbeatNow()
@@ -124,7 +124,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `a report with a tool call is delivered once and journaled with its metrics`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "Rate is 92.4 rubles."
         harness.repository.askWithToolsTools = listOf("execute_shell_command")
 
@@ -141,7 +141,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `the same report inside the window is suppressed`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "Disk is 96% full."
         harness.repository.askWithToolsTools = listOf("execute_shell_command")
 
@@ -155,7 +155,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `a budget stop is not delivered`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "Rate is 92."
         harness.repository.askWithToolsTools = listOf("execute_shell_command")
         harness.repository.askWithToolsBudgetExhausted = true
@@ -169,7 +169,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `single flight refuses a second run while one is in flight`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "HEARTBEAT_OK"
         harness.repository.askWithToolsDelayMs = 1_000
 
@@ -192,7 +192,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `switching the pulse off cancels the run in flight without leaving a report`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsResponse = "Rate is 92.4 rubles."
         harness.repository.askWithToolsTools = listOf("execute_shell_command")
         harness.repository.askWithToolsDelayMs = 1_000
@@ -212,7 +212,7 @@ class HeartbeatStatelessRunTest {
 
     @Test
     fun `a failed run arms the backoff so the next tick does nothing`() = runTest {
-        val harness = Harness()
+        val harness = Harness(UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsFailures = mapOf(
             "pulse-primary" to com.pusios.pots.network.OpenAICompatibleInvalidApiKeyException(),
         )

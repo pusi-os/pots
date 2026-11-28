@@ -38,7 +38,7 @@ class HeartbeatRunDiagnosticsTest {
         icon = Service.OpenAICompatible.icon,
     )
 
-    private class Harness(entries: List<ServiceEntry>) {
+    private class Harness(entries: List<ServiceEntry>, dispatcher: kotlin.coroutines.CoroutineContext) {
         val repository = FakeDataRepository().apply {
             fakeServiceEntries = entries
             askWithToolsResponse = "HEARTBEAT_OK"
@@ -51,7 +51,7 @@ class HeartbeatRunDiagnosticsTest {
             taskStore = taskStore,
             appSettings = settings,
             heartbeatManager = manager,
-            backgroundDispatcher = UnconfinedTestDispatcher(),
+            backgroundDispatcher = dispatcher,
         )
 
         suspend fun runHeartbeat(primaryId: String?, fallbackId: String? = null): HeartbeatLogEntry {
@@ -69,7 +69,7 @@ class HeartbeatRunDiagnosticsTest {
 
     @Test
     fun `a rejected key goes straight to the reserve and says so`() = runTest {
-        val harness = Harness(listOf(primary, reserve))
+        val harness = Harness(listOf(primary, reserve), UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsFailures = mapOf("pulse-primary" to OpenAICompatibleInvalidApiKeyException())
 
         val entry = harness.runHeartbeat(primaryId = "pulse-primary", fallbackId = "pulse-reserve")
@@ -84,7 +84,7 @@ class HeartbeatRunDiagnosticsTest {
 
     @Test
     fun `an unreachable primary is retried before the reserve takes over`() = runTest {
-        val harness = Harness(listOf(primary, reserve))
+        val harness = Harness(listOf(primary, reserve), UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsFailures = mapOf(
             "pulse-primary" to OpenAICompatibleConnectionException(ProviderFailureReason.Unreachable, "connection refused"),
         )
@@ -103,7 +103,7 @@ class HeartbeatRunDiagnosticsTest {
 
     @Test
     fun `failing primary with no reserve names the missing setting`() = runTest {
-        val harness = Harness(listOf(primary))
+        val harness = Harness(listOf(primary), UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsFailures = mapOf("pulse-primary" to OpenAICompatibleInvalidApiKeyException())
 
         val entry = harness.runHeartbeat(primaryId = "pulse-primary")
@@ -119,7 +119,7 @@ class HeartbeatRunDiagnosticsTest {
     fun `a deleted instance is reported instead of silently using another provider`() = runTest {
         // Only the reserve is still configured; the saved Pulse model is gone, so the
         // repository answers with ConfiguredInstanceNotFoundException (see resolveAskInstance).
-        val harness = Harness(listOf(reserve))
+        val harness = Harness(listOf(reserve), UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsFailures = mapOf(
             "pulse-primary" to ConfiguredInstanceNotFoundException("pulse-primary"),
         )
@@ -135,7 +135,7 @@ class HeartbeatRunDiagnosticsTest {
 
     @Test
     fun `a deleted instance with a reserve falls back and still names the missing pin`() = runTest {
-        val harness = Harness(listOf(primary, reserve))
+        val harness = Harness(listOf(primary, reserve), UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsFailures = mapOf(
             "pulse-primary" to ConfiguredInstanceNotFoundException("pulse-primary"),
         )
@@ -153,7 +153,7 @@ class HeartbeatRunDiagnosticsTest {
 
     @Test
     fun `no configured instance is a failure, not an empty success`() = runTest {
-        val harness = Harness(emptyList())
+        val harness = Harness(emptyList(), UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsFailures = mapOf(
             null to NoConfiguredServiceException("no configured service instances"),
         )
@@ -166,7 +166,7 @@ class HeartbeatRunDiagnosticsTest {
 
     @Test
     fun `the provider detail reaches the journal exactly once`() = runTest {
-        val harness = Harness(listOf(primary))
+        val harness = Harness(listOf(primary), UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsFailures = mapOf(
             "pulse-primary" to OpenAICompatibleConnectionException(ProviderFailureReason.Unreachable, "connection refused"),
         )
@@ -183,7 +183,7 @@ class HeartbeatRunDiagnosticsTest {
 
     @Test
     fun `a reserve equal to the primary is named honestly`() = runTest {
-        val harness = Harness(listOf(primary))
+        val harness = Harness(listOf(primary), UnconfinedTestDispatcher(testScheduler))
         harness.repository.askWithToolsFailures = mapOf(
             "pulse-primary" to OpenAICompatibleInvalidApiKeyException(),
         )
