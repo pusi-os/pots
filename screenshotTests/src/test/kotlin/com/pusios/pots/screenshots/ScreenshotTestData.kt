@@ -57,6 +57,8 @@ object ScreenshotTestData {
         deleteConversation = {},
         clearSnackbar = {},
         clearUnreadHeartbeat = {},
+        clearHeartbeatHistory = {},
+        dismissHeartbeatHistoryOffer = {},
         undoDeleteConversation = { },
         submitUiCallback = { _, _ -> },
         resubmit = { _, _, _ -> },
