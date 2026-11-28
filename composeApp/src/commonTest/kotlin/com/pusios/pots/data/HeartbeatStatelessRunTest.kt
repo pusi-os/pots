@@ -95,7 +95,7 @@ class HeartbeatStatelessRunTest {
             assertTrue(id.startsWith(HEARTBEAT_SESSION_PREFIX), "session id is not ephemeral: $id")
         }
         assertNotEquals(ids[0], ids[1], "two runs shared one session id")
-        assertEquals(ids, harness.repository.closedHeadlessSessions, "run sessions outlived their runs")
+        assertEquals(ids.filterNotNull(), harness.repository.closedHeadlessSessions, "run sessions outlived their runs")
     }
 
     @Test

@@ -9,8 +9,11 @@ import com.pusios.pots.data.DataRepository
 import com.pusios.pots.data.EmailAccount
 import com.pusios.pots.data.EmailSyncState
 import com.pusios.pots.data.FallbackStatus
+import com.pusios.pots.data.HeadlessBudget
+import com.pusios.pots.data.HeadlessRunResult
 import com.pusios.pots.data.HeartbeatConfig
 import com.pusios.pots.data.HeartbeatLogEntry
+import com.pusios.pots.data.HeartbeatRepeatWarning
 import com.pusios.pots.data.ImportSection
 import com.pusios.pots.data.LocalToolSelection
 import com.pusios.pots.data.MemoryEntry
