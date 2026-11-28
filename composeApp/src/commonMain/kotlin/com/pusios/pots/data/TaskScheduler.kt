@@ -256,8 +256,7 @@ class TaskScheduler(
     }
 
     /** The task as the store holds it now, falling back to the caller's copy if it is gone. */
-    private fun latestTask(task: ScheduledTask): ScheduledTask =
-        taskStore?.getAllTasks()?.firstOrNull { it.id == task.id } ?: task
+    private fun latestTask(task: ScheduledTask): ScheduledTask = taskStore?.getAllTasks()?.firstOrNull { it.id == task.id } ?: task
 
     /**
      * One run against the primary instance, then the configured fallback.
