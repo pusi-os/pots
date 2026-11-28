@@ -13,6 +13,8 @@ import com.pusios.pots.speech.vosk.VoskModels
 import org.json.JSONObject
 import org.vosk.Recognizer
 import kotlin.concurrent.thread
+import kotlin.math.log10
+import kotlin.math.sqrt
 
 /**
  * Speech recognition for the hands-free dialogue loop, backed by Vosk.
@@ -20,8 +22,15 @@ import kotlin.concurrent.thread
  * Fully offline: the Russian small model ships inside the app, so recognition
  * works in airplane mode. A worker thread owns the microphone and the Vosk
  * recognizer; callbacks are delivered on the main thread, matching the system
- * recognizer. Recognition ends when Vosk detects the end of an utterance
- * (endpointing), when [stop] is called, or when the session is [cancel]led.
+ * recognizer.
+ *
+ * Vosk's own endpointer is not the end of the session. It fires after a short
+ * trailing pause (the bundled model is configured for 0.5–2 s) and used to end
+ * the utterance — which cut long dictation at the first pause and closed the
+ * microphone for the rest of it. Here a fired endpoint only means "this segment
+ * is final": its text is appended to the running transcript and the session
+ * keeps listening until [END_OF_SPEECH_SILENCE_MS] of real silence, the
+ * [MAX_SESSION_MS] cap, or [stop]/[cancel].
  */
 class VoskSpeechToText(
     private val context: Context,
@@ -48,13 +57,9 @@ class VoskSpeechToText(
     override val isAvailable: Boolean
         get() = true
 
-    override fun start(
-        onPartial: (String) -> Unit,
-        onResult: (String) -> Unit,
-        onError: (SpeechToTextError) -> Unit,
-    ) {
+    override fun start(listener: SpeechToTextListener) {
         if (!hasRecordPermission()) {
-            onError(SpeechToTextError.PermissionDenied)
+            listener.onError(SpeechToTextError.PermissionDenied)
             return
         }
         // A superseded session may still be winding down; wait it out so two
@@ -66,7 +71,7 @@ class VoskSpeechToText(
         stopRequested = false
         cancelRequested = false
         worker = thread(name = "vosk-stt", isDaemon = true) {
-            runSession(onPartial, onResult, onError)
+            runSession(listener)
         }
     }
 
@@ -84,14 +89,10 @@ class VoskSpeechToText(
         worker = null
     }
 
-    private fun runSession(
-        onPartial: (String) -> Unit,
-        onResult: (String) -> Unit,
-        onError: (SpeechToTextError) -> Unit,
-    ) {
+    private fun runSession(listener: SpeechToTextListener) {
         val model = VoskModels.ensure(context, modelId)
         if (model == null) {
-            if (!cancelRequested) post { onError(SpeechToTextError.Failed) }
+            if (!cancelRequested) post { listener.onError(SpeechToTextError.Failed) }
             worker = null
             return
         }
@@ -111,48 +112,76 @@ class VoskSpeechToText(
                 bufferSize,
             )
             if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-                if (!cancelRequested) post { onError(SpeechToTextError.Failed) }
+                if (!cancelRequested) post { listener.onError(SpeechToTextError.Failed) }
                 return
             }
             recognizer = Recognizer(model, SAMPLE_RATE_HZ.toFloat())
             recorder.startRecording()
 
             var accumulated = ""
+            // Counted in bytes rather than wall-clock milliseconds: the read loop
+            // already knows how much audio it consumed, and the device clock is
+            // not what the user's silence is measured in.
+            var sessionBytes = 0L
+            var silentBytes = 0L
+            var speechStarted = false
             val buffer = ByteArray(READ_BUFFER_BYTES)
             while (!stopRequested && !cancelRequested) {
                 val n = recorder.read(buffer, 0, buffer.size)
                 if (n < 0) {
-                    if (!cancelRequested) post { onError(SpeechToTextError.Failed) }
+                    if (!cancelRequested) post { listener.onError(SpeechToTextError.Failed) }
                     return
                 }
                 if (n == 0) continue
+                sessionBytes += n
+
+                val level = levelOf(buffer, n)
+                // The wave is drawn from these values, so they go out as often as
+                // audio arrives (once per read, ≈ 64 ms) instead of on a timer.
+                post { listener.onLevel(level) }
+                if (level >= SPEECH_LEVEL_THRESHOLD) {
+                    silentBytes = 0
+                    if (!speechStarted) {
+                        speechStarted = true
+                        post { listener.onSpeechStart() }
+                    }
+                } else {
+                    silentBytes += n
+                }
+
                 if (recognizer.acceptWaveForm(buffer, n)) {
                     val segment = textOf(recognizer.result)
                     if (segment.isNotEmpty()) {
-                        // Endpoint reached after speech: the utterance is over.
+                        // Vosk ended a segment. The phrase may continue after the
+                        // pause, so the session keeps listening and only the
+                        // transcript grows — this is the fix for the phrase that
+                        // used to stop at the first pause.
                         accumulated = combine(accumulated, segment)
-                        val result = accumulated
-                        if (!cancelRequested) post { onResult(result) }
-                        return
+                        val partial = accumulated
+                        post { listener.onPartial(partial) }
                     }
                 } else {
                     val partial = combine(accumulated, textOf(recognizer.partialResult))
                     if (partial.isNotEmpty()) {
-                        post { onPartial(partial) }
+                        post { listener.onPartial(partial) }
                     }
+                }
+
+                val endOfSpeech = speechStarted &&
+                    silentBytes >= END_OF_SPEECH_SILENCE_MS * BYTES_PER_MS
+                val noSpeech = !speechStarted && silentBytes >= INITIAL_SILENCE_MS * BYTES_PER_MS
+                val capped = sessionBytes >= MAX_SESSION_MS * BYTES_PER_MS
+                if (endOfSpeech || noSpeech || capped) {
+                    finalise(recognizer, accumulated, listener)
+                    return
                 }
             }
 
             if (cancelRequested) return
             // stop(): finalise whatever was said so far.
-            val result = combine(accumulated, textOf(recognizer.finalResult))
-            if (result.isEmpty()) {
-                post { onError(SpeechToTextError.NoMatch) }
-            } else {
-                post { onResult(result) }
-            }
+            finalise(recognizer, accumulated, listener)
         } catch (t: Throwable) {
-            if (!cancelRequested) post { onError(SpeechToTextError.Failed) }
+            if (!cancelRequested) post { listener.onError(SpeechToTextError.Failed) }
         } finally {
             try {
                 recorder?.stop()
@@ -164,6 +193,25 @@ class VoskSpeechToText(
             } catch (_: Throwable) {
             }
             worker = null
+        }
+    }
+
+    /**
+     * Ends the session: reports the final transcript, or «nothing heard» when
+     * there is none. [SpeechToTextListener.onFinalising] goes out first so the
+     * indicator freezes before the result arrives.
+     */
+    private fun finalise(
+        recognizer: Recognizer,
+        accumulated: String,
+        listener: SpeechToTextListener,
+    ) {
+        post { listener.onFinalising() }
+        val result = combine(accumulated, textOf(recognizer.finalResult))
+        if (result.isEmpty()) {
+            post { listener.onError(SpeechToTextError.NoMatch) }
+        } else {
+            post { listener.onResult(result) }
         }
     }
 
@@ -181,12 +229,60 @@ class VoskSpeechToText(
         const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
         const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
 
-        /** 8 KB ≈ 256 ms of 16 kHz mono 16-bit audio — one recognition step. */
-        const val READ_BUFFER_BYTES = 8192
+        /** 16-bit mono at 16 kHz: 32 bytes per millisecond of audio. */
+        const val BYTES_PER_MS = SAMPLE_RATE_HZ * 2 / 1_000
+
+        /**
+         * 2 KB ≈ 64 ms of audio: the granularity of one wave bar, and small
+         * enough that the end-of-speech check is not a quarter-second late.
+         */
+        const val READ_BUFFER_BYTES = 2048
+
+        /**
+         * Real silence that ends the utterance. Longer than any pause inside a
+         * sentence (Vosk's own rules fire at 0.5–2 s, which is why its endpoint
+         * cannot be trusted for this) and short enough to feel immediate.
+         */
+        const val END_OF_SPEECH_SILENCE_MS = 3_000L
+
+        /** Silence before the first word: «ничего не расслышал», then listen again. */
+        const val INITIAL_SILENCE_MS = 8_000L
+
+        /** Upper bound on one utterance, so the microphone is not held forever. */
+        const val MAX_SESSION_MS = 120_000L
 
         /** Long enough for one buffer read plus cleanup to finish. */
         const val SESSION_JOIN_TIMEOUT_MS = 1500L
     }
+}
+
+/** Silence, in dBFS: the bottom of the 0..1 scale used by the wave. */
+private const val LEVEL_FLOOR_DBFS = -60f
+
+/** Loud speech, in dBFS: the top of the 0..1 scale used by the wave. */
+private const val LEVEL_CEIL_DBFS = -15f
+
+/**
+ * Root-mean-square level of a PCM 16-bit little-endian buffer, mapped onto
+ * `0..1` between [LEVEL_FLOOR_DBFS] and [LEVEL_CEIL_DBFS].
+ *
+ * This is the audio the recognizer is actually consuming, which is why the wave
+ * moves with the voice: it is a measurement, not an animation.
+ */
+private fun levelOf(buffer: ByteArray, length: Int): Float {
+    val samples = length / 2
+    if (samples == 0) return 0f
+    var sum = 0.0
+    var i = 0
+    while (i + 1 < length) {
+        val sample = ((buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xFF)).toShort()
+        val value = sample / 32768f
+        sum += value * value
+        i += 2
+    }
+    val rms = sqrt(sum / samples).toFloat()
+    val dbfs = if (rms <= 0f) LEVEL_FLOOR_DBFS else 20f * log10(rms)
+    return ((dbfs - LEVEL_FLOOR_DBFS) / (LEVEL_CEIL_DBFS - LEVEL_FLOOR_DBFS)).coerceIn(0f, 1f)
 }
 
 /** Extracts the text field from a Vosk result JSON ({"text": ...} / {"partial": ...}). */

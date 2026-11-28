@@ -98,6 +98,7 @@ import pots.composeapp.generated.resources.potsik_cloud_screen_revoked
 import pots.composeapp.generated.resources.potsik_cloud_screen_waiting
 import pots.composeapp.generated.resources.potsik_cloud_screenshot_caption
 import pots.composeapp.generated.resources.potsik_cloud_send
+import pots.composeapp.generated.resources.potsik_cloud_service_unavailable
 import pots.composeapp.generated.resources.potsik_cloud_settings
 import pots.composeapp.generated.resources.potsik_cloud_speak_aloud
 import pots.composeapp.generated.resources.potsik_cloud_stop
@@ -708,6 +709,7 @@ private fun potsikCloudPillText(state: PotsikCloudState): String = when (state.p
 /** The one line of explanation behind an error pill. */
 fun potsikCloudTroubleText(trouble: PotsikCloudTrouble?): StringResource = when (trouble) {
     PotsikCloudTrouble.NoRecognizer -> Res.string.potsik_cloud_no_recognizer
+    PotsikCloudTrouble.ServiceUnavailable -> Res.string.potsik_cloud_service_unavailable
     PotsikCloudTrouble.NoMatch -> Res.string.potsik_cloud_no_match
     PotsikCloudTrouble.ListenTimeout -> Res.string.potsik_cloud_timeout
     PotsikCloudTrouble.NoNetwork, null -> Res.string.potsik_cloud_no_network

@@ -1,5 +1,6 @@
 package com.pusios.pots.handsfree
 
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import com.pusios.pots.ui.dynamicui.toSpeakableText
 import com.pusios.pots.ui.tts.PotsTextToSpeech
@@ -12,6 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import nl.marc_apps.tts.errors.TextToSpeechSynthesisInterruptedError
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /** What the hands-free loop is currently doing. */
 enum class HandsFreeStatus {
@@ -39,12 +42,48 @@ enum class HandsFreeStatus {
 }
 
 /**
+ * The phase the recording indicator shows. Finer-grained than [HandsFreeStatus]:
+ * the loop is [HandsFreeStatus.Listening] for the whole session, while the strip
+ * has to say whether speech is being heard and whether the engine is finalising.
+ */
+enum class RecordingPhase {
+    /** The microphone is open, nothing above the speech threshold yet. */
+    Listening,
+
+    /** Audio above the speech threshold is arriving, or a partial transcript is in. */
+    SpeechDetected,
+
+    /** The engine decided the utterance ended and is producing the final text. */
+    Finalising,
+
+    /** The transcript is being handed to the chat. */
+    Sending,
+
+    /** The session failed; [HandsFreeRecording.error] says why. */
+    Error,
+}
+
+/**
+ * One snapshot of the recording indicator.
+ *
+ * [startedAt] is a monotonic mark rather than a millisecond value: the LED timer
+ * counts from it, so it must be immune to wall-clock jumps.
+ */
+@Immutable
+data class HandsFreeRecording(
+    val phase: RecordingPhase,
+    val level: Float,
+    val startedAt: TimeMark,
+    val error: SpeechToTextError? = null,
+)
+
+/**
  * Drives the hands-free dialogue: listen → send → wait → speak → listen.
  *
  * The controller owns the *voice* side of the conversation only. Sending the transcript and
  * observing the reply stay with the chat layer, which knows the conversation state.
  *
- * Two design points worth spelling out:
+ * Three design points worth spelling out:
  *
  * * The recognizer and the synthesizer never run at the same time. Running them together
  *   makes the recognizer transcribe the agent's own voice, which would make the agent
@@ -53,6 +92,10 @@ enum class HandsFreeStatus {
  * * Every recognition session carries an id. Callbacks of a session that has been superseded
  *   (cancelled because the user interrupted, or because a new session started) are ignored,
  *   so a late "no match" from the old session cannot derail the loop.
+ * * The watchdog measures *inactivity*, not phrase length. A healthy session reports partial
+ *   results and microphone levels while the user talks, and every such report re-arms it; a
+ *   dead service reports nothing and is failed after [LISTEN_TIMEOUT_MS]. A phrase of any
+ *   length is recognised in full.
  */
 @Stable
 class HandsFreeController(
@@ -77,21 +120,50 @@ class HandsFreeController(
     private val _error = MutableStateFlow<SpeechToTextError?>(null)
     val error: StateFlow<SpeechToTextError?> = _error.asStateFlow()
 
+    private val _recording = MutableStateFlow<HandsFreeRecording?>(null)
+
+    /**
+     * What the recording indicator shows, or null when there is no session to
+     * show. In [RecordingPhase.Error] it stays non-null on purpose: the reason
+     * and the retry have to remain on screen until the user acts.
+     */
+    val recording: StateFlow<HandsFreeRecording?> = _recording.asStateFlow()
+
     private var speakJob: Job? = null
     private var listenWatchdog: Job? = null
     private var spokenMessageId: String? = null
     private var stopAfterReply: Boolean = false
     private var sessionId = 0
 
+    /**
+     * Counter of "the session is alive" reports (partials, speech onsets, loud
+     * audio frames). The watchdog compares it across ticks instead of reading a
+     * clock, so it works under virtual time in tests.
+     */
+    private var activityCount = 0L
+
+    /**
+     * Text that was in the composer when the current session started.
+     *
+     * The composer is the source of truth: the indicator writes `draft + transcript`
+     * into it, and [submit] sends exactly that, so a message typed before dictating
+     * is not replaced by what was said. The composer sets this when a session starts
+     * and reads it back for «Отменить и начать заново».
+     */
+    var dictationDraft: String = ""
+
     companion object {
         /**
-         * How long a recognition session may stay silent before it counts as
+         * How long a recognition session may stay inactive before it counts as
          * hung. A healthy system service reports a result or an error within
          * seconds; a dead one never calls back at all and the loop would sit
          * in Listening forever with a closed microphone (block 8, confirmed
          * by device logs).
          */
         internal const val LISTEN_TIMEOUT_MS = 15_000L
+
+        /** How often the inactivity watchdog looks at [activityCount]. */
+        internal const val WATCHDOG_TICK_MS = 1_000L
 
         /**
          * How long «Не расслышал, повторите» stays up before the microphone
@@ -130,34 +202,72 @@ class HandsFreeController(
      * The microphone permission is requested first — on Android the recognizer is useless
      * without it, and asking at the moment the user opts in is the least surprising moment.
      */
-    fun start() {
-        if (!isSupported) return
-        scope.launch {
-            if (!requestMicrophonePermission()) {
-                _error.value = SpeechToTextError.PermissionDenied
-                _status.value = HandsFreeStatus.Error
-                return@launch
-            }
-            _error.value = null
-            textToSpeech?.stop()
-            _status.value = HandsFreeStatus.Listening
-            listen()
-        }
-    }
+    fun start() = resume()
 
     /** Stops the loop, silences the agent and releases the microphone. */
     fun stop() {
         speakJob?.cancel()
         speakJob = null
-        listenWatchdog?.cancel()
-        listenWatchdog = null
-        sessionId++
-        // A dead recognition service throws from cancel() (block 8: the mode
-        // could not be switched off) — reaching Idle must not depend on it.
-        runCatching { speechToText?.cancel() }
-        _transcript.value = ""
+        stopSession()
+        // The transcript is deliberately kept: the recognised text is already in
+        // the composer, and the next session resets the flow anyway.
         _error.value = null
+        _recording.value = null
         _status.value = HandsFreeStatus.Idle
+    }
+
+    /**
+     * Ends the session and keeps what was recognised, without sending it.
+     *
+     * «Остановить и вставить текст в поле»: the transcript is already in the
+     * composer, so the loop only has to let go of the microphone. Nothing is
+     * dropped and [onSubmit] is not called.
+     */
+    fun finishListening() {
+        if (!isActive) return
+        stopSession()
+        _error.value = null
+        _recording.value = null
+        _status.value = HandsFreeStatus.Idle
+    }
+
+    /**
+     * Drops this session's transcript and opens a new session at once.
+     *
+     * «Отменить и начать заново»: the caller restores the composer to
+     * [dictationDraft] first, so only what was said in this session is lost.
+     */
+    fun restartListening() {
+        if (!isSupported) return
+        stopSession()
+        _error.value = null
+        _status.value = HandsFreeStatus.Listening
+        listen()
+    }
+
+    /**
+     * Ends the session and sends [text] immediately.
+     *
+     * [text] is the whole composer text (draft included), so it is submitted
+     * as is — unlike a recognised result, which is appended to [dictationDraft].
+     */
+    fun sendNow(text: String) {
+        if (!isActive) return
+        stopSession()
+        submit(text, appendDraft = false)
+    }
+
+    /**
+     * Sends the text the composer holds, by the one path that is open right now.
+     *
+     * While the loop runs, the session has to be closed first: a live session
+     * keeps listening, and its own final result would hand the same phrase to
+     * the chat a few seconds later, so the user would get the message twice.
+     * Ending it here is exactly what «Отправить сейчас» does; with the loop off
+     * the chat sends the text itself.
+     */
+    fun sendComposerText(text: String, ask: (String) -> Unit) {
+        if (isActive) sendNow(text) else ask(text)
     }
 
     /**
@@ -196,17 +306,16 @@ class HandsFreeController(
      * once" invariant holds; [listen] bumps the session id, so the cancelled
      * answer's callbacks are ignored.
      *
-     * [stop] is deliberately not called first: it clears the transcript and
-     * drops to `Idle`, after which [start] asks for the permission again — an
-     * extra round-trip on every invocation.
+     * [stop] is deliberately not called first: it drops to `Idle`, after which
+     * [start] asks for the permission again — an extra round-trip on every
+     * invocation.
      */
     fun interruptAndListen() {
         if (!isSupported) return
         speakJob?.cancel()
         speakJob = null
         textToSpeech?.stop()
-        listenWatchdog?.cancel()
-        listenWatchdog = null
+        stopSession()
         _error.value = null
         _status.value = HandsFreeStatus.Listening
         listen()
@@ -302,67 +411,212 @@ class HandsFreeController(
         // recognizer therefore creates a fresh instance per session instead of
         // relying on this call (see AndroidSpeechToText.start).
         runCatching { recognizer.cancel() }
+        // Each session has its own transcript: the previous text is already in
+        // the composer, and appending to a stale flow would duplicate it.
+        _transcript.value = ""
+        _recording.value = HandsFreeRecording(
+            phase = RecordingPhase.Listening,
+            level = 0f,
+            startedAt = TimeSource.Monotonic.markNow(),
+        )
         startListenWatchdog(id)
         recognizer.start(
-            onPartial = { partial ->
-                if (id == sessionId) _transcript.value = partial
-            },
-            onResult = { text ->
-                if (id == sessionId) submit(text)
-            },
-            onError = { error ->
-                if (id != sessionId) return@start
-                listenWatchdog?.cancel()
-                listenWatchdog = null
-                _error.value = error
-                if (error == SpeechToTextError.NoMatch) {
-                    // «Не расслышал, повторите», then the microphone reopens by
-                    // itself. The session id is checked again after the pause: an
-                    // interrupt or a tap that already restarted the loop must not
-                    // get a second session on top of it.
-                    _status.value = HandsFreeStatus.NoMatch
-                    scope.launch {
-                        delay(NO_MATCH_NOTICE_MS)
-                        if (id == sessionId) {
-                            _status.value = HandsFreeStatus.Listening
-                            listen()
-                        }
+            object : SpeechToTextListener {
+                override fun onPartial(text: String) {
+                    if (id != sessionId) return
+                    noteActivity()
+                    _transcript.value = text
+                    updateRecording { it.copy(phase = RecordingPhase.SpeechDetected) }
+                }
+
+                override fun onResult(text: String) {
+                    if (id != sessionId) return
+                    submit(text, appendDraft = true)
+                }
+
+                override fun onError(error: SpeechToTextError) {
+                    if (id != sessionId) return
+                    failSession(error)
+                }
+
+                override fun onLevel(level: Float) {
+                    if (id != sessionId) return
+                    val clamped = level.coerceIn(0f, 1f)
+                    val speaking = clamped >= SPEECH_LEVEL_THRESHOLD
+                    if (speaking) noteActivity()
+                    updateRecording { current ->
+                        current.copy(
+                            level = clamped,
+                            phase = if (speaking) RecordingPhase.SpeechDetected else current.phase,
+                        )
                     }
-                } else {
-                    _status.value = HandsFreeStatus.Error
+                }
+
+                override fun onSpeechStart() {
+                    if (id != sessionId) return
+                    noteActivity()
+                    updateRecording { it.copy(phase = RecordingPhase.SpeechDetected) }
+                }
+
+                override fun onFinalising() {
+                    if (id != sessionId) return
+                    noteActivity()
+                    updateRecording { it.copy(phase = RecordingPhase.Finalising, level = 0f) }
                 }
             },
         )
     }
 
     /**
-     * Fails a silent recognition session visibly (block 8): when neither a
-     * result nor an error arrives within [LISTEN_TIMEOUT_MS], the hung session
-     * is cancelled and the loop drops to Error, where the button offers a
-     * retry instead of pretending to listen.
+     * Fails a session visibly, keeping what was already recognised.
+     *
+     * The text is not cleared: it is in the composer, and an error is not a
+     * reason to throw away what the user said. «No match» gets its own status
+     * so the loop reopens the microphone by itself after the notice; every
+     * other reason pauses the loop until the user retries.
      */
-    private fun startListenWatchdog(id: Int) {
+    private fun failSession(error: SpeechToTextError) {
         listenWatchdog?.cancel()
-        listenWatchdog = scope.launch {
-            delay(LISTEN_TIMEOUT_MS)
-            if (id != sessionId || _status.value != HandsFreeStatus.Listening) return@launch
-            runCatching { speechToText?.cancel() }
-            _error.value = SpeechToTextError.Failed
+        listenWatchdog = null
+        _error.value = error
+        updateRecording { it.copy(phase = RecordingPhase.Error, level = 0f, error = error) }
+        if (error == SpeechToTextError.NoMatch) {
+            _status.value = HandsFreeStatus.NoMatch
+            val id = sessionId
+            scope.launch {
+                delay(NO_MATCH_NOTICE_MS)
+                if (id == sessionId) {
+                    _status.value = HandsFreeStatus.Listening
+                    listen()
+                }
+            }
+        } else {
             _status.value = HandsFreeStatus.Error
         }
     }
 
-    private fun submit(text: String) {
+    /**
+     * Fails a session that stopped reporting (block 8): when neither a result
+     * nor an error arrives for [LISTEN_TIMEOUT_MS] of inactivity, the hung
+     * session is cancelled and the loop drops to Error with a retry, instead of
+     * pretending to listen. A session in which the user keeps talking reports
+     * partials and levels, which re-arm this loop — a long phrase is never cut.
+     */
+    private fun startListenWatchdog(id: Int) {
+        listenWatchdog?.cancel()
+        listenWatchdog = scope.launch {
+            var seenActivity = activityCount
+            var quietMs = 0L
+            while (true) {
+                delay(WATCHDOG_TICK_MS)
+                if (id != sessionId) return@launch
+                if (activityCount != seenActivity) {
+                    seenActivity = activityCount
+                    quietMs = 0
+                } else {
+                    quietMs += WATCHDOG_TICK_MS
+                }
+                if (quietMs < LISTEN_TIMEOUT_MS) continue
+                // A session that already moved on (the agent started talking)
+                // is not ours to fail.
+                if (_status.value != HandsFreeStatus.Listening) return@launch
+                runCatching { speechToText?.cancel() }
+                failSession(SpeechToTextError.Timeout)
+                return@launch
+            }
+        }
+    }
+
+    private fun stopSession() {
+        listenWatchdog?.cancel()
+        listenWatchdog = null
+        sessionId++
+        // A dead recognition service throws from cancel() (block 8: the mode
+        // could not be switched off) — reaching Idle must not depend on it.
+        runCatching { speechToText?.cancel() }
+    }
+
+    private fun noteActivity() {
+        activityCount++
+    }
+
+    private inline fun updateRecording(block: (HandsFreeRecording) -> HandsFreeRecording) {
+        val current = _recording.value ?: return
+        _recording.value = block(current)
+    }
+
+    /**
+     * Hands the recognised text to the chat.
+     *
+     * [appendDraft] is false for [sendNow], whose argument is already the whole
+     * composer text; a recognised result is appended to the draft instead.
+     */
+    private fun submit(text: String, appendDraft: Boolean) {
         listenWatchdog?.cancel()
         listenWatchdog = null
         val trimmed = text.trim()
         if (trimmed.isEmpty()) {
+            // Nothing to send: keep listening instead of ending the mode.
             _status.value = HandsFreeStatus.Listening
             listen()
             return
         }
+        val message = if (appendDraft) joinDictation(dictationDraft, trimmed) else trimmed
+        updateRecording { it.copy(phase = RecordingPhase.Sending, level = 0f) }
         _transcript.value = ""
         _status.value = HandsFreeStatus.Thinking
-        onSubmit(trimmed)
+        onSubmit(message)
+        _recording.value = null
     }
+}
+
+/**
+ * Joins the text that was in the composer before dictation with what was said,
+ * without gluing words together or adding a space to an empty draft.
+ */
+internal fun joinDictation(draft: String, spoken: String): String {
+    val said = spoken.trim()
+    return when {
+        draft.isBlank() -> said
+        said.isEmpty() -> draft
+        draft.last().isWhitespace() -> draft + said
+        else -> "$draft $said"
+    }
+}
+
+/**
+ * One write of a running dictation into the composer.
+ *
+ * [text] is the whole field to show, [tail] the stretch of it that the next
+ * partial replaces, and [draft] the field with the dictation taken out — that
+ * is, what the user typed.
+ *
+ * [draft] is returned instead of being left for the caller to subtract:
+ * [submit] joins the final transcript to it, and a caller that recomputed it
+ * from [text] got it wrong once, which sent every dictated phrase twice
+ * whenever the composer already held typed text.
+ */
+internal data class DictationUpdate(
+    val text: String,
+    val tail: String,
+    val draft: String,
+)
+
+/**
+ * Writes the running transcript into the composer without eating what the user
+ * typed.
+ *
+ * [tail] is the part of [field] the previous update wrote, so a new transcript
+ * replaces exactly that stretch and leaves everything else alone — text typed
+ * during the session survives, wherever the cursor was.
+ */
+internal fun applyDictation(field: String, tail: String, spoken: String): DictationUpdate {
+    val index = if (tail.isEmpty()) -1 else field.lastIndexOf(tail)
+    val manual = if (index >= 0) field.removeRange(index, index + tail.length) else field
+    val written = joinDictation(manual, spoken)
+    return DictationUpdate(
+        text = written,
+        tail = written.removePrefix(manual),
+        draft = manual,
+    )
 }
