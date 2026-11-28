@@ -35,6 +35,7 @@ A 5-field schedule format (`minute hour day-of-month month day-of-week`) used fo
 7. CRON tasks: next execution time is computed from the cron expression and the task remains PENDING
 8. HEARTBEAT tasks: their prompts are appended to the heartbeat user message under `## Heartbeat Additions` during each heartbeat run; they never transition state on their own
 9. The execution result and timestamp are stored on the task
+10. A pause pressed while a run is in flight survives the result write: the run works from the snapshot the poll picked up, so the completion and failure writes re-read the task and keep PAUSED. The run still logs its result and advances the schedule, so resuming does not fire the occurrence that already ran
 
 ## Execution Rules
 
@@ -58,7 +59,7 @@ A 5-field schedule format (`minute hour day-of-month month day-of-week`) used fo
 | Tool | Purpose |
 |---|---|
 | `schedule_task` | Create a one-time, recurring, or heartbeat-triggered task with a description, prompt, and exactly one trigger |
-| `list_tasks` | List all tasks, optionally filtered by status (PENDING or COMPLETED) |
+| `list_tasks` | List all tasks, optionally filtered by status (PENDING, PAUSED, or COMPLETED) |
 | `cancel_task` | Remove a task by its id |
 
 ### schedule_task Validation
@@ -81,10 +82,10 @@ Automations that belong to a mini-app are registered with a shared description p
 
 The scheduled tasks section in Settings → Agent provides:
 
-- **Feature toggle** — enables or disables the scheduling feature globally; when disabled, no tasks execute and scheduling tools are unavailable to the AI. The task list stays visible and editable with the toggle off, marked "scheduling is off", because a hidden list is indistinguishable from "there are no tasks"
-- **Header counter and create button** — how many tasks are active and how many are paused, plus a "Create task" action
+- **Feature toggle** — enables or disables the scheduling feature globally; when disabled, no tasks execute and scheduling tools are unavailable to the AI. The task list stays visible and editable with the toggle off, marked "scheduling is off" — including when the list is empty, because a hidden list is indistinguishable from "there are no tasks"
+- **Header counter and create button** — how many tasks are active, how many are paused, and (when any exist) how many are done, plus a "Create task" action
 - **Task list** — live, so tasks the agent creates in the background appear without reopening the screen. Each row shows the description, a type badge (once / on schedule / every heartbeat), a human-readable next run or "paused", and a status chip (active / paused / done); enum names never reach the screen
-- **Tap a task** — opens the task card with Pause/Resume (a paused task is skipped by every executor and keeps its schedule), Run now (works on paused and finished tasks; the answer lands in the pulse conversation and in the task's history, and the button is disabled until the run finishes), Edit, and Delete. Edit changes the description, prompt, time or cron; the date and the cron expression are validated before saving, and a rescheduled cron gets a fresh future next run instead of firing on the next poll. Delete asks for confirmation; the 4-second undo snackbar still applies afterwards
+- **Tap a task** — opens the task card with Pause/Resume (a paused task is skipped by every executor and keeps its schedule), Run now (works on paused and finished tasks; the answer lands in the pulse conversation and in the task's history, and the button is disabled until the run finishes), Edit, and Delete. Edit changes the description, prompt, time or cron; the date and the cron expression are validated before saving, and a rescheduled cron gets a fresh future next run instead of firing on the next poll. Editing a finished task with a future time puts it back on the schedule (PENDING) — that is how a one-off reminder is moved to a later day; the dialog says so before saving. Delete asks for confirmation; the 4-second undo snackbar still applies afterwards
 - **Collapsed blocks** — run history (last runs with OK/FAIL and the reason; for HEARTBEAT tasks the shared pulse journal) and the raw prompt are folded by default
 - **Empty state** — says that no tasks exist yet and offers "Create task"; the create dialog takes description, prompt, trigger, and time or cron
 

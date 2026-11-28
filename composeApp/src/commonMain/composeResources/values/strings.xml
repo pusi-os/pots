@@ -377,6 +377,7 @@
     <string name="settings_scheduled_tasks_cancel">Cancel task</string>
     <string name="settings_scheduled_tasks_add">Create task</string>
     <string name="settings_scheduled_tasks_counts">Active: %1$d · Paused: %2$d</string>
+    <string name="settings_scheduled_tasks_counts_with_done">Active: %1$d · Paused: %2$d · Done: %3$d</string>
     <string name="settings_scheduled_tasks_disabled">Scheduling is off — these tasks will not run until you turn it back on.</string>
     <string name="settings_scheduled_tasks_empty_title">No tasks yet</string>
     <string name="settings_scheduled_tasks_empty_body">Ask the agent: “remind me tomorrow at 9” — or create one manually.</string>
@@ -413,16 +414,10 @@
     <string name="settings_task_field_cron">Cron expression</string>
     <string name="settings_task_field_invalid_time">Enter a real date and time, e.g. 2026-11-29 09:00</string>
     <string name="settings_task_field_invalid_cron">Invalid cron expression, e.g. 0 9 * * *</string>
+    <string name="settings_task_edit_revive_hint">This task already ran. Saving a future time puts it back on the schedule.</string>
     <string name="settings_task_never_ran">Never ran</string>
-    <string name="settings_task_details_trigger">Trigger</string>
-    <string name="settings_task_details_status">Status</string>
-    <string name="settings_task_details_scheduled_for">Scheduled for</string>
-    <string name="settings_task_details_schedule">Schedule</string>
     <string name="settings_task_details_next_run">Next run</string>
-    <string name="settings_task_details_on_every_heartbeat">On every heartbeat</string>
     <string name="settings_task_details_created">Created</string>
-    <string name="settings_task_details_consecutive_failures">Consecutive failures</string>
-    <string name="settings_task_details_last_result">Last result</string>
     <string name="settings_task_details_no_heartbeat_runs">No heartbeat runs recorded yet.</string>
     <string name="settings_task_details_no_runs">No runs recorded yet.</string>
     <string name="execution_log_status_ok">OK</string>
@@ -452,6 +447,7 @@
     <string name="settings_heartbeat_active_hours">Active Hours</string>
     <string name="settings_heartbeat_prompt_label">Heartbeat Prompt</string>
     <string name="settings_heartbeat_recent">Recent Activity</string>
+    <string name="settings_heartbeat_log_empty">No runs yet.</string>
     <string name="settings_heartbeat_refresh">Run heartbeat now</string>
     <string name="settings_heartbeat_reset_confirm">This will reset the heartbeat prompt to the default. Are you sure?</string>
     <string name="settings_heartbeat_default_prompt">[HEARTBEAT] This is an automatic self-check. Review your memories and pending tasks. If everything looks good and nothing needs attention, respond with exactly: HEARTBEAT_OK\nIf something needs attention (stale memories, due tasks, user follow-ups), address it.</string>

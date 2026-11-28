@@ -144,15 +144,7 @@ class TaskScheduler(
                 val dueTasks = taskStore.getDueTasks()
                 for (task in dueTasks) {
                     if (isLoadingCheck()) break
-
-                    try {
-                        runScheduledTask(task)
-                    } catch (e: Exception) {
-                        // Stopped mid-run (daemon shut down): leave the task due so it runs next
-                        // time instead of recording a failure and advancing past this occurrence.
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        handleTaskFailure(task, formatException(e))
-                    }
+                    runScheduledTaskTracked(task)
                 }
 
                 if (!isLoadingCheck() && heartbeatManager?.isHeartbeatDue() == true) {
@@ -200,6 +192,20 @@ class TaskScheduler(
             dataRepository.addAssistantMessage("**$header**\n\n$response")
         }
         handleTaskCompletion(task, run.note)
+    }
+
+    /**
+     * One due task with the poll loop's failure bookkeeping. A run stopped mid-flight (daemon
+     * shut down) leaves the task due so it runs next time instead of recording a failure and
+     * advancing past this occurrence.
+     */
+    internal suspend fun runScheduledTaskTracked(task: ScheduledTask) {
+        try {
+            runScheduledTask(task)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            handleTaskFailure(task, formatException(e))
+        }
     }
 
     /**
@@ -257,6 +263,15 @@ class TaskScheduler(
 
     /** The task as the store holds it now, falling back to the caller's copy if it is gone. */
     private fun latestTask(task: ScheduledTask): ScheduledTask = taskStore?.getAllTasks()?.firstOrNull { it.id == task.id } ?: task
+
+    /**
+     * Status a run's write may leave behind. The poll hands the handlers a snapshot taken before
+     * the (minutes-long) model call, so copying that snapshot's status would resurrect a task the
+     * owner paused meanwhile. A pause outranks whatever the run computed: the run still logs its
+     * result and advances the schedule, but the task stays on hold until resumed.
+     */
+    private fun statusAfterRun(latest: ScheduledTask, computed: TaskStatus): TaskStatus =
+        if (latest.status == TaskStatus.PAUSED) TaskStatus.PAUSED else computed
 
     /**
      * One run against the primary instance, then the configured fallback.
@@ -527,37 +542,40 @@ class TaskScheduler(
     private suspend fun handleTaskFailure(task: ScheduledTask, error: String? = null) {
         val now = Clock.System.now()
         val ranAtMs = now.toEpochMilliseconds()
-        val failures = task.consecutiveFailures + 1
+        // Re-read at write time: a run lasts minutes, and a pause pressed meanwhile must survive
+        // this write (see [statusAfterRun]).
+        val latest = latestTask(task)
+        val failures = latest.consecutiveFailures + 1
         val reason = error ?: "unknown error"
-        val log = appendExecution(task, success = false, message = reason)
+        val log = appendExecution(latest, success = false, message = reason)
 
-        if (task.cron != null) {
+        if (latest.cron != null) {
             // Cron task failed — advance to the next scheduled time instead of retrying every cycle
             val nextExecution = try {
-                CronExpression(task.cron).nextAfter(now)
+                CronExpression(latest.cron).nextAfter(now)
             } catch (_: Exception) {
                 null
             }
             if (nextExecution != null) {
                 taskStore!!.updateTask(
-                    task.copy(
+                    latest.copy(
                         scheduledAtEpochMs = nextExecution.toEpochMilliseconds(),
                         lastResult = "Failed at $now: $reason (next retry at $nextExecution)",
                         consecutiveFailures = failures,
                         recentExecutions = log,
                         lastRunEpochMs = ranAtMs,
-                        runCount = task.runCount + 1,
+                        runCount = latest.runCount + 1,
                     ),
                 )
             } else {
                 taskStore!!.updateTask(
-                    task.copy(
-                        status = TaskStatus.COMPLETED,
+                    latest.copy(
+                        status = statusAfterRun(latest, TaskStatus.COMPLETED),
                         lastResult = "Failed at $now: $reason (no next schedule)",
                         consecutiveFailures = failures,
                         recentExecutions = log,
                         lastRunEpochMs = ranAtMs,
-                        runCount = task.runCount + 1,
+                        runCount = latest.runCount + 1,
                     ),
                 )
             }
@@ -565,13 +583,13 @@ class TaskScheduler(
             // One-time task — apply exponential backoff
             val backoffMs = min(POLL_INTERVAL_MS * (1L shl min(failures, 10)), MAX_BACKOFF_MS)
             taskStore!!.updateTask(
-                task.copy(
+                latest.copy(
                     scheduledAtEpochMs = now.toEpochMilliseconds() + backoffMs,
                     lastResult = "Failed at $now: $reason (retry after ${backoffMs / 1000}s backoff)",
                     consecutiveFailures = failures,
                     recentExecutions = log,
                     lastRunEpochMs = ranAtMs,
-                    runCount = task.runCount + 1,
+                    runCount = latest.runCount + 1,
                 ),
             )
         }
@@ -580,63 +598,66 @@ class TaskScheduler(
     private suspend fun handleTaskCompletion(task: ScheduledTask, note: String? = null) {
         val now = Clock.System.now()
         val ranAtMs = now.toEpochMilliseconds()
+        // Re-read at write time: a run lasts minutes, and a pause pressed meanwhile must survive
+        // this write (see [statusAfterRun]).
+        val latest = latestTask(task)
         // The run's note is the only thing a successful execution has to say; a plain run
         // leaves it null so the log stays one line per execution.
-        val log = appendExecution(task, success = true, message = note)
-        if (task.cron != null) {
+        val log = appendExecution(latest, success = true, message = note)
+        if (latest.cron != null) {
             // Recurring task — compute next execution time
             val nextExecution = try {
-                CronExpression(task.cron).nextAfter(now)
+                CronExpression(latest.cron).nextAfter(now)
             } catch (e: Exception) {
                 // Cron computation failed — leave pending for retry
-                println("TaskScheduler: failed to compute next cron time for task ${task.id}: ${e.message}")
+                println("TaskScheduler: failed to compute next cron time for task ${latest.id}: ${e.message}")
                 taskStore!!.updateTask(
-                    task.copy(
-                        status = TaskStatus.PENDING,
+                    latest.copy(
+                        status = statusAfterRun(latest, TaskStatus.PENDING),
                         lastResult = "Executed at $now (next schedule computation failed, will retry)",
                         consecutiveFailures = 0,
                         recentExecutions = log,
                         lastRunEpochMs = ranAtMs,
-                        runCount = task.runCount + 1,
+                        runCount = latest.runCount + 1,
                     ),
                 )
                 return
             }
             if (nextExecution != null) {
                 taskStore!!.updateTask(
-                    task.copy(
+                    latest.copy(
                         scheduledAtEpochMs = nextExecution.toEpochMilliseconds(),
                         lastResult = "Executed at $now",
-                        status = TaskStatus.PENDING,
+                        status = statusAfterRun(latest, TaskStatus.PENDING),
                         consecutiveFailures = 0,
                         recentExecutions = log,
                         lastRunEpochMs = ranAtMs,
-                        runCount = task.runCount + 1,
+                        runCount = latest.runCount + 1,
                     ),
                 )
             } else {
                 // No valid future time — mark completed
                 taskStore!!.updateTask(
-                    task.copy(
-                        status = TaskStatus.COMPLETED,
+                    latest.copy(
+                        status = statusAfterRun(latest, TaskStatus.COMPLETED),
                         lastResult = "Executed at $now (no next schedule)",
                         consecutiveFailures = 0,
                         recentExecutions = log,
                         lastRunEpochMs = ranAtMs,
-                        runCount = task.runCount + 1,
+                        runCount = latest.runCount + 1,
                     ),
                 )
             }
         } else {
             // One-time task — mark completed
             taskStore!!.updateTask(
-                task.copy(
-                    status = TaskStatus.COMPLETED,
+                latest.copy(
+                    status = statusAfterRun(latest, TaskStatus.COMPLETED),
                     lastResult = "Executed at $now",
                     consecutiveFailures = 0,
                     recentExecutions = log,
                     lastRunEpochMs = ranAtMs,
-                    runCount = task.runCount + 1,
+                    runCount = latest.runCount + 1,
                 ),
             )
         }

@@ -783,12 +783,17 @@ class FakeDataRepository : DataRepository {
         modelIdOverride: String?,
     ): String {
         askWithToolsCalls += instanceId
+        // Lets a test hold the call open and act on the task while the run is in flight.
+        askWithToolsGate?.await()
         askWithToolsFailures[instanceId]?.let { throw it }
         return askWithToolsResponse
     }
 
     /** Instance ids [askWithTools] was called with, in order — proves who was (not) tried. */
     val askWithToolsCalls = mutableListOf<String?>()
+
+    /** Completing it lets a held [askWithTools] call return; null = answer immediately. */
+    var askWithToolsGate: CompletableDeferred<Unit>? = null
 
     /** Instance id (null = any) → the exception that instance should fail with. */
     var askWithToolsFailures: Map<String?, Exception> = emptyMap()

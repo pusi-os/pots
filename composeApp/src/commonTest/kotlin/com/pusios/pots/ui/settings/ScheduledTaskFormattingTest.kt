@@ -60,7 +60,7 @@ class ScheduledTaskFormattingTest {
     }
 
     @Test
-    fun `counts separate active from paused and ignore finished tasks`() {
+    fun `counts report every state the list can show`() {
         val counts = scheduledTaskCounts(
             listOf(
                 task(status = TaskStatus.PENDING),
@@ -69,7 +69,41 @@ class ScheduledTaskFormattingTest {
                 task(status = TaskStatus.COMPLETED),
             ),
         )
-        assertEquals(ScheduledTaskCounts(active = 2, paused = 1), counts)
+        // A list of finished one-offs must not read as "0 active, 0 paused" and nothing else.
+        assertEquals(ScheduledTaskCounts(active = 2, paused = 1, done = 1), counts)
+    }
+
+    @Test
+    fun `editing a finished task with a future time puts it back on the schedule`() {
+        val done = task(status = TaskStatus.COMPLETED, scheduledAtEpochMs = 1_700_000_000_000L)
+        val now = 1_800_000_000_000L
+        val future = now + 60_000L
+
+        val edited = applyTaskEdit(done, "Check the rate", "check", future, null, now)
+
+        assertEquals(TaskStatus.PENDING, edited.status)
+        assertEquals(future, edited.scheduledAtEpochMs)
+    }
+
+    @Test
+    fun `editing a finished task with a past time leaves it finished`() {
+        val done = task(status = TaskStatus.COMPLETED)
+        val now = 1_800_000_000_000L
+
+        val edited = applyTaskEdit(done, "Check the rate", "check", now - 1, null, now)
+
+        // Nothing would fire, so claiming "active" would be the same silent no-op in reverse.
+        assertEquals(TaskStatus.COMPLETED, edited.status)
+    }
+
+    @Test
+    fun `editing never revives a heartbeat addition`() {
+        val done = task(trigger = TaskTrigger.HEARTBEAT, status = TaskStatus.COMPLETED, scheduledAtEpochMs = 0L)
+        val now = 1_800_000_000_000L
+
+        val edited = applyTaskEdit(done, "Watch the server", "watch", now + 60_000L, null, now)
+
+        assertEquals(TaskStatus.COMPLETED, edited.status)
     }
 
     @Test

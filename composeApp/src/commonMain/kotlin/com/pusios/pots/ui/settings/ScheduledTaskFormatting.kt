@@ -48,13 +48,44 @@ fun scheduledTaskRow(task: ScheduledTask): ScheduledTaskRow = ScheduledTaskRow(
     },
 )
 
-/** How many tasks the header's counter reports. */
-data class ScheduledTaskCounts(val active: Int, val paused: Int)
+/**
+ * How many tasks the header's counter reports. `done` matters because the list keeps finished
+ * tasks: without it a screen full of completed one-offs would claim "0 active, 0 paused".
+ */
+data class ScheduledTaskCounts(val active: Int, val paused: Int, val done: Int = 0)
 
 fun scheduledTaskCounts(tasks: List<ScheduledTask>): ScheduledTaskCounts = ScheduledTaskCounts(
     active = tasks.count { it.status == TaskStatus.PENDING },
     paused = tasks.count { it.status == TaskStatus.PAUSED },
+    done = tasks.count { it.status == TaskStatus.COMPLETED },
 )
+
+/**
+ * Applies the editor's fields to [existing].
+ *
+ * A finished task that gets a new future run time is the owner's way of rescheduling it ("move
+ * the reminder to tomorrow"), so it goes back to PENDING. Leaving it COMPLETED kept the edit and
+ * still never fired — a save that looked like it worked and did nothing.
+ */
+fun applyTaskEdit(
+    existing: ScheduledTask,
+    description: String,
+    prompt: String,
+    scheduledAtEpochMs: Long,
+    cron: String?,
+    nowEpochMs: Long,
+): ScheduledTask {
+    val revive = existing.status == TaskStatus.COMPLETED &&
+        existing.trigger != TaskTrigger.HEARTBEAT &&
+        scheduledAtEpochMs > nowEpochMs
+    return existing.copy(
+        description = description,
+        prompt = prompt,
+        scheduledAtEpochMs = scheduledAtEpochMs,
+        cron = cron,
+        status = if (revive) TaskStatus.PENDING else existing.status,
+    )
+}
 
 /** True when [text] is a cron expression the scheduler can actually advance. */
 fun isValidCron(text: String): Boolean = try {

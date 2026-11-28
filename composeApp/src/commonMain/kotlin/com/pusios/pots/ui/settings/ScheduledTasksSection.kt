@@ -30,8 +30,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
@@ -61,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.HeartbeatLogEntry
 import com.pusios.pots.data.ScheduledTask
+import com.pusios.pots.data.TaskStatus
 import com.pusios.pots.data.TaskTrigger
 import com.pusios.pots.ui.PotsOutlinedTextField
 import com.pusios.pots.ui.handCursor
@@ -74,6 +73,7 @@ import pots.composeapp.generated.resources.settings_scheduled_tasks
 import pots.composeapp.generated.resources.settings_scheduled_tasks_add
 import pots.composeapp.generated.resources.settings_scheduled_tasks_cancel
 import pots.composeapp.generated.resources.settings_scheduled_tasks_counts
+import pots.composeapp.generated.resources.settings_scheduled_tasks_counts_with_done
 import pots.composeapp.generated.resources.settings_scheduled_tasks_description
 import pots.composeapp.generated.resources.settings_scheduled_tasks_disabled
 import pots.composeapp.generated.resources.settings_scheduled_tasks_empty_body
@@ -99,6 +99,7 @@ import pots.composeapp.generated.resources.settings_task_details_no_runs
 import pots.composeapp.generated.resources.settings_task_details_prompt
 import pots.composeapp.generated.resources.settings_task_details_runs
 import pots.composeapp.generated.resources.settings_task_details_type
+import pots.composeapp.generated.resources.settings_task_edit_revive_hint
 import pots.composeapp.generated.resources.settings_task_edit_title
 import pots.composeapp.generated.resources.settings_task_field_cron
 import pots.composeapp.generated.resources.settings_task_field_description
@@ -158,6 +159,18 @@ internal fun ScheduledTaskList(
         )
         Spacer(Modifier.height(12.dp))
 
+        // The list stays readable with the schedule off; without this line an owner would
+        // wait for a run that the scheduler is not allowed to make. Shown for the empty list
+        // too — that is the case where "nothing is scheduled" and "nothing will run" differ.
+        if (!isSchedulingEnabled) {
+            Text(
+                text = stringResource(Res.string.settings_scheduled_tasks_disabled),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
         if (tasks.isEmpty()) {
             Text(
                 text = stringResource(Res.string.settings_scheduled_tasks_empty_title),
@@ -182,20 +195,19 @@ internal fun ScheduledTaskList(
         } else {
             val counts = scheduledTaskCounts(tasks)
             Text(
-                text = stringResource(Res.string.settings_scheduled_tasks_counts, counts.active, counts.paused),
+                text = if (counts.done > 0) {
+                    stringResource(
+                        Res.string.settings_scheduled_tasks_counts_with_done,
+                        counts.active,
+                        counts.paused,
+                        counts.done,
+                    )
+                } else {
+                    stringResource(Res.string.settings_scheduled_tasks_counts, counts.active, counts.paused)
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            // The list stays readable with the schedule off; without this line an owner would
-            // wait for a run that the scheduler is not allowed to make.
-            if (!isSchedulingEnabled) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = stringResource(Res.string.settings_scheduled_tasks_disabled),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
             Spacer(Modifier.height(8.dp))
             tasks.forEach { task ->
                 ScheduledTaskRowItem(
@@ -235,11 +247,13 @@ internal fun ScheduledTaskList(
             onDismiss = { editingTaskId = null },
             onSave = { description, prompt, _, scheduledAtEpochMs, cron ->
                 onUpdateTask(
-                    editingTask.copy(
+                    applyTaskEdit(
+                        existing = editingTask,
                         description = description,
                         prompt = prompt,
                         scheduledAtEpochMs = scheduledAtEpochMs,
                         cron = cron,
+                        nowEpochMs = Clock.System.now().toEpochMilliseconds(),
                     ),
                 )
                 editingTaskId = null
@@ -574,49 +588,6 @@ private fun TaskActionButton(
 }
 
 /**
- * A secondary block folded by default: the owner asked for the task list, not for a wall of
- * history and prompts. The 48dp header is the whole tap target, so the chevron is decoration.
- */
-@Composable
-private fun CollapsibleBlock(
-    title: String,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).handCursor(),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            if (expanded) {
-                Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
-                    content()
-                }
-            }
-        }
-    }
-}
-
-/**
  * One dialog for both "create" and "edit": the fields are identical, and a second composable
  * would drift. [existing] null = create (the type selector is live); otherwise the type is fixed
  * because the trigger decides which extra field the scheduler reads.
@@ -738,6 +709,16 @@ private fun TaskEditorDialog(
                     }
 
                     TaskTrigger.HEARTBEAT -> Unit
+                }
+
+                // A finished task is editable, but the save only matters if the new time is in
+                // the future — say so instead of letting the owner wonder why nothing fires.
+                if (existing?.status == TaskStatus.COMPLETED && trigger != TaskTrigger.HEARTBEAT) {
+                    Text(
+                        text = stringResource(Res.string.settings_task_edit_revive_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         },

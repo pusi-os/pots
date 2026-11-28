@@ -81,6 +81,7 @@ import pots.composeapp.generated.resources.settings_heartbeat_description
 import pots.composeapp.generated.resources.settings_heartbeat_fallback_default
 import pots.composeapp.generated.resources.settings_heartbeat_fallback_model
 import pots.composeapp.generated.resources.settings_heartbeat_interval
+import pots.composeapp.generated.resources.settings_heartbeat_log_empty
 import pots.composeapp.generated.resources.settings_heartbeat_model
 import pots.composeapp.generated.resources.settings_heartbeat_model_default
 import pots.composeapp.generated.resources.settings_heartbeat_prompt_label
@@ -272,24 +273,29 @@ internal fun HeartbeatSection(
             }
 
             Spacer(Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            // Up to 50 entries — folded by default, so a longer journal costs no screen space
+            // until the owner asks for it. The refresh icon stays in the header: a manual run
+            // must be reachable without opening the journal first.
+            var logExpanded by remember { mutableStateOf(false) }
+            CollapsibleBlock(
+                title = stringResource(Res.string.settings_heartbeat_recent),
+                expanded = logExpanded,
+                onToggle = { logExpanded = !logExpanded },
+                trailing = {
+                    RefreshIconButton(
+                        onClick = onRefresh,
+                        isRefreshing = isRefreshing,
+                        contentDescription = stringResource(Res.string.settings_heartbeat_refresh),
+                    )
+                },
             ) {
-                Text(
-                    text = stringResource(Res.string.settings_heartbeat_recent),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                RefreshIconButton(
-                    onClick = onRefresh,
-                    isRefreshing = isRefreshing,
-                    contentDescription = stringResource(Res.string.settings_heartbeat_refresh),
-                )
-            }
-            if (heartbeatLog.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
+                if (heartbeatLog.isEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.settings_heartbeat_log_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 for (entry in heartbeatLog) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
