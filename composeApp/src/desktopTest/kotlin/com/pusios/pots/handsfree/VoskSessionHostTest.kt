@@ -177,14 +177,26 @@ class VoskSessionHostTest {
         val session = host.start(Recorder())
         assertTrue(opened.await(5, TimeUnit.SECONDS), "the session never opened the microphone")
 
-        // release() waits for the worker, so the latch has to be released from here.
-        val releaser = Thread { releaseWorker.countDown() }
+        // release() has to wait for the worker, so it runs on its own thread: while
+        // the worker holds its latch, release() must still be blocked. Without the
+        // join in release() it returns at once and the assertion below fails.
+        val releaseReturned = CountDownLatch(1)
+        val releaser = Thread {
+            host.release()
+            releaseReturned.countDown()
+        }
         releaser.start()
-        host.release()
-        releaser.join()
+        assertFalse(
+            releaseReturned.await(500, TimeUnit.MILLISECONDS),
+            "release() returned while the worker still runs",
+        )
+
+        releaseWorker.countDown()
+        assertTrue(releaseReturned.await(5, TimeUnit.SECONDS), "release() never returned")
+        releaser.join(5_000)
 
         assertTrue(session.isCancelRequested)
-        assertFalse(session.isRunning, "release() must not return while the worker still runs")
+        assertFalse(session.isRunning, "release() returned before the worker finished")
     }
 
     private fun awaitUntil(what: String, condition: () -> Boolean) {
