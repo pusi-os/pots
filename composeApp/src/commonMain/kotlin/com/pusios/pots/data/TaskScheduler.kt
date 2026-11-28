@@ -270,8 +270,7 @@ class TaskScheduler(
      * owner paused meanwhile. A pause outranks whatever the run computed: the run still logs its
      * result and advances the schedule, but the task stays on hold until resumed.
      */
-    private fun statusAfterRun(latest: ScheduledTask, computed: TaskStatus): TaskStatus =
-        if (latest.status == TaskStatus.PAUSED) TaskStatus.PAUSED else computed
+    private fun statusAfterRun(latest: ScheduledTask, computed: TaskStatus): TaskStatus = if (latest.status == TaskStatus.PAUSED) TaskStatus.PAUSED else computed
 
     /**
      * One run against the primary instance, then the configured fallback.
