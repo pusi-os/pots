@@ -3,8 +3,8 @@ package com.pusios.pots.ui.settings
 import android.content.Context
 import com.pusios.pots.speech.sherpa.SherpaSttModels
 import com.pusios.pots.speech.vosk.VoskModels
-import kotlin.concurrent.thread
 import org.koin.java.KoinJavaComponent.inject
+import kotlin.concurrent.thread
 
 private fun contextOrNull(): Context? = try {
     val context: Context by inject(Context::class.java)

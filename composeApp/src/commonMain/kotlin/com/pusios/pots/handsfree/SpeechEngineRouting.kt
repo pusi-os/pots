@@ -65,7 +65,9 @@ data class SttRoute(
  */
 fun routeSttEngine(requested: SttEngine, facts: SttRuntimeFacts): SttRoute = when {
     requested != SttEngine.Neural -> SttRoute(requested, requested, null)
+
     !facts.neuralModelInstalled -> SttRoute(requested, SttEngine.Vosk, SttFallback.ModelMissing)
+
     facts.availableMemoryMb != null && facts.availableMemoryMb < NEURAL_STT_REQUIRED_MEMORY_MB ->
         SttRoute(requested, SttEngine.Vosk, SttFallback.LowMemory)
 

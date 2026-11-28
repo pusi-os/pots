@@ -423,7 +423,9 @@ private fun MicTestOutcome(state: MicTestState) {
                     stringResource(Res.string.settings_stt_test_result, result.text)
 
                 SttMicTestResult.NothingHeard -> stringResource(Res.string.settings_stt_test_empty)
+
                 SttMicTestResult.Unsupported -> null
+
                 is SttMicTestResult.Failed -> when (result.reason) {
                     SttMicTestError.PermissionDenied -> stringResource(Res.string.settings_stt_test_no_permission)
                     SttMicTestError.ModelMissing -> stringResource(Res.string.settings_stt_test_no_model)
