@@ -1,6 +1,6 @@
 # Tasks
 
-**Last verified:** 2026-11-19
+**Last verified:** 2026-11-28
 
 Pots's tasks feature enables the AI to schedule one-time or recurring actions for future execution. Tasks are created through AI tools, stored persistently, and executed automatically by a background scheduler that polls on a fixed interval.
 
@@ -8,7 +8,7 @@ Pots's tasks feature enables the AI to schedule one-time or recurring actions fo
 
 ### Task
 
-A scheduled action containing an id (UUID), a human-readable description, a prompt to execute, a creation time, and a **trigger** that decides when it fires. Tasks track status (PENDING or COMPLETED), the result of their last execution, a consecutive failure count for backoff, and a log of their last 10 runs (timestamp, OK/FAIL, reason).
+A scheduled action containing an id (UUID), a human-readable description, a prompt to execute, a creation time, and a **trigger** that decides when it fires. Tasks track status (PENDING, PAUSED, or COMPLETED), the result of their last execution, a consecutive failure count for backoff, the wall clock and count of their runs, and a log of their last 10 runs (timestamp, OK/FAIL, reason). Tasks are created by the AI or by hand in Settings → Agent → Scheduled Tasks.
 
 ### Trigger
 
@@ -35,6 +35,7 @@ A 5-field schedule format (`minute hour day-of-month month day-of-week`) used fo
 7. CRON tasks: next execution time is computed from the cron expression and the task remains PENDING
 8. HEARTBEAT tasks: their prompts are appended to the heartbeat user message under `## Heartbeat Additions` during each heartbeat run; they never transition state on their own
 9. The execution result and timestamp are stored on the task
+10. A pause pressed while a run is in flight survives the result write: the run works from the snapshot the poll picked up, so the completion and failure writes re-read the task and keep PAUSED. The run still logs its result and advances the schedule, so resuming does not fire the occurrence that already ran
 
 ## Execution Rules
 
@@ -58,7 +59,7 @@ A 5-field schedule format (`minute hour day-of-month month day-of-week`) used fo
 | Tool | Purpose |
 |---|---|
 | `schedule_task` | Create a one-time, recurring, or heartbeat-triggered task with a description, prompt, and exactly one trigger |
-| `list_tasks` | List all tasks, optionally filtered by status (PENDING or COMPLETED) |
+| `list_tasks` | List all tasks, optionally filtered by status (PENDING, PAUSED, or COMPLETED) |
 | `cancel_task` | Remove a task by its id |
 
 ### schedule_task Validation
@@ -79,21 +80,23 @@ Automations that belong to a mini-app are registered with a shared description p
 
 ## Settings UI
 
-The scheduled tasks section in settings provides:
+The scheduled tasks section in Settings → Agent provides:
 
-- **Feature toggle** — enables or disables the scheduling feature globally; when disabled, no tasks execute and scheduling tools are unavailable to the AI
-- **Task list** — shown only while the toggle is on. The list is live: it follows the task store, so tasks the agent creates in the background appear without reopening the screen, and a deletion disappears the moment it is persisted. Each task shows its description, status (PENDING or COMPLETED), and either a local execution time with UTC offset, a human-readable cron description, or "on every heartbeat"
-- **Tap a task** — opens a details sheet with the trigger, status, schedule (or next run for cron), creation time, consecutive failure count (when non-zero), last result, and a recent-activity log of up to the last 10 runs (timestamp + OK/FAIL + reason, or the model fallback on a run that switched). For HEARTBEAT-trigger tasks the activity list is sourced from the heartbeat-wide log instead, since they don't fire on their own schedule
-- **Delete button** — available on all tasks to remove them; deletion is deferred with a snackbar "Undo" option (~4 seconds) before the task is permanently cancelled
+- **Feature toggle** — enables or disables the scheduling feature globally; when disabled, no tasks execute and scheduling tools are unavailable to the AI. The task list stays visible and editable with the toggle off, marked "scheduling is off" — including when the list is empty, because a hidden list is indistinguishable from "there are no tasks"
+- **Header counter and create button** — how many tasks are active, how many are paused, and (when any exist) how many are done, plus a "Create task" action
+- **Task list** — live, so tasks the agent creates in the background appear without reopening the screen. Each row shows the description, a type badge (once / on schedule / every heartbeat), a human-readable next run or "paused", and a status chip (active / paused / done); enum names never reach the screen
+- **Tap a task** — opens the task card with Pause/Resume (a paused task is skipped by every executor and keeps its schedule), Run now (works on paused and finished tasks; the answer lands in the pulse conversation and in the task's history, and the button is disabled until the run finishes), Edit, and Delete. Edit changes the description, prompt, time or cron; the date and the cron expression are validated before saving, and a rescheduled cron gets a fresh future next run instead of firing on the next poll. Editing a finished task with a future time puts it back on the schedule (PENDING) — that is how a one-off reminder is moved to a later day; the dialog says so before saving. Delete asks for confirmation; the 4-second undo snackbar still applies afterwards
+- **Collapsed blocks** — run history (last runs with OK/FAIL and the reason; for HEARTBEAT tasks the shared pulse journal) and the raw prompt are folded by default
+- **Empty state** — says that no tasks exist yet and offers "Create task"; the create dialog takes description, prompt, trigger, and time or cron
 
-### Cron Description
+Run history for HEARTBEAT tasks comes from the pulse journal, which keeps the last 50 runs (see [heartbeat.md](heartbeat.md)).
 
-Cron expressions are converted to readable descriptions in the UI:
+### Cron Expression in the UI
 
-- `0 9 * * *` displays as "Daily at 9:00"
-- `0 14 * * 1,2,3` displays as "Every Mon, Tue, Wed at 14:00"
-- `0 8 15 * *` displays as "Monthly on day 15 at 8:00"
-- Complex expressions fall back to the raw cron string
+The task card shows the cron expression verbatim and, next to it, the next computed run as a
+local timestamp. The list row only shows that next run. There is no English-only phrasing such
+as "Daily at 9:00" any more: the screen is localized, so the raw expression is the honest label
+and the one the user can edit.
 
 ## Storage
 
@@ -128,9 +131,10 @@ When daemon mode is active (Android foreground service), the app process is kept
 | `composeApp/src/commonMain/.../data/CronExpression.kt` | Cron parsing and next-execution-time computation |
 | `composeApp/src/commonMain/.../tools/SchedulingTools.kt` | AI tool definitions for schedule, list, cancel |
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | Persisted task JSON and scheduling toggle |
-| `composeApp/src/commonMain/.../ui/settings/AgentSettings.kt` | Scheduled tasks UI section and task details sheet |
-| `composeApp/src/commonMain/.../ui/settings/HeartbeatSection.kt` | Cron-to-readable-description formatting used by the task list |
-| `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Scheduling toggle and deferred (undoable) task deletion |
+| `composeApp/src/commonMain/.../ui/settings/AgentSettings.kt` | Agent tab composition; mounts the scheduled tasks section |
+| `composeApp/src/commonMain/.../ui/settings/ScheduledTasksSection.kt` | Scheduled tasks UI: list, task card, edit/create dialog, collapsed history and prompt |
+| `composeApp/src/commonMain/.../ui/settings/ScheduledTaskFormatting.kt` | Compose-free row labels, counts, timestamp formatting, date parsing and cron helpers (unit-tested) |
+| `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Scheduling toggle, pause/resume/run-now/edit/create actions, deferred (undoable) task deletion |
 | `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Exposes the scheduling tools only while scheduling is enabled |
 | `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Starts the scheduler and supplies the "chat is busy" check |
 | `composeApp/src/commonMain/.../DaemonController.kt` | Background execution support |

@@ -81,6 +81,7 @@ import pots.composeapp.generated.resources.settings_heartbeat_description
 import pots.composeapp.generated.resources.settings_heartbeat_fallback_default
 import pots.composeapp.generated.resources.settings_heartbeat_fallback_model
 import pots.composeapp.generated.resources.settings_heartbeat_interval
+import pots.composeapp.generated.resources.settings_heartbeat_log_empty
 import pots.composeapp.generated.resources.settings_heartbeat_model
 import pots.composeapp.generated.resources.settings_heartbeat_model_default
 import pots.composeapp.generated.resources.settings_heartbeat_prompt_label
@@ -272,24 +273,29 @@ internal fun HeartbeatSection(
             }
 
             Spacer(Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            // Up to 50 entries — folded by default, so a longer journal costs no screen space
+            // until the owner asks for it. The refresh icon stays in the header: a manual run
+            // must be reachable without opening the journal first.
+            var logExpanded by remember { mutableStateOf(false) }
+            CollapsibleBlock(
+                title = stringResource(Res.string.settings_heartbeat_recent),
+                expanded = logExpanded,
+                onToggle = { logExpanded = !logExpanded },
+                trailing = {
+                    RefreshIconButton(
+                        onClick = onRefresh,
+                        isRefreshing = isRefreshing,
+                        contentDescription = stringResource(Res.string.settings_heartbeat_refresh),
+                    )
+                },
             ) {
-                Text(
-                    text = stringResource(Res.string.settings_heartbeat_recent),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                RefreshIconButton(
-                    onClick = onRefresh,
-                    isRefreshing = isRefreshing,
-                    contentDescription = stringResource(Res.string.settings_heartbeat_refresh),
-                )
-            }
-            if (heartbeatLog.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
+                if (heartbeatLog.isEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.settings_heartbeat_log_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 for (entry in heartbeatLog) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
@@ -833,55 +839,6 @@ private fun formatHeartbeatTime(epochMs: Long): String {
     val instant = Instant.fromEpochMilliseconds(epochMs)
     val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
     return "${local.day} ${local.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${local.hour}:${local.minute.toString().padStart(2, '0')}"
-}
-
-internal fun describeCron(cron: String): String {
-    val parts = cron.trim().split("\\s+".toRegex())
-    if (parts.size != 5) return cron
-
-    val (minute, hour, dayOfMonth, month, dayOfWeek) = parts
-    val isEveryDay = dayOfMonth == "*" && month == "*" && dayOfWeek == "*"
-    val isEveryWeekday = dayOfMonth == "*" && month == "*" && dayOfWeek != "*"
-    val isEveryMonth = dayOfMonth != "*" && month == "*" && dayOfWeek == "*"
-
-    val timeStr = formatCronTime(hour, minute) ?: return cron
-
-    return when {
-        isEveryDay -> "Daily at $timeStr"
-
-        isEveryWeekday -> {
-            val days = dayOfWeek.split(",").mapNotNull { dayName(it.trim()) }
-            if (days.isNotEmpty()) "Every ${days.joinToString(", ")} at $timeStr" else cron
-        }
-
-        isEveryMonth -> "Monthly on day $dayOfMonth at $timeStr"
-
-        else -> cron
-    }
-}
-
-private fun formatCronTime(hour: String, minute: String): String? {
-    val h = hour.toIntOrNull() ?: return null
-    val m = minute.toIntOrNull() ?: return null
-    return "$h:${m.toString().padStart(2, '0')}"
-}
-
-private fun dayName(day: String): String? = when (day) {
-    "0", "7" -> "Sun"
-    "1" -> "Mon"
-    "2" -> "Tue"
-    "3" -> "Wed"
-    "4" -> "Thu"
-    "5" -> "Fri"
-    "6" -> "Sat"
-    "MON" -> "Mon"
-    "TUE" -> "Tue"
-    "WED" -> "Wed"
-    "THU" -> "Thu"
-    "FRI" -> "Fri"
-    "SAT" -> "Sat"
-    "SUN" -> "Sun"
-    else -> null
 }
 
 @Composable
