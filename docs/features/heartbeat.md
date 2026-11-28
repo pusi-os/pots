@@ -1,6 +1,6 @@
 # Heartbeat
 
-**Last verified:** 2026-11-19
+**Last verified:** 2026-11-28
 
 > Heartbeat is user-controlled (on/off toggle, interval, active hours live in the settings UI). The AI cannot enable, disable, or reschedule it. To customise *what happens on each heartbeat*, the AI creates heartbeat-triggered scheduled tasks via `schedule_task` with `on_heartbeat: true` — these are `HEARTBEAT`-trigger tasks (see [tasks.md](tasks.md)) and their prompts are appended to every heartbeat run under `## Heartbeat Additions`. Each addition is a first-class task the user can see, edit, and cancel.
 
@@ -172,11 +172,12 @@ by accident. Resuming flips it back. Neither needs the schedule recomputed.
 heartbeat self-check under `## Heartbeat Additions` for as long as the task is `PENDING`.
 Its run history is the heartbeat journal, not `recentExecutions`.
 
-**A past heartbeat answer is not an instruction.** Only a `PENDING` task in
-`## Pending Tasks` / `## Heartbeat Additions` asks the pulse to do something. Text in a
-previous heartbeat reply is a record of what the model said then; if the task behind it was
-deleted or paused, nothing is scheduled any more. The way to stop a check that keeps
-reappearing is therefore to delete or pause the task — not to ask the model in chat.
+**A past heartbeat answer is not a task.** The durable source of a standing check is a
+`PENDING` task in `## Pending Tasks` / `## Heartbeat Additions`; a previous heartbeat reply is
+only a record of what the model said then. If the task behind a check was deleted or paused,
+nothing is scheduled any more — so deleting or pausing the task, not asking the model in chat,
+is what stops a check that keeps reappearing. The pulse prompt still carries the last few
+replies as context today; dropping chat history from the pulse entirely is a separate change.
 
 **In the UI.** Settings → Agent → Scheduled Tasks lists every task with a type badge, a
 status chip, and the next run. Tapping a row opens the task card with pause/resume, run now,
@@ -198,6 +199,7 @@ prompt sit in collapsed blocks. The list stays visible when scheduling is off, m
 | `composeApp/src/commonMain/.../ui/chat/composables/HeartbeatBanner.kt` | Dismissable notification banner UI |
 | `composeApp/src/commonMain/.../ui/settings/HeartbeatSection.kt` | Heartbeat settings UI section |
 | `composeApp/src/commonMain/.../ui/settings/AgentSettings.kt` | Agent tab layout that hosts the heartbeat section |
+| `composeApp/src/commonMain/.../ui/settings/ScheduledTasksSection.kt` | Scheduled tasks UI (pause/resume/run now/edit/create) that also shows the pulse journal per task |
 | `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Heartbeat setting changes, eligible model list, manual refresh |
 | `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Exposes `promote_learning` only while scheduling is enabled |
 | `composeApp/src/commonMain/.../data/MemoryStore.kt` | Promotion-candidate query (5+ hits) |

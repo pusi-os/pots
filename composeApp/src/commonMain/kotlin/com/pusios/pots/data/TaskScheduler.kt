@@ -210,26 +210,29 @@ class TaskScheduler(
      */
     suspend fun runTaskNow(task: ScheduledTask) {
         val startedAt = Clock.System.now()
+        // Re-read by id: the sheet's copy may be older than a pause/resume the user just made,
+        // and writing that copy back would silently undo it.
+        val current = taskStore?.getAllTasks()?.firstOrNull { it.id == task.id } ?: task
         try {
             val taskConversationId = dataRepository.getOrCreateHeartbeatConversationId()
             val run = askWithRetry(
-                prompt = task.prompt,
-                primaryInstanceId = task.originInstanceId,
+                prompt = current.prompt,
+                primaryInstanceId = current.originInstanceId,
                 fallbackInstanceId = heartbeatManager?.getConfig()?.heartbeatFallbackInstanceId,
-                modelIdOverride = task.originModelId,
+                modelIdOverride = current.originModelId,
                 conversationIdOverride = taskConversationId,
             )
             if (run.content.isNotBlank()) {
-                val header = task.description.ifBlank { "Scheduled task" }
+                val header = current.description.ifBlank { "Scheduled task" }
                 dataRepository.addAssistantMessage("**$header**\n\n${run.content}")
             }
             val now = Clock.System.now()
             taskStore?.updateTask(
-                task.copy(
+                current.copy(
                     lastResult = "Run manually at $now",
-                    recentExecutions = appendExecution(task, success = true, message = run.note),
+                    recentExecutions = appendExecution(current, success = true, message = run.note),
                     lastRunEpochMs = now.toEpochMilliseconds(),
-                    runCount = task.runCount + 1,
+                    runCount = current.runCount + 1,
                 ),
             )
         } catch (e: Exception) {
@@ -238,11 +241,11 @@ class TaskScheduler(
             // nowhere else to show it, and the user pressed the button expecting an answer.
             val reason = if (e is ProviderRunFailedException) e.message.orEmpty() else formatException(e)
             taskStore?.updateTask(
-                task.copy(
+                current.copy(
                     lastResult = "Manual run failed at $startedAt: $reason",
-                    recentExecutions = appendExecution(task, success = false, message = reason),
+                    recentExecutions = appendExecution(current, success = false, message = reason),
                     lastRunEpochMs = startedAt.toEpochMilliseconds(),
-                    runCount = task.runCount + 1,
+                    runCount = current.runCount + 1,
                 ),
             )
         }

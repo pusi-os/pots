@@ -64,6 +64,22 @@ fun isValidCron(text: String): Boolean = try {
 }
 
 /**
+ * First fire of [cron] after [fromEpochMs]. The edit dialog needs it: a saved cron task whose
+ * next run is left at 0 would be due on the very next poll, so "edit the schedule" would fire
+ * the task instead of rescheduling it.
+ */
+fun nextCronRunEpochMs(
+    cron: String,
+    fromEpochMs: Long,
+    zone: TimeZone = TimeZone.currentSystemDefault(),
+): Long = try {
+    CronExpression(cron).nextAfter(Instant.fromEpochMilliseconds(fromEpochMs), zone)?.toEpochMilliseconds()
+        ?: fromEpochMs
+} catch (_: Exception) {
+    fromEpochMs
+}
+
+/**
  * Parses the `YYYY-MM-DD HH:MM` form the edit dialog shows. Returns the epoch millisecond of
  * that local wall clock, or null when the text is not a real date-time — the dialog keeps the
  * save button disabled on null, so a typo can never reschedule a task to the epoch.

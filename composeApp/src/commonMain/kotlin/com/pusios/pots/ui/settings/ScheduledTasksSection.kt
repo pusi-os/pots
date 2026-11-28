@@ -48,12 +48,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,6 +83,7 @@ import pots.composeapp.generated.resources.settings_task_action_edit
 import pots.composeapp.generated.resources.settings_task_action_pause
 import pots.composeapp.generated.resources.settings_task_action_resume
 import pots.composeapp.generated.resources.settings_task_action_run_now
+import pots.composeapp.generated.resources.settings_task_action_running
 import pots.composeapp.generated.resources.settings_task_cancel_action
 import pots.composeapp.generated.resources.settings_task_create_action
 import pots.composeapp.generated.resources.settings_task_create_title
@@ -389,6 +392,10 @@ private fun TaskDetailsSheet(
     val row = scheduledTaskRow(task)
     var historyExpanded by remember { mutableStateOf(false) }
     var promptExpanded by remember { mutableStateOf(false) }
+    // A manual run is a full agent turn and can take a while; the run updates the task when it
+    // finishes, so a changed run count is the signal that the button can be pressed again.
+    var runningNow by remember(task.id) { mutableStateOf(false) }
+    LaunchedEffect(task.runCount) { runningNow = false }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -425,8 +432,16 @@ private fun TaskDetailsSheet(
                 )
                 TaskActionButton(
                     icon = Icons.Default.PlayArrow,
-                    label = stringResource(Res.string.settings_task_action_run_now),
-                    onClick = onRunNow,
+                    label = if (runningNow) {
+                        stringResource(Res.string.settings_task_action_running)
+                    } else {
+                        stringResource(Res.string.settings_task_action_run_now)
+                    },
+                    onClick = {
+                        runningNow = true
+                        onRunNow()
+                    },
+                    enabled = !runningNow,
                 )
                 TaskActionButton(
                     icon = Icons.Default.Edit,
@@ -731,7 +746,18 @@ private fun TaskEditorDialog(
                         description.trim(),
                         prompt.trim(),
                         trigger,
-                        if (trigger == TaskTrigger.TIME) parsedTime ?: 0L else 0L,
+                        when (trigger) {
+                            TaskTrigger.TIME -> parsedTime ?: 0L
+                            // An edited cron must keep a future next run: leaving 0 would make
+                            // the scheduler fire it on the next poll.
+                            TaskTrigger.CRON -> if (existing != null && existing.cron == cronText.trim()) {
+                                existing.scheduledAtEpochMs
+                            } else {
+                                nextCronRunEpochMs(cronText.trim(), Clock.System.now().toEpochMilliseconds())
+                            }
+
+                            TaskTrigger.HEARTBEAT -> existing?.scheduledAtEpochMs ?: 0L
+                        },
                         if (trigger == TaskTrigger.CRON) cronText.trim() else null,
                     )
                 },
@@ -753,12 +779,15 @@ private fun TaskEditorDialog(
 
 @Composable
 private fun TaskDetailRow(label: String, value: String) {
+    // The label column is sized in dp for a fixed amount of text, so it has to track the font
+    // scale; the value needs a weight or it overflows the row.
+    val fontScale = LocalDensity.current.fontScale
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(140.dp),
+            modifier = Modifier.width(140.dp * fontScale),
         )
         Text(
             text = value,

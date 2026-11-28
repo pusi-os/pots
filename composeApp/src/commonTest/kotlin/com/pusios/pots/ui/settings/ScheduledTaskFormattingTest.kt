@@ -82,6 +82,14 @@ class ScheduledTaskFormattingTest {
     }
 
     @Test
+    fun `a rescheduled cron keeps a future next run instead of being due now`() {
+        // 1_800_000_000_000 ms = 2027-01-15T08:00:00Z; the next "0 9 * * *" is one hour later.
+        assertEquals(1_800_003_600_000L, nextCronRunEpochMs("0 9 * * *", 1_800_000_000_000L, utc))
+        // An unparsable expression falls back to the anchor instead of throwing.
+        assertEquals(42L, nextCronRunEpochMs("every day", 42L, utc))
+    }
+
+    @Test
     fun `edit dialog round-trips a local wall clock`() {
         val text = "2026-11-29 09:00"
         val epochMs = parseTaskDateTime(text, utc)

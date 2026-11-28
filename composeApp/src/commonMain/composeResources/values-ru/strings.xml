@@ -338,6 +338,7 @@
     <string name="settings_task_action_pause">Пауза</string>
     <string name="settings_task_action_resume">Возобновить</string>
     <string name="settings_task_action_run_now">Выполнить сейчас</string>
+    <string name="settings_task_action_running">Выполняется…</string>
     <string name="settings_task_action_edit">Изменить</string>
     <string name="settings_task_action_delete">Удалить</string>
     <string name="settings_task_cancel_action">Отмена</string>

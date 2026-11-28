@@ -374,6 +374,7 @@
     <string name="settings_task_action_pause">Pause</string>
     <string name="settings_task_action_resume">Resume</string>
     <string name="settings_task_action_run_now">Run now</string>
+    <string name="settings_task_action_running">Running…</string>
     <string name="settings_task_action_edit">Edit</string>
     <string name="settings_task_action_delete">Delete</string>
     <string name="settings_task_cancel_action">Cancel</string>
