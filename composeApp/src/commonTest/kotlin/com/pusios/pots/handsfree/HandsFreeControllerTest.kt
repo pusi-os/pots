@@ -425,27 +425,91 @@ class HandsFreeControllerTest {
     @Test
     fun dictationReplacesItsOwnTailAndKeepsWhatWasTyped() {
         // First partial: the field had a draft, dictation appends to it.
-        val (first, firstTail) = applyDictation("Заметка:", "", "купи хлеб")
-        assertEquals("Заметка: купи хлеб", first)
-        assertEquals(" купи хлеб", firstTail)
+        val first = applyDictation("Заметка:", "", "купи хлеб")
+        assertEquals("Заметка: купи хлеб", first.text)
+        assertEquals(" купи хлеб", first.tail)
+        assertEquals("Заметка:", first.draft, "the draft is what the user typed, never the dictation")
 
         // The user types an exclamation mark at the end while still speaking.
         // The next partial replaces only the stretch dictation wrote.
-        val (second, secondTail) = applyDictation("$first!", firstTail, "купи хлеб и молоко")
-        assertEquals("Заметка:! купи хлеб и молоко", second, "nothing typed is dropped, only the dictation tail is replaced")
-        assertEquals(" купи хлеб и молоко", secondTail)
+        val second = applyDictation("${first.text}!", first.tail, "купи хлеб и молоко")
+        assertEquals(
+            "Заметка:! купи хлеб и молоко",
+            second.text,
+            "nothing typed is dropped, only the dictation tail is replaced",
+        )
+        assertEquals(" купи хлеб и молоко", second.tail)
+        assertEquals("Заметка:!", second.draft)
     }
 
     @Test
     fun dictationDoesNotDuplicateTheTranscriptWhenTheTailIsGone() {
         // The field no longer contains the previous tail (the user cleared it):
         // the new transcript is appended to what is there, once.
-        val (field, tail) = applyDictation("привет", "", "как дела")
-        assertEquals("привет как дела", field)
-        assertEquals(" как дела", tail)
+        val update = applyDictation("привет", "", "как дела")
+        assertEquals("привет как дела", update.text)
+        assertEquals(" как дела", update.tail)
 
-        val (afterClear, afterTail) = applyDictation("привет", tail, "как дела")
-        assertEquals("привет как дела", afterClear)
-        assertEquals(" как дела", afterTail)
+        val afterClear = applyDictation("привет", update.tail, "как дела")
+        assertEquals("привет как дела", afterClear.text)
+        assertEquals(" как дела", afterClear.tail)
+    }
+
+    @Test
+    fun theComposerChainSendsTheDictationExactlyOnce() = runTest(testDispatcher) {
+        val stt = FakeStt()
+        val submitted = mutableListOf<String>()
+        val controller = controller(stt, onSubmit = { submitted += it })
+        controller.start()
+        runCurrent()
+
+        // The composer exactly as ChatScreen keeps it: the field text, the
+        // stretch the dictation wrote, and the draft the controller joins the
+        // final result to. A previous version recomputed the draft from the
+        // field and sent the phrase twice when the field held typed text.
+        var field = "Заметка:"
+        var tail = ""
+        controller.dictationDraft = field
+
+        fun writeTranscript(spoken: String) {
+            val update = applyDictation(field, tail, spoken)
+            field = update.text
+            tail = update.tail
+            controller.dictationDraft = update.draft
+        }
+
+        writeTranscript("купи хлеб")
+        assertEquals("Заметка: купи хлеб", field)
+
+        // The user types a symbol while the phrase is still running.
+        field += "!"
+        writeTranscript("купи хлеб и молоко")
+        assertEquals("Заметка:! купи хлеб и молоко", field)
+
+        stt.lastListener?.onResult("купи хлеб и молоко")
+
+        assertEquals(
+            listOf("Заметка:! купи хлеб и молоко"),
+            submitted,
+            "the message must be exactly what the field showed, with the phrase once",
+        )
+    }
+
+    @Test
+    fun restartRestoresTheDraftWithoutTheDictation() = runTest(testDispatcher) {
+        val stt = FakeStt()
+        val controller = controller(stt)
+        controller.start()
+        runCurrent()
+        controller.dictationDraft = "Заметка:"
+
+        val update = applyDictation("Заметка:", "", "купи хлеб")
+        controller.dictationDraft = update.draft
+
+        // «Отменить и начать заново» puts dictationDraft back into the composer.
+        controller.restartListening()
+
+        assertEquals("Заметка:", controller.dictationDraft, "restart must not keep the dropped phrase in the field")
+        assertEquals(2, stt.startCalls)
     }
 }

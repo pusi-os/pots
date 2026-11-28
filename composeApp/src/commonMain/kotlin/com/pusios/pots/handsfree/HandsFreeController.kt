@@ -572,17 +572,38 @@ internal fun joinDictation(draft: String, spoken: String): String {
 }
 
 /**
+ * One write of a running dictation into the composer.
+ *
+ * [text] is the whole field to show, [tail] the stretch of it that the next
+ * partial replaces, and [draft] the field with the dictation taken out — that
+ * is, what the user typed.
+ *
+ * [draft] is returned instead of being left for the caller to subtract:
+ * [submit] joins the final transcript to it, and a caller that recomputed it
+ * from [text] got it wrong once, which sent every dictated phrase twice
+ * whenever the composer already held typed text.
+ */
+internal data class DictationUpdate(
+    val text: String,
+    val tail: String,
+    val draft: String,
+)
+
+/**
  * Writes the running transcript into the composer without eating what the user
  * typed.
  *
  * [tail] is the part of [field] the previous update wrote, so a new transcript
  * replaces exactly that stretch and leaves everything else alone — text typed
- * during the session survives, wherever the cursor was. Returns the new field
- * text and the new tail.
+ * during the session survives, wherever the cursor was.
  */
-internal fun applyDictation(field: String, tail: String, spoken: String): Pair<String, String> {
+internal fun applyDictation(field: String, tail: String, spoken: String): DictationUpdate {
     val index = if (tail.isEmpty()) -1 else field.lastIndexOf(tail)
     val manual = if (index >= 0) field.removeRange(index, index + tail.length) else field
     val written = joinDictation(manual, spoken)
-    return written to written.removePrefix(manual)
+    return DictationUpdate(
+        text = written,
+        tail = written.removePrefix(manual),
+        draft = manual,
+    )
 }

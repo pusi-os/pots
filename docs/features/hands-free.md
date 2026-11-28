@@ -81,7 +81,7 @@ The strip has no *idle* state of its own: when the session ends the strip leaves
 |---|---|---|
 | `ic_refresh`, tinted `colorScheme.error` | «Отменить и начать заново» | Drops the text dictated in this session, restores the draft that was in the field before the session started, and opens a new session at once. |
 | `ic_mic_done` (new vector: mic + check) | «Остановить и вставить текст в поле» | Ends the session, keeps the text in the field, sends nothing. |
-| `ic_send`, tinted `colorScheme.primary` | «Отправить сейчас» | Ends the session and submits the field text immediately. |
+| `ic_send`, tinted `colorScheme.primary` | «Отправить сейчас» | Ends the session and submits the field text immediately. Disabled while the field is empty — an enabled button that does nothing is worse than a visibly disabled one. |
 | `ic_refresh`, tinted `colorScheme.primary` (Error only) | «Повторить» | Opens a new session; the text stays in the field. |
 
 In *Error* the strip offers three actions, not the four of a live session: retry, stop-and-keep (so the text can be left in the composer and the mode switched off) and restart. «Отправить сейчас» is not there because the composer's own send button is already one tap away and the text is not going anywhere.

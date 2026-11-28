@@ -961,18 +961,18 @@ private fun ChatModeScreen(
     LaunchedEffect(handsFreeTranscript) {
         if (handsFreeRecording == null || handsFreeTranscript.isEmpty()) return@LaunchedEffect
         val current = questionInputText
-        val (text, tail) = applyDictation(current.text, dictationTail, handsFreeTranscript)
-        dictationTail = tail
+        val update = applyDictation(current.text, dictationTail, handsFreeTranscript)
+        dictationTail = update.tail
         // The controller composes the message from this same draft, so what is
         // sent is exactly what the field shows.
-        handsFree.dictationDraft = text.removePrefix(tail)
+        handsFree.dictationDraft = update.draft
         val wasAtEnd = current.selection.collapsed && current.selection.start == current.text.length
         onQuestionInputTextChange(
             TextFieldValue(
-                text = text,
+                text = update.text,
                 // The cursor follows the dictation only when it was at the end;
                 // a cursor the user placed elsewhere stays where it was.
-                selection = if (wasAtEnd) TextRange(text.length) else current.selection,
+                selection = if (wasAtEnd) TextRange(update.text.length) else current.selection,
             ),
         )
     }
@@ -1578,6 +1578,7 @@ private fun ChatModeScreen(
                     HandsFreeRecordingBar(
                         recording = recording,
                         transcript = handsFreeTranscript,
+                        canSend = questionInputText.text.isNotBlank(),
                         onRestart = {
                             // «Отменить и начать заново»: only this session's
                             // dictation is dropped, the draft typed by hand stays.

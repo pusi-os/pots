@@ -95,12 +95,16 @@ private const val TIMER_TICK_MS = 250L
  *
  * Actions are icon-only with a `contentDescription`, 48 dp targets, vector
  * icons. In [RecordingPhase.Finalising] they are disabled — the engine is
- * already producing the result and a second command would race it.
+ * already producing the result and a second command would race it. «Отправить
+ * сейчас» is also disabled while [canSend] is false: an enabled button that
+ * silently does nothing is worse than a visibly disabled one.
  */
 @Composable
 internal fun HandsFreeRecordingBar(
     recording: HandsFreeRecording,
     transcript: String,
+    // Whether the composer holds anything to send — the send action's own gate.
+    canSend: Boolean,
     onRestart: () -> Unit,
     onKeepText: () -> Unit,
     onSendNow: () -> Unit,
@@ -210,7 +214,10 @@ internal fun HandsFreeRecordingBar(
                     icon = Res.drawable.ic_refresh,
                     description = stringResource(Res.string.handsfree_action_restart),
                     tint = MaterialTheme.colorScheme.error,
-                    enabled = live,
+                    // Restart also works after a failure: dropping the phrase
+                    // and opening a fresh session is exactly what a user wants
+                    // when the engine gave up on the current one.
+                    enabled = live || phase == RecordingPhase.Error,
                     onClick = onRestart,
                 )
                 RecordingAction(
@@ -225,7 +232,7 @@ internal fun HandsFreeRecordingBar(
                         icon = Res.drawable.ic_send,
                         description = stringResource(Res.string.handsfree_action_send_now),
                         tint = MaterialTheme.colorScheme.primary,
-                        enabled = live,
+                        enabled = live && canSend,
                         onClick = onSendNow,
                     )
                 }
