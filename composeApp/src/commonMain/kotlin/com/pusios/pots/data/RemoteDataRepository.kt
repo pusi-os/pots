@@ -2690,8 +2690,7 @@ class RemoteDataRepository(
         }
     }
 
-    override fun getHeartbeatPromptPreview(): String =
-        heartbeatManager.buildHeartbeatPrompt(budget = HEARTBEAT_BUDGET)
+    override fun getHeartbeatPromptPreview(): String = heartbeatManager.buildHeartbeatPrompt(budget = HEARTBEAT_BUDGET)
 
     override suspend fun clearHeartbeatHistory() {
         val existing = savedConversations.value.find { it.type == Conversation.TYPE_HEARTBEAT }
@@ -2714,8 +2713,7 @@ class RemoteDataRepository(
 
     override fun dismissHeartbeatHistoryCleanup() = heartbeatManager.markHistoryCleanupOffered()
 
-    override fun getHeartbeatRepeatWarning(): HeartbeatRepeatWarning? =
-        heartbeatLedger.repeatWarning(Clock.System.now().toEpochMilliseconds())
+    override fun getHeartbeatRepeatWarning(): HeartbeatRepeatWarning? = heartbeatLedger.repeatWarning(Clock.System.now().toEpochMilliseconds())
 
     override suspend fun askSilently(question: String): String {
         val target = getOrderedFallbackEntries().firstOrNull() ?: return ""
