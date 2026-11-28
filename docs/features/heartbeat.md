@@ -102,7 +102,7 @@ One run is limited to **12 tool calls and 60 000 tokens**. The ceiling is enforc
 - The X button dismisses the banner without navigating
 - Pulse conversations are included in the chat history list with a "Heartbeat" label badge, and can also be accessed via the banner
 - If the API call fails, a failure entry is recorded in the journal and the pending email/SMS/notification queues are left untouched for the next run
-- The Pulse conversation is a **write-only journal** for the scheduler and **read-only** for the model: typing in it does not reach a run, and no run reads it
+- The Pulse conversation is a **write-only journal** for the scheduler and **read-only** for the model: typing in it does not reach a run, and no run reads it. A message typed there is an ordinary chat turn — the chat model sees the journal as conversation history, but that history is never part of the pulse prompt
 
 ## Prompt Building
 
