@@ -7,6 +7,7 @@ import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.EmailAccount
 import com.pusios.pots.data.EmailSyncState
 import com.pusios.pots.data.HeartbeatLogEntry
+import com.pusios.pots.data.HeartbeatRepeatWarning
 import com.pusios.pots.data.LocalToolSelection
 import com.pusios.pots.data.MemoryEntry
 import com.pusios.pots.data.ProviderBalance
