@@ -259,12 +259,16 @@ class McpServerManager(
             mcpLog("refresh", serverId, "stored token expired")
             when (val outcome = refreshAccessToken(serverId, stored)) {
                 is RefreshOutcome.Refreshed -> Unit
+
                 RefreshOutcome.ManualToken ->
                     return fail(serverId, McpFailureKind.NeedsAuth, null, "Срок ручного токена истёк — замените его в настройках")
+
                 RefreshOutcome.NoRefreshToken ->
                     return fail(serverId, McpFailureKind.NeedsAuth, null, "Токен истёк, сервер не выдал refresh-токен — нужен повторный вход")
+
                 is RefreshOutcome.Refused ->
                     return fail(serverId, McpFailureKind.NeedsAuth, null, "Сервер отказал в обновлении токена: ${outcome.detail}")
+
                 // A network blip is not a revoked authorization: report it as unreachable so the
                 // backoff retries and the UI says "no connection" instead of demanding a sign-in.
                 is RefreshOutcome.Transient ->
@@ -313,8 +317,10 @@ class McpServerManager(
                                 refreshedOnce = true
                                 continue
                             }
+
                             is RefreshOutcome.Transient ->
                                 return fail(serverId, McpFailureKind.Unreachable, null, "Токен не обновлён: ${outcome.detail}")
+
                             else -> return fail(serverId, attempt.kind, attempt.status, authRefusal(outcome, attempt.detail))
                         }
                     }

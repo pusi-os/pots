@@ -186,7 +186,8 @@ actual fun createSecureSettings(): Settings {
  */
 private class SecurePrefsSettings(
     private val prefs: android.content.SharedPreferences,
-) : Settings by SharedPreferencesSettings(prefs), DurableSettings {
+) : Settings by SharedPreferencesSettings(prefs),
+    DurableSettings {
     override fun putStringDurable(key: String, value: String) {
         prefs.edit().putString(key, value).commit()
     }
@@ -196,8 +197,7 @@ private class SecurePrefsSettings(
     }
 }
 
-private fun securePrefs(context: Context): android.content.SharedPreferences =
-    cachedSecurePrefs ?: openSecurePrefs(context).also { cachedSecurePrefs = it }
+private fun securePrefs(context: Context): android.content.SharedPreferences = cachedSecurePrefs ?: openSecurePrefs(context).also { cachedSecurePrefs = it }
 
 private fun openSecurePrefs(context: Context): android.content.SharedPreferences = try {
     createEncryptedPrefs(context)

@@ -57,11 +57,9 @@ class McpTokenPersistenceTest {
         private val delegate: Settings,
         private val brokenKey: String,
     ) : Settings by delegate {
-        override fun getString(key: String, defaultValue: String): String =
-            if (key == brokenKey) throw IllegalStateException("AEADBadTagException: cannot decrypt") else delegate.getString(key, defaultValue)
+        override fun getString(key: String, defaultValue: String): String = if (key == brokenKey) throw IllegalStateException("AEADBadTagException: cannot decrypt") else delegate.getString(key, defaultValue)
 
-        override fun getStringOrNull(key: String): String? =
-            if (key == brokenKey) throw IllegalStateException("AEADBadTagException: cannot decrypt") else delegate.getStringOrNull(key)
+        override fun getStringOrNull(key: String): String? = if (key == brokenKey) throw IllegalStateException("AEADBadTagException: cannot decrypt") else delegate.getStringOrNull(key)
     }
 
     private fun token(
@@ -196,8 +194,7 @@ class McpTokenPersistenceTest {
     @Test
     fun networkFailureDuringRefreshIsNotAnAuthorizationFailure() = runTest {
         class OfflineAuth : McpAuthClient() {
-            override suspend fun refresh(token: McpStoredToken): Result<McpTokenResponse> =
-                Result.failure(McpTokenEndpointException(null, "token request failed: timeout"))
+            override suspend fun refresh(token: McpStoredToken): Result<McpTokenResponse> = Result.failure(McpTokenEndpointException(null, "token request failed: timeout"))
         }
 
         val settings = AppSettings(MapSettings())
