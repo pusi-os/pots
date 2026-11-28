@@ -2347,6 +2347,32 @@ class RemoteDataRepository(
         taskStore.removeTask(id)
     }
 
+    override suspend fun pauseScheduledTask(id: String) {
+        taskStore.pause(id)
+    }
+
+    override suspend fun resumeScheduledTask(id: String) {
+        taskStore.resume(id)
+    }
+
+    override suspend fun updateScheduledTask(task: ScheduledTask) {
+        taskStore.updateTask(task)
+    }
+
+    override suspend fun createScheduledTask(
+        description: String,
+        prompt: String,
+        scheduledAtEpochMs: Long,
+        cron: String?,
+        trigger: TaskTrigger,
+    ): ScheduledTask = taskStore.addTask(
+        description = description,
+        prompt = prompt,
+        scheduledAtEpochMs = scheduledAtEpochMs,
+        cron = cron,
+        trigger = trigger,
+    )
+
     override fun isDaemonEnabled(): Boolean = appSettings.isDaemonEnabled()
 
     override fun setDaemonEnabled(enabled: Boolean) {

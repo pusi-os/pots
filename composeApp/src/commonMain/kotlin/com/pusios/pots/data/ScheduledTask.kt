@@ -34,6 +34,10 @@ data class ScheduledTask(
     val originInstanceId: String? = null,
     /** Model id active at creation time. */
     val originModelId: String? = null,
+    /** Wall clock of the last execution (automatic or manual); 0 = never ran. */
+    val lastRunEpochMs: Long = 0L,
+    /** Number of executions so far, so the task card can say "ran 3 times". */
+    val runCount: Int = 0,
 ) {
     val scheduledAt: Instant get() = Instant.fromEpochMilliseconds(scheduledAtEpochMs)
 }
@@ -46,8 +50,14 @@ data class TaskExecutionLogEntry(
     val message: String? = null,
 )
 
+/**
+ * Lifecycle of a scheduled task.
+ *
+ * [PAUSED] is what the user's "pause" action writes: the task stays in the list, keeps its
+ * schedule, and is skipped by every executor because they all filter on [PENDING].
+ */
 @Serializable
-enum class TaskStatus { PENDING, COMPLETED }
+enum class TaskStatus { PENDING, PAUSED, COMPLETED }
 
 /**
  * Description prefix that ties a scheduled task to the mini-app whose automation created

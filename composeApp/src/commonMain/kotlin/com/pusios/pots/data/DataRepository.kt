@@ -172,6 +172,24 @@ interface DataRepository {
     val scheduledTasksFlow: StateFlow<List<ScheduledTask>>
     suspend fun cancelScheduledTask(id: String)
 
+    /** Puts a pending task on hold without deleting it. Paused tasks are never executed. */
+    suspend fun pauseScheduledTask(id: String)
+
+    /** Brings a paused task back into rotation, keeping its schedule. */
+    suspend fun resumeScheduledTask(id: String)
+
+    /** Replaces a task in place for the edit action; the caller keeps id/trigger/origin. */
+    suspend fun updateScheduledTask(task: ScheduledTask)
+
+    /** Creates a task from the settings UI — the same path the agent's scheduling tool takes. */
+    suspend fun createScheduledTask(
+        description: String,
+        prompt: String,
+        scheduledAtEpochMs: Long,
+        cron: String?,
+        trigger: TaskTrigger,
+    ): ScheduledTask
+
     // Dynamic UI
     fun isDynamicUiEnabled(): Boolean
     fun setDynamicUiEnabled(enabled: Boolean)

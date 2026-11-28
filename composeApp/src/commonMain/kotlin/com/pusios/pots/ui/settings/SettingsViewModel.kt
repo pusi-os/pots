@@ -13,8 +13,10 @@ import com.pusios.pots.data.AppLanguage
 import com.pusios.pots.data.DataRepository
 import com.pusios.pots.data.ImportSection
 import com.pusios.pots.data.LocalToolSelection
+import com.pusios.pots.data.ScheduledTask
 import com.pusios.pots.data.Service
 import com.pusios.pots.data.TaskScheduler
+import com.pusios.pots.data.TaskTrigger
 import com.pusios.pots.data.ThemeMode
 import com.pusios.pots.data.getAvailableServiceEntries
 import com.pusios.pots.data.supportsPulseModel
@@ -221,6 +223,11 @@ class SettingsViewModel(
         onUpdateMemory = ::onUpdateMemory,
         onToggleScheduling = ::onToggleScheduling,
         onCancelTask = ::onCancelTask,
+        onPauseTask = ::onPauseTask,
+        onResumeTask = ::onResumeTask,
+        onRunTaskNow = ::onRunTaskNow,
+        onUpdateTask = ::onUpdateTask,
+        onCreateTask = ::onCreateTask,
         onToggleDaemon = ::onToggleDaemon,
         onToggleHeartbeat = ::onToggleHeartbeat,
         onChangeHeartbeatInterval = ::onChangeHeartbeatInterval,
@@ -847,6 +854,52 @@ class SettingsViewModel(
             delay(4.seconds)
             executeDeletion(PendingDeletion.Task(id))
         }
+    }
+
+    private fun onPauseTask(id: String) {
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.pauseScheduledTask(id)
+            refreshScheduledTasks()
+        }
+    }
+
+    private fun onResumeTask(id: String) {
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.resumeScheduledTask(id)
+            refreshScheduledTasks()
+        }
+    }
+
+    private fun onRunTaskNow(task: ScheduledTask) {
+        viewModelScope.launch(backgroundDispatcher) {
+            taskScheduler.runTaskNow(task)
+            refreshScheduledTasks()
+            _state.update { it.copy(heartbeatLog = dataRepository.getHeartbeatLog().toImmutableList()) }
+        }
+    }
+
+    private fun onUpdateTask(task: ScheduledTask) {
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.updateScheduledTask(task)
+            refreshScheduledTasks()
+        }
+    }
+
+    private fun onCreateTask(
+        description: String,
+        prompt: String,
+        trigger: TaskTrigger,
+        scheduledAtEpochMs: Long,
+        cron: String?,
+    ) {
+        viewModelScope.launch(backgroundDispatcher) {
+            dataRepository.createScheduledTask(description, prompt, scheduledAtEpochMs, cron, trigger)
+            refreshScheduledTasks()
+        }
+    }
+
+    private suspend fun refreshScheduledTasks() {
+        _state.update { it.copy(scheduledTasks = dataRepository.getScheduledTasks().toImmutableList()) }
     }
 
     private fun onToggleDaemon(enabled: Boolean) {
