@@ -26,6 +26,11 @@ import androidx.core.content.ContextCompat
  * Every failure is logged with its numeric code: the mapped enum cannot tell
  * "busy" from "no permission" from "service died", and the device's logcat is
  * the only place that distinction can be read later.
+ *
+ * The system recognizer ends a session on its own after a pause in speech; its
+ * silence thresholds are implementation-defined and cannot be configured from
+ * the app. That is a property of the engine, not of the loop: the loop never
+ * cuts a session while it is still reporting speech.
  */
 class AndroidSpeechToText(
     private val context: Context,
@@ -42,19 +47,15 @@ class AndroidSpeechToText(
     override val isAvailable: Boolean
         get() = SpeechRecognizer.isRecognitionAvailable(context)
 
-    override fun start(
-        onPartial: (String) -> Unit,
-        onResult: (String) -> Unit,
-        onError: (SpeechToTextError) -> Unit,
-    ) {
+    override fun start(listener: SpeechToTextListener) {
         if (!hasRecordPermission()) {
             Log.w(TAG, "start refused: RECORD_AUDIO is not granted")
-            onError(SpeechToTextError.PermissionDenied)
+            listener.onError(SpeechToTextError.PermissionDenied)
             return
         }
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             Log.w(TAG, "start refused: no recognition service on this device")
-            onError(SpeechToTextError.Unavailable)
+            listener.onError(SpeechToTextError.Unavailable)
             return
         }
 
@@ -74,21 +75,33 @@ class AndroidSpeechToText(
                     Log.i(TAG, "onReadyForSpeech")
                 }
 
-                override fun onBeginningOfSpeech() = Unit
+                override fun onBeginningOfSpeech() {
+                    // Speech began: the loop's inactivity watchdog must not count
+                    // this stretch of talking as silence.
+                    listener.onSpeechStart()
+                }
 
-                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onRmsChanged(rmsdB: Float) {
+                    // The system reports the level in dB, not 0..1, so the scale
+                    // is normalised here once for both the wave and the
+                    // watchdog's speech threshold.
+                    listener.onLevel(((rmsdB - RMS_MIN_DB) / RMS_RANGE_DB).coerceIn(0f, 1f))
+                }
 
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
 
                 override fun onEndOfSpeech() {
-                    // The final result arrives in onResults; nothing to do here.
+                    // The engine is done listening and is finalising: the result
+                    // arrives in onResults, and the indicator freezes its timer
+                    // meanwhile instead of looking like it is still recording.
+                    listener.onFinalising()
                 }
 
                 override fun onError(error: Int) {
                     // The numeric code is the only way to tell "busy" from
                     // "no permission" from "service died" after the fact.
                     Log.w(TAG, "onError code=$error (${error.errorName()})")
-                    onError(error.toSpeechToTextError())
+                    listener.onError(error.toSpeechToTextError())
                 }
 
                 override fun onResults(results: Bundle?) {
@@ -99,9 +112,9 @@ class AndroidSpeechToText(
                         .orEmpty()
                     Log.i(TAG, "onResults length=${transcript.length}")
                     if (transcript.isEmpty()) {
-                        onError(SpeechToTextError.NoMatch)
+                        listener.onError(SpeechToTextError.NoMatch)
                     } else {
-                        onResult(transcript)
+                        listener.onResult(transcript)
                     }
                 }
 
@@ -112,7 +125,7 @@ class AndroidSpeechToText(
                         ?.trim()
                         .orEmpty()
                     if (partial.isNotEmpty()) {
-                        onPartial(partial)
+                        listener.onPartial(partial)
                     }
                 }
 
@@ -135,7 +148,7 @@ class AndroidSpeechToText(
             Log.i(TAG, "startListening")
         } catch (t: Exception) {
             Log.w(TAG, "startListening threw ${t.javaClass.simpleName}", t)
-            onError(SpeechToTextError.Failed)
+            listener.onError(SpeechToTextError.Failed)
         }
     }
 
@@ -163,25 +176,45 @@ class AndroidSpeechToText(
     private companion object {
         /** The logcat tag the owner can filter on: `adb logcat -s PotsStt`. */
         const val TAG = "PotsStt"
+
+        /**
+         * `onRmsChanged` reports roughly −2 dB (silence) .. 10 dB (loud speech).
+         * The scale is normalised here, once, for both the wave and the
+         * watchdog's speech threshold.
+         */
+        const val RMS_MIN_DB = -2f
+        const val RMS_RANGE_DB = 12f
     }
 }
 
-/** Maps the Android error codes onto the platform-independent ones. */
+/**
+ * Maps the Android error codes onto the platform-independent ones.
+ *
+ * The distinction is the one the user sees: a missing service, an unreachable
+ * service, nothing heard, or the session failing for another reason are four
+ * different sentences and four different next steps.
+ */
 private fun Int.toSpeechToTextError(): SpeechToTextError = when (this) {
-    // Its own case, not Failed: «нет доступа к микрофону» is what the pill has
+    // Its own case, not Failed: «нет доступа к микрофону» is what the strip has
     // to say when the system refuses the recording, not «не расслышал».
     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> SpeechToTextError.PermissionDenied
 
-    SpeechRecognizer.ERROR_AUDIO,
-    SpeechRecognizer.ERROR_CLIENT,
+    // The service could not be reached at all — its own reason, so the strip can
+    // say «сервис распознавания недоступен» instead of «ничего не расслышал».
     SpeechRecognizer.ERROR_NETWORK,
     SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
-    SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
     SpeechRecognizer.ERROR_SERVER,
-    SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
-    -> SpeechToTextError.Failed
+    -> SpeechToTextError.Unavailable
 
-    SpeechRecognizer.ERROR_NO_MATCH -> SpeechToTextError.NoMatch
+    // Silence is not a failure: the user simply did not say anything in time.
+    SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
+    SpeechRecognizer.ERROR_NO_MATCH,
+    -> SpeechToTextError.NoMatch
+
+    SpeechRecognizer.ERROR_AUDIO,
+    SpeechRecognizer.ERROR_CLIENT,
+    SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
+    -> SpeechToTextError.Failed
 
     else -> SpeechToTextError.Failed
 }

@@ -576,7 +576,11 @@ internal class PotsikCloudOverlay(
                                 trouble = when (handsFree.error.value) {
                                     SpeechToTextError.PermissionDenied -> PotsikCloudTrouble.PermissionDenied
                                     SpeechToTextError.NoMatch -> PotsikCloudTrouble.NoMatch
-                                    SpeechToTextError.Failed -> PotsikCloudTrouble.ListenTimeout
+                                    // The watchdog fired or the session broke: either way
+                                    // the recognizer is not answering.
+                                    SpeechToTextError.Timeout,
+                                    SpeechToTextError.Failed,
+                                    -> PotsikCloudTrouble.ListenTimeout
                                     SpeechToTextError.Unavailable, null -> PotsikCloudTrouble.NoRecognizer
                                 },
                             )
