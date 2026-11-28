@@ -212,7 +212,7 @@ class TaskScheduler(
         val startedAt = Clock.System.now()
         // Re-read by id: the sheet's copy may be older than a pause/resume the user just made,
         // and writing that copy back would silently undo it.
-        val current = taskStore?.getAllTasks()?.firstOrNull { it.id == task.id } ?: task
+        val current = latestTask(task)
         try {
             val taskConversationId = dataRepository.getOrCreateHeartbeatConversationId()
             val run = askWithRetry(
@@ -227,12 +227,15 @@ class TaskScheduler(
                 dataRepository.addAssistantMessage("**$header**\n\n${run.content}")
             }
             val now = Clock.System.now()
+            // Read again at write time: a run can take minutes, and a pause pressed meanwhile
+            // must survive the result write.
+            val latest = latestTask(task)
             taskStore?.updateTask(
-                current.copy(
+                latest.copy(
                     lastResult = "Run manually at $now",
-                    recentExecutions = appendExecution(current, success = true, message = run.note),
+                    recentExecutions = appendExecution(latest, success = true, message = run.note),
                     lastRunEpochMs = now.toEpochMilliseconds(),
-                    runCount = current.runCount + 1,
+                    runCount = latest.runCount + 1,
                 ),
             )
         } catch (e: Exception) {
@@ -240,16 +243,21 @@ class TaskScheduler(
             // A manual run that failed has to say so in the task's own history — the sheet has
             // nowhere else to show it, and the user pressed the button expecting an answer.
             val reason = if (e is ProviderRunFailedException) e.message.orEmpty() else formatException(e)
+            val latest = latestTask(task)
             taskStore?.updateTask(
-                current.copy(
+                latest.copy(
                     lastResult = "Manual run failed at $startedAt: $reason",
-                    recentExecutions = appendExecution(current, success = false, message = reason),
+                    recentExecutions = appendExecution(latest, success = false, message = reason),
                     lastRunEpochMs = startedAt.toEpochMilliseconds(),
-                    runCount = current.runCount + 1,
+                    runCount = latest.runCount + 1,
                 ),
             )
         }
     }
+
+    /** The task as the store holds it now, falling back to the caller's copy if it is gone. */
+    private fun latestTask(task: ScheduledTask): ScheduledTask =
+        taskStore?.getAllTasks()?.firstOrNull { it.id == task.id } ?: task
 
     /**
      * One run against the primary instance, then the configured fallback.
