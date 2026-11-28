@@ -6,7 +6,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -49,10 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,11 +57,8 @@ import com.pusios.pots.LocalAppLanguageCode
 import com.pusios.pots.data.AgentPersonaPresets
 import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.AppSettings
-import com.pusios.pots.data.HeartbeatLogEntry
 import com.pusios.pots.data.MemoryEntry
 import com.pusios.pots.data.ReasoningEffort
-import com.pusios.pots.data.ScheduledTask
-import com.pusios.pots.data.TaskTrigger
 import com.pusios.pots.ui.PotsOutlinedTextField
 import com.pusios.pots.ui.build.collapsePercentEscape
 import com.pusios.pots.ui.components.PotsSlider
@@ -73,23 +67,16 @@ import com.pusios.pots.ui.handCursor
 import com.pusios.pots.ui.icons.Replay
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.offsetAt
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import pots.composeapp.generated.resources.Res
 import pots.composeapp.generated.resources.default_soul
-import pots.composeapp.generated.resources.execution_log_status_fail
-import pots.composeapp.generated.resources.execution_log_status_ok
 import pots.composeapp.generated.resources.settings_agent_auto_compact
 import pots.composeapp.generated.resources.settings_agent_auto_compact_description
 import pots.composeapp.generated.resources.settings_agent_compact_target
 import pots.composeapp.generated.resources.settings_agent_compact_target_description
 import pots.composeapp.generated.resources.settings_agent_compact_threshold
 import pots.composeapp.generated.resources.settings_agent_compact_threshold_description
-import pots.composeapp.generated.resources.settings_agent_decrease
-import pots.composeapp.generated.resources.settings_agent_increase
 import pots.composeapp.generated.resources.settings_agent_keep_recent
 import pots.composeapp.generated.resources.settings_agent_keep_recent_description
 import pots.composeapp.generated.resources.settings_agent_max_iterations
@@ -122,7 +109,6 @@ import pots.composeapp.generated.resources.settings_agent_tool_rate
 import pots.composeapp.generated.resources.settings_agent_tool_rate_description
 import pots.composeapp.generated.resources.settings_agent_value_per_minute
 import pots.composeapp.generated.resources.settings_agent_value_percent
-import pots.composeapp.generated.resources.settings_heartbeat_recent
 import pots.composeapp.generated.resources.settings_memories
 import pots.composeapp.generated.resources.settings_memories_all_title
 import pots.composeapp.generated.resources.settings_memories_delete
@@ -131,28 +117,13 @@ import pots.composeapp.generated.resources.settings_memories_edit_cancel
 import pots.composeapp.generated.resources.settings_memories_edit_save
 import pots.composeapp.generated.resources.settings_memories_edit_title
 import pots.composeapp.generated.resources.settings_memories_show_all
-import pots.composeapp.generated.resources.settings_scheduled_tasks
-import pots.composeapp.generated.resources.settings_scheduled_tasks_cancel
-import pots.composeapp.generated.resources.settings_scheduled_tasks_description
 import pots.composeapp.generated.resources.settings_soul
 import pots.composeapp.generated.resources.settings_soul_description
 import pots.composeapp.generated.resources.settings_soul_reset
 import pots.composeapp.generated.resources.settings_soul_reset_cancel
 import pots.composeapp.generated.resources.settings_soul_reset_confirm
 import pots.composeapp.generated.resources.settings_soul_save
-import pots.composeapp.generated.resources.settings_task_details_consecutive_failures
-import pots.composeapp.generated.resources.settings_task_details_created
-import pots.composeapp.generated.resources.settings_task_details_last_result
-import pots.composeapp.generated.resources.settings_task_details_next_run
-import pots.composeapp.generated.resources.settings_task_details_no_heartbeat_runs
-import pots.composeapp.generated.resources.settings_task_details_no_runs
-import pots.composeapp.generated.resources.settings_task_details_on_every_heartbeat
-import pots.composeapp.generated.resources.settings_task_details_schedule
-import pots.composeapp.generated.resources.settings_task_details_scheduled_for
-import pots.composeapp.generated.resources.settings_task_details_status
-import pots.composeapp.generated.resources.settings_task_details_trigger
 import kotlin.math.roundToInt
-import kotlin.time.Instant
 
 @Composable
 internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
@@ -173,9 +144,14 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
                     ScheduledTaskList(
                         tasks = uiState.scheduledTasks,
                         heartbeatLog = uiState.heartbeatLog,
-                        onCancelTask = actions.onCancelTask,
                         isSchedulingEnabled = uiState.isSchedulingEnabled,
                         onToggleScheduling = actions.onToggleScheduling,
+                        onCancelTask = actions.onCancelTask,
+                        onPauseTask = actions.onPauseTask,
+                        onResumeTask = actions.onResumeTask,
+                        onRunTaskNow = actions.onRunTaskNow,
+                        onUpdateTask = actions.onUpdateTask,
+                        onCreateTask = actions.onCreateTask,
                     )
                 }
                 SettingsCard {
@@ -197,6 +173,7 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
                         activeHoursEnd = uiState.heartbeatActiveHoursEnd,
                         heartbeatPrompt = uiState.heartbeatPrompt,
                         heartbeatLog = uiState.heartbeatLog,
+                        heartbeatRepeatWarning = uiState.heartbeatRepeatWarning,
                         heartbeatServiceEntries = uiState.heartbeatServiceEntries,
                         heartbeatSelectedInstanceId = uiState.heartbeatSelectedInstanceId,
                         heartbeatFallbackInstanceId = uiState.heartbeatFallbackInstanceId,
@@ -208,6 +185,8 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
                         onChangeHeartbeatService = actions.onChangeHeartbeatService,
                         onChangeHeartbeatFallbackService = actions.onChangeHeartbeatFallbackService,
                         onRefresh = actions.onRefreshHeartbeat,
+                        onClearHistory = actions.onClearHeartbeatHistory,
+                        onPreviewPrompt = actions.onPreviewHeartbeatPrompt,
                     )
                 }
                 if (uiState.showEmailToggle) {
@@ -1142,246 +1121,4 @@ private fun EditMemorySheet(
             Spacer(Modifier.height(8.dp))
         }
     }
-}
-
-@Composable
-private fun ScheduledTaskList(
-    tasks: ImmutableList<ScheduledTask>,
-    heartbeatLog: ImmutableList<HeartbeatLogEntry>,
-    onCancelTask: (String) -> Unit,
-    isSchedulingEnabled: Boolean,
-    onToggleScheduling: (Boolean) -> Unit,
-) {
-    var selectedTaskId by remember { mutableStateOf<String?>(null) }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        ToggleableHeadline(
-            title = stringResource(Res.string.settings_scheduled_tasks),
-            description = stringResource(Res.string.settings_scheduled_tasks_description),
-            checked = isSchedulingEnabled,
-            onCheckedChange = onToggleScheduling,
-        )
-        Spacer(Modifier.height(12.dp))
-
-        val onEveryHeartbeat = stringResource(Res.string.settings_task_details_on_every_heartbeat)
-        if (isSchedulingEnabled && tasks.isNotEmpty()) {
-            tasks.forEach { task ->
-                val subtitle = when (task.trigger) {
-                    TaskTrigger.HEARTBEAT -> "${task.status} - $onEveryHeartbeat"
-
-                    TaskTrigger.CRON -> "${task.status} - ${task.cron?.let { describeCron(it) } ?: "cron"}"
-
-                    TaskTrigger.TIME -> {
-                        val instant = Instant.fromEpochMilliseconds(task.scheduledAtEpochMs)
-                        val zone = TimeZone.currentSystemDefault()
-                        val scheduledTime = instant.toLocalDateTime(zone)
-                        val offset = zone.offsetAt(instant)
-                        "${task.status} - $scheduledTime $offset"
-                    }
-                }
-                SettingsListItem(
-                    title = task.description,
-                    subtitle = subtitle,
-                    onClick = { selectedTaskId = task.id },
-                    onDelete = { onCancelTask(task.id) },
-                    deleteContentDescription = stringResource(Res.string.settings_scheduled_tasks_cancel),
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-    }
-
-    val selectedTask = selectedTaskId?.let { id -> tasks.firstOrNull { it.id == id } }
-    if (selectedTask != null) {
-        TaskDetailsSheet(
-            task = selectedTask,
-            heartbeatLog = heartbeatLog,
-            onDismiss = { selectedTaskId = null },
-        )
-    }
-}
-
-@Composable
-private fun TaskDetailsSheet(
-    task: ScheduledTask,
-    heartbeatLog: ImmutableList<HeartbeatLogEntry>,
-    onDismiss: () -> Unit,
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            Text(
-                text = task.description,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Spacer(Modifier.height(12.dp))
-
-            TaskDetailRow(
-                label = stringResource(Res.string.settings_task_details_trigger),
-                value = task.trigger.name,
-            )
-            TaskDetailRow(
-                label = stringResource(Res.string.settings_task_details_status),
-                value = task.status.name,
-            )
-            when (task.trigger) {
-                TaskTrigger.TIME -> TaskDetailRow(
-                    label = stringResource(Res.string.settings_task_details_scheduled_for),
-                    value = formatTaskInstant(task.scheduledAtEpochMs),
-                )
-
-                TaskTrigger.CRON -> {
-                    TaskDetailRow(
-                        label = stringResource(Res.string.settings_task_details_schedule),
-                        value = task.cron?.let { describeCron(it) } ?: "cron",
-                    )
-                    TaskDetailRow(
-                        label = stringResource(Res.string.settings_task_details_next_run),
-                        value = formatTaskInstant(task.scheduledAtEpochMs),
-                    )
-                }
-
-                TaskTrigger.HEARTBEAT -> TaskDetailRow(
-                    label = stringResource(Res.string.settings_task_details_schedule),
-                    value = stringResource(Res.string.settings_task_details_on_every_heartbeat),
-                )
-            }
-            TaskDetailRow(
-                label = stringResource(Res.string.settings_task_details_created),
-                value = formatTaskInstant(task.createdAtEpochMs),
-            )
-            if (task.consecutiveFailures > 0) {
-                TaskDetailRow(
-                    label = stringResource(Res.string.settings_task_details_consecutive_failures),
-                    value = task.consecutiveFailures.toString(),
-                )
-            }
-            // The scheduler stores its retry/backoff phrasing in `lastResult` ("Failed at ...:
-            // ... (retry after 120s backoff)"). Surface it so the user can see what the
-            // scheduler is going to do next, not just what already happened.
-            task.lastResult?.takeIf { it.isNotBlank() }?.let { result ->
-                TaskDetailRow(
-                    label = stringResource(Res.string.settings_task_details_last_result),
-                    value = result,
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text = stringResource(Res.string.settings_heartbeat_recent),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Spacer(Modifier.height(4.dp))
-
-            if (task.trigger == TaskTrigger.HEARTBEAT) {
-                // Heartbeat additions don't carry their own log — they fire as part of every
-                // heartbeat run, so the heartbeat-wide log is the right surface.
-                if (heartbeatLog.isEmpty()) {
-                    EmptyLogText(stringResource(Res.string.settings_task_details_no_heartbeat_runs))
-                } else {
-                    heartbeatLog.forEach { entry ->
-                        ExecutionLogRow(
-                            success = entry.success,
-                            timestampEpochMs = entry.timestampEpochMs,
-                            message = entry.error,
-                        )
-                    }
-                }
-            } else {
-                if (task.recentExecutions.isEmpty()) {
-                    EmptyLogText(stringResource(Res.string.settings_task_details_no_runs))
-                } else {
-                    task.recentExecutions.forEach { entry ->
-                        ExecutionLogRow(
-                            success = entry.success,
-                            timestampEpochMs = entry.timestampEpochMs,
-                            message = entry.message,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun TaskDetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-    ) {
-        // The label column is sized in dp for a fixed amount of text, so it has to
-        // track the font scale; the value needs a weight or it overflows the row.
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(140.dp * LocalDensity.current.fontScale),
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun ExecutionLogRow(success: Boolean, timestampEpochMs: Long, message: String?) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Text(
-            text = if (success) stringResource(Res.string.execution_log_status_ok) else stringResource(Res.string.execution_log_status_fail),
-            style = MaterialTheme.typography.labelSmall,
-            color = if (success) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-            modifier = Modifier.widthIn(min = 36.dp * LocalDensity.current.fontScale),
-        )
-        Column {
-            Text(
-                text = formatTaskInstant(timestampEpochMs),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (!message.isNullOrBlank()) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (success) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyLogText(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-private fun formatTaskInstant(epochMs: Long): String {
-    if (epochMs <= 0L) return "—"
-    val instant = Instant.fromEpochMilliseconds(epochMs)
-    val zone = TimeZone.currentSystemDefault()
-    val local = instant.toLocalDateTime(zone)
-    val month = local.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
-    val minute = local.minute.toString().padStart(2, '0')
-    return "${local.day} $month ${local.year} ${local.hour}:$minute"
 }

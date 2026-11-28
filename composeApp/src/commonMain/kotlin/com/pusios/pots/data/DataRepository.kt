@@ -172,6 +172,24 @@ interface DataRepository {
     val scheduledTasksFlow: StateFlow<List<ScheduledTask>>
     suspend fun cancelScheduledTask(id: String)
 
+    /** Puts a pending task on hold without deleting it. Paused tasks are never executed. */
+    suspend fun pauseScheduledTask(id: String)
+
+    /** Brings a paused task back into rotation, keeping its schedule. */
+    suspend fun resumeScheduledTask(id: String)
+
+    /** Replaces a task in place for the edit action; the caller keeps id/trigger/origin. */
+    suspend fun updateScheduledTask(task: ScheduledTask)
+
+    /** Creates a task from the settings UI — the same path the agent's scheduling tool takes. */
+    suspend fun createScheduledTask(
+        description: String,
+        prompt: String,
+        scheduledAtEpochMs: Long,
+        cron: String?,
+        trigger: TaskTrigger,
+    ): ScheduledTask
+
     // Dynamic UI
     fun isDynamicUiEnabled(): Boolean
     fun setDynamicUiEnabled(enabled: Boolean)
@@ -317,6 +335,43 @@ interface DataRepository {
         conversationIdOverride: String? = null,
         modelIdOverride: String? = null,
     ): String
+
+    /**
+     * Same as [askWithTools], but keeps the run's evidence: the tools it executed, its token
+     * usage, and whether it hit [budget]. A heartbeat needs those facts to tell "did something"
+     * from "only talked" — the reply text cannot.
+     */
+    suspend fun askWithToolsDetailed(
+        prompt: String,
+        instanceId: String? = null,
+        conversationIdOverride: String? = null,
+        modelIdOverride: String? = null,
+        budget: HeadlessBudget? = null,
+    ): HeadlessRunResult
+
+    /**
+     * Closes an ephemeral run session (a `hb-run-*` id) once the run is over, so its shell and
+     * transcript do not outlive the run that created them.
+     */
+    fun closeHeadlessSession(sessionId: String)
+
+    /** The exact prompt the next heartbeat run will send, for the "what will be sent" preview. */
+    fun getHeartbeatPromptPreview(): String
+
+    /**
+     * Clears everything the Pulse accumulated: the conversation's messages, the run journal, and
+     * the anti-repeat ledger. Tasks, memories and settings are untouched.
+     */
+    suspend fun clearHeartbeatHistory()
+
+    /** Whether the one-time "clear the old Pulse history" offer should be shown. */
+    fun shouldOfferHeartbeatHistoryCleanup(): Boolean
+
+    /** Records that the offer was shown, so it never returns. */
+    fun dismissHeartbeatHistoryCleanup()
+
+    /** The content the pulse keeps repeating, when it repeats enough to say so. */
+    fun getHeartbeatRepeatWarning(): HeartbeatRepeatWarning?
 
     // Silent ask (no tools, no chat history update)
     suspend fun askSilently(question: String): String

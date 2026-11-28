@@ -118,6 +118,8 @@ import com.pusios.pots.ui.chat.composables.OnboardingFinalCard
 import com.pusios.pots.ui.chat.composables.OnboardingSuccessCard
 import com.pusios.pots.ui.chat.composables.OnboardingWizardCard
 import com.pusios.pots.ui.chat.composables.PendingSmsBanners
+import com.pusios.pots.ui.chat.composables.PulseEmptyState
+import com.pusios.pots.ui.chat.composables.PulseNoticeCard
 import com.pusios.pots.ui.chat.composables.QuestionInput
 import com.pusios.pots.ui.chat.composables.ServiceSelector
 import com.pusios.pots.ui.chat.composables.TokenStatsDialog
@@ -1234,7 +1236,22 @@ private fun ChatModeScreen(
                                 target = dropTarget,
                             ),
                     ) {
-                        if (uiState.history.isEmpty()) {
+                        // The Pulse is a journal, not a chat: say so where the user would
+                        // otherwise type into it, and surface the two facts about the pulse
+                        // itself (old history, repeated report) at the top.
+                        val isPulse = uiState.currentConversationId != null &&
+                            uiState.currentConversationId == uiState.heartbeatConversationId
+                        if (isPulse) {
+                            PulseNoticeCard(
+                                showHistoryOffer = uiState.heartbeatHistoryOffer,
+                                repeatCount = uiState.heartbeatRepeatCount,
+                                onClearHistory = uiState.actions.clearHeartbeatHistory,
+                                onDismissOffer = uiState.actions.dismissHeartbeatHistoryOffer,
+                            )
+                        }
+                        if (isPulse && uiState.history.isEmpty()) {
+                            PulseEmptyState(Modifier.fillMaxWidth().weight(1f))
+                        } else if (uiState.history.isEmpty()) {
                             // First-launch surface: the onboarding wizard (or its final cards)
                             // takes the slot while nothing can answer; a configured service always
                             // wins and leaves the plain EmptyState, so a skipped wizard whose

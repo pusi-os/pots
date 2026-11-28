@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalUuidApi::class)
+
 package com.pusios.pots.data
 
 import com.pusios.pots.email.EmailPoller
@@ -18,10 +20,15 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.CoroutineContext
@@ -29,9 +36,26 @@ import kotlin.math.min
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
+/**
+ * Ceilings for one autonomous heartbeat run.
+ *
+ * Nobody is watching a background check, so it has to bound itself: twelve tool calls is enough
+ * for "read the mail, check the calendar, write the answer", and past that the run is looping.
+ */
+internal val HEARTBEAT_BUDGET = HeadlessBudget(maxToolCalls = 12, maxTokens = 60_000)
+
+/** Hard wall-clock limit for one heartbeat run, tool calls included. */
+internal val HEARTBEAT_RUN_TIMEOUT = 5.minutes
+
+/** Outcomes that arm the scheduler-level backoff. A budget stop or a cancellation is not a failure. */
+private val FAILED_HEARTBEAT_OUTCOMES = setOf(HeartbeatOutcome.ERROR, HeartbeatOutcome.TIMEOUT)
 
 @OptIn(ExperimentalTime::class)
 class TaskScheduler(
@@ -63,7 +87,6 @@ class TaskScheduler(
 
         const val POLL_INTERVAL_MS = 60_000L
         const val MAX_BACKOFF_MS = 3_600_000L // 1 hour
-        const val HEARTBEAT_CONTEXT_COUNT = 3
 
         /** Shown in the journal when the primary fails and no reserve is configured. */
         const val NO_FALLBACK_SUFFIX = "; no fallback model selected in Settings → Agent → Heartbeat"
@@ -87,7 +110,9 @@ class TaskScheduler(
     }
 
     /** A successful run plus what the journal should say about it (e.g. that it fell back). */
-    private class ProviderRun(val content: String, val note: String? = null)
+    private class ProviderRun(val result: HeadlessRunResult, val note: String? = null) {
+        val content: String get() = result.content
+    }
 
     /**
      * Every instance the run could use is out. Carries the finished journal line, because only
@@ -106,6 +131,19 @@ class TaskScheduler(
     )
 
     private var activeJob: Job? = null
+
+    /**
+     * Guards the heartbeat: one run at a time, whether it came from the tick or from the
+     * "Run now" button. Two runs over the same external state used to double the tool calls and
+     * the conversation entries.
+     */
+    private val heartbeatLock = Mutex()
+
+    /** The in-flight heartbeat run, so switching the pulse off can cancel it. */
+    private var heartbeatJob: Job? = null
+
+    /** Content fingerprints of delivered reports — see [HeartbeatLedger]. */
+    private val heartbeatLedger: HeartbeatLedger? = appSettings?.let { HeartbeatLedger(it) }
 
     /**
      * Predicate the loop consults before executing a task, to avoid racing with an
@@ -156,7 +194,9 @@ class TaskScheduler(
                 }
 
                 if (!isLoadingCheck() && heartbeatManager?.isHeartbeatDue() == true) {
-                    runHeartbeat()
+                    // On the process scope, not on the loop's own job: the loop must survive a
+                    // cancelled run, and the run must be cancellable on its own.
+                    launchHeartbeat(manual = false)
                 }
 
                 // Email polling
@@ -203,6 +243,62 @@ class TaskScheduler(
     }
 
     /**
+     * Runs one task immediately without touching its schedule or status — the "run now"
+     * action, which has to work on paused and already-completed tasks too. The answer lands
+     * in the heartbeat conversation exactly like an automatic run, and the execution log
+     * records it, so the owner sees what the run produced.
+     */
+    suspend fun runTaskNow(task: ScheduledTask) {
+        val startedAt = Clock.System.now()
+        // Re-read by id: the sheet's copy may be older than a pause/resume the user just made,
+        // and writing that copy back would silently undo it.
+        val current = latestTask(task)
+        try {
+            val taskConversationId = dataRepository.getOrCreateHeartbeatConversationId()
+            val run = askWithRetry(
+                prompt = current.prompt,
+                primaryInstanceId = current.originInstanceId,
+                fallbackInstanceId = heartbeatManager?.getConfig()?.heartbeatFallbackInstanceId,
+                modelIdOverride = current.originModelId,
+                conversationIdOverride = taskConversationId,
+            )
+            if (run.content.isNotBlank()) {
+                val header = current.description.ifBlank { "Scheduled task" }
+                dataRepository.addAssistantMessage("**$header**\n\n${run.content}")
+            }
+            val now = Clock.System.now()
+            // Read again at write time: a run can take minutes, and a pause pressed meanwhile
+            // must survive the result write.
+            val latest = latestTask(task)
+            taskStore?.updateTask(
+                latest.copy(
+                    lastResult = "Run manually at $now",
+                    recentExecutions = appendExecution(latest, success = true, message = run.note),
+                    lastRunEpochMs = now.toEpochMilliseconds(),
+                    runCount = latest.runCount + 1,
+                ),
+            )
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // A manual run that failed has to say so in the task's own history — the sheet has
+            // nowhere else to show it, and the user pressed the button expecting an answer.
+            val reason = if (e is ProviderRunFailedException) e.message.orEmpty() else formatException(e)
+            val latest = latestTask(task)
+            taskStore?.updateTask(
+                latest.copy(
+                    lastResult = "Manual run failed at $startedAt: $reason",
+                    recentExecutions = appendExecution(latest, success = false, message = reason),
+                    lastRunEpochMs = startedAt.toEpochMilliseconds(),
+                    runCount = latest.runCount + 1,
+                ),
+            )
+        }
+    }
+
+    /** The task as the store holds it now, falling back to the caller's copy if it is gone. */
+    private fun latestTask(task: ScheduledTask): ScheduledTask = taskStore?.getAllTasks()?.firstOrNull { it.id == task.id } ?: task
+
+    /**
      * One run against the primary instance, then the configured fallback.
      *
      * Retries are decided by the failure class: a rejected key, a missing model or a malformed
@@ -217,6 +313,7 @@ class TaskScheduler(
         fallbackInstanceId: String?,
         modelIdOverride: String? = null,
         conversationIdOverride: String? = null,
+        budget: HeadlessBudget? = null,
     ): ProviderRun {
         val startedAt = TimeSource.Monotonic.markNow()
         var lastFailure: Exception? = null
@@ -226,18 +323,19 @@ class TaskScheduler(
             try {
                 // A hanging endpoint must not own the whole budget: the attempt is bounded by
                 // what is left of it, so the fallback still gets its turn.
-                val content = withTimeoutOrNull(remaining) {
-                    dataRepository.askWithTools(
+                val result = withTimeoutOrNull(remaining) {
+                    dataRepository.askWithToolsDetailed(
                         prompt = prompt,
                         instanceId = primaryInstanceId,
                         modelIdOverride = modelIdOverride,
                         conversationIdOverride = conversationIdOverride,
+                        budget = budget,
                     )
                 } ?: throw OpenAICompatibleConnectionException(
                     reason = ProviderFailureReason.Timeout,
                     detail = "no answer within $PRIMARY_ATTEMPT_BUDGET",
                 )
-                return ProviderRun(content)
+                return ProviderRun(result)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 lastFailure = e
@@ -263,14 +361,15 @@ class TaskScheduler(
             throw ProviderRunFailedException(failureLine(primaryFailure, primaryInstanceId) + suffix)
         }
         try {
-            val content = dataRepository.askWithTools(
+            val result = dataRepository.askWithToolsDetailed(
                 prompt = prompt,
                 instanceId = fallbackInstanceId,
                 modelIdOverride = null,
                 conversationIdOverride = conversationIdOverride,
+                budget = budget,
             )
             return ProviderRun(
-                content = content,
+                result = result,
                 note = "fell back to ${instanceLabel(fallbackInstanceId)} after ${failureLine(primaryFailure, primaryInstanceId)}",
             )
         } catch (e: Exception) {
@@ -297,108 +396,246 @@ class TaskScheduler(
     private fun instanceLabel(instanceId: String?): String? = serviceInstanceLabel(dataRepository.getServiceEntries(), instanceId)
 
     /**
-     * Run one heartbeat cycle: build the prompt, call the AI, record the result, and
-     * surface any non-OK response (in-app message + push notification when backgrounded).
-     * Used by the scheduler loop's due-check and by [triggerHeartbeatNow] for user-pressed refresh.
+     * Starts one heartbeat run on the process scope and waits for it, so the tick never overlaps
+     * a run and a cancelled run does not take the loop down with it.
      */
-    private suspend fun runHeartbeat() {
+    private suspend fun launchHeartbeat(manual: Boolean) {
+        val job = schedulerScope.launch { runHeartbeatSingleFlight(manual) }
+        heartbeatJob = job
+        job.join()
+    }
+
+    /**
+     * Single-flight wrapper: the tick and the "Run now" button both come through here.
+     *
+     * A second run over a running one used to double the provider calls, the tool calls and the
+     * conversation entries. The busy case is only journalled for a button press — a tick that
+     * finds a run in flight is normal and would otherwise fill the journal with noise.
+     */
+    private suspend fun runHeartbeatSingleFlight(manual: Boolean) {
         val manager = heartbeatManager ?: return
-        val pendingEmails = emailStore?.getPending().orEmpty()
-        val pendingSms = smsStore?.getPending().orEmpty()
-        val pendingNotifications = notificationStore?.getPending().orEmpty()
-        val config = manager.getConfig()
+        if (!heartbeatLock.tryLock()) {
+            if (manual) {
+                manager.recordRun(
+                    HeartbeatLogEntry(
+                        timestampEpochMs = Clock.System.now().toEpochMilliseconds(),
+                        success = true,
+                        outcome = HeartbeatOutcome.BUSY,
+                        note = "a run was already in flight",
+                    ),
+                )
+            }
+            return
+        }
         try {
-            val recentResponses = dataRepository.savedConversations.value
-                .find { it.type == Conversation.TYPE_HEARTBEAT }
-                ?.messages?.takeLast(HEARTBEAT_CONTEXT_COUNT)
-                ?.map { it.content }
-                ?: emptyList()
-            val heartbeatPrompt = manager.buildHeartbeatPrompt(recentResponses, pendingEmails, pendingSms, pendingNotifications)
-            // Resolve the heartbeat conversation id BEFORE the AI starts emitting
-            // tool calls, so any execute_shell_command call binds to the heartbeat's
-            // own persistent bash session rather than the chat the user happens to
-            // be viewing right now.
-            val heartbeatConversationId = dataRepository.getOrCreateHeartbeatConversationId()
-            val run = askWithRetry(
-                prompt = heartbeatPrompt,
-                primaryInstanceId = config.heartbeatInstanceId,
-                fallbackInstanceId = config.heartbeatFallbackInstanceId,
-                conversationIdOverride = heartbeatConversationId,
-            )
-            val response = run.content
-            manager.markHeartbeatExecuted()
-            manager.recordHeartbeat(success = true, note = run.note)
-            if (response.isNotBlank() && "HEARTBEAT_OK" !in response) {
-                dataRepository.addAssistantMessage(response)
-                // Push-notify only when the user won't see the in-app banner.
-                // Tapping the notification deep-links into the heartbeat
-                // conversation via `EXTRA_OPEN_HEARTBEAT` (Android actual).
-                // Strip markdown + pots-ui fences before sending to the tray —
-                // the notification surface can't render them and raw fence
-                // text (```pots-ui {...}```) is unreadable.
-                if (!appInForeground) {
-                    val preview = truncateForNotification(
-                        parseMarkdown(response).toSpeakableText(),
-                    )
-                    if (preview.isNotBlank()) {
-                        sendHeartbeatNotification(
-                            title = "Pots heartbeat",
-                            body = preview,
-                        )
-                    }
-                }
-            }
-            // Only clear the snapshot we actually showed to the AI — messages
-            // that arrived during the call stay pending for the next heartbeat.
-            if (pendingEmails.isNotEmpty()) {
-                emailStore?.let { store ->
-                    store.removePending(pendingEmails)
-                    // Advance the per-account delivery watermark so the user's
-                    // next `check_email` call won't re-surface the same UIDs
-                    // the heartbeat just summarised.
-                    val maxUidByAccount = pendingEmails
-                        .groupBy { it.accountId }
-                        .mapValues { (_, msgs) -> msgs.maxOf { it.uid } }
-                    for ((accId, maxUid) in maxUidByAccount) {
-                        val current = store.getSyncState(accId)
-                        if (maxUid > current.lastSeenUid) {
-                            store.updateSyncState(current.copy(lastSeenUid = maxUid))
-                        }
-                    }
-                }
-            }
-            if (pendingSms.isNotEmpty()) {
-                smsStore?.removePending(pendingSms)
-            }
-            if (pendingNotifications.isNotEmpty()) {
-                notificationStore?.removePending(pendingNotifications)
-            }
-            // Sweep retention bounds opportunistically after each heartbeat run.
-            notificationStore?.sweep()
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            // The journal is the owner's only window into a background failure: name the reason
-            // and the instance, not the exception class. A run that exhausted every configured
-            // instance arrives already described (ProviderRunFailedException).
-            val description = if (e is ProviderRunFailedException) {
-                e.message.orEmpty()
-            } else {
-                failureLine(e, config.heartbeatInstanceId)
-            }
-            manager.recordHeartbeat(success = false, error = description)
+            runHeartbeat()
+        } finally {
+            heartbeatLock.unlock()
         }
     }
 
     /**
-     * User-pressed manual heartbeat (Settings → Agent → Heartbeat refresh icon). Bypasses
-     * the active-hours window and the interval-due check, but still requires heartbeat to
-     * be enabled and scheduling overall to be on. No-ops if either is off.
+     * One heartbeat run in a fresh session.
+     *
+     * Nothing from the previous run reaches the model: the prompt is built from external state
+     * only, and the run binds its tool calls to an ephemeral `hb-run-*` session that is closed
+     * when the run ends. The run is classified by its evidence — the tool trace — not by its
+     * prose, because a promise to check something later is inert.
      */
-    suspend fun triggerHeartbeatNow() {
+    private suspend fun runHeartbeat() {
         val manager = heartbeatManager ?: return
-        if (appSettings?.isSchedulingEnabled() != true) return
-        if (!manager.getConfig().enabled) return
-        runHeartbeat()
+        val startedAtMs = Clock.System.now().toEpochMilliseconds()
+        val startedMark = TimeSource.Monotonic.markNow()
+        val config = manager.getConfig()
+        val runId = Uuid.random().toString()
+        val sessionId = "$HEARTBEAT_SESSION_PREFIX$runId"
+        val modelLabel = instanceLabel(config.heartbeatInstanceId)
+        val pendingEmails = emailStore?.getPending().orEmpty()
+        val pendingSms = smsStore?.getPending().orEmpty()
+        val pendingNotifications = notificationStore?.getPending().orEmpty()
+
+        var outcome = HeartbeatOutcome.ERROR
+        var detail: String? = null
+        var note: String? = null
+        var toolCount = 0
+        var notified = false
+        var cancellation: CancellationException? = null
+        try {
+            val prompt = manager.buildHeartbeatPrompt(
+                pendingEmails = pendingEmails,
+                pendingSms = pendingSms,
+                pendingNotifications = pendingNotifications,
+                budget = HEARTBEAT_BUDGET,
+            )
+            val run = withTimeout(HEARTBEAT_RUN_TIMEOUT) {
+                askWithRetry(
+                    prompt = prompt,
+                    primaryInstanceId = config.heartbeatInstanceId,
+                    fallbackInstanceId = config.heartbeatFallbackInstanceId,
+                    conversationIdOverride = sessionId,
+                    budget = HEARTBEAT_BUDGET,
+                )
+            }
+            note = run.note
+            toolCount = run.result.toolCalls.size
+            val decision = classifyHeartbeatReply(
+                content = run.content,
+                toolCalls = run.result.toolCalls,
+                // "Fresh" is what arrived between runs: mail/SMS/notifications the user has not
+                // been told about yet. Standing instructions (heartbeat additions) are always in
+                // the prompt, so they cannot make a tool-less promise look like a result — the
+                // prompt tells the model to act on them with a tool in this run.
+                hasFreshMaterial = pendingEmails.isNotEmpty() || pendingSms.isNotEmpty() ||
+                    pendingNotifications.isNotEmpty(),
+                budgetExhausted = run.result.budgetExhausted,
+            )
+            when (decision) {
+                HeartbeatDecision.Silent -> outcome = HeartbeatOutcome.OK_SILENT
+
+                HeartbeatDecision.Chatter -> outcome = HeartbeatOutcome.CHATTER
+
+                HeartbeatDecision.Budget -> outcome = HeartbeatOutcome.BUDGET
+
+                is HeartbeatDecision.Report -> {
+                    outcome = deliverHeartbeatReport(decision.body, startedAtMs)
+                    notified = outcome == HeartbeatOutcome.REPORTED
+                }
+            }
+            // A run cut off by its budget never concluded: the mail/SMS/notifications it was shown
+            // stay queued for the next run, otherwise a partial answer would silently eat them.
+            if (outcome != HeartbeatOutcome.BUDGET) {
+                consumeHeartbeatSnapshot(pendingEmails, pendingSms, pendingNotifications)
+            }
+            notificationStore?.sweep()
+        } catch (e: TimeoutCancellationException) {
+            outcome = HeartbeatOutcome.TIMEOUT
+            detail = "no answer within $HEARTBEAT_RUN_TIMEOUT"
+        } catch (e: CancellationException) {
+            // Switching the pulse off (or stopping the scheduler) cancels the run. That is not a
+            // failure, and nothing of a half-run may land in the Pulse conversation.
+            outcome = HeartbeatOutcome.CANCELLED
+            cancellation = e
+        } catch (e: Exception) {
+            // The journal is the owner's only window into a background failure: name the reason
+            // and the instance, not the exception class. A run that exhausted every configured
+            // instance arrives already described (ProviderRunFailedException).
+            outcome = HeartbeatOutcome.ERROR
+            detail = if (e is ProviderRunFailedException) e.message.orEmpty() else failureLine(e, config.heartbeatInstanceId)
+        } finally {
+            // A cancelled coroutine cannot suspend, but closing the run's shell and writing the
+            // journal entry are the whole point of cancelling honestly: do both, then let the
+            // cancellation propagate. Closing the session outside this block would skip the
+            // journal line on every cancel — the exact case the owner looks for afterwards.
+            withContext(NonCancellable) {
+                dataRepository.closeHeadlessSession(sessionId)
+                val durationMs = startedMark.elapsedNow().inWholeMilliseconds
+                manager.markAttempt(startedAtMs, failed = outcome in FAILED_HEARTBEAT_OUTCOMES)
+                manager.recordRun(
+                    HeartbeatLogEntry(
+                        timestampEpochMs = startedAtMs,
+                        success = outcome !in FAILED_HEARTBEAT_OUTCOMES,
+                        outcome = outcome,
+                        durationMs = durationMs,
+                        modelLabel = modelLabel,
+                        toolCount = toolCount,
+                        notified = notified,
+                        error = detail.takeIf { outcome in FAILED_HEARTBEAT_OUTCOMES },
+                        note = note,
+                    ),
+                )
+            }
+        }
+        cancellation?.let { throw it }
+    }
+
+    /**
+     * Delivers one report: the conversation entry, the push when the app is in the background,
+     * and the fingerprint that stops the same content from being delivered again.
+     */
+    private suspend fun deliverHeartbeatReport(body: String, nowMs: Long): HeartbeatOutcome {
+        val fingerprint = heartbeatFingerprint(body)
+        val ledger = heartbeatLedger
+        if (ledger != null && ledger.isDuplicate(fingerprint, nowMs)) {
+            ledger.recordSuppressed(fingerprint, nowMs)
+            return HeartbeatOutcome.DUPLICATE
+        }
+        dataRepository.addAssistantMessage(body)
+        ledger?.recordDelivered(fingerprint, nowMs)
+        // Push-notify only when the user won't see the in-app banner.
+        // Tapping the notification deep-links into the heartbeat
+        // conversation via `EXTRA_OPEN_HEARTBEAT` (Android actual).
+        // Strip markdown + pots-ui fences before sending to the tray —
+        // the notification surface can't render them and raw fence
+        // text (```pots-ui {...}```) is unreadable.
+        if (!appInForeground) {
+            val preview = truncateForNotification(parseMarkdown(body).toSpeakableText())
+            if (preview.isNotBlank()) {
+                sendHeartbeatNotification(title = "Pots heartbeat", body = preview)
+            }
+        }
+        return HeartbeatOutcome.REPORTED
+    }
+
+    /**
+     * Consumes exactly the snapshot the run was shown — messages that arrived during the call stay
+     * pending for the next heartbeat. The email watermark advances too, so a follow-up
+     * `check_email` does not re-surface the same UIDs.
+     */
+    private suspend fun consumeHeartbeatSnapshot(
+        pendingEmails: List<EmailMessage>,
+        pendingSms: List<SmsMessage>,
+        pendingNotifications: List<NotificationRecord>,
+    ) {
+        if (pendingEmails.isNotEmpty()) {
+            emailStore?.let { store ->
+                store.removePending(pendingEmails)
+                val maxUidByAccount = pendingEmails
+                    .groupBy { it.accountId }
+                    .mapValues { (_, msgs) -> msgs.maxOf { it.uid } }
+                for ((accId, maxUid) in maxUidByAccount) {
+                    val current = store.getSyncState(accId)
+                    if (maxUid > current.lastSeenUid) {
+                        store.updateSyncState(current.copy(lastSeenUid = maxUid))
+                    }
+                }
+            }
+        }
+        if (pendingSms.isNotEmpty()) {
+            smsStore?.removePending(pendingSms)
+        }
+        if (pendingNotifications.isNotEmpty()) {
+            notificationStore?.removePending(pendingNotifications)
+        }
+    }
+
+    /**
+     * User-pressed manual heartbeat (Settings → Agent → Heartbeat). Bypasses the active-hours
+     * window, the interval and the backoff — the owner is looking at the screen and asked. Still
+     * requires heartbeat to be enabled and scheduling overall to be on, and still goes through
+     * the single-flight guard. Returns false when the run could not start.
+     */
+    suspend fun triggerHeartbeatNow(): Boolean {
+        val manager = heartbeatManager ?: return false
+        if (appSettings?.isSchedulingEnabled() != true) return false
+        if (!manager.getConfig().enabled) return false
+        launchHeartbeat(manual = true)
+        return true
+    }
+
+    /**
+     * Cancels an in-flight heartbeat run. Called when the pulse is switched off: a run whose
+     * premise ("the pulse is on") just disappeared must not finish and write into the Pulse.
+     */
+    fun cancelHeartbeatRun() {
+        heartbeatJob?.cancel()
+    }
+
+    /** Stops the scheduler loop and any heartbeat run it started. */
+    fun stop() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+        activeJob?.cancel()
+        activeJob = null
     }
 
     /**
@@ -470,6 +707,7 @@ class TaskScheduler(
 
     private suspend fun handleTaskFailure(task: ScheduledTask, error: String? = null) {
         val now = Clock.System.now()
+        val ranAtMs = now.toEpochMilliseconds()
         val failures = task.consecutiveFailures + 1
         val reason = error ?: "unknown error"
         val log = appendExecution(task, success = false, message = reason)
@@ -488,6 +726,8 @@ class TaskScheduler(
                         lastResult = "Failed at $now: $reason (next retry at $nextExecution)",
                         consecutiveFailures = failures,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
             } else {
@@ -497,6 +737,8 @@ class TaskScheduler(
                         lastResult = "Failed at $now: $reason (no next schedule)",
                         consecutiveFailures = failures,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
             }
@@ -509,6 +751,8 @@ class TaskScheduler(
                     lastResult = "Failed at $now: $reason (retry after ${backoffMs / 1000}s backoff)",
                     consecutiveFailures = failures,
                     recentExecutions = log,
+                    lastRunEpochMs = ranAtMs,
+                    runCount = task.runCount + 1,
                 ),
             )
         }
@@ -516,6 +760,7 @@ class TaskScheduler(
 
     private suspend fun handleTaskCompletion(task: ScheduledTask, note: String? = null) {
         val now = Clock.System.now()
+        val ranAtMs = now.toEpochMilliseconds()
         // The run's note is the only thing a successful execution has to say; a plain run
         // leaves it null so the log stays one line per execution.
         val log = appendExecution(task, success = true, message = note)
@@ -532,6 +777,8 @@ class TaskScheduler(
                         lastResult = "Executed at $now (next schedule computation failed, will retry)",
                         consecutiveFailures = 0,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
                 return
@@ -544,6 +791,8 @@ class TaskScheduler(
                         status = TaskStatus.PENDING,
                         consecutiveFailures = 0,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
             } else {
@@ -554,6 +803,8 @@ class TaskScheduler(
                         lastResult = "Executed at $now (no next schedule)",
                         consecutiveFailures = 0,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
             }
@@ -565,6 +816,8 @@ class TaskScheduler(
                     lastResult = "Executed at $now",
                     consecutiveFailures = 0,
                     recentExecutions = log,
+                    lastRunEpochMs = ranAtMs,
+                    runCount = task.runCount + 1,
                 ),
             )
         }

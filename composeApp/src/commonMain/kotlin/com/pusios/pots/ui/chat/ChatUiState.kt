@@ -116,6 +116,10 @@ data class ChatUiState(
     val editingMiniAppName: String? = null,
     val editingMiniAppDescription: String? = null,
     val editingMiniAppIcon: String? = null,
+    /** Pre-3.21.8 Pulse history exists and the one-time clear offer was never answered. */
+    val heartbeatHistoryOffer: Boolean = false,
+    /** How often the same Pulse report was held back lately; null when nothing repeats. */
+    val heartbeatRepeatCount: Int? = null,
 ) {
     val heartbeatConversationId: String?
         get() = savedConversations.firstOrNull { it.isHeartbeat }?.id

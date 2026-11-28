@@ -148,6 +148,30 @@ class TaskStore(appSettings: AppSettings) {
     }
 
     /**
+     * Puts a pending task on hold. Pausing keeps the schedule untouched and only flips the
+     * status, because every executor filters on [TaskStatus.PENDING] — a paused task cannot
+     * fire by accident, and resuming needs no recomputation.
+     */
+    suspend fun pause(id: String): Boolean {
+        var paused = false
+        tasks.update { current ->
+            paused = current.any { it.id == id && it.status == TaskStatus.PENDING }
+            if (paused) current.map { if (it.id == id) it.copy(status = TaskStatus.PAUSED) else it } else current
+        }
+        return paused
+    }
+
+    /** Brings a paused task back to [TaskStatus.PENDING] without touching its schedule. */
+    suspend fun resume(id: String): Boolean {
+        var resumed = false
+        tasks.update { current ->
+            resumed = current.any { it.id == id && it.status == TaskStatus.PAUSED }
+            if (resumed) current.map { if (it.id == id) it.copy(status = TaskStatus.PENDING) else it } else current
+        }
+        return resumed
+    }
+
+    /**
      * Drops every task whose description starts with [prefix]. Used by the mini-app
      * deletion cascade — see [miniAppTaskPrefix].
      */

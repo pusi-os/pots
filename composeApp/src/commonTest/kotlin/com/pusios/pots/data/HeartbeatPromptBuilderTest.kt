@@ -13,6 +13,8 @@ import kotlin.test.assertTrue
  */
 class HeartbeatPromptBuilderTest {
 
+    private val budget = HeadlessBudget(maxToolCalls = 7, maxTokens = 1234)
+
     private fun task(
         id: String = "task-1",
         description: String = "Do the thing",
@@ -30,7 +32,6 @@ class HeartbeatPromptBuilderTest {
     private fun build(
         customOrDefaultPrompt: String = "[TEST HEARTBEAT]",
         heartbeatAdditions: List<ScheduledTask> = emptyList(),
-        recentResponses: List<String> = emptyList(),
         pendingTasks: List<ScheduledTask> = emptyList(),
         emailAccounts: List<EmailAccountSummary> = emptyList(),
         pendingEmails: List<HeartbeatPendingEmail> = emptyList(),
@@ -40,19 +41,35 @@ class HeartbeatPromptBuilderTest {
     ) = buildHeartbeatPrompt(
         customOrDefaultPrompt = customOrDefaultPrompt,
         heartbeatAdditions = heartbeatAdditions,
-        recentResponses = recentResponses,
         pendingTasks = pendingTasks,
         emailAccounts = emailAccounts,
         pendingEmails = pendingEmails,
         pendingSms = pendingSms,
         pendingNotifications = pendingNotifications,
         promotionCandidates = promotionCandidates,
+        budget = budget,
     )
 
     @Test
-    fun `default emits only the opening prompt and a trailing newline`() {
+    fun `default emits the opening prompt, the limits section and a trailing newline`() {
         val out = build(customOrDefaultPrompt = "[HEARTBEAT] check yourself")
-        assertEquals("[HEARTBEAT] check yourself\n", out)
+        assertTrue(out.startsWith("[HEARTBEAT] check yourself\n"))
+        assertTrue("## Pulse limits" in out)
+        assertTrue(out.endsWith("\n"))
+    }
+
+    @Test
+    fun `there is no way to feed previous answers back in`() {
+        // The builder takes no conversation input at all: a run that sees its own output is the
+        // loop 3.21.8 removed, and the removal has to be structural, not a convention.
+        val out = build(
+            pendingTasks = listOf(task(id = "t1", description = "First")),
+            pendingEmails = listOf(
+                HeartbeatPendingEmail("me@example.com", "sender@example.com", "Hi", "hello"),
+            ),
+        )
+        assertFalse("Previous Heartbeat Results" in out)
+        assertFalse("recentResponses" in out)
     }
 
     @Test
@@ -73,20 +90,6 @@ class HeartbeatPromptBuilderTest {
     fun `omits Heartbeat Additions when list is empty`() {
         val out = build()
         assertFalse("## Heartbeat Additions" in out)
-    }
-
-    @Test
-    fun `includes Previous Heartbeat Results when recentResponses non-empty`() {
-        val out = build(recentResponses = listOf("HEARTBEAT_OK", "All fine"))
-        assertTrue("## Previous Heartbeat Results" in out)
-        assertTrue("1. HEARTBEAT_OK" in out)
-        assertTrue("2. All fine" in out)
-    }
-
-    @Test
-    fun `omits Previous Heartbeat Results when empty`() {
-        val out = build()
-        assertFalse("## Previous Heartbeat Results" in out)
     }
 
     @Test
@@ -150,7 +153,7 @@ class HeartbeatPromptBuilderTest {
     }
 
     @Test
-    fun `includes New Emails with subject from account and preview`() {
+    fun `includes New Emails with subject from account and preview inside an untrusted fence`() {
         val out = build(
             pendingEmails = listOf(
                 HeartbeatPendingEmail(
@@ -163,6 +166,9 @@ class HeartbeatPromptBuilderTest {
         )
         assertTrue("## New Emails" in out)
         assertTrue("- **Urgent** — boss@example.com [me@example.com]: Please review the doc." in out)
+        // Mail bodies come from other people: the prompt has to mark them as data, not orders.
+        assertTrue("<untrusted-data source=\"email\">" in out)
+        assertTrue("</untrusted-data>" in out)
     }
 
     @Test
@@ -187,18 +193,19 @@ class HeartbeatPromptBuilderTest {
     }
 
     @Test
-    fun `includes New SMS with sender and preview`() {
+    fun `includes New SMS with sender and preview inside an untrusted fence`() {
         val out = build(
             pendingSms = listOf(
                 HeartbeatPendingSms(
                     id = 42L,
-                    from = "+1234567890",
+                    from = "+123****7890",
                     preview = "Your verification code is 123456",
                 ),
             ),
         )
         assertTrue("## New SMS" in out)
-        assertTrue("- **+1234567890** (id: 42): Your verification code is 123456" in out)
+        assertTrue("- **+123****7890** (id: 42): Your verification code is 123456" in out)
+        assertTrue("<untrusted-data source=\"sms\">" in out)
     }
 
     @Test
@@ -216,7 +223,19 @@ class HeartbeatPromptBuilderTest {
     }
 
     @Test
-    fun `includes Promotion Candidates with hit count and category`() {
+    fun `includes New Notifications inside an untrusted fence`() {
+        val out = build(
+            pendingNotifications = listOf(
+                HeartbeatPendingNotification(id = "n1", appLabel = "Bank", title = "Payment", preview = "Sent 100"),
+            ),
+        )
+        assertTrue("## New Notifications" in out)
+        assertTrue("- **Bank** — Payment (id: n1): Sent 100" in out)
+        assertTrue("<untrusted-data source=\"notification\">" in out)
+    }
+
+    @Test
+    fun `includes Promotion Candidates without inviting a soul write`() {
         val out = build(
             promotionCandidates = listOf(
                 HeartbeatPromotionCandidate(
@@ -229,7 +248,9 @@ class HeartbeatPromptBuilderTest {
         )
         assertTrue("## Promotion Candidates" in out)
         assertTrue("reinforced 7+ times" in out)
-        assertTrue("promote_learning" in out)
+        // A background run must not rewrite the soul; promotion belongs to a chat the user sees.
+        assertFalse("use the promote_learning tool" in out)
+        assertTrue("promotion into the soul happens in a normal chat" in out)
         assertTrue("- **commit_style** (hits: 7, category: LEARNING): gerund verbs" in out)
     }
 
@@ -240,10 +261,16 @@ class HeartbeatPromptBuilderTest {
     }
 
     @Test
+    fun `Pulse limits echo the run budget`() {
+        val out = build()
+        assertTrue("at most 7 tool calls" in out)
+        assertTrue("1234 tokens" in out)
+    }
+
+    @Test
     fun `golden full heartbeat prompt with every section`() {
         val out = build(
             customOrDefaultPrompt = "[HEARTBEAT] check",
-            recentResponses = listOf("HEARTBEAT_OK"),
             pendingTasks = listOf(task(id = "t1", description = "First")),
             emailAccounts = listOf(
                 EmailAccountSummary(email = "me@example.com", unreadCount = 2, lastSyncEpochMs = 0L),
@@ -257,7 +284,7 @@ class HeartbeatPromptBuilderTest {
                 ),
             ),
             pendingSms = listOf(
-                HeartbeatPendingSms(id = 99L, from = "+15551234", preview = "code 4242"),
+                HeartbeatPendingSms(id = 99L, from = "+155****1234", preview = "code 4242"),
             ),
             promotionCandidates = listOf(
                 HeartbeatPromotionCandidate(
@@ -271,8 +298,6 @@ class HeartbeatPromptBuilderTest {
         // Section headers in the exact order they must appear.
         val order = listOf(
             "[HEARTBEAT] check",
-            "## Previous Heartbeat Results",
-            "1. HEARTBEAT_OK",
             "## Pending Tasks",
             "- **First** (id: t1",
             "## Email Status",
@@ -280,10 +305,11 @@ class HeartbeatPromptBuilderTest {
             "## New Emails",
             "- **Hi** — sender@example.com [me@example.com]: hello",
             "## New SMS",
-            "- **+15551234** (id: 99): code 4242",
+            "- **+155****1234** (id: 99): code 4242",
             "## Promotion Candidates",
             "reinforced 5+ times",
             "- **style** (hits: 5, category: PREFERENCE): concise",
+            "## Pulse limits",
         )
         var lastIdx = -1
         for (header in order) {
@@ -292,5 +318,6 @@ class HeartbeatPromptBuilderTest {
             assertTrue(idx > lastIdx, "Expected '$header' to come after previous section. Output:\n$out")
             lastIdx = idx
         }
+        assertEquals(1, Regex("## Pulse limits").findAll(out).count())
     }
 }

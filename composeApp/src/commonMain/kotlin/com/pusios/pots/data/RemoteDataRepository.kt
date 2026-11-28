@@ -165,6 +165,10 @@ private data class AssistantTurn(
      * why the model "did not use the tool".
      */
     val notice: String? = null,
+    /** Names of the tools this turn executed, in order. Empty when the model only talked. */
+    val toolCalls: List<String> = emptyList(),
+    /** The turn stopped at its [HeadlessBudget] ceiling, so [content] is partial. */
+    val budgetExhausted: Boolean = false,
 )
 
 private enum class BailoutReason { LIMIT_REACHED, REPEATING }
@@ -215,6 +219,9 @@ class RemoteDataRepository(
     override val activeAgentProfileId: StateFlow<String> = appSettings.activeAgentProfileIdFlow
 
     private val prettyJson = Json { prettyPrint = true }
+
+    /** Content fingerprints of delivered Pulse reports — the anti-repeat ledger. */
+    private val heartbeatLedger = HeartbeatLedger(appSettings)
 
     /**
      * Returns the tools exposed to the on-device (LiteRT) model. Filtered by name against
@@ -559,6 +566,7 @@ class RemoteDataRepository(
         systemPrompt: String?,
         instanceId: String,
         history: MutableStateFlow<List<History>> = chatHistory,
+        budget: HeadlessBudget? = null,
     ): AssistantTurn {
         val engine = localInferenceEngine
             ?: throw IllegalStateException("On-device inference not available on this platform")
@@ -602,6 +610,7 @@ class RemoteDataRepository(
         // answers with what it has. The cap follows the same tuning the remote loop uses.
         val maxRepeatedCalls = appSettings.getAgentTuning().maxRepeatedToolCalls
         val callCounts = mutableMapOf<String, Int>()
+        val executedTools = mutableListOf<String>()
         val localTools: List<LocalTool> = if (localModelDeclaresTools(model.id)) {
             getLocalSafeTools().map { tool ->
                 LocalTool(
@@ -616,7 +625,15 @@ class RemoteDataRepository(
                                 "Repeated call to '${tool.schema.name}' with the same arguments was blocked. " +
                                     "Do not call it again — answer with the information you already have.",
                             )
+                        } else if (budget != null && executedTools.size >= budget.maxToolCalls) {
+                            // The native loop has no notion of a run budget, so the ceiling is
+                            // enforced here: the model is told to stop calling and answer.
+                            toolErrorJson(
+                                "This background run reached its tool budget (${budget.maxToolCalls} calls). " +
+                                    "Answer now with what you already have.",
+                            )
                         } else {
+                            executedTools += tool.schema.name
                             runLocalToolWithUiFeedback(tool.schema.name, jsonArgs, history)
                         }
                     },
@@ -692,6 +709,8 @@ class RemoteDataRepository(
             usage = usage,
             contextWindowTokens = contextTokens,
             notice = if (toolsDropped) getString(Res.string.local_tools_fallback_note) else null,
+            toolCalls = executedTools.toList(),
+            budgetExhausted = budget != null && (usage?.totalTokens ?: 0) > budget.maxTokens,
         )
     }
 
@@ -820,13 +839,14 @@ class RemoteDataRepository(
         instanceId: String,
         history: MutableStateFlow<List<History>> = chatHistory,
         modelIdOverride: String? = null,
+        budget: HeadlessBudget? = null,
     ): AssistantTurn = withContext(
         ModelExecutionElement(
             instanceId = instanceId,
             modelId = instanceCredentials(instanceId, service, modelIdOverride).modelId,
         ),
     ) {
-        askWithServiceInContext(service, messages, systemPrompt, instanceId, history, modelIdOverride)
+        askWithServiceInContext(service, messages, systemPrompt, instanceId, history, modelIdOverride, budget)
     }
 
     private suspend fun askWithServiceInContext(
@@ -836,6 +856,7 @@ class RemoteDataRepository(
         instanceId: String,
         history: MutableStateFlow<List<History>>,
         modelIdOverride: String?,
+        budget: HeadlessBudget? = null,
     ): AssistantTurn {
         if (service.isOnDevice) {
             // No retry: local-inference failures are deterministic, and this path mutates
@@ -844,7 +865,7 @@ class RemoteDataRepository(
             // (`ask()`/`askWithTools()`) pre-fetched a CHAT_REMOTE prompt, but on-device
             // needs the trimmed variant.
             val localPrompt = getActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL)
-            return askWithLocalEngine(messages, localPrompt, instanceId, history)
+            return askWithLocalEngine(messages, localPrompt, instanceId, history, budget)
         }
 
         val creds = instanceCredentials(instanceId, service, modelIdOverride)
@@ -854,7 +875,7 @@ class RemoteDataRepository(
             return plainChat(service, creds, messages, systemPrompt, strictEmptyResponse = true)
         }
 
-        return handleOpenAICompatibleChatWithTools(service, creds, messages, ::toolsForRequest, systemPrompt, history)
+        return handleOpenAICompatibleChatWithTools(service, creds, messages, ::toolsForRequest, systemPrompt, history, budget)
     }
 
     /**
@@ -1189,6 +1210,7 @@ class RemoteDataRepository(
         toolsProvider: suspend () -> List<Tool>,
         systemPrompt: String? = null,
         history: MutableStateFlow<List<History>> = chatHistory,
+        budget: HeadlessBudget? = null,
     ): AssistantTurn {
         val contextWindowTokens = ModelCatalog.estimateContextWindow(credentials.modelId)
         val reasoningEffort = appSettings.getAgentTuning().reasoningEffort.apiValue
@@ -1275,18 +1297,22 @@ class RemoteDataRepository(
                 return makeFinalCallWithoutTools(service, credentials, msgs, reason, useResponsesApi)
             }
         }
-        return runToolLoop(strategy, systemPrompt, history)
+        return runToolLoop(strategy, systemPrompt, history, budget)
     }
 
     private suspend fun runToolLoop(
         strategy: ToolLoopStrategy,
         systemPrompt: String?,
         history: MutableStateFlow<List<History>>,
+        budget: HeadlessBudget? = null,
     ): AssistantTurn {
         val tuning = appSettings.getAgentTuning()
         var iteration = 0
         val recentSignatures = mutableListOf<String>()
         val toolCallTimestamps = mutableListOf<Long>()
+        // What the turn actually executed. A headless caller cannot tell "did something" from
+        // "only talked" by reading the reply, so the trace is kept instead of discarded.
+        val executedTools = mutableListOf<String>()
         // A turn can take several provider rounds (one per tool call). Every round bills
         // its own completion tokens, but the prompt it bills is the full context of that
         // round — accumulating all of them double-counts the context. Keep the latest
@@ -1307,7 +1333,10 @@ class RemoteDataRepository(
                     ?: full
             }
             if (iteration > tuning.maxToolIterations) {
-                return AssistantTurn(strategy.bailout(visible, systemPrompt, BailoutReason.LIMIT_REACHED))
+                return AssistantTurn(
+                    strategy.bailout(visible, systemPrompt, BailoutReason.LIMIT_REACHED),
+                    toolCalls = executedTools.toList(),
+                )
             }
             val result = strategy.chat(visible, systemPrompt)
             result.usage?.let { usage ->
@@ -1315,6 +1344,16 @@ class RemoteDataRepository(
                 lastPromptTokens = usage.promptTokens.takeIf { it > 0 } ?: lastPromptTokens
                 completionTokens += usage.completionTokens
                 totalTokens += usage.totalTokens
+            }
+            // The budget is a ceiling on the whole run, checked between rounds: one more round
+            // would spend tokens nobody asked for on a background check.
+            if (budget != null && totalTokens > budget.maxTokens) {
+                return AssistantTurn(
+                    result.textContent,
+                    usage = if (sawUsage) TokenUsage(lastPromptTokens, completionTokens, lastPromptTokens + completionTokens) else null,
+                    toolCalls = executedTools.toList(),
+                    budgetExhausted = true,
+                )
             }
             if (result.toolCalls.isEmpty()) {
                 // For thinking-only turns, the reasoning text already became the content via
@@ -1324,12 +1363,26 @@ class RemoteDataRepository(
                     result.textContent,
                     reasoning,
                     usage = if (sawUsage) TokenUsage(lastPromptTokens, completionTokens, lastPromptTokens + completionTokens) else null,
+                    toolCalls = executedTools.toList(),
                 )
             }
 
             val signatures = result.toolCalls.map { "${it.name}:${it.arguments.hashCode()}" }
             if (isRepeatingToolCalls(recentSignatures, signatures, tuning.maxRepeatedToolCalls)) {
-                return AssistantTurn(strategy.bailout(visible, systemPrompt, BailoutReason.REPEATING))
+                return AssistantTurn(
+                    strategy.bailout(visible, systemPrompt, BailoutReason.REPEATING),
+                    toolCalls = executedTools.toList(),
+                )
+            }
+            // Same rule for tool calls: the batch is refused as a whole rather than half-run, so
+            // the run cannot end mid-batch with an inconsistent picture.
+            if (budget != null && executedTools.size + result.toolCalls.size > budget.maxToolCalls) {
+                return AssistantTurn(
+                    result.textContent,
+                    usage = if (sawUsage) TokenUsage(lastPromptTokens, completionTokens, lastPromptTokens + completionTokens) else null,
+                    toolCalls = executedTools.toList(),
+                    budgetExhausted = true,
+                )
             }
             recentSignatures.addAll(signatures)
 
@@ -1353,6 +1406,7 @@ class RemoteDataRepository(
                 tuning,
                 toolCallTimestamps,
             )
+            executedTools += result.toolCalls.map { it.name }
 
             history.update { h ->
                 buildList(h.size + toolResults.size) {
@@ -2347,6 +2401,32 @@ class RemoteDataRepository(
         taskStore.removeTask(id)
     }
 
+    override suspend fun pauseScheduledTask(id: String) {
+        taskStore.pause(id)
+    }
+
+    override suspend fun resumeScheduledTask(id: String) {
+        taskStore.resume(id)
+    }
+
+    override suspend fun updateScheduledTask(task: ScheduledTask) {
+        taskStore.updateTask(task)
+    }
+
+    override suspend fun createScheduledTask(
+        description: String,
+        prompt: String,
+        scheduledAtEpochMs: Long,
+        cron: String?,
+        trigger: TaskTrigger,
+    ): ScheduledTask = taskStore.addTask(
+        description = description,
+        prompt = prompt,
+        scheduledAtEpochMs = scheduledAtEpochMs,
+        cron = cron,
+        trigger = trigger,
+    )
+
     override fun isDaemonEnabled(): Boolean = appSettings.isDaemonEnabled()
 
     override fun setDaemonEnabled(enabled: Boolean) {
@@ -2551,7 +2631,15 @@ class RemoteDataRepository(
         instanceId: String?,
         conversationIdOverride: String?,
         modelIdOverride: String?,
-    ): String {
+    ): String = askWithToolsDetailed(prompt, instanceId, conversationIdOverride, modelIdOverride).content
+
+    override suspend fun askWithToolsDetailed(
+        prompt: String,
+        instanceId: String?,
+        conversationIdOverride: String?,
+        modelIdOverride: String?,
+        budget: HeadlessBudget?,
+    ): HeadlessRunResult {
         val targetInstance = resolveAskInstance(getConfiguredServiceInstances(), instanceId)
         val service = Service.fromId(targetInstance.serviceId)
             ?: throw NoConfiguredServiceException("unknown service ${targetInstance.serviceId}")
@@ -2572,9 +2660,52 @@ class RemoteDataRepository(
             HeadlessRunElement()
         }
         return withContext(runContext) {
-            askWithService(service, messages, systemPrompt, targetInstanceId, localHistory, modelIdOverride).content
+            val turn = askWithService(
+                service = service,
+                messages = messages,
+                systemPrompt = systemPrompt,
+                instanceId = targetInstanceId,
+                history = localHistory,
+                modelIdOverride = modelIdOverride,
+                budget = budget,
+            )
+            HeadlessRunResult(
+                content = turn.content,
+                toolCalls = turn.toolCalls,
+                usage = turn.usage,
+                budgetExhausted = turn.budgetExhausted,
+            )
         }
     }
+
+    override fun closeHeadlessSession(sessionId: String) {
+        sandboxController.closeSession(sessionId)
+    }
+
+    override fun getHeartbeatPromptPreview(): String = heartbeatManager.buildHeartbeatPrompt(budget = HEARTBEAT_BUDGET)
+
+    override suspend fun clearHeartbeatHistory() {
+        val existing = savedConversations.value.find { it.type == Conversation.TYPE_HEARTBEAT }
+        if (existing != null) {
+            conversationStorage.saveConversation(
+                existing.copy(messages = emptyList(), updatedAt = Clock.System.now().toEpochMilliseconds()),
+            )
+        }
+        heartbeatManager.clearLog()
+        heartbeatLedger.clear()
+        _hasUnreadHeartbeat.value = false
+    }
+
+    override fun shouldOfferHeartbeatHistoryCleanup(): Boolean {
+        val hasOldMessages = savedConversations.value
+            .find { it.type == Conversation.TYPE_HEARTBEAT }
+            ?.messages?.isNotEmpty() == true
+        return hasOldMessages && heartbeatManager.shouldOfferHistoryCleanup()
+    }
+
+    override fun dismissHeartbeatHistoryCleanup() = heartbeatManager.markHistoryCleanupOffered()
+
+    override fun getHeartbeatRepeatWarning(): HeartbeatRepeatWarning? = heartbeatLedger.repeatWarning(Clock.System.now().toEpochMilliseconds())
 
     override suspend fun askSilently(question: String): String {
         val target = getOrderedFallbackEntries().firstOrNull() ?: return ""

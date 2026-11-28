@@ -15,9 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -45,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import com.pusios.pots.data.EmailAccount
 import com.pusios.pots.data.EmailSyncState
 import com.pusios.pots.data.HeartbeatLogEntry
+import com.pusios.pots.data.HeartbeatOutcome
+import com.pusios.pots.data.HeartbeatRepeatWarning
 import com.pusios.pots.data.ServiceEntry
 import com.pusios.pots.data.SmsSyncState
 import com.pusios.pots.ui.PotsOutlinedTextField
@@ -76,17 +83,35 @@ import pots.composeapp.generated.resources.settings_email_refresh
 import pots.composeapp.generated.resources.settings_email_remove
 import pots.composeapp.generated.resources.settings_heartbeat
 import pots.composeapp.generated.resources.settings_heartbeat_active_hours
+import pots.composeapp.generated.resources.settings_heartbeat_clear_history
+import pots.composeapp.generated.resources.settings_heartbeat_clear_history_confirm
 import pots.composeapp.generated.resources.settings_heartbeat_default_prompt
 import pots.composeapp.generated.resources.settings_heartbeat_description
+import pots.composeapp.generated.resources.settings_heartbeat_entry_meta
+import pots.composeapp.generated.resources.settings_heartbeat_entry_notified
 import pots.composeapp.generated.resources.settings_heartbeat_fallback_default
 import pots.composeapp.generated.resources.settings_heartbeat_fallback_model
 import pots.composeapp.generated.resources.settings_heartbeat_interval
+import pots.composeapp.generated.resources.settings_heartbeat_journal_empty
 import pots.composeapp.generated.resources.settings_heartbeat_model
 import pots.composeapp.generated.resources.settings_heartbeat_model_default
+import pots.composeapp.generated.resources.settings_heartbeat_outcome_budget
+import pots.composeapp.generated.resources.settings_heartbeat_outcome_busy
+import pots.composeapp.generated.resources.settings_heartbeat_outcome_cancelled
+import pots.composeapp.generated.resources.settings_heartbeat_outcome_chatter
+import pots.composeapp.generated.resources.settings_heartbeat_outcome_duplicate
+import pots.composeapp.generated.resources.settings_heartbeat_outcome_error
+import pots.composeapp.generated.resources.settings_heartbeat_outcome_ok_silent
+import pots.composeapp.generated.resources.settings_heartbeat_outcome_reported
+import pots.composeapp.generated.resources.settings_heartbeat_outcome_timeout
+import pots.composeapp.generated.resources.settings_heartbeat_preview
+import pots.composeapp.generated.resources.settings_heartbeat_preview_close
 import pots.composeapp.generated.resources.settings_heartbeat_prompt_label
 import pots.composeapp.generated.resources.settings_heartbeat_recent
 import pots.composeapp.generated.resources.settings_heartbeat_refresh
+import pots.composeapp.generated.resources.settings_heartbeat_repeating
 import pots.composeapp.generated.resources.settings_heartbeat_reset_confirm
+import pots.composeapp.generated.resources.settings_heartbeat_run_now
 import pots.composeapp.generated.resources.settings_notifications_access_button
 import pots.composeapp.generated.resources.settings_notifications_access_required
 import pots.composeapp.generated.resources.settings_notifications_clear_queue
@@ -123,6 +148,7 @@ internal fun HeartbeatSection(
     activeHoursEnd: Int,
     heartbeatPrompt: String,
     heartbeatLog: ImmutableList<HeartbeatLogEntry>,
+    heartbeatRepeatWarning: HeartbeatRepeatWarning?,
     heartbeatServiceEntries: ImmutableList<ServiceEntry>,
     heartbeatSelectedInstanceId: String?,
     heartbeatFallbackInstanceId: String?,
@@ -134,6 +160,8 @@ internal fun HeartbeatSection(
     onChangeHeartbeatService: (String?) -> Unit,
     onChangeHeartbeatFallbackService: (String?) -> Unit,
     onRefresh: () -> Unit,
+    onClearHistory: () -> Unit,
+    onPreviewPrompt: () -> String,
 ) {
     val defaultPrompt = stringResource(Res.string.settings_heartbeat_default_prompt)
     val displayText = heartbeatPrompt.ifEmpty { defaultPrompt }
@@ -142,6 +170,11 @@ internal fun HeartbeatSection(
     val maxChars = 4000
 
     var showResetDialog by remember { mutableStateOf(false) }
+    var showClearDialog by remember { mutableStateOf(false) }
+    var previewText by remember { mutableStateOf<String?>(null) }
+    // Collapsed by default: the journal answers "what did the pulse do" only when asked, and a
+    // fifty-entry list above the settings would otherwise push everything else off the screen.
+    var journalExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         ToggleableHeadline(
@@ -271,72 +304,94 @@ internal fun HeartbeatSection(
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = onRefresh,
+                modifier = Modifier.fillMaxWidth().handCursor(),
+                enabled = !isRefreshing,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(Res.string.settings_heartbeat_run_now), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = { previewText = onPreviewPrompt() },
+                modifier = Modifier.fillMaxWidth().handCursor(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(stringResource(Res.string.settings_heartbeat_preview), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = { showClearDialog = true },
+                modifier = Modifier.fillMaxWidth().handCursor(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(stringResource(Res.string.settings_heartbeat_clear_history), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+
+            if (heartbeatRepeatWarning != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(
+                        Res.string.settings_heartbeat_repeating,
+                        heartbeatRepeatWarning.suppressedCount,
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = stringResource(Res.string.settings_heartbeat_recent),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
+                TextButton(
+                    onClick = { journalExpanded = !journalExpanded },
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.settings_heartbeat_recent),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Icon(
+                        imageVector = if (journalExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
                 RefreshIconButton(
                     onClick = onRefresh,
                     isRefreshing = isRefreshing,
                     contentDescription = stringResource(Res.string.settings_heartbeat_refresh),
                 )
             }
-            if (heartbeatLog.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                for (entry in heartbeatLog) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = if (entry.success) {
-                                stringResource(Res.string.execution_log_status_ok)
-                            } else {
-                                stringResource(Res.string.execution_log_status_fail)
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (entry.success) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.error
-                            },
-                            modifier = Modifier.widthIn(min = 36.dp * LocalDensity.current.fontScale),
-                        )
-                        Column {
-                            Text(
-                                text = formatHeartbeatTime(entry.timestampEpochMs),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            if (!entry.success && entry.error != null) {
-                                Text(
-                                    text = entry.error,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            // A successful run can still have something to say — today, that it
-                            // fell back to the reserve model. Hiding it would make the switch
-                            // invisible, which is the same blind spot as the nameless error.
-                            if (entry.success && entry.note != null) {
-                                Text(
-                                    text = entry.note,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
+
+            if (journalExpanded) {
+                if (heartbeatLog.isEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.settings_heartbeat_journal_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    for (entry in heartbeatLog) {
+                        HeartbeatJournalEntry(entry)
                     }
                 }
             }
@@ -370,6 +425,134 @@ internal fun HeartbeatSection(
             },
         )
     }
+
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text(stringResource(Res.string.settings_heartbeat_clear_history)) },
+            text = { Text(stringResource(Res.string.settings_heartbeat_clear_history_confirm)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearDialog = false
+                        onClearHistory()
+                    },
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_heartbeat_clear_history))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showClearDialog = false },
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_soul_reset_cancel))
+                }
+            },
+        )
+    }
+
+    previewText?.let { text ->
+        AlertDialog(
+            onDismissRequest = { previewText = null },
+            title = { Text(stringResource(Res.string.settings_heartbeat_preview)) },
+            text = {
+                // Scrollable: the assembled prompt is several screens long and the dialog has to
+                // show it whole rather than cut it at the bottom.
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                ) {
+                    Text(text = text, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { previewText = null },
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Text(stringResource(Res.string.settings_heartbeat_preview_close))
+                }
+            },
+        )
+    }
+}
+
+/**
+ * One journal line: how the run ended, when, and the facts the owner needs to explain it —
+ * duration, model, tools, whether anything was delivered.
+ */
+@Composable
+private fun HeartbeatJournalEntry(entry: HeartbeatLogEntry) {
+    val failed = entry.outcome == HeartbeatOutcome.ERROR || entry.outcome == HeartbeatOutcome.TIMEOUT
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            text = heartbeatOutcomeLabel(entry.outcome),
+            style = MaterialTheme.typography.labelSmall,
+            color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            modifier = Modifier.widthIn(min = 72.dp * LocalDensity.current.fontScale),
+        )
+        Column {
+            Text(
+                text = formatHeartbeatTime(entry.timestampEpochMs),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val meta = stringResource(
+                Res.string.settings_heartbeat_entry_meta,
+                entry.modelLabel ?: "—",
+                (entry.durationMs / 1000).toInt(),
+                entry.toolCount,
+            )
+            val notifiedLabel = if (entry.notified) {
+                " · " + stringResource(Res.string.settings_heartbeat_entry_notified)
+            } else {
+                ""
+            }
+            Text(
+                text = meta + notifiedLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (entry.error != null) {
+                Text(
+                    text = entry.error,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // A successful run can still have something to say — today, that it
+            // fell back to the reserve model. Hiding it would make the switch
+            // invisible, which is the same blind spot as the nameless error.
+            if (entry.note != null) {
+                Text(
+                    text = entry.note,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun heartbeatOutcomeLabel(outcome: HeartbeatOutcome): String = when (outcome) {
+    HeartbeatOutcome.OK_SILENT -> stringResource(Res.string.settings_heartbeat_outcome_ok_silent)
+    HeartbeatOutcome.REPORTED -> stringResource(Res.string.settings_heartbeat_outcome_reported)
+    HeartbeatOutcome.DUPLICATE -> stringResource(Res.string.settings_heartbeat_outcome_duplicate)
+    HeartbeatOutcome.CHATTER -> stringResource(Res.string.settings_heartbeat_outcome_chatter)
+    HeartbeatOutcome.BUDGET -> stringResource(Res.string.settings_heartbeat_outcome_budget)
+    HeartbeatOutcome.TIMEOUT -> stringResource(Res.string.settings_heartbeat_outcome_timeout)
+    HeartbeatOutcome.ERROR -> stringResource(Res.string.settings_heartbeat_outcome_error)
+    HeartbeatOutcome.CANCELLED -> stringResource(Res.string.settings_heartbeat_outcome_cancelled)
+    HeartbeatOutcome.BUSY -> stringResource(Res.string.settings_heartbeat_outcome_busy)
 }
 
 @Composable
@@ -833,55 +1016,6 @@ private fun formatHeartbeatTime(epochMs: Long): String {
     val instant = Instant.fromEpochMilliseconds(epochMs)
     val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
     return "${local.day} ${local.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${local.hour}:${local.minute.toString().padStart(2, '0')}"
-}
-
-internal fun describeCron(cron: String): String {
-    val parts = cron.trim().split("\\s+".toRegex())
-    if (parts.size != 5) return cron
-
-    val (minute, hour, dayOfMonth, month, dayOfWeek) = parts
-    val isEveryDay = dayOfMonth == "*" && month == "*" && dayOfWeek == "*"
-    val isEveryWeekday = dayOfMonth == "*" && month == "*" && dayOfWeek != "*"
-    val isEveryMonth = dayOfMonth != "*" && month == "*" && dayOfWeek == "*"
-
-    val timeStr = formatCronTime(hour, minute) ?: return cron
-
-    return when {
-        isEveryDay -> "Daily at $timeStr"
-
-        isEveryWeekday -> {
-            val days = dayOfWeek.split(",").mapNotNull { dayName(it.trim()) }
-            if (days.isNotEmpty()) "Every ${days.joinToString(", ")} at $timeStr" else cron
-        }
-
-        isEveryMonth -> "Monthly on day $dayOfMonth at $timeStr"
-
-        else -> cron
-    }
-}
-
-private fun formatCronTime(hour: String, minute: String): String? {
-    val h = hour.toIntOrNull() ?: return null
-    val m = minute.toIntOrNull() ?: return null
-    return "$h:${m.toString().padStart(2, '0')}"
-}
-
-private fun dayName(day: String): String? = when (day) {
-    "0", "7" -> "Sun"
-    "1" -> "Mon"
-    "2" -> "Tue"
-    "3" -> "Wed"
-    "4" -> "Thu"
-    "5" -> "Fri"
-    "6" -> "Sat"
-    "MON" -> "Mon"
-    "TUE" -> "Tue"
-    "WED" -> "Wed"
-    "THU" -> "Thu"
-    "FRI" -> "Fri"
-    "SAT" -> "Sat"
-    "SUN" -> "Sun"
-    else -> null
 }
 
 @Composable
