@@ -5,6 +5,7 @@ import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -197,6 +198,9 @@ class HeartbeatStatelessRunTest {
         harness.repository.askWithToolsDelayMs = 1_000
 
         val run = launch { harness.scheduler.triggerHeartbeatNow() }
+        // Start the run and let it suspend inside the provider call; without this the job is still
+        // queued, the scheduler has nothing to cancel, and the run would finish normally.
+        runCurrent()
         harness.scheduler.cancelHeartbeatRun()
         advanceUntilIdle()
         run.join()

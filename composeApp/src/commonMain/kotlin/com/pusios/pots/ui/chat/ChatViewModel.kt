@@ -162,8 +162,8 @@ class ChatViewModel(
     private var pendingConversationDeleteJob: Job? = null
 
     /** Pulse state that lives outside the conversation: the one-time history offer and repeats. */
-    private val _heartbeatHistoryOffer = MutableStateFlow(false)
-    private val _heartbeatRepeatCount = MutableStateFlow<Int?>(null)
+    private val heartbeatHistoryOfferValue = MutableStateFlow(false)
+    private val heartbeatRepeatCountValue = MutableStateFlow<Int?>(null)
 
     private val _state = MutableStateFlow(
         ChatUiState(
@@ -201,7 +201,7 @@ class ChatViewModel(
 
         viewModelScope.launch(backgroundDispatcher) { refreshHeartbeatPulseState() }
         viewModelScope.launch {
-            combine(_heartbeatHistoryOffer, _heartbeatRepeatCount) { offer, count -> offer to count }
+            combine(heartbeatHistoryOfferValue, heartbeatRepeatCountValue) { offer, count -> offer to count }
                 .collect { (offer, count) ->
                     _state.update { it.copy(heartbeatHistoryOffer = offer, heartbeatRepeatCount = count) }
                 }
@@ -1075,8 +1075,8 @@ class ChatViewModel(
      * offer is still unanswered, and whether the pulse keeps repeating the same report.
      */
     private fun refreshHeartbeatPulseState() {
-        _heartbeatHistoryOffer.value = dataRepository.shouldOfferHeartbeatHistoryCleanup()
-        _heartbeatRepeatCount.value = dataRepository.getHeartbeatRepeatWarning()?.suppressedCount
+        heartbeatHistoryOfferValue.value = dataRepository.shouldOfferHeartbeatHistoryCleanup()
+        heartbeatRepeatCountValue.value = dataRepository.getHeartbeatRepeatWarning()?.suppressedCount
     }
 
     private fun clearHeartbeatHistory() {
@@ -1089,7 +1089,7 @@ class ChatViewModel(
 
     private fun dismissHeartbeatHistoryOffer() {
         dataRepository.dismissHeartbeatHistoryCleanup()
-        _heartbeatHistoryOffer.value = false
+        heartbeatHistoryOfferValue.value = false
     }
 
     private fun sendSmsDraft(draftId: String) {
