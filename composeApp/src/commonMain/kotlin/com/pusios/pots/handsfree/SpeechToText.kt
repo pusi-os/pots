@@ -121,6 +121,11 @@ enum class SpeechToTextError {
  * when the platform has none.
  *
  * A null result is not an error: the hands-free button is simply hidden on platforms without
- * a recognizer. [voskModelId] selects the offline Vosk model (Android only).
+ * a recognizer. [voskModelId] selects the offline Vosk model and [neuralModelId] the neural
+ * (sherpa-onnx) one; both are Android only.
+ *
+ * Routing happens inside this call, not in its callers: [routeSttEngine] turns the requested
+ * engine into the one that can actually run on this device (see [SttRoute]). Every consumer —
+ * hands-free chat, the overlay pill, dictation — therefore obeys the same single decision.
  */
-expect fun createSpeechToText(engine: SttEngine, voskModelId: String): SpeechToText?
+expect fun createSpeechToText(engine: SttEngine, voskModelId: String, neuralModelId: String): SpeechToText?

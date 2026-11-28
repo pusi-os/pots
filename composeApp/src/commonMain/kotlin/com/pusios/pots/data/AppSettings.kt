@@ -70,11 +70,15 @@ enum class TtsEngine {
  * Which engine recognises speech in the hands-free loop.
  *
  * VOSK is the bundled offline engine (works without internet, Android only);
- * SYSTEM is the platform recognizer (Android `SpeechRecognizer`, which on most
- * devices needs the network or a device-specific offline pack).
+ * NEURAL is the sherpa-onnx engine with a Russian GigaAM v3 model that is
+ * downloaded on first use — the most accurate of the three, but it recognises
+ * whole phrases rather than words as they are said; SYSTEM is the platform
+ * recognizer (Android `SpeechRecognizer`, which on most devices needs the
+ * network or a device-specific offline pack).
  */
 enum class SttEngine {
     Vosk,
+    Neural,
     System,
 }
 
@@ -875,6 +879,16 @@ class AppSettings(internal val settings: Settings) {
         _sttVoskModelFlow.value = modelId
     }
 
+    private val _sttNeuralModelFlow = MutableStateFlow(settings.getString(KEY_STT_NEURAL_MODEL, DEFAULT_STT_NEURAL_MODEL))
+    val sttNeuralModelFlow: StateFlow<String> = _sttNeuralModelFlow
+
+    fun getSttNeuralModel(): String = _sttNeuralModelFlow.value
+
+    fun setSttNeuralModel(modelId: String) {
+        settings.putString(KEY_STT_NEURAL_MODEL, modelId)
+        _sttNeuralModelFlow.value = modelId
+    }
+
     // Потсик — the animated character.
     //
     // Legacy individual appearance fields are read once while creating the
@@ -1298,9 +1312,13 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_TTS_PITCH = "tts_pitch"
         const val KEY_STT_ENGINE = "stt_engine"
         const val KEY_STT_VOSK_MODEL = "stt_vosk_model"
+        const val KEY_STT_NEURAL_MODEL = "stt_neural_model"
 
         /** The Vosk model selected out of the box: the recommended small Russian model. */
         const val DEFAULT_STT_VOSK_MODEL = "vosk-model-small-ru-0.22"
+
+        /** The neural model selected out of the box: GigaAM v3 with punctuation, 214 MB. */
+        const val DEFAULT_STT_NEURAL_MODEL = "gigaam-v3-ctc-punct-int8"
         const val KEY_ANIMATED_BACKGROUND = "animated_background"
         const val KEY_DAEMON_ENABLED = "daemon_enabled"
         const val KEY_HEARTBEAT_CONFIG = "heartbeat_config"

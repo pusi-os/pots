@@ -144,6 +144,7 @@ data class SettingsUiState(
     val isTestingPiperVoice: Boolean = false,
     val sttEngine: com.pusios.pots.data.SttEngine = com.pusios.pots.data.SttEngine.Vosk,
     val sttVoskModel: String = com.pusios.pots.data.AppSettings.DEFAULT_STT_VOSK_MODEL,
+    val sttNeuralModel: String = com.pusios.pots.data.AppSettings.DEFAULT_STT_NEURAL_MODEL,
     val mcpServers: ImmutableList<McpServerUiState> = persistentListOf(),
     val showAddMcpServerDialog: Boolean = false,
     /** A pending confirmation the agent asked for through one of the mcp_* tools. */

@@ -199,6 +199,8 @@ interface DataRepository {
     fun setSttEngine(engine: com.pusios.pots.data.SttEngine)
     fun getSttVoskModel(): String
     fun setSttVoskModel(modelId: String)
+    fun getSttNeuralModel(): String
+    fun setSttNeuralModel(modelId: String)
 
     fun getAnimatedBackground(): com.pusios.pots.ui.background.AnimatedBackground
     fun setAnimatedBackground(kind: com.pusios.pots.ui.background.AnimatedBackground)

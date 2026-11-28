@@ -130,8 +130,10 @@ internal fun GeneralContent(uiState: SettingsUiState, actions: SettingsActions) 
                 SttSection(
                     engine = uiState.sttEngine,
                     voskModel = uiState.sttVoskModel,
+                    neuralModel = uiState.sttNeuralModel,
                     onChangeEngine = actions.onChangeSttEngine,
                     onChangeVoskModel = actions.onChangeSttVoskModel,
+                    onChangeNeuralModel = actions.onChangeSttNeuralModel,
                 )
             }
             SettingsCard {
