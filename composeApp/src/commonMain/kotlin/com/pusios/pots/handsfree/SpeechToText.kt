@@ -90,6 +90,14 @@ enum class SpeechToTextError {
     /** The platform has no speech recognition service, or it is switched off. */
     Unavailable,
 
+    /**
+     * The service exists but could not be reached: no network, a timeout, or
+     * the server answered with an error. Its own case, not [Unavailable] —
+     * «нет распознавания на устройстве» and «сервис недоступен» are two
+     * different sentences, and only the second one makes «Повторить» obvious.
+     */
+    ServiceUnavailable,
+
     /** The microphone permission is missing. */
     PermissionDenied,
 

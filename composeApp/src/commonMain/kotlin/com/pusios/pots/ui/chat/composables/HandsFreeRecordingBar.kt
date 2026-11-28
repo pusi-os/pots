@@ -57,6 +57,7 @@ import pots.composeapp.generated.resources.handsfree_error_failed
 import pots.composeapp.generated.resources.handsfree_error_mic
 import pots.composeapp.generated.resources.handsfree_error_no_service
 import pots.composeapp.generated.resources.handsfree_error_no_speech
+import pots.composeapp.generated.resources.handsfree_error_service_unavailable
 import pots.composeapp.generated.resources.handsfree_state_error
 import pots.composeapp.generated.resources.handsfree_state_finalising
 import pots.composeapp.generated.resources.handsfree_state_listening
@@ -65,6 +66,7 @@ import pots.composeapp.generated.resources.handsfree_state_speech
 import pots.composeapp.generated.resources.handsfree_timer_content_description
 import pots.composeapp.generated.resources.ic_mic_done
 import pots.composeapp.generated.resources.ic_refresh
+import pots.composeapp.generated.resources.ic_restart_dictation
 import pots.composeapp.generated.resources.ic_send
 
 /** Bars in the wave: one slot per ≈64 ms of audio, so the strip shows the last second. */
@@ -126,6 +128,7 @@ internal fun HandsFreeRecordingBar(
             SpeechToTextError.NoMatch -> stringResource(Res.string.handsfree_error_no_speech)
             SpeechToTextError.PermissionDenied -> stringResource(Res.string.handsfree_error_mic)
             SpeechToTextError.Unavailable -> stringResource(Res.string.handsfree_error_no_service)
+            SpeechToTextError.ServiceUnavailable -> stringResource(Res.string.handsfree_error_service_unavailable)
             SpeechToTextError.Timeout -> stringResource(Res.string.handsfree_error_engine)
             SpeechToTextError.Failed -> stringResource(Res.string.handsfree_error_failed)
         }
@@ -211,7 +214,11 @@ internal fun HandsFreeRecordingBar(
                     )
                 }
                 RecordingAction(
-                    icon = Res.drawable.ic_refresh,
+                    // Undo arrow, not the retry's circular one: the two
+                    // neighbours do opposite things (throw the phrase away vs
+                    // keep it and try again), so they must not differ by tint
+                    // alone.
+                    icon = Res.drawable.ic_restart_dictation,
                     description = stringResource(Res.string.handsfree_action_restart),
                     tint = MaterialTheme.colorScheme.error,
                     // Restart also works after a failure: dropping the phrase

@@ -1603,7 +1603,12 @@ private fun ChatModeScreen(
                     ask = { text ->
                         keyboardController?.hide()
                         focusManager.clearFocus(force = true)
-                        uiState.actions.ask(text)
+                        // One send path. A direct `ask` left the recognition
+                        // session open, and its final result sent the same
+                        // phrase a second time a few seconds later; while the
+                        // loop runs the controller sends the field text and
+                        // closes the session itself.
+                        handsFree.sendComposerText(text, uiState.actions.ask)
                     },
                     supportedFileExtensions = uiState.supportedFileExtensions,
                     textState = questionInputText,

@@ -258,6 +258,19 @@ class HandsFreeController(
     }
 
     /**
+     * Sends the text the composer holds, by the one path that is open right now.
+     *
+     * While the loop runs, the session has to be closed first: a live session
+     * keeps listening, and its own final result would hand the same phrase to
+     * the chat a few seconds later, so the user would get the message twice.
+     * Ending it here is exactly what «Отправить сейчас» does; with the loop off
+     * the chat sends the text itself.
+     */
+    fun sendComposerText(text: String, ask: (String) -> Unit) {
+        if (isActive) sendNow(text) else ask(text)
+    }
+
+    /**
      * Asks the loop to stop after the reply currently being spoken finishes.
      *
      * Used when the user says they are done: the last reply is still read out,

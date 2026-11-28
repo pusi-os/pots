@@ -27,6 +27,7 @@ The system engine is not ours: its silence thresholds, whether it needs the netw
 - `onRmsChanged` is the only level signal. On some devices it is coarse, so the wave is less lively than with Vosk.
 - A session that stops answering is failed by the loop's inactivity watchdog after 15 s and reported as «Распознавание не отвечает».
 - `ERROR_SPEECH_TIMEOUT` means the user said nothing in time: it is reported as «Ничего не расслышал», not as a failure, and the microphone reopens by itself.
+- `ERROR_NETWORK`, `ERROR_NETWORK_TIMEOUT` and `ERROR_SERVER` mean the engine exists but its service could not be reached — no network, or the vendor's server failed. They are reported as «Сервис распознавания недоступен»; «нет распознавания на устройстве» stays for the loop's own `isRecognitionAvailable` check, which is a different situation with a different next step.
 
 Vosk has none of these limits: it owns the microphone, measures the level from the PCM buffer it is already reading, and its endpoint no longer ends the session.
 
@@ -45,7 +46,7 @@ The loop is a small state machine with six states:
 | Thinking | The transcript was sent; the agent is working on it. |
 | Speaking | The agent's reply is being spoken. |
 | NoMatch | Nothing was recognised. Shown for two seconds, then the microphone reopens by itself. |
-| Error | The session failed (no service, no permission, recognizer stopped answering). The recognised text stays in the composer and the indicator offers «Повторить». |
+| Error | The session failed (no recognizer on the device, no permission, an unreachable recognition service, or a recognizer that stopped answering). The recognised text stays in the composer and the indicator offers «Повторить». |
 
 The cycle is: listen → send → wait → speak → listen. The transition back to *Listening* happens when the speech has finished, so the microphone is open again the moment the agent stops talking. Long replies are split into platform-sized chunks (under 3,000 characters) and spoken in order; this avoids the Android TTS input limit that previously cut long answers short and dropped the loop back to listening mid-reply.
 
@@ -79,12 +80,14 @@ The strip has no *idle* state of its own: when the session ends the strip leaves
 
 | Icon | `contentDescription` (ru) | Effect |
 |---|---|---|
-| `ic_refresh`, tinted `colorScheme.error` | «Отменить и начать заново» | Drops the text dictated in this session, restores the field without it (the draft typed before or during the session stays), and opens a new session at once. |
+| `ic_restart_dictation` (new vector: undo arrow), tinted `colorScheme.error` | «Отменить и начать заново» | Drops the text dictated in this session, restores the field without it (the draft typed before or during the session stays), and opens a new session at once. |
 | `ic_mic_done` (new vector: mic + check) | «Остановить и вставить текст в поле» | Ends the session, keeps the text in the field, sends nothing. |
 | `ic_send`, tinted `colorScheme.primary` | «Отправить сейчас» | Ends the session and submits the field text immediately. Disabled while the field is empty — an enabled button that does nothing is worse than a visibly disabled one. |
 | `ic_refresh`, tinted `colorScheme.primary` (Error only) | «Повторить» | Opens a new session; the text stays in the field. |
 
 In *Error* the strip offers three actions, not the four of a live session: retry, stop-and-keep (so the text can be left in the composer and the mode switched off) and restart. «Отправить сейчас» is not there because the composer's own send button is already one tap away and the text is not going anywhere.
+
+The composer's own send button is the same path while the loop runs: `HandsFreeController.sendComposerText` closes the session and sends the field text, so the phrase leaves exactly once. Sending it straight to the chat left the session listening, and its final result sent the same phrase a second time a few seconds later. With the loop off the button sends through the chat as usual.
 
 **Timing — the rules that make long dictation work**
 
@@ -162,6 +165,7 @@ The same controller drives the capsule that opens on a double tap on Потси�
 | `handsfree_error_mic` | Нет доступа к микрофону | No microphone access |
 | `handsfree_error_engine` | Распознавание не отвечает | Speech recognition isn't responding |
 | `handsfree_error_no_service` | На этом устройстве нет распознавания речи | This device has no speech recognition |
+| `handsfree_error_service_unavailable` | Сервис распознавания недоступен | Speech recognition service is unavailable |
 | `handsfree_error_failed` | Не удалось распознать речь | Speech recognition failed |
 | `handsfree_action_restart` | Отменить и начать заново | Cancel and start over |
 | `handsfree_action_keep_text` | Остановить и вставить текст в поле | Stop and keep the text |
@@ -185,6 +189,7 @@ The same controller drives the capsule that opens on a double tap on Потси�
 | `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Creates the controller, feeds assistant replies into it, wires the top-bar button and the recording strip to the composer |
 | `composeApp/src/commonMain/.../ui/chat/composables/HandsFreeRecordingBar.kt` | The recording indicator: level wave, LED timer, state line and the three actions |
 | `composeApp/src/commonMain/composeResources/drawable/ic_mic_done.xml` | «Stop and keep the text» icon (microphone + check), vector only |
+| `composeApp/src/commonMain/composeResources/drawable/ic_restart_dictation.xml` | «Cancel and start over» icon (undo arrow), vector only — deliberately not the retry's `ic_refresh` |
 | `composeApp/src/commonMain/composeResources/values{,-ru}/strings.xml` | The indicator's states, reasons and action labels |
 | `composeApp/src/androidMain/.../overlay/PotsikCloudOverlay.kt` | The same loop in the desktop capsule's overlay window (the voice pill) |
 | `composeApp/src/androidMain/.../overlay/PotsikTextInputActivity.kt` | The capsule's text field; the second owner of «Озвучить», which defers to the pill |

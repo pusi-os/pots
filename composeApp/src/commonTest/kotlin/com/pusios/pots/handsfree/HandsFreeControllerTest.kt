@@ -415,6 +415,46 @@ class HandsFreeControllerTest {
     }
 
     @Test
+    fun theComposerSendButtonSendsOnceAndClosesTheSession() = runTest(testDispatcher) {
+        val stt = FakeStt()
+        val submitted = mutableListOf<String>()
+        val controller = controller(stt, onSubmit = { submitted += it })
+        controller.start()
+        runCurrent()
+        controller.dictationDraft = "Заметка:"
+        stt.lastListener?.onPartial("купи хлеб")
+
+        // The composer's own send button while the loop is recording. ChatScreen
+        // routes it through sendComposerText, so the session is closed first.
+        controller.sendComposerText("Заметка: купи хлеб") { submitted += it }
+
+        // The recognizer of the session that was just sent reports its final
+        // result anyway — it was not stopped in time. It must add nothing.
+        stt.lastListener?.onResult("купи хлеб")
+
+        assertEquals(
+            listOf("Заметка: купи хлеб"),
+            submitted,
+            "the composer's send button must not let the live session send the phrase a second time",
+        )
+        assertEquals(HandsFreeStatus.Thinking, controller.status.value)
+        assertNull(controller.recording.value, "the send ends the session")
+    }
+
+    @Test
+    fun theComposerSendButtonLetsTheChatSendWhenTheLoopIsOff() = runTest(testDispatcher) {
+        val stt = FakeStt()
+        val submitted = mutableListOf<String>()
+        val controller = controller(stt, onSubmit = { submitted += it })
+
+        controller.sendComposerText("привет") { submitted += it }
+
+        assertEquals(listOf("привет"), submitted, "with the loop off the chat sends the text itself")
+        assertEquals(0, stt.startCalls, "no microphone is opened")
+        assertEquals(HandsFreeStatus.Idle, controller.status.value)
+    }
+
+    @Test
     fun joinDictationAppendsWithoutGlueingWords() {
         assertEquals("привет", joinDictation("", " привет "))
         assertEquals("Заметка:", joinDictation("Заметка:", ""))

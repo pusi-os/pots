@@ -585,6 +585,8 @@ internal class PotsikCloudOverlay(
                                     -> PotsikCloudTrouble.ListenTimeout
 
                                     SpeechToTextError.Unavailable, null -> PotsikCloudTrouble.NoRecognizer
+
+                                    SpeechToTextError.ServiceUnavailable -> PotsikCloudTrouble.ServiceUnavailable
                                 },
                             )
                         },

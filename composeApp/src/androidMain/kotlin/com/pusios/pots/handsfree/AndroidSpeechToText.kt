@@ -200,11 +200,13 @@ private fun Int.toSpeechToTextError(): SpeechToTextError = when (this) {
     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> SpeechToTextError.PermissionDenied
 
     // The service could not be reached at all — its own reason, so the strip can
-    // say «сервис распознавания недоступен» instead of «ничего не расслышал».
+    // say «сервис распознавания недоступен» instead of «ничего не расслышал»
+    // or, worse, «нет распознавания на устройстве»: the engine is there, the
+    // network or the vendor's server is not.
     SpeechRecognizer.ERROR_NETWORK,
     SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
     SpeechRecognizer.ERROR_SERVER,
-    -> SpeechToTextError.Unavailable
+    -> SpeechToTextError.ServiceUnavailable
 
     // Silence is not a failure: the user simply did not say anything in time.
     SpeechRecognizer.ERROR_SPEECH_TIMEOUT,

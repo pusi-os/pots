@@ -25,6 +25,7 @@
     <string name="handsfree_error_mic">Нет доступа к микрофону</string>
     <string name="handsfree_error_engine">Распознавание не отвечает</string>
     <string name="handsfree_error_no_service">На этом устройстве нет распознавания речи</string>
+    <string name="handsfree_error_service_unavailable">Сервис распознавания недоступен</string>
     <string name="handsfree_error_failed">Не удалось распознать речь</string>
     <string name="handsfree_action_restart">Отменить и начать заново</string>
     <string name="handsfree_action_keep_text">Остановить и вставить текст в поле</string>
@@ -1084,6 +1085,7 @@
     <string name="potsik_cloud_voice_unavailable">Голосовой режим недоступен</string>
     <string name="potsik_cloud_text">Текстовый чат</string>
     <string name="potsik_cloud_no_recognizer">На этом устройстве нет распознавания речи</string>
+    <string name="potsik_cloud_service_unavailable">Сервис распознавания недоступен</string>
     <string name="potsik_cloud_listening">Слушаю…</string>
     <string name="potsik_cloud_thinking">Думаю…</string>
     <string name="potsik_cloud_stop">Стоп</string>
