@@ -79,7 +79,7 @@ The strip has no *idle* state of its own: when the session ends the strip leaves
 
 | Icon | `contentDescription` (ru) | Effect |
 |---|---|---|
-| `ic_refresh`, tinted `colorScheme.error` | «Отменить и начать заново» | Drops the text dictated in this session, restores the draft that was in the field before the session started, and opens a new session at once. |
+| `ic_refresh`, tinted `colorScheme.error` | «Отменить и начать заново» | Drops the text dictated in this session, restores the field without it (the draft typed before or during the session stays), and opens a new session at once. |
 | `ic_mic_done` (new vector: mic + check) | «Остановить и вставить текст в поле» | Ends the session, keeps the text in the field, sends nothing. |
 | `ic_send`, tinted `colorScheme.primary` | «Отправить сейчас» | Ends the session and submits the field text immediately. Disabled while the field is empty — an enabled button that does nothing is worse than a visibly disabled one. |
 | `ic_refresh`, tinted `colorScheme.primary` (Error only) | «Повторить» | Opens a new session; the text stays in the field. |
