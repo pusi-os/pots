@@ -2267,6 +2267,8 @@ class RemoteDataRepository(
     override fun setSttEngine(engine: com.pusios.pots.data.SttEngine) = appSettings.setSttEngine(engine)
     override fun getSttVoskModel(): String = appSettings.getSttVoskModel()
     override fun setSttVoskModel(modelId: String) = appSettings.setSttVoskModel(modelId)
+    override fun getSttNeuralModel(): String = appSettings.getSttNeuralModel()
+    override fun setSttNeuralModel(modelId: String) = appSettings.setSttNeuralModel(modelId)
 
     override val potsikLookFlow: StateFlow<PotsikLook> = appSettings.potsikLookFlow
 

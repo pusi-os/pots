@@ -13,8 +13,6 @@ import com.pusios.pots.speech.vosk.VoskModels
 import org.json.JSONObject
 import org.vosk.Recognizer
 import kotlin.concurrent.thread
-import kotlin.math.log10
-import kotlin.math.sqrt
 
 /**
  * Speech recognition for the hands-free dialogue loop, backed by Vosk.
@@ -135,7 +133,7 @@ class VoskSpeechToText(
                 if (n == 0) continue
                 sessionBytes += n
 
-                val level = levelOf(buffer, n)
+                val level = audioLevelOf(buffer, n)
                 // The wave is drawn from these values, so they go out as often as
                 // audio arrives (once per read, ≈ 64 ms) instead of on a timer.
                 post { listener.onLevel(level) }
@@ -256,35 +254,6 @@ class VoskSpeechToText(
     }
 }
 
-/** Silence, in dBFS: the bottom of the 0..1 scale used by the wave. */
-private const val LEVEL_FLOOR_DBFS = -60f
-
-/** Loud speech, in dBFS: the top of the 0..1 scale used by the wave. */
-private const val LEVEL_CEIL_DBFS = -15f
-
-/**
- * Root-mean-square level of a PCM 16-bit little-endian buffer, mapped onto
- * `0..1` between [LEVEL_FLOOR_DBFS] and [LEVEL_CEIL_DBFS].
- *
- * This is the audio the recognizer is actually consuming, which is why the wave
- * moves with the voice: it is a measurement, not an animation.
- */
-private fun levelOf(buffer: ByteArray, length: Int): Float {
-    val samples = length / 2
-    if (samples == 0) return 0f
-    var sum = 0.0
-    var i = 0
-    while (i + 1 < length) {
-        val sample = ((buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xFF)).toShort()
-        val value = sample / 32768f
-        sum += value * value
-        i += 2
-    }
-    val rms = sqrt(sum / samples).toFloat()
-    val dbfs = if (rms <= 0f) LEVEL_FLOOR_DBFS else 20f * log10(rms)
-    return ((dbfs - LEVEL_FLOOR_DBFS) / (LEVEL_CEIL_DBFS - LEVEL_FLOOR_DBFS)).coerceIn(0f, 1f)
-}
-
 /** Extracts the text field from a Vosk result JSON ({"text": ...} / {"partial": ...}). */
 private fun textOf(json: String): String = try {
     val obj = JSONObject(json)
@@ -293,7 +262,12 @@ private fun textOf(json: String): String = try {
     ""
 }
 
-private fun combine(accumulated: String, next: String): String = when {
+/**
+ * Joins the phrase just decoded to the transcript so far, so a sentence that
+ * paused mid-way keeps its earlier words. Shared by both offline engines: they
+ * both accumulate phrases across end-of-speech pauses.
+ */
+internal fun combine(accumulated: String, next: String): String = when {
     next.isEmpty() -> accumulated
     accumulated.isEmpty() -> next
     else -> "$accumulated $next"

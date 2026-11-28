@@ -271,7 +271,11 @@ fun ChatScreenContent(
         .collectAsStateWithLifecycle()
     val sttVoskModel by (appSettings?.sttVoskModelFlow ?: remember { MutableStateFlow(AppSettings.DEFAULT_STT_VOSK_MODEL) })
         .collectAsStateWithLifecycle()
-    val speechToText = remember(sttEngine, sttVoskModel) { createSpeechToText(sttEngine, sttVoskModel) }
+    val sttNeuralModel by (appSettings?.sttNeuralModelFlow ?: remember { MutableStateFlow(AppSettings.DEFAULT_STT_NEURAL_MODEL) })
+        .collectAsStateWithLifecycle()
+    val speechToText = remember(sttEngine, sttVoskModel, sttNeuralModel) {
+        createSpeechToText(sttEngine, sttVoskModel, sttNeuralModel)
+    }
     val handsFreeScope = rememberCoroutineScope()
     val handsFree = remember(textToSpeech, speechToText) {
         HandsFreeController(

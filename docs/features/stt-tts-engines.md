@@ -496,3 +496,63 @@ JNI, Android AAR, уже в проекте.
    + commons-compress, если берём) не измерен — локальные Gradle-сборки запрещены, гейт только CI.
 9. **Лицензионная чистота Parakeet (CC-BY-4.0) и LFM Open License** в контексте распространения APK —
    требует отдельного решения, если эти модели попадут в поставку.
+
+## Implementation status (3.21.5)
+
+Shipped in this release:
+
+- `SttEngine.Neural` — a third recognition engine on the vendored sherpa-onnx
+  runtime (NeMo CTC), model = GigaAM v3 CTC int8, downloaded on first use from
+  the pinned Hugging Face mirror (two files, size + SHA-256 pinned in
+  `SherpaSttModels.kt`), resumable via `Range`, verified before the model is
+  marked installed. Nothing is added to the APK: the same AAR already serves
+  Piper.
+- One routing decision (`routeSttEngine`) used by the hands-free chat, the
+  overlay pill and the settings microphone test. A missing model or less than
+  700 MB of free RAM falls back to Vosk **and the card says so**; the platform
+  recognizer is never a silent substitute because it may need the network.
+- The recognition section of the settings was rebuilt around that: engine
+  cards, per-engine model list (progressive disclosure), size shown before the
+  download, progress with `Отменить`, `Удалить` as a secondary action, and
+  `Проверить на микрофоне` running the routed engine on three seconds of audio.
+
+Deliberately not done, with the reason:
+
+- **More Piper voices.** The report recommends three Russian voices; this
+  release ships only the bundled `ru_RU-irina-medium`. The TTS *engine* is
+  already the local neural one (sherpa-onnx VITS through Piper), so a second
+  engine would be the same runtime with another voice — the honest unit of work
+  is "downloadable voices", which is a separate card. Native/Piper/Cloud stay
+  as they are.
+- **A local multimodal model as the speech backend.** The LiteRT candidates the
+  report examined (OmniEngine, LFM3-Audio) are English-first with no Russian
+  ASR quality data, and the Android runtime has no proven Russian audio path.
+  The option is not shown in the UI rather than shown and broken.
+- **Streaming partials for the neural engine.** NeMo CTC in sherpa-onnx is an
+  offline decoder: it transcribes a finished phrase. The session keeps Vosk's
+  end-of-speech rules and decodes at the pause, so the wave and the
+  «Говорите…» affordance still move in real time, but there is no word-by-word
+  preview.
+
+Verification performed for this implementation:
+
+- Both pinned models downloaded and hashed locally: `model.int8.onnx`
+  `d5fea8df…3b35` (224 893 661 B) and `tokens.txt` `142de757…39cd` (2 007 B)
+  for the punctuated export; the plain export's `tokens.txt` hashes to
+  `17cc5144…92f2` (196 B). All three pinned URLs answer HTTP 206 to a `Range`
+  probe with the pinned `x-linked-size`.
+- The punctuated model decoded the upstream `example.wav` through the
+  sherpa-onnx 2.0.3 CLI with `--num-threads=2`: RTF 0.143 (1.609 s for
+  11.290 s of audio) and correct Russian text with punctuation and
+  capitalisation. That confirms the files, the NeMo CTC config and the thread
+  count; it does not exercise the Android JNI wrapper, which CI's build does.
+- The routing table and the settings round-trip are covered by unit tests
+  (`SttRoutingTest`, `SttSettingsTest`): requested engine honoured, fallback on
+  a missing model, fallback on a memory shortfall, unknown memory not treated
+  as a shortfall, an unknown stored engine name reading back as Vosk, and the
+  new keys staying out of the settings export.
+
+Still unverified, and why: RTF and memory on a real phone (the measurement is a
+Raspberry Pi 5 proxy), GigaAM v3 accuracy on names, numbers and addresses (no
+public Russian WER for the CTC export), and the exact APK delta (local Gradle
+builds are forbidden in this repo; CI is the gate).

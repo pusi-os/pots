@@ -601,6 +601,12 @@ class FakeDataRepository : DataRepository {
         sttVoskModel = modelId
     }
 
+    private var sttNeuralModel: String = com.pusios.pots.data.AppSettings.DEFAULT_STT_NEURAL_MODEL
+    override fun getSttNeuralModel(): String = sttNeuralModel
+    override fun setSttNeuralModel(modelId: String) {
+        sttNeuralModel = modelId
+    }
+
     private var animatedBackground: com.pusios.pots.ui.background.AnimatedBackground =
         com.pusios.pots.ui.background.AnimatedBackground.NONE
 

@@ -159,7 +159,11 @@ internal class PotsikCloudOverlay(
 
     private val speechToText by lazy {
         val engine = settings?.getSttEngine()
-        if (engine == null) null else createSpeechToText(engine, settings?.getSttVoskModel().orEmpty())
+        if (engine == null) {
+            null
+        } else {
+            createSpeechToText(engine, settings?.getSttVoskModel().orEmpty(), settings?.getSttNeuralModel().orEmpty())
+        }
     }
 
     private val textToSpeech: PotsTextToSpeech? by lazy {

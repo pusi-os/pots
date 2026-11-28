@@ -166,6 +166,7 @@ class SettingsViewModel(
             ttsPitch = dataRepository.getTtsPitch(),
             sttEngine = dataRepository.getSttEngine(),
             sttVoskModel = dataRepository.getSttVoskModel(),
+            sttNeuralModel = dataRepository.getSttNeuralModel(),
             mcpServers = buildMcpServerEntries().toImmutableList(),
             localToolSelection = LocalToolSelection.effective(
                 selection = dataRepository.getLocalToolSelection(),
@@ -251,6 +252,7 @@ class SettingsViewModel(
         onTestPiperVoice = ::onTestPiperVoice,
         onChangeSttEngine = ::onChangeSttEngine,
         onChangeSttVoskModel = ::onChangeSttVoskModel,
+        onChangeSttNeuralModel = ::onChangeSttNeuralModel,
         onAddMcpServer = ::onAddMcpServer,
         onRemoveMcpServer = ::onRemoveMcpServer,
         onToggleMcpServer = ::onToggleMcpServer,
@@ -1144,6 +1146,11 @@ class SettingsViewModel(
     private fun onChangeSttVoskModel(modelId: String) {
         dataRepository.setSttVoskModel(modelId)
         _state.update { it.copy(sttVoskModel = modelId) }
+    }
+
+    private fun onChangeSttNeuralModel(modelId: String) {
+        dataRepository.setSttNeuralModel(modelId)
+        _state.update { it.copy(sttNeuralModel = modelId) }
     }
 
     private fun onTestPiperVoice() {
