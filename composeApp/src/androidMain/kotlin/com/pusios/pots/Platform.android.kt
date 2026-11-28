@@ -17,6 +17,7 @@ import com.pusios.pots.adb.AdbGate
 import com.pusios.pots.adb.AdbToolDependencies
 import com.pusios.pots.adb.AdbTools
 import com.pusios.pots.data.AppSettings
+import com.pusios.pots.data.DurableSettings
 import com.pusios.pots.data.EmailStore
 import com.pusios.pots.data.MemoryStore
 import com.pusios.pots.data.NotificationStore
@@ -32,6 +33,7 @@ import com.pusios.pots.data.vault.VaultStore
 import com.pusios.pots.data.vault.VaultToolDependencies
 import com.pusios.pots.data.vault.VaultTools
 import com.pusios.pots.mcp.McpServerManager
+import com.pusios.pots.mcp.mcpLog
 import com.pusios.pots.network.tools.Tool
 import com.pusios.pots.network.tools.ToolInfo
 import com.pusios.pots.notifications.NotificationReader
@@ -165,20 +167,70 @@ actual fun getAppFilesDirectory(): String {
 // Uses dev.spght:encryptedprefs-ktx — a maintained community fork of the deprecated
 // androidx.security:security-crypto. We keep application-level encryption because
 // secure settings store API keys, email passwords, and conversation encryption keys.
+// One SharedPreferences instance for the whole process: opening the encrypted store builds a
+// Keystore master key and reads the keyset file, and a second instance would redo both.
+private var cachedSecurePrefs: android.content.SharedPreferences? = null
+
 actual fun createSecureSettings(): Settings {
     val context: Context by inject(Context::class.java)
-    return try {
-        SharedPreferencesSettings(createEncryptedPrefs(context))
-    } catch (_: Exception) {
-        // AEADBadTagException occurs when Android Auto Backup restores the encrypted
-        // prefs file but the Keystore key is hardware-bound and doesn't transfer.
-        // Delete the corrupted file and recreate fresh encrypted prefs.
-        context.deleteSharedPreferences(SECURE_PREFS_NAME)
-        SharedPreferencesSettings(createEncryptedPrefs(context))
+    return SecurePrefsSettings(securePrefs(context))
+}
+
+/**
+ * Encrypted settings that can also flush a single key before returning.
+ *
+ * Token records need the flush: the authorization server rotates an OAuth refresh token and
+ * invalidates the old one, so a rotation that only reached `apply()` and was lost to a process kill
+ * costs the owner a full sign-in. Every other setting keeps the asynchronous write — `commit()` on
+ * the main thread is an ANR risk on slow flash.
+ */
+private class SecurePrefsSettings(
+    private val prefs: android.content.SharedPreferences,
+) : Settings by SharedPreferencesSettings(prefs),
+    DurableSettings {
+    override fun putStringDurable(key: String, value: String) {
+        prefs.edit().putString(key, value).commit()
+    }
+
+    override fun removeDurable(key: String) {
+        prefs.edit().remove(key).commit()
     }
 }
 
+private fun securePrefs(context: Context): android.content.SharedPreferences = cachedSecurePrefs ?: openSecurePrefs(context).also { cachedSecurePrefs = it }
+
+private fun openSecurePrefs(context: Context): android.content.SharedPreferences = try {
+    createEncryptedPrefs(context)
+} catch (e: Exception) {
+    // The Keystore key can be invalidated for good (a backup restored from a build that did not
+    // exclude this file, a lock-screen change, a vendor update) and nothing in the file decrypts
+    // any more. The old code deleted it — and it holds every non-secret setting as well. Move the
+    // unreadable files aside so a human can still recover them, and start from an empty store.
+    preserveUnreadableSecurePrefs(context, e)
+    createEncryptedPrefs(context)
+}
+
 private const val SECURE_PREFS_NAME = "pots_secure_prefs"
+
+/** Default keyset file of EncryptedSharedPreferences; also excluded from backup. */
+private const val KEYSET_PREFS_NAME = "__androidx_security_crypto_encrypted_prefs__"
+
+private fun preserveUnreadableSecurePrefs(context: Context, error: Exception) {
+    val dir = java.io.File(context.applicationInfo.dataDir, "shared_prefs")
+    val stamp = System.currentTimeMillis()
+    for (name in listOf(SECURE_PREFS_NAME, KEYSET_PREFS_NAME)) {
+        val file = java.io.File(dir, "$name.xml")
+        if (!file.exists()) continue
+        val target = java.io.File(dir, "$name.unreadable-$stamp.xml")
+        val moved = file.renameTo(target)
+        mcpLog(
+            "securePrefs",
+            name,
+            "unreadable (${error::class.simpleName}): " +
+                if (moved) "preserved as ${target.name}" else "could not be preserved",
+        )
+    }
+}
 
 private fun createEncryptedPrefs(context: Context): android.content.SharedPreferences {
     val masterKey = MasterKey.Builder(context)
