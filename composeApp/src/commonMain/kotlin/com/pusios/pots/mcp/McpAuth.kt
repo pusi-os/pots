@@ -307,9 +307,28 @@ data class McpStoredToken(
 }
 
 /**
+ * What a token read found.
+ *
+ * "Unreadable" is deliberately not folded into "absent": the record exists and the owner is still
+ * signed in, and answering with a fresh sign-in would overwrite the very bytes the app failed to
+ * decrypt.
+ */
+sealed interface McpTokenRead {
+    data class Loaded(val token: McpStoredToken) : McpTokenRead
+
+    data object Absent : McpTokenRead
+
+    data class Unreadable(val cause: String) : McpTokenRead
+}
+
+/**
  * Tokens and client registrations, one record per server id, in the secure settings store
  * (Android Keystore / iOS Keychain / encrypted file). Kept out of `McpServerConfig` so an
  * export of the settings never carries a bearer token.
+ *
+ * One key per server on purpose: the pre-3.21.4 single JSON map made one unreadable value wipe
+ * every server's token on the next save, because saving was read-all/write-all.
+ * [migrateLegacyTokens] moves an existing map over without a re-login.
  */
 class McpTokenStore(private val appSettings: AppSettings) {
     private val json = Json {
@@ -318,29 +337,128 @@ class McpTokenStore(private val appSettings: AppSettings) {
         explicitNulls = false
     }
 
-    fun load(serverId: String): McpStoredToken? = readAll()[serverId]
+    private var legacyMigrationDone = false
 
-    fun save(serverId: String, token: McpStoredToken) {
-        writeAll(readAll() + (serverId to token))
+    init {
+        // Before the first read: a record still sitting in the old map must be visible to [has] as
+        // well, or the card hides "forget token" for a token the app really has.
+        migrateLegacyTokens()
+    }
+
+    fun read(serverId: String): McpTokenRead {
+        migrateLegacyTokens()
+        val raw = try {
+            appSettings.getMcpTokenJson(serverId)
+        } catch (e: Exception) {
+            mcpLog("tokenStore", serverId, "unreadable: ${e.describe()}")
+            return McpTokenRead.Unreadable(e.describe())
+        }
+        if (raw.isNullOrBlank()) return McpTokenRead.Absent
+        return try {
+            McpTokenRead.Loaded(json.decodeFromString(McpStoredToken.serializer(), raw))
+        } catch (e: Exception) {
+            // The decoder's message quotes the whole record ("JSON input: …"), and that record is
+            // the bearer token: report the failure class only, never the text.
+            val cause = e.describeDecodeFailure()
+            mcpLog("tokenStore", serverId, "unreadable record: $cause")
+            McpTokenRead.Unreadable(cause)
+        }
+    }
+
+    fun load(serverId: String): McpStoredToken? = (read(serverId) as? McpTokenRead.Loaded)?.token
+
+    /** True when a record exists, readable or not: the owner can still forget a broken one. */
+    fun has(serverId: String): Boolean {
+        migrateLegacyTokens()
+        return try {
+            !appSettings.getMcpTokenJson(serverId).isNullOrBlank()
+        } catch (e: Exception) {
+            // The store threw, so the bytes may still be there and only "forget" can clear them.
+            // Answering false would hide that action exactly when the record is broken.
+            mcpLog("tokenStore", serverId, "unreadable: ${e.describe()}")
+            true
+        }
+    }
+
+    /** Returns false when the write failed: the caller must not report the token as stored. */
+    fun save(serverId: String, token: McpStoredToken): Boolean = try {
+        appSettings.setMcpTokenJson(serverId, json.encodeToString(McpStoredToken.serializer(), token))
+        true
+    } catch (e: Exception) {
+        mcpLog("tokenStore", serverId, "save failed: ${e.describe()}")
+        false
     }
 
     fun clear(serverId: String) {
-        val all = readAll()
-        if (serverId in all) writeAll(all - serverId)
+        try {
+            appSettings.removeMcpTokenJson(serverId)
+        } catch (e: Exception) {
+            mcpLog("tokenStore", serverId, "clear failed: ${e.describe()}")
+        }
     }
 
-    fun has(serverId: String): Boolean = serverId in readAll()
-
-    private fun readAll(): Map<String, McpStoredToken> = try {
-        val raw = appSettings.getMcpTokensJson()
-        if (raw.isBlank()) emptyMap() else json.decodeFromString(tokensSerializer, raw)
-    } catch (_: Exception) {
-        emptyMap()
+    /**
+     * Moves the pre-3.21.4 single map (`mcp_tokens`) into one key per server.
+     *
+     * Idempotent and fail-safe: the old blob is dropped only after every entry reads back from its
+     * own key, so a half-finished migration can never cost the owner a sign-in and a repeat run
+     * finds nothing left to do.
+     */
+    private fun migrateLegacyTokens() {
+        if (legacyMigrationDone) return
+        val legacyRaw = try {
+            appSettings.getMcpTokensJson()
+        } catch (e: Exception) {
+            mcpLog("tokenStore", "legacy", "unreadable: ${e.describe()}")
+            legacyMigrationDone = true
+            return
+        }
+        if (legacyRaw.isBlank()) {
+            legacyMigrationDone = true
+            return
+        }
+        val legacy = try {
+            json.decodeFromString(tokensSerializer, legacyRaw)
+        } catch (e: Exception) {
+            // This blob holds every server's token, so its decoder message is the worst possible
+            // thing to log: class name only.
+            mcpLog("tokenStore", "legacy", "unreadable map, left in place: ${e.describeDecodeFailure()}")
+            legacyMigrationDone = true
+            return
+        }
+        if (legacy.isEmpty()) {
+            appSettings.removeLegacyMcpTokens()
+            legacyMigrationDone = true
+            return
+        }
+        try {
+            for ((id, token) in legacy) {
+                if (appSettings.getMcpTokenJson(id) != null) continue
+                appSettings.setMcpTokenJson(id, json.encodeToString(McpStoredToken.serializer(), token))
+            }
+            if (!legacy.keys.all { id -> appSettings.getMcpTokenJson(id) != null }) {
+                mcpLog("tokenStore", "legacy", "migration incomplete, old map kept for the next run")
+                return
+            }
+            appSettings.removeLegacyMcpTokens()
+            legacyMigrationDone = true
+            mcpLog("tokenStore", "legacy", "migrated ${legacy.size} record(s)")
+        } catch (e: Exception) {
+            mcpLog("tokenStore", "legacy", "migration failed, old map kept: ${e.describe()}")
+        }
     }
 
-    private fun writeAll(tokens: Map<String, McpStoredToken>) {
-        appSettings.setMcpTokensJson(json.encodeToString(tokensSerializer, tokens))
-    }
+    private fun Throwable.describe(): String = "${this::class.simpleName ?: "error"}: ${message ?: "no message"}"
+
+    /**
+     * For a record that failed to decode, only the class name is safe.
+     *
+     * `kotlinx.serialization` puts the offending JSON into the exception message ("JSON input:
+     * {…accessToken…}"), so logging or returning that text would leak the bearer token into the
+     * logcat, the status card and the persisted `mcp_server_status`. The class name still tells a
+     * broken record apart from a Keystore failure, whose message contains no secret.
+     */
+    private fun Throwable.describeDecodeFailure(): String = this::class.simpleName ?: "SerializationException"
 
     private companion object {
         val tokensSerializer = MapSerializer(String.serializer(), McpStoredToken.serializer())
@@ -348,7 +466,7 @@ class McpTokenStore(private val appSettings: AppSettings) {
 }
 
 /** The discovery + registration + token half of the flow. Network only, no UI, no storage. */
-class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
+open class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
 
     /** The 401 challenge of the MCP endpoint, or null when it does not challenge at all. */
     suspend fun probeChallenge(url: String, headers: Map<String, String> = emptyMap()): WwwAuthenticate? = try {
@@ -468,7 +586,7 @@ class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
         ),
     )
 
-    suspend fun refresh(
+    open suspend fun refresh(
         token: McpStoredToken,
     ): Result<McpTokenResponse> = tokenRequest(
         tokenEndpoint = token.tokenEndpoint,
@@ -496,9 +614,18 @@ class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
             }
             val text = response.bodyAsText()
             if (response.status.value !in 200..299) {
-                // The body may carry `error=invalid_grant`; it never carries a token.
+                // The body may name the OAuth error (`invalid_grant`); it never carries a token, and
+                // the body itself is kept out of the message so a misbehaving AS cannot push
+                // anything into a log line through it.
+                val error = runCatching {
+                    Json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content
+                }.getOrNull()
                 return Result.failure(
-                    McpAuthException("Token endpoint returned HTTP ${response.status.value}: ${text.take(200)}"),
+                    McpTokenEndpointException(
+                        status = response.status.value,
+                        message = "token endpoint refused the request: HTTP ${response.status.value}" +
+                            (error?.let { " ($it)" } ?: ""),
+                    ),
                 )
             }
             val parsed = Json.parseToJsonElement(text).jsonObject
@@ -514,7 +641,7 @@ class McpAuthClient(private val http: HttpClient = defaultMcpAuthHttp()) {
                 ),
             )
         } catch (e: Exception) {
-            Result.failure(McpAuthException("Token request failed: ${e.message ?: "network error"}"))
+            Result.failure(McpTokenEndpointException(null, "token request failed: ${e.message ?: "network error"}"))
         }
     }
 
@@ -577,7 +704,19 @@ private fun defaultMcpAuthHttp(): HttpClient = httpClient {
     }
 }
 
-class McpAuthException(message: String) : Exception(message)
+open class McpAuthException(message: String) : Exception(message)
+
+/**
+ * The token endpoint answered with an error, or could not be reached at all.
+ *
+ * [status] is null for a transport failure. The difference is what separates "the network is down,
+ * try again" from "the grant is dead, the owner has to sign in" — folding the two together made a
+ * lost Wi-Fi packet at startup look like a revoked authorization.
+ */
+class McpTokenEndpointException(
+    val status: Int?,
+    message: String,
+) : McpAuthException(message)
 
 /** `scheme://host[:port]/path` without a fragment or trailing slash — the RFC 8707 resource. */
 internal fun canonicalResource(url: String): String {
