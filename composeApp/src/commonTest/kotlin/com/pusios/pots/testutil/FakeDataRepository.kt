@@ -21,6 +21,8 @@ import com.pusios.pots.data.ServiceInstance
 import com.pusios.pots.data.SmsDraft
 import com.pusios.pots.data.SmsSyncState
 import com.pusios.pots.data.SystemPromptVariant
+import com.pusios.pots.data.TaskStatus
+import com.pusios.pots.data.TaskTrigger
 import com.pusios.pots.data.ThemeMode
 import com.pusios.pots.data.ensureSelectedModelPresent
 import com.pusios.pots.inference.DownloadError
@@ -673,6 +675,44 @@ class FakeDataRepository : DataRepository {
 
     override suspend fun cancelScheduledTask(id: String) {
         scheduledTasksFlowInternal.value = scheduledTasksFlowInternal.value.filterNot { it.id == id }
+    }
+
+    override suspend fun pauseScheduledTask(id: String) {
+        scheduledTasksFlowInternal.value = scheduledTasksFlowInternal.value.map {
+            if (it.id == id) it.copy(status = TaskStatus.PAUSED) else it
+        }
+    }
+
+    override suspend fun resumeScheduledTask(id: String) {
+        scheduledTasksFlowInternal.value = scheduledTasksFlowInternal.value.map {
+            if (it.id == id) it.copy(status = TaskStatus.PENDING) else it
+        }
+    }
+
+    override suspend fun updateScheduledTask(task: ScheduledTask) {
+        scheduledTasksFlowInternal.value = scheduledTasksFlowInternal.value.map {
+            if (it.id == task.id) task else it
+        }
+    }
+
+    override suspend fun createScheduledTask(
+        description: String,
+        prompt: String,
+        scheduledAtEpochMs: Long,
+        cron: String?,
+        trigger: TaskTrigger,
+    ): ScheduledTask {
+        val task = ScheduledTask(
+            id = "fake-task-${scheduledTasksFlowInternal.value.size + 1}",
+            description = description,
+            prompt = prompt,
+            scheduledAtEpochMs = scheduledAtEpochMs,
+            createdAtEpochMs = 0L,
+            cron = cron,
+            trigger = trigger,
+        )
+        scheduledTasksFlowInternal.value = scheduledTasksFlowInternal.value + task
+        return task
     }
 
     // Daemon mode

@@ -203,6 +203,52 @@ class TaskScheduler(
     }
 
     /**
+     * Runs one task immediately without touching its schedule or status — the "run now"
+     * action, which has to work on paused and already-completed tasks too. The answer lands
+     * in the heartbeat conversation exactly like an automatic run, and the execution log
+     * records it, so the owner sees what the run produced.
+     */
+    suspend fun runTaskNow(task: ScheduledTask) {
+        val startedAt = Clock.System.now()
+        try {
+            val taskConversationId = dataRepository.getOrCreateHeartbeatConversationId()
+            val run = askWithRetry(
+                prompt = task.prompt,
+                primaryInstanceId = task.originInstanceId,
+                fallbackInstanceId = heartbeatManager?.getConfig()?.heartbeatFallbackInstanceId,
+                modelIdOverride = task.originModelId,
+                conversationIdOverride = taskConversationId,
+            )
+            if (run.content.isNotBlank()) {
+                val header = task.description.ifBlank { "Scheduled task" }
+                dataRepository.addAssistantMessage("**$header**\n\n${run.content}")
+            }
+            val now = Clock.System.now()
+            taskStore?.updateTask(
+                task.copy(
+                    lastResult = "Run manually at $now",
+                    recentExecutions = appendExecution(task, success = true, message = run.note),
+                    lastRunEpochMs = now.toEpochMilliseconds(),
+                    runCount = task.runCount + 1,
+                ),
+            )
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // A manual run that failed has to say so in the task's own history — the sheet has
+            // nowhere else to show it, and the user pressed the button expecting an answer.
+            val reason = if (e is ProviderRunFailedException) e.message.orEmpty() else formatException(e)
+            taskStore?.updateTask(
+                task.copy(
+                    lastResult = "Manual run failed at $startedAt: $reason",
+                    recentExecutions = appendExecution(task, success = false, message = reason),
+                    lastRunEpochMs = startedAt.toEpochMilliseconds(),
+                    runCount = task.runCount + 1,
+                ),
+            )
+        }
+    }
+
+    /**
      * One run against the primary instance, then the configured fallback.
      *
      * Retries are decided by the failure class: a rejected key, a missing model or a malformed
@@ -470,6 +516,7 @@ class TaskScheduler(
 
     private suspend fun handleTaskFailure(task: ScheduledTask, error: String? = null) {
         val now = Clock.System.now()
+        val ranAtMs = now.toEpochMilliseconds()
         val failures = task.consecutiveFailures + 1
         val reason = error ?: "unknown error"
         val log = appendExecution(task, success = false, message = reason)
@@ -488,6 +535,8 @@ class TaskScheduler(
                         lastResult = "Failed at $now: $reason (next retry at $nextExecution)",
                         consecutiveFailures = failures,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
             } else {
@@ -497,6 +546,8 @@ class TaskScheduler(
                         lastResult = "Failed at $now: $reason (no next schedule)",
                         consecutiveFailures = failures,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
             }
@@ -509,6 +560,8 @@ class TaskScheduler(
                     lastResult = "Failed at $now: $reason (retry after ${backoffMs / 1000}s backoff)",
                     consecutiveFailures = failures,
                     recentExecutions = log,
+                    lastRunEpochMs = ranAtMs,
+                    runCount = task.runCount + 1,
                 ),
             )
         }
@@ -516,6 +569,7 @@ class TaskScheduler(
 
     private suspend fun handleTaskCompletion(task: ScheduledTask, note: String? = null) {
         val now = Clock.System.now()
+        val ranAtMs = now.toEpochMilliseconds()
         // The run's note is the only thing a successful execution has to say; a plain run
         // leaves it null so the log stays one line per execution.
         val log = appendExecution(task, success = true, message = note)
@@ -532,6 +586,8 @@ class TaskScheduler(
                         lastResult = "Executed at $now (next schedule computation failed, will retry)",
                         consecutiveFailures = 0,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
                 return
@@ -544,6 +600,8 @@ class TaskScheduler(
                         status = TaskStatus.PENDING,
                         consecutiveFailures = 0,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
             } else {
@@ -554,6 +612,8 @@ class TaskScheduler(
                         lastResult = "Executed at $now (no next schedule)",
                         consecutiveFailures = 0,
                         recentExecutions = log,
+                        lastRunEpochMs = ranAtMs,
+                        runCount = task.runCount + 1,
                     ),
                 )
             }
@@ -565,6 +625,8 @@ class TaskScheduler(
                     lastResult = "Executed at $now",
                     consecutiveFailures = 0,
                     recentExecutions = log,
+                    lastRunEpochMs = ranAtMs,
+                    runCount = task.runCount + 1,
                 ),
             )
         }

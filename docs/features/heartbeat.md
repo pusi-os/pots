@@ -106,7 +106,8 @@ When the primary gives up:
 
 ## Heartbeat Log
 
-- Stores up to 5 most recent heartbeat entries
+- Stores up to 50 most recent heartbeat entries; the oldest are evicted first. The settings UI folds the list into a collapsed block, so a longer history costs no screen space
+- The journal can be emptied with `HeartbeatManager.clearLog()`
 - Each entry records success/failure, a timestamp, an optional error line, and an optional note
 - Displayed in the settings UI under the heartbeat section
 - Entries show an OK/FAIL indicator and a formatted local timestamp
@@ -146,6 +147,42 @@ The heartbeat section lives in the Agent tab of settings. The toggle and reset b
 | `promote_learning` | Promote a reinforced memory into the soul/system prompt |
 
 Standing additions to heartbeat behaviour are created with `schedule_task(on_heartbeat=true)` — see [tasks.md](tasks.md#heartbeat-triggered-tasks). Those prompts are appended to the main heartbeat self-check, not replaced.
+
+## Managing Scheduled Tasks
+
+Scheduled tasks and heartbeat additions are ordinary app data, not model state — they can be
+inspected and changed without talking to the agent.
+
+**Where they live.** Everything is in the app's plain `SharedPreferences` (not the encrypted
+store), through `AppSettings`:
+
+| Key | Contents |
+|---|---|
+| `scheduled_tasks` (`KEY_SCHEDULED_TASKS`) | The whole task list, JSON-encoded `ScheduledTask` array. `TaskStore` owns it |
+| `heartbeat_log` (`KEY_HEARTBEAT_LOG`) | The heartbeat journal, JSON-encoded `HeartbeatLogEntry` array |
+| `heartbeat_config` (`KEY_HEARTBEAT_CONFIG`) | Interval, active hours, enabled flag, model slots, custom prompt |
+
+**Lifecycle.** `TaskStatus` is `PENDING`, `PAUSED`, or `COMPLETED`. Every executor —
+the time poll loop, the cron advance, and the heartbeat-addition gatherer — filters on
+`PENDING`, so pausing is a pure status flip: the schedule is untouched and nothing can fire
+by accident. Resuming flips it back. Neither needs the schedule recomputed.
+
+**What a heartbeat task is.** `schedule_task(on_heartbeat=true)` creates a task with
+`TaskTrigger.HEARTBEAT`. It has no clock and no cron: its prompt is appended to every
+heartbeat self-check under `## Heartbeat Additions` for as long as the task is `PENDING`.
+Its run history is the heartbeat journal, not `recentExecutions`.
+
+**A past heartbeat answer is not an instruction.** Only a `PENDING` task in
+`## Pending Tasks` / `## Heartbeat Additions` asks the pulse to do something. Text in a
+previous heartbeat reply is a record of what the model said then; if the task behind it was
+deleted or paused, nothing is scheduled any more. The way to stop a check that keeps
+reappearing is therefore to delete or pause the task — not to ask the model in chat.
+
+**In the UI.** Settings → Agent → Scheduled Tasks lists every task with a type badge, a
+status chip, and the next run. Tapping a row opens the task card with pause/resume, run now,
+edit (description, prompt, time or cron, validated), and delete. Run history and the raw
+prompt sit in collapsed blocks. The list stays visible when scheduling is off, marked
+"schedule is off", so tasks are never invisible just because the switch is down.
 
 ## Key Files
 

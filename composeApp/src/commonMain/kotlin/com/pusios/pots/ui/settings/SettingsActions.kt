@@ -3,7 +3,9 @@ package com.pusios.pots.ui.settings
 import androidx.compose.runtime.Immutable
 import com.pusios.pots.data.AgentTuning
 import com.pusios.pots.data.ImportSection
+import com.pusios.pots.data.ScheduledTask
 import com.pusios.pots.data.Service
+import com.pusios.pots.data.TaskTrigger
 import com.pusios.pots.data.ThemeMode
 import com.pusios.pots.inference.LocalModel
 import com.pusios.pots.mcp.PopularMcpServer
@@ -45,6 +47,11 @@ data class SettingsActions(
     val onUpdateMemory: (String, String) -> Unit,
     val onToggleScheduling: (Boolean) -> Unit,
     val onCancelTask: (String) -> Unit,
+    val onPauseTask: (String) -> Unit,
+    val onResumeTask: (String) -> Unit,
+    val onRunTaskNow: (ScheduledTask) -> Unit,
+    val onUpdateTask: (ScheduledTask) -> Unit,
+    val onCreateTask: (String, String, TaskTrigger, Long, String?) -> Unit,
     val onToggleDaemon: (Boolean) -> Unit,
     val onToggleHeartbeat: (Boolean) -> Unit,
     val onChangeHeartbeatInterval: (Int) -> Unit,
@@ -140,6 +147,11 @@ data class SettingsActions(
             onUpdateMemory = { _, _ -> },
             onToggleScheduling = {},
             onCancelTask = {},
+            onPauseTask = {},
+            onResumeTask = {},
+            onRunTaskNow = {},
+            onUpdateTask = {},
+            onCreateTask = { _, _, _, _, _ -> },
             onToggleDaemon = {},
             onToggleHeartbeat = {},
             onChangeHeartbeatInterval = {},
