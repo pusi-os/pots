@@ -109,6 +109,8 @@ data class SettingsUiState(
     val heartbeatActiveHoursEnd: Int = 22,
     val heartbeatPrompt: String = "",
     val heartbeatLog: ImmutableList<HeartbeatLogEntry> = persistentListOf(),
+    /** Set when the pulse keeps delivering the same report; the settings card says so. */
+    val heartbeatRepeatWarning: HeartbeatRepeatWarning? = null,
     val heartbeatServiceEntries: ImmutableList<ServiceEntry> = persistentListOf(),
     val heartbeatSelectedInstanceId: String? = null,
     val heartbeatFallbackInstanceId: String? = null,

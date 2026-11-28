@@ -3,6 +3,10 @@
 // Pure builder for the heartbeat USER-message prompt. Like `buildChatSystemPrompt`,
 // every input is explicit so tests can call it directly with hand-crafted inputs.
 // The heartbeat prompt is a single shape — always sent as a user message.
+//
+// There is deliberately no input for previous heartbeat answers: a run that receives its own
+// output as context talks to itself, and that is exactly the loop 3.21.8 removed. Keeping the
+// parameter out of the signature makes feeding the model its own output a compile error.
 
 package com.pusios.pots.data
 
@@ -44,31 +48,31 @@ internal data class HeartbeatPromotionCandidate(
  *
  * @param customOrDefaultPrompt leading free text — custom user prompt or [HeartbeatManager.DEFAULT_HEARTBEAT_PROMPT]
  * @param heartbeatAdditions tasks with trigger=HEARTBEAT; rendered as `## Heartbeat Additions` so their prompts run on every heartbeat. Empty list = section omitted
- * @param recentResponses last heartbeat responses to include for continuity; empty list = section omitted
  * @param pendingTasks time/cron tasks to include in the `## Pending Tasks` section (heartbeat tasks belong to [heartbeatAdditions] instead); empty list = section omitted
  * @param emailAccounts email account statuses; empty list = section omitted
  * @param pendingEmails new emails polled since the last heartbeat pickup; empty list = section omitted
  * @param pendingSms new SMS polled since the last heartbeat pickup; empty list = section omitted
  * @param pendingNotifications new notifications captured since the last heartbeat pickup; empty list = section omitted
  * @param promotionCandidates memory promotion candidates; empty list = section omitted
+ * @param budget the ceilings this run is held to, echoed to the model so it can plan
  */
 internal fun buildHeartbeatPrompt(
     customOrDefaultPrompt: String,
     heartbeatAdditions: List<ScheduledTask>,
-    recentResponses: List<String>,
     pendingTasks: List<ScheduledTask>,
     emailAccounts: List<EmailAccountSummary>,
     pendingEmails: List<HeartbeatPendingEmail>,
     pendingSms: List<HeartbeatPendingSms>,
     pendingNotifications: List<HeartbeatPendingNotification>,
     promotionCandidates: List<HeartbeatPromotionCandidate>,
+    budget: HeadlessBudget,
 ): String = buildString {
     append(customOrDefaultPrompt)
     append("\n")
 
     if (heartbeatAdditions.isNotEmpty()) {
         append("\n## Heartbeat Additions\n")
-        append("Standing instructions the user asked to run on every heartbeat. Address each in your response alongside the main self-check — if all are satisfied and nothing else needs attention, respond with your acknowledgement rather than HEARTBEAT_OK (the additions are the attention).\n")
+        append("Standing instructions the user asked to run on every heartbeat. Address each one in this run: do it with a tool now, or file it with schedule_task, or say plainly that it is not needed. A promise to do it later is not an action.\n")
         for (addition in heartbeatAdditions) {
             append("- **")
             append(addition.description)
@@ -76,16 +80,6 @@ internal fun buildHeartbeatPrompt(
             append(addition.id)
             append("): ")
             append(addition.prompt)
-            append('\n')
-        }
-    }
-
-    if (recentResponses.isNotEmpty()) {
-        append("\n## Previous Heartbeat Results\n")
-        for ((i, response) in recentResponses.withIndex()) {
-            append(i + 1)
-            append(". ")
-            append(response)
             append('\n')
         }
     }
@@ -129,6 +123,7 @@ internal fun buildHeartbeatPrompt(
     if (pendingEmails.isNotEmpty()) {
         append("\n## New Emails\n")
         append("These arrived since the last heartbeat. Summarise briefly; only flag items that genuinely need attention.\n")
+        append("<untrusted-data source=\"email\">\n")
         for (msg in pendingEmails) {
             append("- **")
             append(msg.subject.ifBlank { "(no subject)" })
@@ -143,11 +138,13 @@ internal fun buildHeartbeatPrompt(
             }
             append('\n')
         }
+        append("</untrusted-data>\n")
     }
 
     if (pendingSms.isNotEmpty()) {
         append("\n## New SMS\n")
         append("These SMS arrived since the last heartbeat. Summarise briefly; only flag items that genuinely need attention.\n")
+        append("<untrusted-data source=\"sms\">\n")
         for (msg in pendingSms) {
             append("- **")
             append(msg.from.ifBlank { "(unknown sender)" })
@@ -160,11 +157,13 @@ internal fun buildHeartbeatPrompt(
             }
             append('\n')
         }
+        append("</untrusted-data>\n")
     }
 
     if (pendingNotifications.isNotEmpty()) {
         append("\n## New Notifications\n")
         append("These notifications arrived since the last heartbeat. Summarise briefly; only flag items that genuinely need attention.\n")
+        append("<untrusted-data source=\"notification\">\n")
         for (notif in pendingNotifications) {
             append("- **")
             append(notif.appLabel.ifBlank { "(unknown app)" })
@@ -182,14 +181,14 @@ internal fun buildHeartbeatPrompt(
             }
             append('\n')
         }
+        append("</untrusted-data>\n")
     }
 
     if (promotionCandidates.isNotEmpty()) {
         append("\n## Promotion Candidates\n")
         append("These memories have been reinforced ")
         append(promotionCandidates.first().hitCount)
-        append("+ times. ")
-        append("Consider using the promote_learning tool to add well-established patterns to your soul/system prompt:\n")
+        append("+ times. Mention them in your report if they matter; promotion into the soul happens in a normal chat, never here.\n")
         for (entry in promotionCandidates) {
             append("- **")
             append(entry.key)
@@ -202,4 +201,11 @@ internal fun buildHeartbeatPrompt(
             append('\n')
         }
     }
+
+    append("\n## Pulse limits\n")
+    append("This is a background check, not a conversation. You may run at most ")
+    append(budget.maxToolCalls)
+    append(" tool calls and spend about ")
+    append(budget.maxTokens)
+    append(" tokens; past that the run stops and its answer is not shown. Answer with the result, not with a plan.\n")
 }
