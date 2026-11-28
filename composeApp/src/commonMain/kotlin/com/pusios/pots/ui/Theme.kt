@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.input.VisualTransformation
@@ -110,6 +111,42 @@ val LightColorScheme = lightColorScheme(
 
 @Composable
 fun outlineTextFieldColors() = OutlinedTextFieldDefaults.colors()
+
+/**
+ * Colours of the recording indicator.
+ *
+ * They live in the theme, not in the component, because the overlay (3.21.5)
+ * draws the same neon on the same dark background and two copies of a hex value
+ * drift apart. Contrast against [ColorScheme.surface] is measured in
+ * `docs/features/hands-free.md`.
+ */
+data class PotsRecordingColors(
+    /** Bars of the live wave. */
+    val wave: Color,
+    /** The flat wave of a session that hears nothing yet, and of Finalising. */
+    val waveIdle: Color,
+    /** The LED timer digits. */
+    val led: Color,
+    /** Plate fill: glass by fill, border and radius, not by blur. */
+    val surface: Color,
+    /** Plate border. */
+    val border: Color,
+)
+
+@Composable
+fun potsRecordingColors(): PotsRecordingColors {
+    // The scheme is the source of truth for light/dark: the app has a pure black
+    // OLED flavour as well as the plain dark one, and both are "dark" here.
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val wave = if (dark) Color(0xFF00FF66) else Color(0xFF00802B)
+    return PotsRecordingColors(
+        wave = wave,
+        waveIdle = wave.copy(alpha = 0.3f),
+        led = if (dark) Color(0xFF7CFFB2) else Color(0xFF00663A),
+        surface = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (dark) 0.55f else 0.7f),
+        border = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+    )
+}
 
 @Composable
 fun PotsOutlinedTextField(

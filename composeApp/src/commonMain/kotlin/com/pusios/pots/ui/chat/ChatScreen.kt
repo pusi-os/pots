@@ -98,6 +98,7 @@ import com.pusios.pots.data.supportsAgenticFlows
 import com.pusios.pots.getBackgroundDispatcher
 import com.pusios.pots.handsfree.HandsFreeController
 import com.pusios.pots.handsfree.HandsFreeStatus
+import com.pusios.pots.handsfree.applyDictation
 import com.pusios.pots.handsfree.createSpeechToText
 import com.pusios.pots.onDragAndDropEventDropped
 import com.pusios.pots.permissionQualifier
@@ -111,6 +112,7 @@ import com.pusios.pots.ui.chat.composables.CircleIconButton
 import com.pusios.pots.ui.chat.composables.EmptyState
 import com.pusios.pots.ui.chat.composables.ErrorMessage
 import com.pusios.pots.ui.chat.composables.FreeProviderSuggestionsPanel
+import com.pusios.pots.ui.chat.composables.HandsFreeRecordingBar
 import com.pusios.pots.ui.chat.composables.HeartbeatBanner
 import com.pusios.pots.ui.chat.composables.OnboardingFinalCard
 import com.pusios.pots.ui.chat.composables.OnboardingSuccessCard
@@ -235,6 +237,11 @@ fun ChatScreenContent(
     // A saved app can run over the chat without becoming a navigation destination.
     var runningMiniAppId by rememberSaveable { mutableStateOf<String?>(null) }
     var profileHandoff by remember { mutableStateOf<Pair<AgentProfile, AgentProfile>?>(null) }
+    // Hoisted out of ChatModeScreen so the hands-free loop can write the
+    // recognised text into it and clear it once the transcript is submitted.
+    var questionInputText by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
 
     // The character's stage. The app hands in the one the agent's tool writes
     // to; a preview that has no app behind it gets its own.
@@ -273,6 +280,9 @@ fun ChatScreenContent(
             speechToText = speechToText,
             onSubmit = { question ->
                 screenKeyboardController?.hide()
+                // The transcript was dictated into the composer; it is gone from
+                // the field now that it is a message.
+                questionInputText = TextFieldValue("")
                 uiState.actions.ask(question)
             },
         )
@@ -333,6 +343,8 @@ fun ChatScreenContent(
                     uiState = uiState,
                     textToSpeech = textToSpeech,
                     handsFree = handsFree,
+                    questionInputText = questionInputText,
+                    onQuestionInputTextChange = { questionInputText = it },
                     onNavigateToSettings = onNavigateToSettings,
                     isSandboxAvailable = isSandboxAvailable,
                     onOpenPotsBuild = { isPotsBuildOpen = true }.takeIf { isPotsBuildAvailable },
@@ -901,6 +913,8 @@ private fun ChatModeScreen(
     uiState: ChatUiState,
     textToSpeech: PotsTextToSpeech?,
     handsFree: HandsFreeController,
+    questionInputText: TextFieldValue,
+    onQuestionInputTextChange: (TextFieldValue) -> Unit,
     onNavigateToSettings: () -> Unit,
     isSandboxAvailable: Boolean,
     onOpenPotsBuild: (() -> Unit)?,
@@ -920,11 +934,6 @@ private fun ChatModeScreen(
     var showTokenStats by remember { mutableStateOf(false) }
     var isSandboxOpen by rememberSaveable { mutableStateOf(initialSandboxOpen) }
     var isMediaOpen by rememberSaveable { mutableStateOf(false) }
-    // Hoisted here so the draft survives toggling the sandbox/terminal view, which
-    // removes QuestionInput from composition and would otherwise drop the text.
-    var questionInputText by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(TextFieldValue(""))
-    }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -932,6 +941,41 @@ private fun ChatModeScreen(
     // Speak every new assistant reply while the hands-free loop is running. The effect is
     // keyed on the message id, so a reply is spoken exactly once.
     val handsFreeStatus by handsFree.status.collectAsStateWithLifecycle()
+    val handsFreeRecording by handsFree.recording.collectAsStateWithLifecycle()
+    val handsFreeTranscript by handsFree.transcript.collectAsStateWithLifecycle()
+
+    // The part of the composer that the running dictation wrote. The next
+    // partial replaces exactly it, so text typed meanwhile is not eaten.
+    var dictationTail by remember { mutableStateOf("") }
+
+    // The composer is the source of truth for dictation: the text that was in the
+    // field when a session started is remembered as the draft, and the running
+    // transcript is appended to it. Text typed by hand is never replaced by what
+    // was said, and what was said is never lost when the session ends.
+    LaunchedEffect(handsFreeRecording?.startedAt) {
+        if (handsFreeRecording != null) {
+            handsFree.dictationDraft = questionInputText.text
+            dictationTail = ""
+        }
+    }
+    LaunchedEffect(handsFreeTranscript) {
+        if (handsFreeRecording == null || handsFreeTranscript.isEmpty()) return@LaunchedEffect
+        val current = questionInputText
+        val update = applyDictation(current.text, dictationTail, handsFreeTranscript)
+        dictationTail = update.tail
+        // The controller composes the message from this same draft, so what is
+        // sent is exactly what the field shows.
+        handsFree.dictationDraft = update.draft
+        val wasAtEnd = current.selection.collapsed && current.selection.start == current.text.length
+        onQuestionInputTextChange(
+            TextFieldValue(
+                text = update.text,
+                // The cursor follows the dictation only when it was at the end;
+                // a cursor the user placed elsewhere stays where it was.
+                selection = if (wasAtEnd) TextRange(update.text.length) else current.selection,
+            ),
+        )
+    }
     val lastAssistantMessage = uiState.history.lastRenderedAssistant()
     LaunchedEffect(lastAssistantMessage?.id) {
         val assistant = lastAssistantMessage ?: return@LaunchedEffect
@@ -961,9 +1005,11 @@ private fun ChatModeScreen(
 
     LaunchedEffect(uiState.composerPrefill) {
         val prefill = uiState.composerPrefill ?: return@LaunchedEffect
-        questionInputText = TextFieldValue(
-            text = prefill,
-            selection = TextRange(prefill.length),
+        onQuestionInputTextChange(
+            TextFieldValue(
+                text = prefill,
+                selection = TextRange(prefill.length),
+            ),
         )
         if (isSandboxOpen) isSandboxOpen = false
         uiState.actions.consumeComposerPrefill()
@@ -1527,6 +1573,29 @@ private fun ChatModeScreen(
 
             // The media studio has its own single prompt field; the chat input stays hidden.
             if (!isSandboxOpen && !isMediaOpen) {
+                val recording = handsFreeRecording
+                if (recording != null) {
+                    HandsFreeRecordingBar(
+                        recording = recording,
+                        transcript = handsFreeTranscript,
+                        canSend = questionInputText.text.isNotBlank(),
+                        onRestart = {
+                            // «Отменить и начать заново»: only this session's
+                            // dictation is dropped, the draft typed by hand stays.
+                            onQuestionInputTextChange(TextFieldValue(handsFree.dictationDraft))
+                            handsFree.restartListening()
+                        },
+                        onKeepText = { handsFree.finishListening() },
+                        onSendNow = {
+                            val text = questionInputText.text
+                            if (text.isNotBlank()) {
+                                onQuestionInputTextChange(TextFieldValue(""))
+                                handsFree.sendNow(text)
+                            }
+                        },
+                        onRetry = { handsFree.resume() },
+                    )
+                }
                 QuestionInput(
                     files = uiState.files,
                     addFile = uiState.actions.addFile,
@@ -1534,11 +1603,16 @@ private fun ChatModeScreen(
                     ask = { text ->
                         keyboardController?.hide()
                         focusManager.clearFocus(force = true)
-                        uiState.actions.ask(text)
+                        // One send path. A direct `ask` left the recognition
+                        // session open, and its final result sent the same
+                        // phrase a second time a few seconds later; while the
+                        // loop runs the controller sends the field text and
+                        // closes the session itself.
+                        handsFree.sendComposerText(text, uiState.actions.ask)
                     },
                     supportedFileExtensions = uiState.supportedFileExtensions,
                     textState = questionInputText,
-                    onTextStateChange = { questionInputText = it },
+                    onTextStateChange = onQuestionInputTextChange,
                     isLoading = uiState.isLoading,
                     cancel = uiState.actions.cancel,
                     availableServices = uiState.availableServices,
