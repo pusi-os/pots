@@ -412,7 +412,7 @@
     <string name="settings_mcp_popular_servers">Популярные серверы</string>
     <string name="settings_mcp_status_needs_auth">Нужен вход</string>
     <string name="settings_mcp_status_disabled">Выключен</string>
-    <string name="settings_mcp_status_unknown">Ещё не подключался</string>
+    <string name="settings_mcp_status_unknown">Не проверено в этой сессии</string>
     <string name="settings_mcp_authorize">Авторизоваться</string>
     <string name="settings_mcp_retry">Повторить</string>
     <string name="settings_mcp_sign_out">Забыть токен</string>

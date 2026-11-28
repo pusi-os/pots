@@ -489,7 +489,7 @@
     <string name="settings_mcp_popular_servers">Popular Servers</string>
     <string name="settings_mcp_status_needs_auth">Sign-in required</string>
     <string name="settings_mcp_status_disabled">Disabled</string>
-    <string name="settings_mcp_status_unknown">Not connected yet</string>
+    <string name="settings_mcp_status_unknown">Not checked in this session</string>
     <string name="settings_mcp_authorize">Sign in</string>
     <string name="settings_mcp_retry">Retry</string>
     <string name="settings_mcp_sign_out">Forget token</string>

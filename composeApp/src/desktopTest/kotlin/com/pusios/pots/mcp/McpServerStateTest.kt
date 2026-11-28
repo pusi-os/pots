@@ -200,9 +200,20 @@ class McpServerStateTest {
         val second = manager(settings) { FakeMode.Ok }
 
         val status = second.status(server.id)
-        assertEquals(McpServerStateKind.Connected, status.state)
-        assertEquals(2, status.toolCount)
-        assertEquals(listOf("search", "create_issue"), second.getEnabledMcpTools().map { it.schema.name })
+        // The persisted "connected" is a snapshot taken by the previous process: it is shown as
+        // unverified until this process reaches the server itself, which is what the reconnect at
+        // startup does within seconds. Claiming "connected" here is what let the card disagree with
+        // a live 401.
+        assertEquals(McpServerStateKind.Unknown, status.state)
+        assertEquals(2, status.toolCount, "the cached tools are still there")
+        assertEquals(
+            listOf("search", "create_issue"),
+            second.getEnabledMcpTools().map { it.schema.name },
+            "the agent sees the server on its first turn, before the reconnect finishes",
+        )
+
+        assertTrue(second.connect(server.id).isSuccess)
+        assertEquals(McpServerStateKind.Connected, second.status(server.id).state)
     }
 
     @Test
@@ -323,9 +334,9 @@ class McpServerStateTest {
         manager.setManualToken(server.id, "  pat-secret  ")
 
         assertTrue(manager.hasStoredToken(server.id))
-        // The token lives in the secure settings blob, not in the server configuration that is
+        // The token lives in its own secure record, not in the server configuration that is
         // exported with the rest of the settings.
         assertFalse(settings.getMcpServersJson().contains("pat-secret"))
-        assertTrue(settings.getMcpTokensJson().contains("pat-secret"))
+        assertTrue(settings.getMcpTokenJson(server.id).orEmpty().contains("pat-secret"))
     }
 }

@@ -134,6 +134,49 @@ Every tool must have a unique name in a request. An MCP tool whose name is alrea
 - The OAuth redirect needs a loopback listener: iOS and web fall back to a manual token
 - MCP tool parameters preserve full JSON Schema (including nested `items`, `properties`, `enum`) for accurate API serialization
 
+## Credentials: where they live and what survives a restart
+
+Tokens are the only part of MCP state that is a secret, and they are kept apart from everything else.
+
+| Question | Answer |
+|---|---|
+| Where is a token stored? | Its own record per server, `mcp_token_<serverId>`, in the platform secure store: `EncryptedSharedPreferences` on Android (Keystore), the Keychain on iOS, an encrypted file on desktop. |
+| Is it in the server config? | No. `McpServerConfig` never holds a token, so `mcp_servers` — and any settings export built from it — carries no bearer token. |
+| Is it in a backup? | No. `pots_secure_prefs.xml` and the Keystore-wrapped prefs file are excluded from Auto Backup and device transfer in `backup_rules.xml` / `data_extraction_rules.xml`. |
+| Is it in the logs? | No. `mcpLog` prints a step, a server id and a reason; never a header, a body or a token. A failed token request reports the OAuth `error` field only. |
+| Written with `apply()` or `commit()`? | `commit()`, and only for tokens. The refresh token rotates on every refresh (OAuth 2.1 §4.3.1), so a rotation that is still in memory when the process dies means the next refresh is `invalid_grant` — a forced re-login. Ordinary settings stay on `apply()`. |
+
+### What happens on restart, update, or revocation
+
+- **Restart or APK update.** The token is on disk, so the server reconnects on its own:
+  `ChatViewModel` calls `connectEnabledMcpServers()` at startup and the agent has the tools from the
+  first turn. Until that reconnect finishes the card shows *Not checked in this session* — the
+  persisted `Connected` of the previous process is deliberately not shown as a live fact, because it
+  is what used to let the card say "connected" while every call returned 401.
+- **Expired access token.** It is refreshed silently, and the rotated token is stored before the
+  call returns. The agent never sees a "not authorized" answer for a token it could renew.
+- **Refresh refused (`invalid_grant`, 401/403).** The card turns *Sign-in required* with the OAuth
+  error as the reason and the existing **Sign in** button. A manual (pasted) token that expired says
+  so and asks for a replacement instead of starting a browser flow.
+- **Network down during refresh.** The card says *Error* with "token not refreshed", not "sign-in
+  required": a lost packet is not a revoked grant. The next start or the Retry button tries again.
+- **Secure store cannot be decrypted** (Keystore invalidated by a restore or a key change). The
+  record is reported as unreadable and left untouched — the app does not delete the encrypted
+  preferences file and does not offer a sign-in that would overwrite what it failed to read. The
+  card shows the storage error; the file is preserved as `<name>.unreadable-<timestamp>.xml`.
+
+### Upgrades from 3.21.3 and earlier
+
+Two migrations run once on the first start of 3.21.4 and need no owner action:
+
+1. **Token map → per-server records.** The old single JSON map `mcp_tokens` is split into
+   `mcp_token_<serverId>` keys. The old blob is dropped only after every entry reads back from its
+   own key, so an interrupted migration costs nobody a sign-in.
+2. **Profile selection.** A profile created before 3.21.4 stored a snapshot of the servers enabled at
+   creation time, so a server added earlier read as disabled while its token was valid. Every
+   authorized server is added to the explicit selection once (`mcp_profile_selection_migrated_v1`);
+   a later manual switch-off stays off.
+
 ## Key Files
 
 | File | Purpose |

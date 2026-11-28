@@ -93,6 +93,27 @@ class McpServerManager(
         // One-shot: fill missing popular default headers (e.g. Jina Authorization) without
         // overwriting headers the user already configured.
         migratePopularDefaultHeaders()
+        migrateProfileMcpServerSelection()
+    }
+
+    /**
+     * Repairs the MCP selection of profiles created before 3.21.4.
+     *
+     * Such a profile stored a snapshot of the servers enabled at creation time, so a server added
+     * earlier (or restored from a settings export, which writes `mcp_servers` past the profiles)
+     * is not in it: `getServers()` then reports `isEnabled = false`, the agent never sees the
+     * server, and the UI shows it switched off next to a perfectly valid stored token. Only
+     * servers that already have a token are added — those are the ones the owner signed in to —
+     * and a one-shot flag keeps a later manual switch off.
+     */
+    private fun migrateProfileMcpServerSelection() {
+        if (appSettings.isMcpProfileSelectionMigrated()) return
+        val authorized = servers.get().filter { tokenStore.has(it.id) }.map { it.id }.toSet()
+        val added = appSettings.addMcpServersToProfileSelections(authorized)
+        appSettings.setMcpProfileSelectionMigrated()
+        if (added > 0) {
+            mcpLog("profiles", "mcp", "added $added authorized server(s) to profile selections")
+        }
     }
 
     // ------------------------------------------------------------------ configuration
@@ -226,11 +247,28 @@ class McpServerManager(
         }
         mcpLog("connect", serverId, "start")
 
-        val stored = tokenStore.load(serverId)
+        val read = tokenStore.read(serverId)
+        if (read is McpTokenRead.Unreadable) {
+            // "No token" and "the store cannot be read" are indistinguishable to the owner
+            // otherwise, and the second one must not be answered with a fresh sign-in that would
+            // overwrite the record the app failed to decrypt.
+            return fail(serverId, McpFailureKind.NeedsAuth, null, "Хранилище токенов недоступно: ${read.cause}")
+        }
+        val stored = (read as? McpTokenRead.Loaded)?.token
         if (stored != null && stored.isExpired()) {
             mcpLog("refresh", serverId, "stored token expired")
-            if (refreshToken(serverId, stored) == null) {
-                return fail(serverId, McpFailureKind.NeedsAuth, null, "Токен истёк, нужна повторная авторизация")
+            when (val outcome = refreshAccessToken(serverId, stored)) {
+                is RefreshOutcome.Refreshed -> Unit
+                RefreshOutcome.ManualToken ->
+                    return fail(serverId, McpFailureKind.NeedsAuth, null, "Срок ручного токена истёк — замените его в настройках")
+                RefreshOutcome.NoRefreshToken ->
+                    return fail(serverId, McpFailureKind.NeedsAuth, null, "Токен истёк, сервер не выдал refresh-токен — нужен повторный вход")
+                is RefreshOutcome.Refused ->
+                    return fail(serverId, McpFailureKind.NeedsAuth, null, "Сервер отказал в обновлении токена: ${outcome.detail}")
+                // A network blip is not a revoked authorization: report it as unreachable so the
+                // backoff retries and the UI says "no connection" instead of demanding a sign-in.
+                is RefreshOutcome.Transient ->
+                    return fail(serverId, McpFailureKind.Unreachable, null, "Токен не обновлён: ${outcome.detail}")
             }
         }
 
@@ -269,11 +307,16 @@ class McpServerManager(
                 is Attempt.Failed -> {
                     // A 401 with a refresh token is worth one silent retry; anything else is final.
                     val token = tokenStore.load(serverId)
-                    if (attempt.kind == McpFailureKind.NeedsAuth && !refreshedOnce &&
-                        token?.refreshToken != null && refreshToken(serverId, token) != null
-                    ) {
-                        refreshedOnce = true
-                        continue
+                    if (attempt.kind == McpFailureKind.NeedsAuth && !refreshedOnce && token != null) {
+                        when (val outcome = refreshAccessToken(serverId, token)) {
+                            is RefreshOutcome.Refreshed -> {
+                                refreshedOnce = true
+                                continue
+                            }
+                            is RefreshOutcome.Transient ->
+                                return fail(serverId, McpFailureKind.Unreachable, null, "Токен не обновлён: ${outcome.detail}")
+                            else -> return fail(serverId, attempt.kind, attempt.status, authRefusal(outcome, attempt.detail))
+                        }
                     }
                     return fail(serverId, attempt.kind, attempt.status, attempt.detail)
                 }
@@ -327,12 +370,41 @@ class McpServerManager(
         }
     }
 
-    private suspend fun refreshToken(serverId: String, token: McpStoredToken): McpStoredToken? {
-        if (token.refreshToken == null || token.tokenEndpoint.isBlank()) return null
+    /** Why an access token could not be renewed. The caller decides whether a sign-in is required. */
+    private sealed interface RefreshOutcome {
+        data class Refreshed(val token: McpStoredToken) : RefreshOutcome
+
+        /** A pasted token: there is no token endpoint to renew it against. */
+        data object ManualToken : RefreshOutcome
+
+        /** An OAuth record the authorization server issued without a refresh token. */
+        data object NoRefreshToken : RefreshOutcome
+
+        /** Network, timeout or 5xx: retrying later can work, a sign-in is not required. */
+        data class Transient(val detail: String) : RefreshOutcome
+
+        /** The authorization server answered and said no (400/401/403, e.g. `invalid_grant`). */
+        data class Refused(val detail: String) : RefreshOutcome
+    }
+
+    private suspend fun refreshAccessToken(serverId: String, token: McpStoredToken): RefreshOutcome {
+        if (token.tokenEndpoint.isBlank()) {
+            mcpLog("refresh", serverId, "no token endpoint (manual token)")
+            return RefreshOutcome.ManualToken
+        }
+        if (token.refreshToken == null) {
+            mcpLog("refresh", serverId, "no refresh token stored")
+            return RefreshOutcome.NoRefreshToken
+        }
         mcpLog("refresh", serverId, "requesting a new access token")
-        val response = authClient.refresh(token).getOrElse {
-            mcpLog("refresh", serverId, "refresh failed: ${it.message}")
-            return null
+        val response = authClient.refresh(token).getOrElse { error ->
+            mcpLog("refresh", serverId, "failed: ${error.message}")
+            val status = (error as? McpTokenEndpointException)?.status
+            return if (status == null || status >= 500 || status == 408 || status == 429) {
+                RefreshOutcome.Transient(error.message ?: "network error")
+            } else {
+                RefreshOutcome.Refused(error.message ?: "HTTP $status")
+            }
         }
         val updated = token.copy(
             accessToken = response.accessToken,
@@ -340,8 +412,21 @@ class McpServerManager(
             scope = response.scope ?: token.scope,
             expiresAtEpochMs = expiresAt(response),
         )
-        tokenStore.save(serverId, updated)
-        return updated
+        // Store before returning. OAuth 2.1 invalidates the old refresh token as soon as the server
+        // issues a new one, so a rotation kept only in memory is a guaranteed `invalid_grant` after
+        // the next process kill.
+        if (!tokenStore.save(serverId, updated)) {
+            return RefreshOutcome.Transient("не удалось сохранить обновлённый токен")
+        }
+        return RefreshOutcome.Refreshed(updated)
+    }
+
+    /** The owner-facing reason for a 401 that a refresh could not fix. */
+    private fun authRefusal(outcome: RefreshOutcome, fallback: String): String = when (outcome) {
+        RefreshOutcome.ManualToken -> "Сервер не принял сохранённый токен — замените его в настройках"
+        RefreshOutcome.NoRefreshToken -> "Токен истёк, обновить нечем — нужен повторный вход"
+        is RefreshOutcome.Refused -> "Сервер отказал в обновлении токена: ${outcome.detail}"
+        else -> fallback
     }
 
     private fun expiresAt(response: McpTokenResponse): Long = if (response.expiresInSeconds > 0) nowMs() + response.expiresInSeconds * 1000 else 0
@@ -520,7 +605,7 @@ class McpServerManager(
                 return
             }
 
-            tokenStore.save(
+            val saved = tokenStore.save(
                 serverId,
                 McpStoredToken(
                     issuer = pending.endpoints.issuer,
@@ -534,6 +619,13 @@ class McpServerManager(
                     expiresAtEpochMs = expiresAt(response),
                 ),
             )
+            if (!saved) {
+                // Reporting "stored" for a token the platform refused to persist would leave the
+                // owner signed in until the next restart and then signed out with no explanation.
+                mcpLog("token", serverId, "token could not be stored")
+                fail(serverId, McpFailureKind.NeedsAuth, null, "Не удалось сохранить токен в защищённое хранилище")
+                return
+            }
             mcpLog("token", serverId, "token stored, reconnecting")
             connect(serverId)
         } catch (e: CancellationException) {
@@ -552,7 +644,7 @@ class McpServerManager(
         val server = getServer(serverId) ?: return
         val trimmed = token.trim()
         if (trimmed.isEmpty()) return
-        tokenStore.save(
+        val saved = tokenStore.save(
             serverId,
             McpStoredToken(
                 issuer = server.url,
@@ -562,6 +654,11 @@ class McpServerManager(
                 resource = canonicalResource(server.url),
             ),
         )
+        if (!saved) {
+            mcpLog("token", serverId, "manual token could not be stored")
+            fail(serverId, McpFailureKind.NeedsAuth, null, "Не удалось сохранить токен в защищённое хранилище")
+            return
+        }
         mcpLog("token", serverId, "manual token stored")
         connect(serverId)
     }
@@ -629,22 +726,35 @@ class McpServerManager(
     }
 
     /**
-     * Calls one tool, reconnecting first if the session was dropped. A 401 becomes an
-     * instruction the model can relay ("needs authorization"), not a bare HTTP error.
+     * Calls one tool, reconnecting first if the session was dropped.
+     *
+     * A 401 is not final: the access token may simply have expired while the refresh token is
+     * alive, so the manager renews it and retries once before telling the model that a sign-in is
+     * needed. Telling the owner "I am not authorized" on the first call after expiry was the
+     * loudest half of the 3.21.3 complaint.
      */
     private suspend fun callTool(serverId: String, toolName: String, args: JsonObject): String {
         val server = getServer(serverId)
             ?: throw McpException("MCP server \"$serverId\" is no longer configured")
-        val session = sessionFor(server)
         return try {
-            session.callTool(toolName, args)
+            sessionFor(server).callTool(toolName, args)
         } catch (e: McpHttpException) {
             if (e.status != 401) throw e
             mutex.withLock { clients.remove(serverId)?.close() }
-            fail(serverId, McpFailureKind.NeedsAuth, 401, e.message?.take(200) ?: "")
+            val token = tokenStore.load(serverId)
+            val outcome = if (token == null) RefreshOutcome.NoRefreshToken else refreshAccessToken(serverId, token)
+            if (outcome is RefreshOutcome.Refreshed) {
+                try {
+                    return sessionFor(server).callTool(toolName, args)
+                } catch (retry: McpHttpException) {
+                    if (retry.status != 401) throw retry
+                }
+            }
+            val reason = authRefusal(outcome, e.message?.take(200) ?: "")
+            fail(serverId, McpFailureKind.NeedsAuth, 401, reason)
             throw McpException(
-                "MCP server \"${server.name}\" requires authorization. " +
-                    "Ask the owner to open Settings → Tools → ${server.name} and press Authorize.",
+                "MCP server \"${server.name}\" requires authorization: $reason. " +
+                    "Ask the owner to open Settings → Tools → ${server.name}.",
             )
         } catch (e: McpProtocolException) {
             throw McpException("MCP server \"${server.name}\" answered with an error: ${e.message}")
@@ -719,10 +829,31 @@ class McpServerManager(
         runCatching { appSettings.setMcpStatusJson(json.encodeToString(statusesSerializer, _statuses.value)) }
     }
 
+    /**
+     * Statuses from the previous run.
+     *
+     * A persisted `Connected` is a snapshot, not a verification: the token can have been revoked or
+     * expired in between, and the UI used to keep saying "connected" while every call got a 401.
+     * `Connected` and a half-finished `Connecting` therefore start this run as `Unknown`; the
+     * reconnect at startup replaces that within seconds. The cached tool list stays, so the agent
+     * sees the server on its very first turn even before the reconnect finishes.
+     */
     private fun loadStatuses(): Map<String, McpServerStatus> = try {
         val raw = appSettings.getMcpStatusJson()
-        if (raw.isBlank()) emptyMap() else json.decodeFromString(statusesSerializer, raw)
-    } catch (_: Exception) {
+        if (raw.isBlank()) {
+            emptyMap()
+        } else {
+            json.decodeFromString(statusesSerializer, raw).mapValues { (_, status) ->
+                when (status.state) {
+                    McpServerStateKind.Connected, McpServerStateKind.Connecting ->
+                        status.copy(state = McpServerStateKind.Unknown)
+
+                    else -> status
+                }
+            }
+        }
+    } catch (e: Exception) {
+        mcpLog("statuses", "load", "unreadable, starting empty: ${e::class.simpleName}")
         emptyMap()
     }
 
